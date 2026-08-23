@@ -48,6 +48,11 @@ QueryPeerReceiveSchedule::result_event() noexcept {
   return EventSubscriber{result_event_};
 }
 
+std::vector<ServerTimingDiagnostic> const&
+QueryPeerReceiveSchedule::server_diagnostics() const noexcept {
+  return diagnostics_;
+}
+
 Duration QueryPeerReceiveSchedule::OneWayEstimateFor(
     CloudServerConnection* sc) const {
   auto const fallback = FallbackOneWayPingEstimate();
@@ -80,9 +85,48 @@ void QueryPeerReceiveSchedule::OnCloud(Result<Cloud::ptr, int> result) {
   StartQuery();
 }
 
+void QueryPeerReceiveSchedule::SnapshotExpectedServers() {
+  std::vector<ServerId> expected;
+  bool incomplete = false;
+  if (dest_cloud_ != nullptr) {
+    // RequestPolicy::All walks selected_servers(), not every configured cloud
+    // server. Unselected configured servers must not be treated as
+    // successful-negative for MissedDeadline.
+    expected.reserve(dest_cloud_->selected_servers().size());
+    for (auto* sc : dest_cloud_->selected_servers()) {
+      if (sc != nullptr) {
+        expected.push_back(sc->server_id());
+      }
+    }
+    for (auto* sc : dest_cloud_->servers()) {
+      if (sc == nullptr || sc->quarantine()) {
+        continue;
+      }
+      bool selected = false;
+      for (auto const id : expected) {
+        if (id == sc->server_id()) {
+          selected = true;
+          break;
+        }
+      }
+      if (!selected) {
+        incomplete = true;
+        break;
+      }
+    }
+  }
+  query_state_.Begin(std::move(expected), incomplete);
+}
+
 void QueryPeerReceiveSchedule::StartQuery() {
-  query_state_.Begin();
+  SnapshotExpectedServers();
   timing_subs_.clear();
+  diagnostics_.clear();
+  if (query_state_.expected_server_ids.empty()) {
+    Fail(static_cast<int>(
+        QueryPeerReceiveScheduleError::kNoWorkServerAvailable));
+    return;
+  }
 
   cloud_request_.emplace(
       ae_context_,
@@ -107,13 +151,23 @@ void QueryPeerReceiveSchedule::StartQuery() {
         auto const send_generation =
             query_state_.RegisterSend(server_id, qsend, one_way);
 
-        timing_subs_[server_id] = auth_api->get_client_timing(peer_uid_).Subscribe(
-            [this, sc, send_generation](auto const& res) {
-              OnServerTiming(sc, send_generation, res);
-            });
+        timing_subs_[server_id] =
+            auth_api->get_client_timing(peer_uid_).Subscribe(
+                [this, sc, send_generation](auto const& res) {
+                  OnServerTiming(sc, send_generation, res);
+                });
         static_cast<void>(request);
       }},
       *dest_cloud_, RequestPolicy::All{});
+
+  exhausted_sub_ = cloud_request_->attempt_exhausted_event().Subscribe(
+      [this](CloudServerConnection* sc) {
+        if (finished_ || sc == nullptr) {
+          return;
+        }
+        query_state_.MarkTerminalError(sc->server_id());
+        MaybeComplete();
+      });
 
   cloud_request_sub_ =
       cloud_request_->result_event().Subscribe([this](bool ok) {
@@ -123,13 +177,20 @@ void QueryPeerReceiveSchedule::StartQuery() {
         if (ok) {
           return;
         }
-        auto aggregated = query_state_.TryAggregate();
-        if (aggregated.has_value()) {
-          Complete(*aggregated);
-          return;
+        for (auto const id : query_state_.expected_server_ids) {
+          auto it = query_state_.attempts.find(id);
+          if (it == query_state_.attempts.end() ||
+              (it->second.status != ServerTimingAttemptStatus::kSuccess &&
+               it->second.status !=
+                   ServerTimingAttemptStatus::kTerminalError)) {
+            query_state_.MarkTerminalError(id);
+          }
         }
-        Fail(static_cast<int>(
-            QueryPeerReceiveScheduleError::kGetClientTimingFailed));
+        MaybeComplete();
+        if (!finished_) {
+          Fail(static_cast<int>(
+              QueryPeerReceiveScheduleError::kGetClientTimingFailed));
+        }
       });
 }
 
@@ -141,12 +202,17 @@ void QueryPeerReceiveSchedule::OnServerTiming(
   }
   auto const server_id = sc->server_id();
   if (!res) {
-    if (!query_state_.ApplyError(server_id, send_generation)) {
+    if (!query_state_.ApplyTransientError(server_id, send_generation)) {
       return;
     }
+    bool exhausted = false;
     if (cloud_request_.has_value()) {
-      cloud_request_->FailAttempt(sc);
+      exhausted = cloud_request_->FailAttempt(sc);
     }
+    if (exhausted) {
+      query_state_.ApplyTerminalError(server_id, send_generation);
+    }
+    MaybeComplete();
     return;
   }
   if (!query_state_.ApplyTiming(server_id, send_generation, res.value())) {
@@ -156,6 +222,9 @@ void QueryPeerReceiveSchedule::OnServerTiming(
   AE_TELED_DEBUG(
       "get_client_timing server {} next_delta_ms {} last_connect_delta_ms {}",
       server_id, timing.next_ping_delta_ms, timing.last_connect_delta_ms);
+  if (cloud_request_.has_value()) {
+    cloud_request_->SucceedAttempt(sc);
+  }
   MaybeComplete();
 }
 
@@ -163,16 +232,15 @@ void QueryPeerReceiveSchedule::MaybeComplete() {
   if (finished_ || query_state_.cancelled) {
     return;
   }
-  for (auto const& [id, attempt] : query_state_.attempts) {
-    if (attempt.status == ServerTimingAttemptStatus::kInFlight) {
-      return;
-    }
-  }
-  auto aggregated = query_state_.TryAggregate();
-  if (!aggregated.has_value()) {
+  if (!query_state_.ReadyToComplete()) {
     return;
   }
-  Complete(*aggregated);
+  auto aggregated = query_state_.TryAggregate();
+  if (aggregated.has_value()) {
+    Complete(*aggregated);
+    return;
+  }
+  Fail(static_cast<int>(QueryPeerReceiveScheduleError::kGetClientTimingFailed));
 }
 
 void QueryPeerReceiveSchedule::Complete(PeerReceiveSchedule const& schedule) {
@@ -182,7 +250,9 @@ void QueryPeerReceiveSchedule::Complete(PeerReceiveSchedule const& schedule) {
   finished_ = true;
   query_state_.completed = true;
   ++query_state_.user_callback_count;
+  diagnostics_ = query_state_.Diagnostics();
   timing_subs_.clear();
+  exhausted_sub_.Reset();
   if (cloud_request_.has_value()) {
     cloud_request_->Succeeded();
   }
@@ -197,7 +267,12 @@ void QueryPeerReceiveSchedule::Fail(int code) {
   finished_ = true;
   query_state_.completed = true;
   ++query_state_.user_callback_count;
+  diagnostics_ = query_state_.Diagnostics();
   timing_subs_.clear();
+  exhausted_sub_.Reset();
+  if (cloud_request_.has_value()) {
+    cloud_request_->Failed();
+  }
   result_event_.Emit(Error{code});
   Finish();
 }

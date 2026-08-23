@@ -43,8 +43,34 @@ namespace ae::bench::uap {
 namespace {
 
 constexpr int kOffsetsMs[] = {500, 800, 1500, 2500};
-constexpr int kSamplesPerOffset = 10;
-constexpr int kMinValidPerOffset = 8;
+#if defined(AE_UAP_DELIVERY_REQUIRE_UDP) && AE_UAP_DELIVERY_REQUIRE_UDP
+constexpr int kSamplesPerOffset = 30;
+constexpr int kMinValidPerOffset = 30;
+#else
+constexpr int kSamplesPerOffset = 20;
+constexpr int kMinValidPerOffset = 20;
+#endif
+
+char const* SkipReasonString(std::int64_t code) {
+  switch (code) {
+    case 1:
+      return "skipped_too_close";
+    case 2:
+      return "skipped_stale";
+    case 3:
+      return "skipped_delay_too_long";
+    case 5:
+      return "skipped_tcp_refuse";
+    case 6:
+      return "INVALID_ROUTE_CHANGED";
+    case 7:
+      return "no_dest_route";
+    case 8:
+      return "no_dest_server_timing";
+    default:
+      return "skipped_cycle";
+  }
+}
 
 struct ChildProc {
   Side side{};
@@ -297,17 +323,35 @@ int RunCoordinator(CoordinatorArgs args) {
   }
 
   SendCmd(alice, IpcType::kWaitWarmup);
+  std::int64_t alice_warmup_n = 0;
+  std::int64_t alice_warmup_min = 0;
+  std::int64_t alice_warmup_p99 = 0;
+  std::int64_t alice_dest_server = 0;
+  std::int64_t alice_dest_protocol = 0;
   {
-    auto const deadline = GetTickCount64() + 20000;
-    while (GetTickCount64() < deadline &&
-           (!IsMeasuredProtocolOk(alice.own_proof.protocol) ||
-            !IsMeasuredProtocolOk(bob.own_proof.protocol))) {
-      if (auto f = alice.pipe.TryReadFrame(100)) {
+    auto const deadline = GetTickCount64() + 300000;
+    bool done = false;
+    while (GetTickCount64() < deadline && !done) {
+      if (auto f = alice.pipe.TryReadFrame(500)) {
         HandleChildFrame(alice, *f);
+        if (static_cast<IpcType>(f->type) == IpcType::kWarmupDone) {
+          alice_warmup_n = f->a;
+          alice_warmup_min = f->b;
+          alice_warmup_p99 = f->c;
+          alice_dest_server = f->d;
+          alice_dest_protocol = f->e;
+          done = true;
+        }
       }
       if (auto f = bob.pipe.TryReadFrame(0)) {
         HandleChildFrame(bob, *f);
       }
+    }
+    if (!done) {
+      std::cerr << "Alice dest-server warm-up timed out\n";
+      StopChild(alice);
+      StopChild(bob);
+      return 4;
     }
   }
 
@@ -316,9 +360,13 @@ int RunCoordinator(CoordinatorArgs args) {
             << " p99_rtt_ms=" << warmup_p99 << " guard_ms=" << warmup_guard
             << std::endl
             << std::endl;
+  std::cout << "## Alice dest-server ping statistics\n"
+            << "server_id=" << alice_dest_server << " samples=" << alice_warmup_n
+            << " min_rtt_ms=" << alice_warmup_min
+            << " p99_rtt_ms=" << alice_warmup_p99 << std::endl
+            << std::endl;
 
-  auto const dest_proto = alice.got_dest_proof ? alice.dest_proof.protocol
-                                               : alice.own_proof.protocol;
+  auto const dest_proto = static_cast<BenchProtocol>(alice_dest_protocol);
   std::cout << "AE_SUPPORT_TCP=" << AE_SUPPORT_TCP
             << " AE_SUPPORT_UDP=" << AE_SUPPORT_UDP
             << " selected alice=" << BenchProtocolName(alice.own_proof.protocol)
@@ -343,14 +391,19 @@ int RunCoordinator(CoordinatorArgs args) {
   auto const csv_path =
       (std::filesystem::path{args.artifact_dir} / "samples.csv").string();
   std::ofstream csv(csv_path);
-  csv << "sequence,offset_ms,last_ping_local_us,next_ping_deadline_local_us,"
-         "send_qpc,receive_qpc,delivery_ms,duplicate_count,valid,invalid_"
-         "reason\n";
+  csv << "sequence,offset_ms,schedule_server_id,actual_send_server_id,"
+         "route_generation,protocol,raw_next_ping_delta_ms,last_connect_delta_"
+         "ms,query_send_us,one_way_estimate_us,converted_deadline_us,window_"
+         "start_us,target_send_us,actual_send_us,receive_us,delivery_ms,"
+         "duplicate_count,classification,valid,invalid_reason\n";
 
+  int route_invalid_total = 0;
+  int duplicate_total = 0;
+  bool acceptance_fail = false;
   for (int offset : kOffsetsMs) {
     int valid = 0;
     int attempts = 0;
-    while (valid < kSamplesPerOffset && attempts < kSamplesPerOffset * 3) {
+    while (valid < kSamplesPerOffset && attempts < kSamplesPerOffset * 5) {
       ++attempts;
       auto const seq = sequence++;
       SendCmd(alice, IpcType::kRunSample, seq,
@@ -359,9 +412,9 @@ int RunCoordinator(CoordinatorArgs args) {
       SampleRecord rec{};
       rec.sequence = seq;
       rec.offset_ms = offset;
+      rec.classification = ClassificationForOffset(offset);
       bool got_send = false;
       bool got_recv = false;
-      // Allow waiting through a full Bob ping cycle + query RTT + send.
       auto const deadline = GetTickCount64() + 45000;
       while (GetTickCount64() < deadline && !(got_send && got_recv)) {
         if (auto f = alice.pipe.TryReadFrame(100)) {
@@ -369,14 +422,32 @@ int RunCoordinator(CoordinatorArgs args) {
           auto const kind = static_cast<EventKind>(f->event_kind);
           if (type == IpcType::kSampleResult && f->sequence == seq) {
             if (kind == EventKind::kSampleSent) {
-              rec.last_ping_steady_us = f->a;
-              rec.next_ping_deadline_steady_us = f->b;
+              rec.window_start_us = f->a;
+              rec.converted_deadline_us = f->b;
               rec.send_qpc = static_cast<std::uint64_t>(f->c);
+              rec.schedule_server_id = f->d;
+              rec.actual_send_server_id = f->e;
+              rec.route_generation = f->f;
+              rec.protocol = f->g;
+              rec.raw_next_ping_delta_ms = f->h;
+              rec.last_connect_delta_ms = f->i;
+              rec.query_send_us = f->j;
+              rec.one_way_estimate_us = f->k;
+              rec.target_send_us = f->l;
+              rec.actual_send_us = f->local_steady_us;
               got_send = true;
             } else if (kind == EventKind::kSampleSkipped) {
-              rec.invalid_reason = "skipped_cycle";
+              rec.window_start_us = f->a;
+              rec.converted_deadline_us = f->b;
+              rec.schedule_server_id = f->d;
+              rec.actual_send_server_id = f->e;
+              rec.route_generation = f->f;
+              rec.protocol = f->g;
+              rec.raw_next_ping_delta_ms = f->h;
+              rec.last_connect_delta_ms = f->i;
+              rec.invalid_reason = SkipReasonString(f->c);
               got_send = true;
-              got_recv = true;  // abandon
+              got_recv = true;
             } else if (kind == EventKind::kError) {
               rec.invalid_reason = "alice_error";
               got_send = true;
@@ -392,6 +463,7 @@ int RunCoordinator(CoordinatorArgs args) {
             rec.send_qpc = static_cast<std::uint64_t>(f->a);
             rec.receive_qpc = static_cast<std::uint64_t>(f->b);
             rec.duplicate_count = static_cast<int>(f->c);
+            rec.receive_us = f->local_steady_us;
             got_recv = true;
           }
         }
@@ -400,42 +472,78 @@ int RunCoordinator(CoordinatorArgs args) {
       if (rec.invalid_reason.empty() && got_send && got_recv &&
           rec.receive_qpc >= rec.send_qpc) {
         rec.delivery_ms = QpcToMs(rec.receive_qpc - rec.send_qpc);
-        rec.valid = rec.duplicate_count == 1;
-        if (!rec.valid) {
+        if (rec.duplicate_count != 1) {
           rec.invalid_reason = rec.duplicate_count == 0 ? "no_receive_count"
                                                         : "duplicate";
+          if (rec.duplicate_count > 1) {
+            ++duplicate_total;
+          }
+        } else if (rec.schedule_server_id != rec.actual_send_server_id ||
+                   rec.schedule_server_id == 0) {
+          rec.invalid_reason = "ROUTE_MISMATCH";
+          ++route_invalid_total;
+        } else if (!IsMeasuredProtocolOk(
+                       static_cast<BenchProtocol>(rec.protocol))) {
+          rec.invalid_reason = "protocol_mismatch";
         } else {
+          rec.valid = true;
           ++valid;
         }
       } else if (rec.invalid_reason.empty()) {
         rec.invalid_reason = "timeout_or_incomplete";
       }
+      if (rec.invalid_reason == "INVALID_ROUTE_CHANGED" ||
+          rec.invalid_reason == "ROUTE_MISMATCH") {
+        ++route_invalid_total;
+      }
 
       samples[seq] = rec;
       csv << rec.sequence << "," << rec.offset_ms << ","
-          << rec.last_ping_steady_us << "," << rec.next_ping_deadline_steady_us
-          << "," << rec.send_qpc << "," << rec.receive_qpc << ","
-          << rec.delivery_ms << "," << rec.duplicate_count << ","
+          << rec.schedule_server_id << "," << rec.actual_send_server_id << ","
+          << rec.route_generation << "," << rec.protocol << ","
+          << rec.raw_next_ping_delta_ms << "," << rec.last_connect_delta_ms
+          << "," << rec.query_send_us << "," << rec.one_way_estimate_us << ","
+          << rec.converted_deadline_us << "," << rec.window_start_us << ","
+          << rec.target_send_us << "," << rec.actual_send_us << ","
+          << rec.receive_us << "," << rec.delivery_ms << ","
+          << rec.duplicate_count << "," << rec.classification << ","
           << (rec.valid ? 1 : 0) << "," << rec.invalid_reason << "\n";
       csv.flush();
       std::cout << "offset=" << offset << " seq=" << seq
                 << " valid=" << rec.valid << " delivery_ms=" << rec.delivery_ms
+                << " sched=" << rec.schedule_server_id
+                << " actual=" << rec.actual_send_server_id
                 << " reason=" << rec.invalid_reason << std::endl;
     }
     if (valid < kMinValidPerOffset) {
       std::cerr << "Only " << valid << " valid samples for offset " << offset
                 << " (need " << kMinValidPerOffset << ")\n";
+      acceptance_fail = true;
     }
   }
 
   std::cout << "\n## Delivery results\n";
-  std::cout << "| offset_ms | samples | min_ms | p50_ms | p90_ms | max_ms |\n";
-  std::cout << "|-----------|---------|--------|--------|--------|--------|\n";
+  std::cout << "| offset_ms | valid | route_invalid | min_ms | p50_ms | p90_ms "
+               "| max_ms | duplicates | classification |\n";
+  std::cout << "|-----------|-------|---------------|--------|--------|--------|"
+               "--------|------------|----------------|\n";
   for (int offset : kOffsetsMs) {
     std::vector<double> vals;
+    int route_invalid = 0;
+    int extras = 0;
     for (auto const& [_, s] : samples) {
-      if (s.offset_ms == offset && s.valid) {
+      if (s.offset_ms != offset) {
+        continue;
+      }
+      if (s.valid) {
         vals.push_back(s.delivery_ms);
+      }
+      if (s.invalid_reason == "INVALID_ROUTE_CHANGED" ||
+          s.invalid_reason == "ROUTE_MISMATCH") {
+        ++route_invalid;
+      }
+      if (s.duplicate_count > 1) {
+        extras += s.duplicate_count - 1;
       }
     }
     double min_v = 0;
@@ -446,13 +554,60 @@ int RunCoordinator(CoordinatorArgs args) {
     }
     auto p50 = Percentile(vals, 0.50);
     auto p90 = Percentile(vals, 0.90);
-    std::cout << "| " << offset << " | " << vals.size() << " | " << min_v
-              << " | " << p50 << " | " << p90 << " | " << max_v << " |\n";
+    std::cout << "| " << offset << " | " << vals.size() << " | " << route_invalid
+              << " | " << min_v << " | " << p50 << " | " << p90 << " | "
+              << max_v << " | " << extras << " | "
+              << ClassificationForOffset(offset) << " |\n";
+    if (static_cast<int>(vals.size()) < kMinValidPerOffset || extras != 0) {
+      acceptance_fail = true;
+    }
   }
   std::cout << "\nCSV: " << csv_path << std::endl;
+  std::cout << "route_invalid_total=" << route_invalid_total
+            << " duplicate_total=" << duplicate_total << std::endl;
+
+#if defined(AE_UAP_DELIVERY_REQUIRE_UDP) && AE_UAP_DELIVERY_REQUIRE_UDP
+  std::cout << "\n## UDP anomaly traces (if any)\n";
+  bool saw_500_3641 = false;
+  bool saw_1500_286 = false;
+  for (auto const& [_, s] : samples) {
+    if (!s.valid) {
+      continue;
+    }
+    bool interesting = false;
+    if (s.offset_ms == 500 && s.delivery_ms > 3000) {
+      interesting = true;
+      saw_500_3641 = true;
+    }
+    if (s.offset_ms == 1500 && s.delivery_ms < 500) {
+      interesting = true;
+      saw_1500_286 = true;
+    }
+    if (!interesting) {
+      continue;
+    }
+    std::cout << "TRACE seq=" << s.sequence << " offset=" << s.offset_ms
+              << " sched=" << s.schedule_server_id
+              << " actual=" << s.actual_send_server_id
+              << " gen=" << s.route_generation << " proto=" << s.protocol
+              << " raw_delta_ms=" << s.raw_next_ping_delta_ms
+              << " window_start_us=" << s.window_start_us
+              << " target_us=" << s.target_send_us
+              << " send_us=" << s.actual_send_us
+              << " recv_us=" << s.receive_us
+              << " delivery_ms=" << s.delivery_ms << "\n";
+  }
+  std::cout << "reproduced_+500_~3641ms=" << (saw_500_3641 ? "yes" : "no")
+            << "\nreproduced_+1500_~286ms=" << (saw_1500_286 ? "yes" : "no")
+            << "\n";
+#endif
 
   StopChild(alice);
   StopChild(bob);
+  if (acceptance_fail || route_invalid_total != 0 || duplicate_total != 0) {
+    std::cerr << "FAIL: delivery acceptance checks\n";
+    return 7;
+  }
   return 0;
 }
 

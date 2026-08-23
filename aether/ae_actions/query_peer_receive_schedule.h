@@ -121,14 +121,27 @@ inline ConvertedServerTiming ConvertClientTiming(
   return out;
 }
 
+// Conservative aggregation for a query with a known expected-server snapshot.
+// MissedDeadline is returned only when every expected server succeeded with a
+// negative nextPingDelta. Partial failure, retry, or an unqueried expected
+// server yields Unknown (or a query error when there are no successes).
+struct PeerTimingAggregateContext {
+  std::size_t expected_server_count{0};
+  std::size_t success_count{0};
+  std::size_t terminal_error_count{0};
+  std::size_t unresolved_count{0};
+  bool snapshot_incomplete{false};
+  std::vector<ConvertedServerTiming> successes;
+};
+
 inline std::optional<PeerReceiveSchedule> AggregatePeerTimings(
-    std::vector<ConvertedServerTiming> const& samples) noexcept {
-  if (samples.empty()) {
+    PeerTimingAggregateContext const& ctx) noexcept {
+  if (ctx.success_count == 0 || ctx.successes.empty()) {
     return std::nullopt;
   }
 
   PeerReceiveSchedule out{};
-  out.last_online = samples.front().last_online;
+  out.last_online = ctx.successes.front().last_online;
 
   bool any_future = false;
   bool any_unknown = false;
@@ -136,7 +149,7 @@ inline std::optional<PeerReceiveSchedule> AggregatePeerTimings(
   TimePoint latest_future{};
   TimePoint latest_missed{};
 
-  for (auto const& sample : samples) {
+  for (auto const& sample : ctx.successes) {
     if (sample.last_online > out.last_online) {
       out.last_online = sample.last_online;
     }
@@ -160,28 +173,65 @@ inline std::optional<PeerReceiveSchedule> AggregatePeerTimings(
   if (any_future) {
     out.state = PeerScheduleState::kExpected;
     out.next_ping_deadline = latest_future;
-  } else if (any_unknown) {
+    return out;
+  }
+  if (any_unknown) {
     out.state = PeerScheduleState::kUnknown;
     out.next_ping_deadline = std::nullopt;
-  } else {
-    out.state = PeerScheduleState::kMissedDeadline;
-    out.next_ping_deadline = latest_missed;
+    return out;
   }
+
+  bool const incomplete =
+      ctx.snapshot_incomplete || ctx.unresolved_count > 0 ||
+      ctx.terminal_error_count > 0 || ctx.expected_server_count == 0 ||
+      ctx.success_count < ctx.expected_server_count;
+  if (incomplete) {
+    out.state = PeerScheduleState::kUnknown;
+    out.next_ping_deadline = std::nullopt;
+    return out;
+  }
+
+  out.state = PeerScheduleState::kMissedDeadline;
+  out.next_ping_deadline = latest_missed;
   return out;
 }
 
+// All-success complete set: expected_count == samples.size().
+inline std::optional<PeerReceiveSchedule> AggregatePeerTimings(
+    std::vector<ConvertedServerTiming> const& samples) noexcept {
+  PeerTimingAggregateContext ctx;
+  ctx.expected_server_count = samples.size();
+  ctx.success_count = samples.size();
+  ctx.successes = samples;
+  return AggregatePeerTimings(ctx);
+}
+
 enum class ServerTimingAttemptStatus {
+  kPending,
   kInFlight,
+  kRetrying,
   kSuccess,
-  kError,
+  kTerminalError,
 };
 
 struct ServerTimingAttempt {
   std::uint64_t send_generation{0};
   TimePoint qsend{};
   Duration one_way{};
-  ServerTimingAttemptStatus status{ServerTimingAttemptStatus::kInFlight};
+  ServerTimingAttemptStatus status{ServerTimingAttemptStatus::kPending};
   ConvertedServerTiming converted{};
+  ClientTiming raw{};
+  bool has_raw{false};
+};
+
+struct ServerTimingDiagnostic {
+  ServerId server_id{};
+  ServerTimingAttemptStatus status{ServerTimingAttemptStatus::kPending};
+  ClientTiming raw{};
+  bool has_raw{false};
+  ConvertedServerTiming converted{};
+  TimePoint qsend{};
+  Duration one_way{};
 };
 
 // Pure helper for unit tests: generation, stale ignore, per-server isolation.
@@ -190,14 +240,22 @@ struct PeerTimingQueryState {
   bool cancelled{false};
   bool completed{false};
   int user_callback_count{0};
+  bool snapshot_incomplete{false};
+  std::vector<ServerId> expected_server_ids;
   std::map<ServerId, ServerTimingAttempt> attempts;
 
-  std::uint64_t Begin() {
+  std::uint64_t Begin(std::vector<ServerId> expected = {},
+                      bool incomplete = false) {
     ++query_generation;
     cancelled = false;
     completed = false;
     user_callback_count = 0;
+    snapshot_incomplete = incomplete;
+    expected_server_ids = std::move(expected);
     attempts.clear();
+    for (auto const id : expected_server_ids) {
+      attempts[id].status = ServerTimingAttemptStatus::kPending;
+    }
     return query_generation;
   }
 
@@ -208,11 +266,16 @@ struct PeerTimingQueryState {
   std::uint64_t RegisterSend(ServerId server_id, TimePoint qsend,
                              Duration one_way) {
     auto& attempt = attempts[server_id];
+    if (attempt.status == ServerTimingAttemptStatus::kSuccess) {
+      return attempt.send_generation;
+    }
     ++attempt.send_generation;
     attempt.qsend = qsend;
     attempt.one_way = one_way;
     attempt.status = ServerTimingAttemptStatus::kInFlight;
     attempt.converted = {};
+    attempt.raw = {};
+    attempt.has_raw = false;
     return attempt.send_generation;
   }
 
@@ -225,13 +288,18 @@ struct PeerTimingQueryState {
     if (it == attempts.end() || it->second.send_generation != send_generation) {
       return false;
     }
+    if (it->second.status == ServerTimingAttemptStatus::kSuccess) {
+      return false;
+    }
     it->second.status = ServerTimingAttemptStatus::kSuccess;
+    it->second.raw = timing;
+    it->second.has_raw = true;
     it->second.converted = ConvertClientTiming(
         it->second.qsend, it->second.one_way, timing, server_id);
     return true;
   }
 
-  bool ApplyError(ServerId server_id, std::uint64_t send_generation) {
+  bool ApplyTransientError(ServerId server_id, std::uint64_t send_generation) {
     if (cancelled || completed) {
       return false;
     }
@@ -239,22 +307,183 @@ struct PeerTimingQueryState {
     if (it == attempts.end() || it->second.send_generation != send_generation) {
       return false;
     }
-    it->second.status = ServerTimingAttemptStatus::kError;
+    if (it->second.status == ServerTimingAttemptStatus::kSuccess ||
+        it->second.status == ServerTimingAttemptStatus::kTerminalError) {
+      return false;
+    }
+    it->second.status = ServerTimingAttemptStatus::kRetrying;
+    return true;
+  }
+
+  bool ApplyTerminalError(ServerId server_id, std::uint64_t send_generation) {
+    if (cancelled || completed) {
+      return false;
+    }
+    auto it = attempts.find(server_id);
+    if (it == attempts.end() || it->second.send_generation != send_generation) {
+      return false;
+    }
+    if (it->second.status == ServerTimingAttemptStatus::kSuccess) {
+      return false;
+    }
+    it->second.status = ServerTimingAttemptStatus::kTerminalError;
+    return true;
+  }
+
+  bool ApplyError(ServerId server_id, std::uint64_t send_generation) {
+    return ApplyTerminalError(server_id, send_generation);
+  }
+
+  bool MarkTerminalError(ServerId server_id) {
+    if (cancelled || completed) {
+      return false;
+    }
+    auto& attempt = attempts[server_id];
+    if (attempt.status == ServerTimingAttemptStatus::kSuccess) {
+      return false;
+    }
+    attempt.status = ServerTimingAttemptStatus::kTerminalError;
+    return true;
+  }
+
+  bool ReadyToComplete() const {
+    if (cancelled || completed) {
+      return false;
+    }
+    auto ids = expected_server_ids;
+    if (ids.empty()) {
+      ids.reserve(attempts.size());
+      for (auto const& [id, _] : attempts) {
+        ids.push_back(id);
+      }
+    }
+    if (ids.empty()) {
+      return false;
+    }
+    for (auto const id : ids) {
+      auto it = attempts.find(id);
+      if (it == attempts.end()) {
+        return false;
+      }
+      auto const status = it->second.status;
+      if (status != ServerTimingAttemptStatus::kSuccess &&
+          status != ServerTimingAttemptStatus::kTerminalError) {
+        return false;
+      }
+    }
     return true;
   }
 
   std::optional<PeerReceiveSchedule> TryAggregate() const {
-    std::vector<ConvertedServerTiming> ok;
-    ok.reserve(attempts.size());
-    for (auto const& [id, attempt] : attempts) {
-      if (attempt.status == ServerTimingAttemptStatus::kSuccess) {
-        ok.push_back(attempt.converted);
+    PeerTimingAggregateContext ctx;
+    ctx.snapshot_incomplete = snapshot_incomplete;
+    auto ids = expected_server_ids;
+    if (ids.empty()) {
+      ids.reserve(attempts.size());
+      for (auto const& [id, _] : attempts) {
+        ids.push_back(id);
       }
     }
-    return AggregatePeerTimings(ok);
+    ctx.expected_server_count = ids.size();
+    ctx.successes.reserve(ids.size());
+    for (auto const id : ids) {
+      auto it = attempts.find(id);
+      if (it == attempts.end()) {
+        ++ctx.unresolved_count;
+        continue;
+      }
+      switch (it->second.status) {
+        case ServerTimingAttemptStatus::kSuccess:
+          ++ctx.success_count;
+          ctx.successes.push_back(it->second.converted);
+          break;
+        case ServerTimingAttemptStatus::kTerminalError:
+          ++ctx.terminal_error_count;
+          break;
+        default:
+          ++ctx.unresolved_count;
+          break;
+      }
+    }
+    return AggregatePeerTimings(ctx);
+  }
+
+  std::vector<ServerTimingDiagnostic> Diagnostics() const {
+    std::vector<ServerTimingDiagnostic> out;
+    out.reserve(attempts.size());
+    for (auto const& [id, attempt] : attempts) {
+      ServerTimingDiagnostic d;
+      d.server_id = id;
+      d.status = attempt.status;
+      d.raw = attempt.raw;
+      d.has_raw = attempt.has_raw;
+      d.converted = attempt.converted;
+      d.qsend = attempt.qsend;
+      d.one_way = attempt.one_way;
+      out.push_back(d);
+    }
+    return out;
   }
 
   void Cancel() { cancelled = true; }
+};
+
+// In-memory query orchestration without Client/Cloud. Models completion,
+// retry, and destruction for lifecycle tests.
+struct PeerTimingQueryOrchestrator {
+  PeerTimingQueryState state;
+  int callback_count{0};
+  std::optional<PeerReceiveSchedule> last_schedule;
+  std::optional<int> last_error;
+
+  void Start(std::vector<ServerId> ids, bool incomplete = false) {
+    state.Begin(std::move(ids), incomplete);
+    callback_count = 0;
+    last_schedule.reset();
+    last_error.reset();
+  }
+
+  std::uint64_t Send(ServerId id, TimePoint qsend, Duration one_way) {
+    return state.RegisterSend(id, qsend, one_way);
+  }
+
+  void OnSuccess(ServerId id, std::uint64_t gen, ClientTiming const& timing) {
+    if (!state.ApplyTiming(id, gen, timing)) {
+      return;
+    }
+    TryFinish();
+  }
+
+  void OnTransient(ServerId id, std::uint64_t gen) {
+    if (!state.ApplyTransientError(id, gen)) {
+      return;
+    }
+    TryFinish();
+  }
+
+  void OnTerminal(ServerId id, std::uint64_t gen) {
+    if (!state.ApplyTerminalError(id, gen)) {
+      return;
+    }
+    TryFinish();
+  }
+
+  void Destroy() { state.Cancel(); }
+
+  void TryFinish() {
+    if (!state.ReadyToComplete() || state.completed) {
+      return;
+    }
+    auto aggregated = state.TryAggregate();
+    state.completed = true;
+    ++state.user_callback_count;
+    ++callback_count;
+    if (aggregated.has_value()) {
+      last_schedule = *aggregated;
+    } else {
+      last_error = static_cast<int>(3);
+    }
+  }
 };
 
 enum class QueryPeerReceiveScheduleError : int {
@@ -274,11 +503,14 @@ class QueryPeerReceiveSchedule final : public Action {
   AE_CLASS_NO_COPY_MOVE(QueryPeerReceiveSchedule)
 
   ResultEvent::Subscriber result_event() noexcept;
+  // Per-server timing captured for this query. Not part of PeerReceiveSchedule.
+  std::vector<ServerTimingDiagnostic> const& server_diagnostics() const noexcept;
 
  private:
   Duration OneWayEstimateFor(CloudServerConnection* sc) const;
   void OnCloud(Result<Cloud::ptr, int> result);
   void StartQuery();
+  void SnapshotExpectedServers();
   void OnServerTiming(CloudServerConnection* sc, std::uint64_t send_generation,
                       Result<ClientTiming, int> const& res);
   void MaybeComplete();
@@ -291,10 +523,12 @@ class QueryPeerReceiveSchedule final : public Action {
   ResultEvent result_event_;
   Subscription get_cloud_sub_;
   Subscription cloud_request_sub_;
+  Subscription exhausted_sub_;
   std::unique_ptr<CloudServerConnections> dest_cloud_;
   std::optional<CloudRequest> cloud_request_;
   std::map<ServerId, Subscription> timing_subs_;
   PeerTimingQueryState query_state_{};
+  std::vector<ServerTimingDiagnostic> diagnostics_;
   bool finished_{false};
 };
 

@@ -23,7 +23,7 @@
 namespace ae::bench::uap {
 
 inline constexpr std::uint32_t kIpcMagic = 0x41555049u;  // 'AUPI'
-inline constexpr std::uint8_t kIpcVersion = 1;
+inline constexpr std::uint8_t kIpcVersion = 2;
 
 enum class Side : std::uint8_t { kCoordinator = 0, kA = 1, kB = 2 };
 
@@ -65,15 +65,31 @@ enum class IpcType : std::uint8_t {
 struct SampleRecord {
   std::uint32_t sequence{0};
   std::int64_t offset_ms{0};
-  std::int64_t last_ping_steady_us{0};
-  std::int64_t next_ping_deadline_steady_us{-1};
+  std::int64_t window_start_us{0};
+  std::int64_t converted_deadline_us{-1};
   std::uint64_t send_qpc{0};
   std::uint64_t receive_qpc{0};
   double delivery_ms{0};
   int duplicate_count{0};
+  std::int64_t schedule_server_id{0};
+  std::int64_t actual_send_server_id{0};
+  std::int64_t route_generation{0};
+  std::int64_t protocol{0};
+  std::int64_t raw_next_ping_delta_ms{0};
+  std::int64_t last_connect_delta_ms{0};
+  std::int64_t query_send_us{0};
+  std::int64_t one_way_estimate_us{0};
+  std::int64_t target_send_us{0};
+  std::int64_t actual_send_us{0};
+  std::int64_t receive_us{0};
   bool valid{false};
   std::string invalid_reason;
+  std::string classification;
 };
+
+inline char const* ClassificationForOffset(std::int64_t offset_ms) noexcept {
+  return offset_ms < 1000 ? "CURRENT_WINDOW" : "NEXT_WINDOW";
+}
 
 }  // namespace ae::bench::uap
 

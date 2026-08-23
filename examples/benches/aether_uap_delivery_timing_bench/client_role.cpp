@@ -23,6 +23,7 @@
 #include <optional>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 #ifndef NOMINMAX
 #  define NOMINMAX
@@ -55,6 +56,26 @@ constexpr auto kBobPingInterval = std::chrono::milliseconds{3000};
 constexpr auto kBobReceiveWindow = std::chrono::milliseconds{1000};
 constexpr auto kSkipIfCloserThan = std::chrono::milliseconds{50};
 constexpr std::size_t kWarmupSamples = 10;
+
+inline std::int64_t TimePointUs(TimePoint tp) {
+  return std::chrono::duration_cast<std::chrono::microseconds>(
+             tp.time_since_epoch())
+      .count();
+}
+
+inline std::int64_t DurationUs(Duration d) {
+  return static_cast<std::int64_t>(d.count());
+}
+
+inline std::int64_t BenchProtocolFromAe(Protocol protocol) {
+  if (protocol == Protocol::kUdp) {
+    return static_cast<std::int64_t>(BenchProtocol::kUdp);
+  }
+  if (protocol == Protocol::kTcp) {
+    return static_cast<std::int64_t>(BenchProtocol::kTcp);
+  }
+  return static_cast<std::int64_t>(BenchProtocol::kUnknown);
+}
 
 inline std::int64_t SteadyUsNow() {
   return std::chrono::duration_cast<std::chrono::microseconds>(
@@ -111,23 +132,44 @@ struct RoleState {
   std::optional<TimePoint> requery_at_{};
   std::int64_t pending_last_us_{0};
   std::int64_t pending_next_us_{-1};
+  std::vector<ServerTimingDiagnostic> last_diagnostics_{};
+  std::int64_t pending_schedule_server_id_{0};
+  std::int64_t pending_route_generation_{0};
+  std::int64_t pending_protocol_{0};
+  std::int64_t pending_raw_delta_ms_{0};
+  std::int64_t pending_last_connect_ms_{0};
+  std::int64_t pending_qsend_us_{0};
+  std::int64_t pending_one_way_us_{0};
+  std::int64_t pending_target_us_{0};
 
   bool Emit(IpcType type, EventKind kind = EventKind::kAck,
             std::uint32_t sequence = 0, std::uint32_t offset_ms = 0,
-            std::int64_t a = 0, std::int64_t b = 0, std::int64_t c = 0) {
-    IpcFrame f{};
-    f.type = static_cast<std::uint8_t>(type);
-    f.side = static_cast<std::uint8_t>(side);
-    f.event_kind = static_cast<std::uint8_t>(kind);
-    f.run_id_hash = run_id_hash;
-    f.seq = ++ipc_seq;
-    f.sequence = sequence;
-    f.offset_ms = offset_ms;
-    f.local_steady_us = SteadyUsNow();
-    f.a = a;
-    f.b = b;
-    f.c = c;
-    return pipe.WriteFrame(f);
+            std::int64_t a = 0, std::int64_t b = 0, std::int64_t c = 0,
+            std::int64_t d = 0, std::int64_t e = 0, std::int64_t f = 0,
+            std::int64_t g = 0, std::int64_t h = 0, std::int64_t i = 0,
+            std::int64_t j = 0, std::int64_t k = 0, std::int64_t l = 0) {
+    IpcFrame frame{};
+    frame.type = static_cast<std::uint8_t>(type);
+    frame.side = static_cast<std::uint8_t>(side);
+    frame.event_kind = static_cast<std::uint8_t>(kind);
+    frame.run_id_hash = run_id_hash;
+    frame.seq = ++ipc_seq;
+    frame.sequence = sequence;
+    frame.offset_ms = offset_ms;
+    frame.local_steady_us = SteadyUsNow();
+    frame.a = a;
+    frame.b = b;
+    frame.c = c;
+    frame.d = d;
+    frame.e = e;
+    frame.f = f;
+    frame.g = g;
+    frame.h = h;
+    frame.i = i;
+    frame.j = j;
+    frame.k = k;
+    frame.l = l;
+    return pipe.WriteFrame(frame);
   }
 
   void EmitUdpProof(UdpProofPath path, ChannelProof const& proof) {
@@ -268,7 +310,52 @@ struct RoleState {
   }
 
   void PollWarmup() {
-    if (!warmup_active || side != Side::kB || !client) {
+    if (!warmup_active || !client) {
+      return;
+    }
+    if (side == Side::kA) {
+      EnsureStreams();
+      if (!stream) {
+        return;
+      }
+      auto const route = stream->InspectSendRoute();
+      static std::size_t last_logged = 0;
+      if (route.ping_sample_count != last_logged &&
+          (route.ping_sample_count % 2 == 0 ||
+           route.ping_sample_count >= kWarmupSamples)) {
+        last_logged = route.ping_sample_count;
+        std::cerr << "Alice dest warmup server=" << route.server_id
+                  << " samples=" << route.ping_sample_count
+                  << " present=" << route.present << std::endl;
+      }
+      if (!route.present || route.ping_sample_count < kWarmupSamples) {
+        return;
+      }
+      auto const min_ms =
+          std::chrono::duration_cast<std::chrono::milliseconds>(route.min_rtt)
+              .count();
+      auto const p99_ms =
+          std::chrono::duration_cast<std::chrono::milliseconds>(route.p99_rtt)
+              .count();
+      if ((min_ms == 200 && p99_ms == 200) || min_ms == 5000 || p99_ms == 5000) {
+        std::cerr << "Alice dest warmup stats look synthetic: min=" << min_ms
+                  << " p99=" << p99_ms << "\n";
+        return;
+      }
+      warmup_active = false;
+      std::cout << "## Alice dest-server ping statistics (child)\n"
+                << "server_id=" << route.server_id
+                << " samples=" << route.ping_sample_count
+                << " min_rtt_ms=" << min_ms << " p99_rtt_ms=" << p99_ms
+                << " protocol="
+                << (route.protocol == Protocol::kUdp ? "udp" : "tcp") << "\n";
+      Emit(IpcType::kWarmupDone, EventKind::kWarmupDone, 0, 0,
+           static_cast<std::int64_t>(route.ping_sample_count), min_ms, p99_ms,
+           static_cast<std::int64_t>(route.server_id),
+           BenchProtocolFromAe(route.protocol));
+      return;
+    }
+    if (side != Side::kB) {
       return;
     }
     Duration min_rtt{};
@@ -328,9 +415,21 @@ struct RoleState {
     query_sub.Reset();
     auto& action = client->QueryPeerReceiveSchedule(peer_uid);
     query_sub = action.result_event().Subscribe(
-        [this](Result<PeerReceiveSchedule, int> const& res) {
+        [this, &action](Result<PeerReceiveSchedule, int> const& res) {
+          last_diagnostics_ = action.server_diagnostics();
           OnSchedule(res);
         });
+  }
+
+  ServerTimingDiagnostic const* FindDestDiagnostic(
+      ServerId server_id) const {
+    for (auto const& d : last_diagnostics_) {
+      if (d.server_id == server_id && d.has_raw &&
+          d.status == ServerTimingAttemptStatus::kSuccess) {
+        return &d;
+      }
+    }
+    return nullptr;
   }
 
   void OnSchedule(Result<PeerReceiveSchedule, int> const& res) {
@@ -342,41 +441,62 @@ struct RoleState {
            pending_offset_ms, res.error());
       return;
     }
-    auto const schedule = res.value();
     TryEmitDestProof();
-    if (schedule.state != PeerScheduleState::kExpected ||
-        !schedule.next_ping_deadline.has_value()) {
+    EnsureStreams();
+    if (!stream) {
+      sample_in_flight = false;
+      Emit(IpcType::kSampleResult, EventKind::kError, pending_sequence,
+           pending_offset_ms, 3);
+      return;
+    }
+    auto const route = stream->InspectSendRoute();
+    if (!route.present) {
+      sample_in_flight = false;
+      Emit(IpcType::kSampleResult, EventKind::kSampleSkipped, pending_sequence,
+           pending_offset_ms, 0, -1, 7);
+      return;
+    }
+    if (route.ping_sample_count < kWarmupSamples) {
+      requery_at_ = Now() + std::chrono::milliseconds{250};
+      return;
+    }
+    auto const* diag = FindDestDiagnostic(route.server_id);
+    if (diag == nullptr ||
+        diag->converted.state != PeerScheduleState::kExpected ||
+        !diag->converted.next_ping_deadline.has_value()) {
       sample_in_flight = false;
       send_at_.reset();
       requery_at_.reset();
-      Emit(IpcType::kSampleResult, EventKind::kError, pending_sequence,
-           pending_offset_ms, 4);
+      Emit(IpcType::kSampleResult, EventKind::kSampleSkipped, pending_sequence,
+           pending_offset_ms, 0, -1, 8);
       return;
     }
+
     auto const offset = std::chrono::milliseconds{pending_offset_ms};
     auto const cycle_start =
-        *schedule.next_ping_deadline -
+        *diag->converted.next_ping_deadline -
         std::chrono::duration_cast<Duration>(kBobPingInterval);
     auto const target = cycle_start + offset;
     auto const now = Now();
-    pending_last_us_ =
-        std::chrono::duration_cast<std::chrono::microseconds>(
-            cycle_start.time_since_epoch())
-            .count();
-    pending_next_us_ =
-        schedule.next_ping_deadline
-            ? std::chrono::duration_cast<std::chrono::microseconds>(
-                  schedule.next_ping_deadline->time_since_epoch())
-                  .count()
-            : -1;
+    pending_last_us_ = TimePointUs(cycle_start);
+    pending_next_us_ = TimePointUs(*diag->converted.next_ping_deadline);
+    pending_schedule_server_id_ = static_cast<std::int64_t>(route.server_id);
+    pending_route_generation_ =
+        static_cast<std::int64_t>(route.route_generation);
+    pending_protocol_ = BenchProtocolFromAe(route.protocol);
+    pending_raw_delta_ms_ = diag->raw.next_ping_delta_ms;
+    pending_last_connect_ms_ = diag->raw.last_connect_delta_ms;
+    pending_qsend_us_ = TimePointUs(diag->qsend);
+    pending_one_way_us_ = DurationUs(diag->one_way);
+    pending_target_us_ = TimePointUs(target);
 
     auto const to_next_ms =
-        schedule.next_ping_deadline
-            ? std::chrono::duration_cast<std::chrono::milliseconds>(
-                  *schedule.next_ping_deadline - now)
-                  .count()
-            : -1;
-    std::cerr << "Alice schedule age_to_cycle_start_ms="
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            *diag->converted.next_ping_deadline - now)
+            .count();
+    std::cerr << "Alice dest-server schedule server=" << route.server_id
+              << " gen=" << route.route_generation
+              << " age_to_cycle_start_ms="
               << std::chrono::duration_cast<std::chrono::milliseconds>(
                      now - cycle_start)
                      .count()
@@ -385,37 +505,33 @@ struct RoleState {
                                                                        now)
                      .count()
               << " to_next_ms=" << to_next_ms
-              << " offset_ms=" << pending_offset_ms << std::endl;
+              << " offset_ms=" << pending_offset_ms
+              << " raw_delta_ms=" << pending_raw_delta_ms_ << std::endl;
 
     if (now + kSkipIfCloserThan > target && now < target) {
       sample_in_flight = false;
       Emit(IpcType::kSampleResult, EventKind::kSampleSkipped, pending_sequence,
-           pending_offset_ms, pending_last_us_, pending_next_us_, 1);
+           pending_offset_ms, pending_last_us_, pending_next_us_, 1,
+           pending_schedule_server_id_, pending_schedule_server_id_,
+           pending_route_generation_, pending_protocol_, pending_raw_delta_ms_,
+           pending_last_connect_ms_);
       return;
     }
     if (now >= target) {
-      // Offset already passed — wait for next Bob ping cycle, then re-query
-      // outside this callback (Client replaces the action object).
-      if (schedule.next_ping_deadline) {
-        auto wait_until =
-            *schedule.next_ping_deadline + std::chrono::milliseconds{150};
-        if (wait_until <= now) {
-          // Deadline already past (stale UAP); probe again shortly.
-          wait_until = now + std::chrono::milliseconds{250};
-        }
-        if (wait_until > now + std::chrono::seconds{15}) {
-          sample_in_flight = false;
-          Emit(IpcType::kSampleResult, EventKind::kSampleSkipped,
-               pending_sequence, pending_offset_ms, pending_last_us_,
-               pending_next_us_, 2);
-          return;
-        }
-        requery_at_ = wait_until;
+      auto wait_until =
+          *diag->converted.next_ping_deadline + std::chrono::milliseconds{150};
+      if (wait_until <= now) {
+        wait_until = now + std::chrono::milliseconds{250};
+      }
+      if (wait_until > now + std::chrono::seconds{15}) {
+        sample_in_flight = false;
+        Emit(IpcType::kSampleResult, EventKind::kSampleSkipped,
+             pending_sequence, pending_offset_ms, pending_last_us_,
+             pending_next_us_, 2, pending_schedule_server_id_,
+             pending_schedule_server_id_, pending_route_generation_);
         return;
       }
-      sample_in_flight = false;
-      Emit(IpcType::kSampleResult, EventKind::kSampleSkipped, pending_sequence,
-           pending_offset_ms, pending_last_us_, pending_next_us_, 2);
+      requery_at_ = wait_until;
       return;
     }
 
@@ -425,7 +541,9 @@ struct RoleState {
     if (delay_ms > 15000) {
       sample_in_flight = false;
       Emit(IpcType::kSampleResult, EventKind::kSampleSkipped, pending_sequence,
-           pending_offset_ms, pending_last_us_, pending_next_us_, 3);
+           pending_offset_ms, pending_last_us_, pending_next_us_, 3,
+           pending_schedule_server_id_, pending_schedule_server_id_,
+           pending_route_generation_);
       return;
     }
     send_at_ = target;
@@ -457,12 +575,29 @@ struct RoleState {
            pending_offset_ms, 3);
       return;
     }
-    auto const dest_proto =
-        dest_proof.present ? dest_proof.protocol : own_proof.protocol;
+    auto const before = stream->InspectSendRoute();
+    if (!before.present ||
+        static_cast<std::int64_t>(before.server_id) !=
+            pending_schedule_server_id_ ||
+        static_cast<std::int64_t>(before.route_generation) !=
+            pending_route_generation_) {
+      sample_in_flight = false;
+      Emit(IpcType::kSampleResult, EventKind::kSampleSkipped, pending_sequence,
+           pending_offset_ms, pending_last_us_, pending_next_us_, 6,
+           pending_schedule_server_id_,
+           before.present ? static_cast<std::int64_t>(before.server_id) : 0,
+           before.present ? static_cast<std::int64_t>(before.route_generation)
+                          : 0,
+           before.present ? BenchProtocolFromAe(before.protocol) : 0);
+      return;
+    }
+    auto const dest_proto = static_cast<BenchProtocol>(pending_protocol_);
     if (RefuseTcpSample(own_proof.protocol, dest_proto)) {
       sample_in_flight = false;
       Emit(IpcType::kSampleResult, EventKind::kSampleSkipped, pending_sequence,
-           pending_offset_ms, pending_last_us_, pending_next_us_, 5);
+           pending_offset_ms, pending_last_us_, pending_next_us_, 5,
+           pending_schedule_server_id_, pending_schedule_server_id_,
+           pending_route_generation_, pending_protocol_);
       return;
     }
 
@@ -473,12 +608,26 @@ struct RoleState {
     auto bytes = SerializeDeliveryBenchMessage(msg);
     DataBuffer payload{bytes.begin(), bytes.end()};
     stream->Write(std::move(payload));
+    auto const after = stream->LastSendRoute();
+    auto const actual_id = after.present
+                               ? static_cast<std::int64_t>(after.server_id)
+                               : pending_schedule_server_id_;
+    auto const actual_gen =
+        after.present ? static_cast<std::int64_t>(after.route_generation)
+                      : pending_route_generation_;
+    auto const actual_proto =
+        after.present ? BenchProtocolFromAe(after.protocol) : pending_protocol_;
     sample_in_flight = false;
     Emit(IpcType::kSampleResult, EventKind::kSampleSent, pending_sequence,
          pending_offset_ms, pending_last_us_, pending_next_us_,
-         static_cast<std::int64_t>(msg.send_qpc));
+         static_cast<std::int64_t>(msg.send_qpc), pending_schedule_server_id_,
+         actual_id, actual_gen, actual_proto, pending_raw_delta_ms_,
+         pending_last_connect_ms_, pending_qsend_us_, pending_one_way_us_,
+         pending_target_us_);
     std::cerr << "Alice sent seq=" << pending_sequence
-              << " offset_ms=" << pending_offset_ms << std::endl;
+              << " offset_ms=" << pending_offset_ms
+              << " schedule_server=" << pending_schedule_server_id_
+              << " actual_server=" << actual_id << std::endl;
   }
 
   void HandleIpc(IpcFrame const& f) {
@@ -496,10 +645,9 @@ struct RoleState {
         Emit(IpcType::kAck, EventKind::kAck);
         break;
       case IpcType::kWaitWarmup:
-        if (side == Side::kB) {
-          warmup_active = true;
-          std::cerr << "Bob WaitWarmup received" << std::endl;
-        }
+        warmup_active = true;
+        std::cerr << (side == Side::kA ? "Alice" : "Bob")
+                  << " WaitWarmup received" << std::endl;
         TryEmitOwnProof();
         TryEmitDestProof();
         break;
