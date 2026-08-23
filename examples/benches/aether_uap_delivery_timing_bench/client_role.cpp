@@ -100,6 +100,10 @@ struct RoleState {
   bool sample_in_flight{false};
   std::uint32_t pending_sequence{0};
   std::uint32_t pending_offset_ms{0};
+  std::optional<TimePoint> send_at_{};
+  std::optional<TimePoint> requery_at_{};
+  std::int64_t pending_last_us_{0};
+  std::int64_t pending_next_us_{-1};
 
   bool Emit(IpcType type, EventKind kind = EventKind::kAck,
             std::uint32_t sequence = 0, std::uint32_t offset_ms = 0,
@@ -238,14 +242,23 @@ struct RoleState {
   }
 
   void StartSample(std::uint32_t sequence, std::uint32_t offset_ms) {
-    if (side != Side::kA || !client || !peer_set || sample_in_flight) {
+    if (side != Side::kA || !client || !peer_set) {
       return;
     }
+    // Coordinator may time out while we are waiting to requery; always take
+    // the latest sample request.
     sample_in_flight = true;
     pending_sequence = sequence;
     pending_offset_ms = offset_ms;
+    send_at_.reset();
+    requery_at_.reset();
     EnsureStreams();
-    // Client owns the action; each call replaces the previous instance.
+    BeginQuery();
+  }
+
+  void BeginQuery() {
+    // Reset subscription before replacing Client-owned action.
+    query_sub.Reset();
     auto& action = client->QueryPeerReceiveSchedule(peer_uid);
     query_sub = action.result_event().Subscribe(
         [this](Result<PeerReceiveSchedule, int> const& res) {
@@ -253,15 +266,11 @@ struct RoleState {
         });
   }
 
-  void RequerySchedule() {
-    auto& action = client->QueryPeerReceiveSchedule(peer_uid);
-    query_sub = action.result_event().Subscribe(
-        [this](Result<PeerReceiveSchedule, int> const& r) { OnSchedule(r); });
-  }
-
   void OnSchedule(Result<PeerReceiveSchedule, int> const& res) {
     if (!res) {
       sample_in_flight = false;
+      send_at_.reset();
+      requery_at_.reset();
       Emit(IpcType::kSampleResult, EventKind::kError, pending_sequence,
            pending_offset_ms, res.error());
       return;
@@ -269,51 +278,96 @@ struct RoleState {
     auto const schedule = res.value();
     auto const offset = std::chrono::milliseconds{pending_offset_ms};
     auto const target = schedule.last_ping + offset;
-    // PeerReceiveSchedule uses ae::TimePoint (system clock), matching Now().
     auto const now = Now();
-    auto const last_us =
+    pending_last_us_ =
         std::chrono::duration_cast<std::chrono::microseconds>(
             schedule.last_ping.time_since_epoch())
             .count();
-    auto const next_us =
+    pending_next_us_ =
         schedule.next_ping_deadline
             ? std::chrono::duration_cast<std::chrono::microseconds>(
                   schedule.next_ping_deadline->time_since_epoch())
                   .count()
             : -1;
 
+    auto const to_next_ms =
+        schedule.next_ping_deadline
+            ? std::chrono::duration_cast<std::chrono::milliseconds>(
+                  *schedule.next_ping_deadline - now)
+                  .count()
+            : -1;
+    std::cerr << "Alice schedule age_to_last_ms="
+              << std::chrono::duration_cast<std::chrono::milliseconds>(
+                     now - schedule.last_ping)
+                     .count()
+              << " to_target_ms="
+              << std::chrono::duration_cast<std::chrono::milliseconds>(target -
+                                                                       now)
+                     .count()
+              << " to_next_ms=" << to_next_ms
+              << " offset_ms=" << pending_offset_ms << std::endl;
+
     if (now + kSkipIfCloserThan > target && now < target) {
       sample_in_flight = false;
       Emit(IpcType::kSampleResult, EventKind::kSampleSkipped, pending_sequence,
-           pending_offset_ms, last_us, next_us, 1);
+           pending_offset_ms, pending_last_us_, pending_next_us_, 1);
       return;
     }
     if (now >= target) {
-      // Offset already passed this cycle — wait for next ping then re-query.
-      if (schedule.next_ping_deadline &&
-          now < *schedule.next_ping_deadline + std::chrono::milliseconds{200}) {
-        auto const wait_ms =
-            std::chrono::duration_cast<std::chrono::milliseconds>(
-                *schedule.next_ping_deadline - now +
-                std::chrono::milliseconds{100})
-                .count();
-        if (wait_ms > 0) {
-          WaitMsPrecise(wait_ms);
+      // Offset already passed — wait for next Bob ping cycle, then re-query
+      // outside this callback (Client replaces the action object).
+      if (schedule.next_ping_deadline) {
+        auto wait_until =
+            *schedule.next_ping_deadline + std::chrono::milliseconds{150};
+        if (wait_until <= now) {
+          // Deadline already past (stale UAP); probe again shortly.
+          wait_until = now + std::chrono::milliseconds{250};
         }
-        RequerySchedule();
+        if (wait_until > now + std::chrono::seconds{15}) {
+          sample_in_flight = false;
+          Emit(IpcType::kSampleResult, EventKind::kSampleSkipped,
+               pending_sequence, pending_offset_ms, pending_last_us_,
+               pending_next_us_, 2);
+          return;
+        }
+        requery_at_ = wait_until;
         return;
       }
       sample_in_flight = false;
       Emit(IpcType::kSampleResult, EventKind::kSampleSkipped, pending_sequence,
-           pending_offset_ms, last_us, next_us, 2);
+           pending_offset_ms, pending_last_us_, pending_next_us_, 2);
       return;
     }
 
     auto const delay_ms =
         std::chrono::duration_cast<std::chrono::milliseconds>(target - now)
             .count();
-    WaitMsPrecise(delay_ms);
+    if (delay_ms > 15000) {
+      sample_in_flight = false;
+      Emit(IpcType::kSampleResult, EventKind::kSampleSkipped, pending_sequence,
+           pending_offset_ms, pending_last_us_, pending_next_us_, 3);
+      return;
+    }
+    send_at_ = target;
+  }
 
+  void PollSampleTiming() {
+    if (side != Side::kA || !sample_in_flight || !client) {
+      return;
+    }
+    auto const now = Now();
+    if (requery_at_ && now >= *requery_at_) {
+      requery_at_.reset();
+      BeginQuery();
+      return;
+    }
+    if (send_at_ && now >= *send_at_) {
+      send_at_.reset();
+      SendPendingMessage();
+    }
+  }
+
+  void SendPendingMessage() {
     if (!stream) {
       EnsureStreams();
     }
@@ -333,8 +387,10 @@ struct RoleState {
     stream->Write(std::move(payload));
     sample_in_flight = false;
     Emit(IpcType::kSampleResult, EventKind::kSampleSent, pending_sequence,
-         pending_offset_ms, last_us, next_us,
+         pending_offset_ms, pending_last_us_, pending_next_us_,
          static_cast<std::int64_t>(msg.send_qpc));
+    std::cerr << "Alice sent seq=" << pending_sequence
+              << " offset_ms=" << pending_offset_ms << std::endl;
   }
 
   void HandleIpc(IpcFrame const& f) {
@@ -450,6 +506,7 @@ int RunClientRole(ClientArgs const& args) {
       state.HandleIpc(*frame);
     }
     state.PollWarmup();
+    state.PollSampleTiming();
     state.app->WaitUntil(
         std::min(next, now + std::chrono::milliseconds{5}));
   }

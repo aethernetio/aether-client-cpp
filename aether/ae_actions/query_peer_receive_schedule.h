@@ -71,28 +71,29 @@ inline TimePoint ComputeLocalAnchor(TimePoint query_begin,
 
 inline TimePoint TimePointOffsetByMs(TimePoint anchor,
                                      std::int64_t delta_ms) noexcept {
-  auto const max_tp = TimePoint::max();
-  auto const min_tp = TimePoint::min();
   if (delta_ms == 0) {
     return anchor;
   }
-  if (delta_ms > 0) {
-    auto const max_ms =
-        std::chrono::duration_cast<std::chrono::milliseconds>(max_tp - anchor)
-            .count();
-    if (max_ms <= 0 || delta_ms >= max_ms) {
-      return max_tp;
+  // Do not compute (TimePoint::max/min() - anchor): that difference overflows
+  // system_clock::duration::rep on common platforms and falsely clamps to
+  // min/max for ordinary millisecond offsets.
+  using ClockDuration = typename TimePoint::duration;
+  using Rep = typename ClockDuration::rep;
+  auto const offset =
+      std::chrono::duration_cast<ClockDuration>(std::chrono::milliseconds{
+          delta_ms});
+  auto const base = anchor.time_since_epoch().count();
+  auto const add = offset.count();
+  if (add > 0) {
+    if (base > std::numeric_limits<Rep>::max() - add) {
+      return TimePoint::max();
     }
-    return anchor + std::chrono::milliseconds{delta_ms};
+  } else if (add < 0) {
+    if (base < std::numeric_limits<Rep>::min() - add) {
+      return TimePoint::min();
+    }
   }
-  auto const min_ms =
-      std::chrono::duration_cast<std::chrono::milliseconds>(anchor - min_tp)
-          .count();
-  auto const abs_ms = -delta_ms;
-  if (min_ms <= 0 || abs_ms >= min_ms) {
-    return min_tp;
-  }
-  return anchor - std::chrono::milliseconds{abs_ms};
+  return TimePoint{ClockDuration{static_cast<Rep>(base + add)}};
 }
 
 inline PeerReceiveSchedule MakePeerReceiveSchedule(
