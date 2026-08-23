@@ -72,6 +72,90 @@ char const* SkipReasonString(std::int64_t code) {
   }
 }
 
+struct BobPingEvent {
+  std::uint8_t kind{0};
+  std::int64_t server_id{0};
+  std::int64_t planned_us{0};
+  std::int64_t actual_us{0};
+  std::int64_t early_by_us{0};
+  std::int64_t base_window_us{0};
+  std::int64_t effective_window_us{0};
+  std::int64_t required_until_us{0};
+  std::int64_t next_planned_us{0};
+  std::int64_t guard_us{0};
+  std::int64_t min_rtt_us{0};
+  std::int64_t p99_rtt_us{0};
+  std::int64_t channel_generation{0};
+  std::int64_t result_type{0};
+  std::int64_t event_steady_us{0};
+};
+
+void AttachAndClassify(SampleRecord& rec,
+                       std::vector<BobPingEvent> const& pings) {
+  if (rec.duplicate_count > 1) {
+    rec.classification = "DUPLICATE";
+    return;
+  }
+  if (rec.invalid_reason == "INVALID_ROUTE_CHANGED" ||
+      rec.invalid_reason == "ROUTE_MISMATCH") {
+    rec.classification = "ROUTE_CHANGED";
+    return;
+  }
+
+  BobPingEvent const* covering = nullptr;
+  if (rec.receive_us > 0) {
+    for (auto const& p : pings) {
+      if (p.kind != 1) {
+        continue;
+      }
+      if (p.server_id != rec.actual_send_server_id &&
+          p.server_id != rec.schedule_server_id) {
+        continue;
+      }
+      if (p.event_steady_us > rec.receive_us) {
+        continue;
+      }
+      auto const end = p.event_steady_us + p.effective_window_us;
+      if (rec.receive_us <= end) {
+        covering = &p;
+      }
+    }
+  }
+
+  if (covering != nullptr) {
+    rec.bob_ping_server_id = covering->server_id;
+    rec.bob_ping_planned_send_us = covering->planned_us;
+    rec.bob_ping_actual_send_us = covering->actual_us;
+    rec.bob_ping_early_by_us = covering->early_by_us;
+    rec.bob_base_rx_window_us = covering->base_window_us;
+    rec.bob_effective_wire_rx_window_us = covering->effective_window_us;
+    rec.bob_required_rx_until_us = covering->required_until_us;
+    rec.bob_ping_guard_us = covering->guard_us;
+    for (auto const& p : pings) {
+      if (p.kind == 2 && p.server_id == covering->server_id &&
+          p.actual_us == covering->actual_us) {
+        rec.bob_ping_result_us = p.event_steady_us;
+      }
+    }
+    bool const early = covering->early_by_us > 0 &&
+                       covering->effective_window_us > covering->base_window_us;
+    if (early) {
+      rec.classification = "EARLY_PING_EXTENDED_WINDOW";
+    } else if (rec.offset_ms >= 1000) {
+      rec.classification = "WAITED_FOR_NEXT_WINDOW";
+    } else {
+      rec.classification = "CURRENT_NORMAL_WINDOW";
+    }
+    return;
+  }
+
+  if (rec.receive_us > 0) {
+    rec.classification = "LATE_UNEXPLAINED";
+    return;
+  }
+  rec.classification = "LOST";
+}
+
 struct ChildProc {
   Side side{};
   NamedPipeServer pipe;
@@ -85,6 +169,7 @@ struct ChildProc {
   ChannelProof dest_proof{};
   bool got_own_proof{false};
   bool got_dest_proof{false};
+  std::vector<BobPingEvent> ping_events;
 };
 
 std::string MakeRunId() {
@@ -137,6 +222,25 @@ void HandleChildFrame(ChildProc& child, IpcFrame const& frame) {
       child.dest_proof = proof;
       child.got_dest_proof = true;
     }
+  }
+  if (type == IpcType::kPingTrace) {
+    BobPingEvent e{};
+    e.kind = frame.event_kind;
+    e.server_id = frame.a;
+    e.planned_us = frame.b;
+    e.actual_us = frame.c;
+    e.early_by_us = frame.d;
+    e.base_window_us = frame.e;
+    e.effective_window_us = frame.f;
+    e.required_until_us = frame.g;
+    e.next_planned_us = frame.h;
+    e.guard_us = frame.i;
+    e.channel_generation = frame.j;
+    e.min_rtt_us = frame.k;
+    e.p99_rtt_us = frame.l;
+    e.result_type = static_cast<std::int64_t>(frame.offset_ms);
+    e.event_steady_us = frame.local_steady_us;
+    child.ping_events.push_back(e);
   }
 }
 
@@ -395,7 +499,11 @@ int RunCoordinator(CoordinatorArgs args) {
          "route_generation,protocol,raw_next_ping_delta_ms,last_connect_delta_"
          "ms,query_send_us,one_way_estimate_us,converted_deadline_us,window_"
          "start_us,target_send_us,actual_send_us,receive_us,delivery_ms,"
-         "duplicate_count,classification,valid,invalid_reason\n";
+         "duplicate_count,classification,valid,invalid_reason,"
+         "bob_ping_server_id,bob_ping_planned_send_us,bob_ping_actual_send_us,"
+         "bob_ping_early_by_us,bob_base_rx_window_us,"
+         "bob_effective_wire_rx_window_us,bob_required_rx_until_us,"
+         "bob_ping_result_us,bob_ping_guard_us\n";
 
   int route_invalid_total = 0;
   int duplicate_total = 0;
@@ -456,6 +564,7 @@ int RunCoordinator(CoordinatorArgs args) {
           }
         }
         if (auto f = bob.pipe.TryReadFrame(100)) {
+          HandleChildFrame(bob, *f);
           auto const type = static_cast<IpcType>(f->type);
           auto const kind = static_cast<EventKind>(f->event_kind);
           if (type == IpcType::kEvent && kind == EventKind::kSampleReceived &&
@@ -497,6 +606,7 @@ int RunCoordinator(CoordinatorArgs args) {
         ++route_invalid_total;
       }
 
+      AttachAndClassify(rec, bob.ping_events);
       samples[seq] = rec;
       csv << rec.sequence << "," << rec.offset_ms << ","
           << rec.schedule_server_id << "," << rec.actual_send_server_id << ","
@@ -507,7 +617,13 @@ int RunCoordinator(CoordinatorArgs args) {
           << rec.target_send_us << "," << rec.actual_send_us << ","
           << rec.receive_us << "," << rec.delivery_ms << ","
           << rec.duplicate_count << "," << rec.classification << ","
-          << (rec.valid ? 1 : 0) << "," << rec.invalid_reason << "\n";
+          << (rec.valid ? 1 : 0) << "," << rec.invalid_reason << ","
+          << rec.bob_ping_server_id << "," << rec.bob_ping_planned_send_us
+          << "," << rec.bob_ping_actual_send_us << ","
+          << rec.bob_ping_early_by_us << "," << rec.bob_base_rx_window_us << ","
+          << rec.bob_effective_wire_rx_window_us << ","
+          << rec.bob_required_rx_until_us << "," << rec.bob_ping_result_us
+          << "," << rec.bob_ping_guard_us << "\n";
       csv.flush();
       std::cout << "offset=" << offset << " seq=" << seq
                 << " valid=" << rec.valid << " delivery_ms=" << rec.delivery_ms
@@ -595,12 +711,55 @@ int RunCoordinator(CoordinatorArgs args) {
               << " target_us=" << s.target_send_us
               << " send_us=" << s.actual_send_us
               << " recv_us=" << s.receive_us
-              << " delivery_ms=" << s.delivery_ms << "\n";
+              << " delivery_ms=" << s.delivery_ms
+              << " class=" << s.classification
+              << " early_by_us=" << s.bob_ping_early_by_us
+              << " base_win_us=" << s.bob_base_rx_window_us
+              << " eff_win_us=" << s.bob_effective_wire_rx_window_us
+              << " planned_us=" << s.bob_ping_planned_send_us
+              << " ping_actual_us=" << s.bob_ping_actual_send_us
+              << " required_until_us=" << s.bob_required_rx_until_us << "\n";
+  }
+  int explained_early = 0;
+  int unexplained_1500 = 0;
+  for (auto const& [_, s] : samples) {
+    if (!s.valid || s.offset_ms != 1500 || s.delivery_ms >= 500) {
+      continue;
+    }
+    if (s.classification == "EARLY_PING_EXTENDED_WINDOW") {
+      ++explained_early;
+    } else {
+      ++unexplained_1500;
+    }
   }
   std::cout << "reproduced_+500_~3641ms=" << (saw_500_3641 ? "yes" : "no")
             << "\nreproduced_+1500_~286ms=" << (saw_1500_286 ? "yes" : "no")
-            << "\n";
+            << "\nexplained_by_early_ping_window=" << explained_early
+            << "\nunexplained_+1500_short=" << unexplained_1500 << "\n";
+  if (saw_500_3641) {
+    acceptance_fail = true;
+  }
 #endif
+
+  {
+    auto const ping_csv =
+        (std::filesystem::path{args.artifact_dir} / "bob_ping_trace.csv")
+            .string();
+    std::ofstream out(ping_csv);
+    out << "kind,server_id,planned_us,actual_us,early_by_us,base_window_us,"
+           "effective_window_us,required_until_us,next_planned_us,guard_us,"
+           "min_rtt_us,p99_rtt_us,channel_generation,result_type,"
+           "event_steady_us\n";
+    for (auto const& e : bob.ping_events) {
+      out << static_cast<int>(e.kind) << "," << e.server_id << ","
+          << e.planned_us << "," << e.actual_us << "," << e.early_by_us << ","
+          << e.base_window_us << "," << e.effective_window_us << ","
+          << e.required_until_us << "," << e.next_planned_us << ","
+          << e.guard_us << "," << e.min_rtt_us << "," << e.p99_rtt_us << ","
+          << e.channel_generation << "," << e.result_type << ","
+          << e.event_steady_us << "\n";
+    }
+  }
 
   StopChild(alice);
   StopChild(bob);
