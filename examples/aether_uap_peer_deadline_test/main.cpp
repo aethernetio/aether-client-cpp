@@ -1,0 +1,76 @@
+/*
+ * Copyright 2026 Aethernet Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include <cstdlib>
+#include <iostream>
+#include <string>
+#include <string_view>
+
+#include "client_role.h"
+#include "coordinator.h"
+
+namespace {
+
+std::string_view ArgValue(int argc, char** argv, std::string_view key) {
+  for (int i = 1; i + 1 < argc; ++i) {
+    if (key == argv[i]) {
+      return argv[i + 1];
+    }
+  }
+  return {};
+}
+
+}  // namespace
+
+int main(int argc, char** argv) {
+  using namespace ae::test_uap_peer_deadline;
+
+  auto role = ArgValue(argc, argv, "--role");
+  if (role.empty() || role == "coordinator") {
+    CoordinatorArgs args;
+    args.run_id = std::string{ArgValue(argc, argv, "--run-id")};
+    args.artifact_dir = std::string{ArgValue(argc, argv, "--artifact-dir")};
+    args.exe_path = std::string{ArgValue(argc, argv, "--exe")};
+    auto parent = ArgValue(argc, argv, "--parent-uid");
+    if (!parent.empty()) {
+      args.parent_uid = std::string{parent};
+    }
+    return RunCoordinator(args);
+  }
+
+  if (role == "client") {
+    ClientArgs args;
+    auto side = ArgValue(argc, argv, "--side");
+    args.side = (side == "B" || side == "b") ? Side::kB : Side::kA;
+    args.run_id = std::string{ArgValue(argc, argv, "--run-id")};
+    args.state_dir = std::string{ArgValue(argc, argv, "--state-dir")};
+    args.pipe_name = std::string{ArgValue(argc, argv, "--pipe")};
+    args.client_name = std::string{ArgValue(argc, argv, "--client-name")};
+    args.artifact_dir = std::string{ArgValue(argc, argv, "--artifact-dir")};
+    auto parent = ArgValue(argc, argv, "--parent-uid");
+    if (!parent.empty()) {
+      args.parent_uid = std::string{parent};
+    }
+    if (args.client_name.empty()) {
+      args.client_name =
+          args.side == Side::kA ? "uap-deadline-alice" : "uap-deadline-bob";
+    }
+    return RunClientRole(args);
+  }
+
+  std::cerr << "Unknown --role\n";
+  return 1;
+}
