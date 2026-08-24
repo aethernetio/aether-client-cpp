@@ -150,6 +150,9 @@ Result<std::monostate, int> Client::SetReceiveSchedule(ReceiveSchedule schedule)
   connectivity_policy_keep_alive_->ConfigureRxTimings().ForAllPriorities(
       RxTimingConf{.interval = schedule.ping_interval,
                    .rx_window = schedule.receive_window});
+  // Drop persisted next_rx_point / recordet_at from a prior interval so the
+  // first ping uses the new schedule immediately (not a stale deadline).
+  connectivity_policy_keep_alive_->ResetRxTimings();
   // Persist so a later Load() in cloud_connection() cannot revive defaults.
   connectivity_policy_.Save();
   return Ok{std::monostate{}};
