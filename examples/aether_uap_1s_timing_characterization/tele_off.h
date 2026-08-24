@@ -14,24 +14,6 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_UAP_PING_RETRY_WINDOW_TEST_COORDINATOR_H_
-#define AETHER_UAP_PING_RETRY_WINDOW_TEST_COORDINATOR_H_
-
-#include <string>
-
-namespace ae::test_uap_ping_retry_window {
-
-struct CoordinatorArgs {
-  std::string run_id;
-  std::string artifact_dir;
-  std::string exe_path;
-  std::string parent_uid{"3ac93165-3d37-4970-87a6-fa4ee27744e4"};
-  std::string transport{"tcp"};
-  bool quick{false};
-};
-
-int RunCoordinator(CoordinatorArgs const& args);
-
-}  // namespace ae::test_uap_ping_retry_window
-
-#endif  // AETHER_UAP_PING_RETRY_WINDOW_TEST_COORDINATOR_H_
+#pragma once
+#undef AE_TELE_LOG_CONSOLE
+#define AE_TELE_LOG_CONSOLE 0

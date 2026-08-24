@@ -394,6 +394,7 @@ if(AE_BUILD_EXAMPLES)
   add_subdirectory(examples/benches/aether_uap_delivery_timing_bench)
   add_subdirectory(examples/aether_uap_peer_deadline_test)
   add_subdirectory(examples/aether_uap_ping_retry_window_test)
+  add_subdirectory(examples/aether_uap_1s_timing_characterization)
 endif()
 
 if(AE_BUILD_TESTS)

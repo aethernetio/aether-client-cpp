@@ -54,7 +54,7 @@ int main(int argc, char** argv) {
 
   auto role = ArgValue(argc, argv, "--role");
   if (role.empty() || role == "coordinator") {
-    CoordinatorArgs args;
+    CharacterizationArgs args;
     args.run_id = std::string{ArgValue(argc, argv, "--run-id")};
     args.artifact_dir = std::string{ArgValue(argc, argv, "--artifact-dir")};
     args.exe_path = std::string{ArgValue(argc, argv, "--exe")};
@@ -66,8 +66,76 @@ int main(int argc, char** argv) {
     if (!transport.empty()) {
       args.transport = std::string{transport};
     }
+    auto interval = ArgValue(argc, argv, "--ping-interval-ms");
+    if (!interval.empty()) {
+      args.ping_interval_ms = std::strtoll(interval.data(), nullptr, 10);
+    }
+    auto window = ArgValue(argc, argv, "--receive-window-ms");
+    if (!window.empty()) {
+      args.receive_window_ms = std::strtoll(window.data(), nullptr, 10);
+    }
+    auto seed = ArgValue(argc, argv, "--seed");
+    if (!seed.empty()) {
+      args.seed = static_cast<std::uint32_t>(std::strtoul(seed.data(), nullptr, 10));
+    }
+    auto cycles = ArgValue(argc, argv, "--cycles");
+    if (!cycles.empty()) {
+      args.logical_cycles = std::atoi(cycles.data());
+    }
+    auto hard_stop = ArgValue(argc, argv, "--hard-stop-runs");
+    if (!hard_stop.empty()) {
+      args.hard_stop_runs = std::atoi(hard_stop.data());
+    }
+    auto graceful = ArgValue(argc, argv, "--graceful-runs");
+    if (!graceful.empty()) {
+      args.graceful_runs = std::atoi(graceful.data());
+    }
+    auto main_n = ArgValue(argc, argv, "--window-samples-main");
+    if (!main_n.empty()) {
+      args.window_samples_main = std::atoi(main_n.data());
+    }
+    auto extra_n = ArgValue(argc, argv, "--window-samples-extra");
+    if (!extra_n.empty()) {
+      args.window_samples_extra = std::atoi(extra_n.data());
+    }
+    auto loss = ArgValue(argc, argv, "--loss-cases");
+    if (!loss.empty()) {
+      args.loss_cases = std::atoi(loss.data());
+    }
     args.quick = HasFlag(argc, argv, "--quick");
-    return RunCoordinator(args);
+    args.skip_long_characterization =
+        HasFlag(argc, argv, "--no-long-characterization") || args.quick;
+    if (args.quick) {
+      if (ArgValue(argc, argv, "--cycles").empty()) {
+        args.logical_cycles = 10;
+      }
+      if (ArgValue(argc, argv, "--hard-stop-runs").empty() &&
+          ArgValue(argc, argv, "--hard-stop-cases").empty()) {
+        args.hard_stop_runs = 3;
+      }
+      auto hard_cases = ArgValue(argc, argv, "--hard-stop-cases");
+      if (!hard_cases.empty()) {
+        args.hard_stop_runs = std::atoi(hard_cases.data());
+      }
+      if (ArgValue(argc, argv, "--graceful-runs").empty() &&
+          ArgValue(argc, argv, "--graceful-stop-cases").empty()) {
+        args.graceful_runs = 3;
+      }
+      auto grace_cases = ArgValue(argc, argv, "--graceful-stop-cases");
+      if (!grace_cases.empty()) {
+        args.graceful_runs = std::atoi(grace_cases.data());
+      }
+      if (ArgValue(argc, argv, "--window-samples-main").empty()) {
+        args.window_samples_main = 0;
+      }
+      if (ArgValue(argc, argv, "--window-samples-extra").empty()) {
+        args.window_samples_extra = 0;
+      }
+      if (args.loss_cases <= 0) {
+        args.loss_cases = 2;
+      }
+    }
+    return RunCharacterization(args);
   }
 
   if (role == "client") {
@@ -85,15 +153,19 @@ int main(int argc, char** argv) {
     }
     if (args.client_name.empty()) {
       args.client_name =
-          args.side == Side::kA ? "uap-retry-alice" : "uap-retry-bob";
+          args.side == Side::kA ? "uap-1s-alice" : "uap-1s-bob";
     }
     auto ping_ms = ArgValue(argc, argv, "--ping-interval-ms");
     if (!ping_ms.empty()) {
       args.ping_interval_ms = std::strtoll(ping_ms.data(), nullptr, 10);
+    } else {
+      args.ping_interval_ms = 1000;
     }
     auto rx_ms = ArgValue(argc, argv, "--receive-window-ms");
     if (!rx_ms.empty()) {
       args.receive_window_ms = std::strtoll(rx_ms.data(), nullptr, 10);
+    } else {
+      args.receive_window_ms = 250;
     }
     return RunClientRole(args);
   }

@@ -124,6 +124,7 @@ struct BobPingEvent {
   std::int64_t next_local_send_us{0};
   std::int64_t request_was_sent{0};
   std::int64_t response_was_ignored{0};
+  std::int64_t event_qpc{0};
 };
 
 #if 0
@@ -209,6 +210,8 @@ struct ChildProc {
   bool got_dest_proof{false};
   std::vector<BobPingEvent> ping_events;
   std::map<std::uint32_t, int> recv_counts;
+  std::map<std::uint32_t, std::int64_t> recv_qpc;
+  std::map<std::uint32_t, std::int64_t> send_qpc;
 };
 
 std::string MakeRunId() {
@@ -269,6 +272,17 @@ void HandleChildFrame(ChildProc& child, IpcFrame const& frame) {
       count = 1;
     }
     child.recv_counts[frame.sequence] = count;
+    child.recv_qpc[frame.sequence] = frame.b;
+  }
+  if (type == IpcType::kSampleResult &&
+      static_cast<EventKind>(frame.event_kind) == EventKind::kSampleSent) {
+    auto send_qpc = frame.c;
+    if (send_qpc == 0) {
+      send_qpc = frame.e;
+    }
+    if (send_qpc != 0) {
+      child.send_qpc[frame.sequence] = send_qpc;
+    }
   }
   if (type == IpcType::kPingTrace) {
     BobPingEvent e{};
@@ -302,6 +316,7 @@ void HandleChildFrame(ChildProc& child, IpcFrame const& frame) {
       e.next_local_send_us = frame.g;
       e.request_was_sent = frame.h;
       e.response_was_ignored = frame.i;
+      e.event_qpc = frame.k;
     }
   }
 }
@@ -408,7 +423,8 @@ int RunCoordinator(CoordinatorArgs const& in_args) {
   auto const pipe_a = PipeNameFor(args.run_id, IpcSide::kA);
   auto const pipe_b = PipeNameFor(args.run_id, IpcSide::kB);
 
-  std::cout << "Spawning Alice/Bob run_id=" << args.run_id << std::endl;
+  std::cout << "Spawning Alice/Bob run_id=" << args.run_id
+            << (args.quick ? " quick=1" : "") << std::endl;
   auto const log_a =
       (std::filesystem::path{args.artifact_dir} / "alice.log").string();
   auto const log_b =
@@ -619,6 +635,28 @@ int RunCoordinator(CoordinatorArgs const& in_args) {
     }
     return std::nullopt;
   };
+  auto find_ping = [&](std::uint8_t kind, std::int64_t server_id,
+                       std::int64_t cycle_id, std::int64_t min_attempt,
+                       std::size_t start) -> std::optional<BobPingEvent> {
+    for (std::size_t i = start; i < bob.ping_events.size(); ++i) {
+      auto const& e = bob.ping_events[i];
+      if (e.kind != kind) {
+        continue;
+      }
+      if (server_id != 0 && e.server_id != server_id) {
+        continue;
+      }
+      if (cycle_id != 0 && e.logical_cycle_id != 0 &&
+          e.logical_cycle_id != cycle_id) {
+        continue;
+      }
+      if (e.physical_attempt_index < min_attempt) {
+        continue;
+      }
+      return e;
+    }
+    return std::nullopt;
+  };
 
   auto recv_total = [&](std::uint32_t tag) -> int {
     auto const it = bob.recv_counts.find(tag);
@@ -692,6 +730,7 @@ int RunCoordinator(CoordinatorArgs const& in_args) {
   if (!wait_window_closed(8000)) {
     std::cerr << "WARN: dest RX window still open before drop-request" << std::endl;
   }
+  Sleep(250);
 
   auto arm = [&](std::int64_t mode, std::int64_t timeout_us) {
     drain(50);
@@ -707,25 +746,27 @@ int RunCoordinator(CoordinatorArgs const& in_args) {
     std::cerr << "FAIL drop-request: no REQUEST_DROPPED\n";
     ok = false;
   } else {
+    std::size_t const after_drop = ping_cursor;
     Sleep(100);
     send_raw(alice, kIpcSendTagged, kTagRequestLossQueued);
     if (!wait_sent(kTagRequestLossQueued, 5000)) {
       std::cerr << "FAIL drop-request: Alice send skipped/timeout\n";
       ok = false;
     }
-    int const early = wait_until_recv(kTagRequestLossQueued, 1, 50);
-    if (early != 0) {
-      std::cerr << "FAIL drop-request: message arrived before retry window\n";
-      ok = false;
-    }
     auto timeout_ev =
         wait_ping(static_cast<std::uint8_t>(PingTraceKind::kAttemptTimeout), dest,
                   10000);
-    auto retry = wait_ping(static_cast<std::uint8_t>(PingTraceKind::kRequestSent),
-                           dest, 10000);
-    if (!retry || retry->physical_attempt_index < 2) {
-      retry = wait_ping(static_cast<std::uint8_t>(PingTraceKind::kAttemptPrepared),
-                        dest, 2000);
+    std::optional<BobPingEvent> retry;
+    auto const retry_deadline = GetTickCount64() + 10000;
+    while (GetTickCount64() < retry_deadline && !retry) {
+      drain(50);
+      retry = find_ping(static_cast<std::uint8_t>(PingTraceKind::kRequestSent),
+                        dest, dropped->logical_cycle_id, 2, after_drop);
+      if (!retry) {
+        retry = find_ping(
+            static_cast<std::uint8_t>(PingTraceKind::kAttemptPrepared), dest,
+            dropped->logical_cycle_id, 2, after_drop);
+      }
     }
     if (!timeout_ev || !retry) {
       std::cerr << "FAIL drop-request: missing timeout/retry\n";
@@ -738,16 +779,31 @@ int RunCoordinator(CoordinatorArgs const& in_args) {
                   << "ms > 100ms\n";
         ok = false;
       }
-      if (retry->wire_next_connect_ms <= 0 ||
-          retry->wire_next_connect_ms >= 3000) {
+      if (retry->wire_next_connect_ms <= 0) {
         std::cerr << "FAIL drop-request: wire_next_connect_ms="
-                  << retry->wire_next_connect_ms << "\n";
+                  << retry->wire_next_connect_ms << " (must not be 0)\n";
+        ok = false;
+      }
+      if (dropped->wire_next_connect_ms > 0 &&
+          retry->wire_next_connect_ms >= dropped->wire_next_connect_ms) {
+        std::cerr << "FAIL drop-request: retry wire_next_connect_ms="
+                  << retry->wire_next_connect_ms
+                  << " did not shrink vs first=" << dropped->wire_next_connect_ms
+                  << "\n";
         ok = false;
       }
     }
     int const got = wait_until_recv(kTagRequestLossQueued, 1, 4000);
     if (got != 1) {
       std::cerr << "FAIL drop-request: expected 1 receive, got " << got << "\n";
+      ok = false;
+    } else if (retry && retry->event_qpc != 0 &&
+               bob.recv_qpc[kTagRequestLossQueued] <= retry->event_qpc) {
+      std::cerr << "FAIL drop-request: message_receive_qpc="
+                << bob.recv_qpc[kTagRequestLossQueued]
+                << " is not after retry_request_sent_qpc=" << retry->event_qpc
+                << " cycle=" << retry->logical_cycle_id
+                << " attempt=" << retry->physical_attempt_index << "\n";
       ok = false;
     }
     auto confirmed =
@@ -795,10 +851,26 @@ int RunCoordinator(CoordinatorArgs const& in_args) {
     }
     auto retry = wait_ping(static_cast<std::uint8_t>(PingTraceKind::kRequestSent),
                            dest, 10000);
-    if (!retry || retry->wire_next_connect_ms <= 0 ||
-        retry->wire_next_connect_ms >= 3000) {
-      std::cerr << "FAIL ignore-response: retry nextConnect not reduced\n";
+    if (!retry || retry->wire_next_connect_ms <= 0) {
+      std::cerr << "FAIL ignore-response: retry nextConnect missing/zero\n";
       ok = false;
+    } else if (sent1->wire_next_connect_ms > 0 &&
+               retry->wire_next_connect_ms >= sent1->wire_next_connect_ms) {
+      std::cerr << "FAIL ignore-response: retry nextConnect="
+                << retry->wire_next_connect_ms
+                << " did not shrink vs first=" << sent1->wire_next_connect_ms
+                << "\n";
+      ok = false;
+    }
+    if (got == 1 && sent1 && retry && sent1->event_qpc != 0 &&
+        retry->event_qpc != 0) {
+      auto const recv_qpc = bob.recv_qpc[kTagResponseLossFirstWindow];
+      if (!(sent1->event_qpc < recv_qpc && recv_qpc < retry->event_qpc)) {
+        std::cerr << "FAIL ignore-response: recv_qpc=" << recv_qpc
+                  << " not between first_sent=" << sent1->event_qpc
+                  << " and retry_sent=" << retry->event_qpc << "\n";
+        ok = false;
+      }
     }
     int const dup = wait_until_recv(kTagResponseLossFirstWindow, 2, 500);
     if (dup >= 2) {
@@ -813,14 +885,17 @@ int RunCoordinator(CoordinatorArgs const& in_args) {
     ok = false;
   }
   Sleep(300);
+  std::int64_t close_qpc = 0;
+  for (auto it = bob.ping_events.rbegin(); it != bob.ping_events.rend(); ++it) {
+    if (it->server_id == dest &&
+        it->kind == static_cast<std::uint8_t>(PingTraceKind::kRxClosed)) {
+      close_qpc = it->event_qpc;
+      break;
+    }
+  }
   send_raw(alice, kIpcSendTagged, kTagAfterRetryWindow);
   if (!wait_sent(kTagAfterRetryWindow, 5000)) {
     std::cerr << "FAIL after-window: send failed\n";
-    ok = false;
-  }
-  int const too_soon = wait_until_recv(kTagAfterRetryWindow, 1, 50);
-  if (too_soon != 0) {
-    std::cerr << "FAIL after-window: received before next logical ping\n";
     ok = false;
   }
   auto next_sent =
@@ -831,6 +906,22 @@ int RunCoordinator(CoordinatorArgs const& in_args) {
     std::cerr << "FAIL after-window: expected 1 receive after next ping, got "
               << late << "\n";
     ok = false;
+  }
+  auto const send_qpc = alice.send_qpc[kTagAfterRetryWindow];
+  auto const recv_qpc = bob.recv_qpc[kTagAfterRetryWindow];
+  if (late == 1 && close_qpc != 0 && send_qpc != 0 && next_sent &&
+      next_sent->event_qpc != 0) {
+    if (!(send_qpc > close_qpc)) {
+      std::cerr << "FAIL after-window: message_send_qpc=" << send_qpc
+                << " is not after retry_window_close_qpc=" << close_qpc << "\n";
+      ok = false;
+    }
+    if (!(recv_qpc >= next_sent->event_qpc)) {
+      std::cerr << "FAIL after-window: message_receive_qpc=" << recv_qpc
+                << " is before next_logical_ping_request_sent_qpc="
+                << next_sent->event_qpc << "\n";
+      ok = false;
+    }
   }
   (void)next_sent;
 

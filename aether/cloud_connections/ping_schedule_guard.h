@@ -68,6 +68,129 @@ inline Duration ComputePingSendGuardFromStats(
                             ping_interval);
 }
 
+inline Duration SaturatingSubDurationValue(Duration a, Duration b) noexcept {
+  if (b.count() == 0) {
+    return a;
+  }
+  if (a.count() <= b.count()) {
+    return Duration{};
+  }
+  return Duration{
+      static_cast<typename Duration::rep>(a.count() - b.count())};
+}
+
+inline Duration SaturatingAddDuration(Duration a, Duration b) noexcept;
+
+inline constexpr Duration kPingSchedulerMargin =
+    std::chrono::duration_cast<Duration>(std::chrono::milliseconds{10});
+inline constexpr Duration kPingMinLossTimeout =
+    std::chrono::duration_cast<Duration>(std::chrono::milliseconds{50});
+inline constexpr Duration kPingP99TimeoutMargin =
+    std::chrono::duration_cast<Duration>(std::chrono::milliseconds{10});
+inline constexpr Duration kPingRttEstimate =
+    std::chrono::duration_cast<Duration>(std::chrono::milliseconds{200});
+
+struct PingRetryBudgetInput {
+  Duration interval{};
+  Duration guard{};
+  Duration raw_timeout{};
+  Duration p99_rtt{};
+};
+
+struct PingRetryBudget {
+  Duration retry_one_way_budget{};
+  Duration scheduler_margin{};
+  Duration loss_timeout{};
+  Duration retry_reserve{};
+  Duration attempt_lead{};
+  Duration max_timeout_for_predeadline_retry{};
+  bool predeadline_retry_guaranteed{true};
+};
+
+// loss_timeout = max(raw, p99+10ms, 50ms), capped so one retry can still
+// finish before Tn when the interval allows it.
+inline PingRetryBudget ComputePingRetryBudget(
+    PingRetryBudgetInput const& in) noexcept {
+  PingRetryBudget out{};
+  out.scheduler_margin = kPingSchedulerMargin;
+  out.retry_one_way_budget = in.p99_rtt / 2;
+
+  Duration loss = in.raw_timeout;
+  auto const p99_with_margin =
+      SaturatingAddDuration(in.p99_rtt, kPingP99TimeoutMargin);
+  if (p99_with_margin > loss) {
+    loss = p99_with_margin;
+  }
+  if (kPingMinLossTimeout > loss) {
+    loss = kPingMinLossTimeout;
+  }
+
+  auto const one_ms =
+      std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1});
+  auto remaining = in.interval;
+  auto subtract_ok = [&](Duration d) {
+    if (d.count() == 0) {
+      return true;
+    }
+    if (remaining.count() <= d.count()) {
+      remaining = Duration{};
+      return false;
+    }
+    remaining = SaturatingSubDurationValue(remaining, d);
+    return remaining.count() > 0;
+  };
+  bool const budget_fits = subtract_ok(in.guard) &&
+                           subtract_ok(out.retry_one_way_budget) &&
+                           subtract_ok(out.scheduler_margin) &&
+                           subtract_ok(one_ms);
+  out.max_timeout_for_predeadline_retry = remaining;
+  out.predeadline_retry_guaranteed =
+      budget_fits && remaining.count() > 0;
+  if (out.predeadline_retry_guaranteed && loss > remaining) {
+    loss = remaining;
+  }
+  out.loss_timeout = loss.count() == 0 ? kPingMinLossTimeout : loss;
+  out.retry_reserve = SaturatingAddDuration(
+      SaturatingAddDuration(out.loss_timeout, out.retry_one_way_budget),
+      out.scheduler_margin);
+  out.attempt_lead = SaturatingAddDuration(in.guard, out.retry_reserve);
+  if (in.interval > one_ms) {
+    auto const max_lead = SaturatingSubDurationValue(in.interval, one_ms);
+    if (out.attempt_lead > max_lead) {
+      out.attempt_lead = max_lead;
+      out.predeadline_retry_guaranteed = false;
+    }
+  } else {
+    out.attempt_lead = Duration{};
+    out.predeadline_retry_guaranteed = false;
+  }
+  if (out.loss_timeout.count() == 0) {
+    out.loss_timeout = kPingMinLossTimeout;
+    out.predeadline_retry_guaranteed = false;
+  }
+  return out;
+}
+
+template <typename Stats>
+inline PingRetryBudget ComputePingRetryBudgetFromStats(
+    Stats const& stats, Duration ping_interval,
+    Duration raw_timeout) noexcept {
+  Duration p99_rtt = kPingRttEstimate;
+  Duration min_rtt = kPingRttEstimate;
+  if (!stats.empty()) {
+    min_rtt = stats.min();
+    p99_rtt = stats.template percentile<99>();
+  }
+  auto const guard =
+      ClampPingSendGuard(ComputePingSendGuard(min_rtt, p99_rtt), ping_interval);
+  Duration raw = raw_timeout;
+  if (raw.count() == 0) {
+    raw = kPingRttEstimate;
+  }
+  return ComputePingRetryBudget(
+      PingRetryBudgetInput{ping_interval, guard, raw, p99_rtt});
+}
+
 inline Duration SaturatingAddDuration(Duration a, Duration b) noexcept {
   auto const max = Duration::max();
   if (b > max - a) {
@@ -128,8 +251,8 @@ inline std::int64_t DurationToSaturatedInt64Ms(Duration d) noexcept {
 }
 
 struct EarlyRxWindowInput {
-  bool has_planned_send{false};
-  TimePoint planned_send_at{};
+  bool has_nominal_ping{false};
+  TimePoint nominal_ping_at{};
   TimePoint actual_send_at{};
   Duration base_rx_window{};
   bool has_required_rx_until{false};
@@ -142,12 +265,12 @@ struct EarlyRxWindowOutput {
   TimePoint required_rx_until{};
 };
 
-// planned/actual/required-end math for one ping attempt. Does not use RTT.
+// required_end = max(Tn + W, previous required, Ai + W). Negative diffs are 0.
 inline EarlyRxWindowOutput ComputeEarlyRxWindow(
     EarlyRxWindowInput const& in) noexcept {
   EarlyRxWindowOutput out{};
-  if (in.has_planned_send && in.planned_send_at > in.actual_send_at) {
-    out.early_by = SaturatingSubTime(in.planned_send_at, in.actual_send_at);
+  if (in.has_nominal_ping && in.nominal_ping_at > in.actual_send_at) {
+    out.early_by = SaturatingSubTime(in.nominal_ping_at, in.actual_send_at);
   }
 
   auto raise = [&](TimePoint candidate) {
@@ -161,8 +284,8 @@ inline EarlyRxWindowOutput ComputeEarlyRxWindow(
     raise(in.required_rx_until);
   }
   raise(SaturatingAddTime(in.actual_send_at, in.base_rx_window));
-  if (in.has_planned_send) {
-    raise(SaturatingAddTime(in.planned_send_at, in.base_rx_window));
+  if (in.has_nominal_ping) {
+    raise(SaturatingAddTime(in.nominal_ping_at, in.base_rx_window));
   }
 
   out.effective_wire_rx_window =
@@ -339,6 +462,8 @@ inline PingErrorRetryAction PingErrorRetryActionFor(int error_code) noexcept {
 }
 
 inline bool ShouldAcceptCycleResult(bool cycle_active, bool cycle_confirmed,
+                                    std::uint64_t current_cycle_id,
+                                    std::uint64_t result_cycle_id,
                                     std::uint32_t current_attempt,
                                     std::uint32_t result_attempt,
                                     bool current_attempt_timed_out,
@@ -346,14 +471,14 @@ inline bool ShouldAcceptCycleResult(bool cycle_active, bool cycle_confirmed,
   if (!cycle_active || cycle_confirmed) {
     return false;
   }
-  if (result_attempt != current_attempt) {
+  if (result_cycle_id != current_cycle_id || result_attempt == 0) {
     return false;
   }
-  // Same-attempt timeout still accepts a late pong so we can cancel the
-  // retry. A response from an older attempt is rejected above.
   (void)current_attempt_timed_out;
-  (void)result_is_ok_or_late;
-  return true;
+  if (result_is_ok_or_late) {
+    return true;
+  }
+  return result_attempt == current_attempt;
 }
 
 struct LogicalPingCycleState {
@@ -361,27 +486,35 @@ struct LogicalPingCycleState {
   bool active{false};
   bool confirmed{false};
   bool has_schedule{false};
+  bool bootstrap{false};
   bool current_attempt_timed_out{false};
   bool awaiting_relink_retry{false};
+  bool predeadline_retry_guaranteed{true};
   std::uint32_t attempt_index{0};
-  TimePoint first_attempt_send_at{};
-  TimePoint cycle_anchor{};
-  TimePoint contract_deadline_at{};
+  TimePoint first_attempt_at{};
+  TimePoint actual_attempt_send_at{};
+  TimePoint nominal_ping_at{};
+  TimePoint next_nominal_ping_at{};
   TimePoint next_local_send_at{};
-  TimePoint planned_send_at{};
   TimePoint required_rx_until{};
   Duration configured_interval{};
   Duration base_rx_window{};
   Duration current_guard{};
+  Duration current_retry_reserve{};
+  Duration current_attempt_lead{};
+  Duration current_loss_timeout{};
 };
 
 struct LogicalPingAttemptRequest {
   TimePoint actual_send_at{};
-  bool has_planned_send{false};
-  TimePoint planned_send_at{};
   Duration interval{};
   Duration guard{};
+  Duration attempt_lead{};
+  Duration retry_reserve{};
+  Duration loss_timeout{};
   Duration base_rx_window{};
+  bool predeadline_retry_guaranteed{true};
+  bool announce_unknown{false};
 };
 
 struct LogicalPingAttemptView {
@@ -389,13 +522,30 @@ struct LogicalPingAttemptView {
   std::uint32_t attempt_index{0};
   bool is_retry{false};
   bool started_new_cycle{false};
+  bool bootstrap{false};
+  TimePoint first_attempt_at{};
+  TimePoint actual_attempt_send_at{};
+  TimePoint nominal_ping_at{};
+  TimePoint next_nominal_ping_at{};
   TimePoint cycle_anchor{};
   TimePoint contract_deadline{};
   TimePoint next_local_send{};
   Duration wire_next_connect{};
   std::int64_t wire_next_connect_ms{0};
+  Duration attempt_lead{};
+  Duration retry_reserve{};
+  Duration loss_timeout{};
+  bool predeadline_retry_guaranteed{true};
   EarlyRxWindowOutput rx{};
 };
+
+inline Duration ScheduleLeadFor(LogicalPingAttemptRequest const& req,
+                                Duration guard) noexcept {
+  if (req.attempt_lead.count() > 0) {
+    return req.attempt_lead;
+  }
+  return guard;
+}
 
 inline LogicalPingAttemptView ApplyLogicalPingAttempt(
     LogicalPingCycleState& st, LogicalPingAttemptRequest const& req) noexcept {
@@ -405,8 +555,41 @@ inline LogicalPingAttemptView ApplyLogicalPingAttempt(
   view.is_retry = !new_cycle;
 
   auto const guard = ClampPingSendGuard(req.guard, req.interval);
+  auto const lead = ScheduleLeadFor(req, guard);
 
-  if (new_cycle) {
+  st.current_guard = guard;
+  st.current_attempt_lead = lead;
+  st.current_retry_reserve = req.retry_reserve;
+  st.current_loss_timeout = req.loss_timeout;
+  st.predeadline_retry_guaranteed = req.predeadline_retry_guaranteed;
+  st.configured_interval = req.interval;
+  st.base_rx_window = req.base_rx_window;
+  st.actual_attempt_send_at = req.actual_send_at;
+
+  if (req.announce_unknown) {
+    if (new_cycle) {
+      st.cycle_id += 1;
+      if (st.cycle_id == 0) {
+        st.cycle_id = 1;
+      }
+      st.active = true;
+      st.confirmed = false;
+      st.current_attempt_timed_out = false;
+      st.awaiting_relink_retry = false;
+      st.attempt_index = 1;
+      st.first_attempt_at = req.actual_send_at;
+      st.nominal_ping_at = req.actual_send_at;
+      st.next_nominal_ping_at = req.actual_send_at;
+      st.bootstrap = false;
+    } else {
+      st.attempt_index += 1;
+      st.current_attempt_timed_out = false;
+      st.awaiting_relink_retry = false;
+    }
+    view.wire_next_connect = Duration{};
+    view.wire_next_connect_ms = 0;
+    st.next_local_send_at = TimePoint::max();
+  } else if (new_cycle) {
     st.cycle_id += 1;
     if (st.cycle_id == 0) {
       st.cycle_id = 1;
@@ -416,60 +599,54 @@ inline LogicalPingAttemptView ApplyLogicalPingAttempt(
     st.current_attempt_timed_out = false;
     st.awaiting_relink_retry = false;
     st.attempt_index = 1;
-    st.first_attempt_send_at = req.actual_send_at;
-    st.configured_interval = req.interval;
-    st.base_rx_window = req.base_rx_window;
-    st.current_guard = guard;
-    st.planned_send_at =
-        req.has_planned_send ? req.planned_send_at : req.actual_send_at;
 
-    // next_local_send is guard-early. A send after that instant but still
-    // before contract_deadline is on time for this slot; only missing the
-    // deadline advances the cadence.
-    bool const late_new_cycle =
-        st.has_schedule && req.actual_send_at > st.contract_deadline_at;
-    if (late_new_cycle) {
-      auto next_slot = SaturatingAddTime(st.contract_deadline_at, req.interval);
-      if (req.actual_send_at >= next_slot) {
-        next_slot = AdvanceContractDeadlinePast(next_slot, req.actual_send_at,
-                                                req.interval);
-      }
-      st.contract_deadline_at = next_slot;
-      st.cycle_anchor =
-          SaturatingSubDuration(st.contract_deadline_at, req.interval);
-      st.next_local_send_at =
-          SaturatingSubDuration(st.contract_deadline_at, guard);
-      view.wire_next_connect =
-          SaturatingSubTime(st.contract_deadline_at, req.actual_send_at);
-    } else {
-      st.cycle_anchor = req.actual_send_at;
-      st.contract_deadline_at =
-          SaturatingAddTime(req.actual_send_at, req.interval);
-      st.next_local_send_at =
-          SaturatingSubDuration(st.contract_deadline_at, guard);
+    if (!st.has_schedule) {
+      st.bootstrap = true;
+      st.nominal_ping_at = req.actual_send_at;
+      st.next_nominal_ping_at =
+          SaturatingAddTime(st.nominal_ping_at, req.interval);
+      st.first_attempt_at = req.actual_send_at;
       view.wire_next_connect = req.interval;
+      st.has_schedule = req.interval.count() != 0;
+    } else {
+      st.bootstrap = false;
+      auto tn = st.next_nominal_ping_at;
+      auto tn1 = SaturatingAddTime(tn, req.interval);
+      if (req.actual_send_at >= tn1) {
+        tn1 = AdvanceContractDeadlinePast(tn1, req.actual_send_at,
+                                          req.interval);
+        tn = SaturatingSubDuration(tn1, req.interval);
+      }
+      st.nominal_ping_at = tn;
+      st.next_nominal_ping_at = tn1;
+      st.first_attempt_at = SaturatingSubDuration(tn, lead);
+      view.wire_next_connect =
+          SaturatingSubTime(st.next_nominal_ping_at, req.actual_send_at);
     }
-    st.has_schedule = true;
+    st.next_local_send_at =
+        SaturatingSubDuration(st.next_nominal_ping_at, lead);
   } else {
     st.attempt_index += 1;
     st.current_attempt_timed_out = false;
     st.awaiting_relink_retry = false;
-    st.current_guard = guard;
-    st.configured_interval = req.interval;
-    st.base_rx_window = req.base_rx_window;
-    if (req.actual_send_at >= st.contract_deadline_at) {
-      st.contract_deadline_at = AdvanceContractDeadlinePast(
-          st.contract_deadline_at, req.actual_send_at, req.interval);
+    if (req.actual_send_at >= st.next_nominal_ping_at) {
+      auto const old_next = st.next_nominal_ping_at;
+      st.next_nominal_ping_at = AdvanceContractDeadlinePast(
+          st.next_nominal_ping_at, req.actual_send_at, req.interval);
+      auto const shift =
+          SaturatingSubTime(st.next_nominal_ping_at, old_next);
+      st.nominal_ping_at = SaturatingAddTime(st.nominal_ping_at, shift);
       st.next_local_send_at =
-          SaturatingSubDuration(st.contract_deadline_at, guard);
+          SaturatingSubDuration(st.next_nominal_ping_at, lead);
     }
     view.wire_next_connect =
-        SaturatingSubTime(st.contract_deadline_at, req.actual_send_at);
+        SaturatingSubTime(st.next_nominal_ping_at, req.actual_send_at);
   }
 
   EarlyRxWindowInput rx_in{};
-  rx_in.has_planned_send = req.has_planned_send;
-  rx_in.planned_send_at = req.planned_send_at;
+  rx_in.has_nominal_ping = st.nominal_ping_at != TimePoint{} ||
+                           st.has_schedule || new_cycle;
+  rx_in.nominal_ping_at = st.nominal_ping_at;
   rx_in.actual_send_at = req.actual_send_at;
   rx_in.base_rx_window = req.base_rx_window;
   rx_in.has_required_rx_until = st.required_rx_until != TimePoint{};
@@ -477,7 +654,8 @@ inline LogicalPingAttemptView ApplyLogicalPingAttempt(
   view.rx = ComputeEarlyRxWindow(rx_in);
   st.required_rx_until = view.rx.required_rx_until;
 
-  if (req.interval.count() == 0 && new_cycle) {
+  if (req.announce_unknown ||
+      (req.interval.count() == 0 && new_cycle)) {
     view.wire_next_connect_ms = 0;
   } else {
     view.wire_next_connect_ms =
@@ -486,9 +664,18 @@ inline LogicalPingAttemptView ApplyLogicalPingAttempt(
 
   view.cycle_id = st.cycle_id;
   view.attempt_index = st.attempt_index;
-  view.cycle_anchor = st.cycle_anchor;
-  view.contract_deadline = st.contract_deadline_at;
+  view.bootstrap = st.bootstrap;
+  view.first_attempt_at = st.first_attempt_at;
+  view.actual_attempt_send_at = st.actual_attempt_send_at;
+  view.nominal_ping_at = st.nominal_ping_at;
+  view.next_nominal_ping_at = st.next_nominal_ping_at;
+  view.cycle_anchor = st.nominal_ping_at;
+  view.contract_deadline = st.next_nominal_ping_at;
   view.next_local_send = st.next_local_send_at;
+  view.attempt_lead = lead;
+  view.retry_reserve = req.retry_reserve;
+  view.loss_timeout = req.loss_timeout;
+  view.predeadline_retry_guaranteed = st.predeadline_retry_guaranteed;
   return view;
 }
 

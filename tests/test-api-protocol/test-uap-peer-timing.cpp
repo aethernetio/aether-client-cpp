@@ -416,28 +416,76 @@ void test_RetryRaceAndPostSuccessNoRemake() {
   TEST_ASSERT_TRUE(done->state == PeerScheduleState::kExpected);
 }
 
-void test_QuarantinedConfiguredServerMakesSnapshotIncomplete() {
-  PeerTimingQueryState quarantined;
-  quarantined.Begin({20, 21}, true);
-  auto const q20 = quarantined.RegisterSend(20, Tp(0), Ms(40));
-  auto const q21 = quarantined.RegisterSend(21, Tp(0), Ms(40));
-  TEST_ASSERT_TRUE(quarantined.ApplyTiming(20, q20, ClientTiming{-1000, -5}));
-  TEST_ASSERT_TRUE(quarantined.ApplyTiming(21, q21, ClientTiming{-800, -8}));
-  auto const unknown = quarantined.TryAggregate();
-  TEST_ASSERT_TRUE(unknown.has_value());
-  TEST_ASSERT_TRUE(unknown->state == PeerScheduleState::kUnknown);
+void test_QuarantinedServerExcludedFromQuerySetAllowsMissedDeadline() {
+  std::vector<ServerId> query_set;
+  auto const cov = BuildPeerTimingQuerySet(
+      {
+          SelectedServerSnapshotItem{20, false, true},
+          SelectedServerSnapshotItem{21, false, true},
+          SelectedServerSnapshotItem{22, true, true},
+      },
+      query_set);
+  TEST_ASSERT_EQUAL_UINT(3, cov.selected_server_count);
+  TEST_ASSERT_EQUAL_UINT(1, cov.quarantined_skipped_count);
+  TEST_ASSERT_EQUAL_UINT(2, cov.queried_server_count);
+  TEST_ASSERT_EQUAL_UINT(2, query_set.size());
 
-  PeerTimingQueryState later;
-  later.Begin({20, 21, 22});
-  auto const l20 = later.RegisterSend(20, Tp(0), Ms(40));
-  auto const l21 = later.RegisterSend(21, Tp(0), Ms(40));
-  auto const l22 = later.RegisterSend(22, Tp(0), Ms(40));
-  TEST_ASSERT_TRUE(later.ApplyTiming(20, l20, ClientTiming{-1000, -5}));
-  TEST_ASSERT_TRUE(later.ApplyTiming(21, l21, ClientTiming{-800, -8}));
-  TEST_ASSERT_TRUE(later.ApplyTiming(22, l22, ClientTiming{-900, -7}));
-  auto const missed = later.TryAggregate();
+  PeerTimingQueryState st;
+  st.Begin(query_set, false, cov);
+  auto const q20 = st.RegisterSend(20, Tp(0), Ms(40));
+  auto const q21 = st.RegisterSend(21, Tp(0), Ms(40));
+  TEST_ASSERT_TRUE(st.ApplyTiming(20, q20, ClientTiming{-1000, -5}));
+  TEST_ASSERT_TRUE(st.ApplyTiming(21, q21, ClientTiming{-800, -8}));
+  TEST_ASSERT_TRUE(st.attempts.find(22) == st.attempts.end());
+  auto const missed = st.TryAggregate();
   TEST_ASSERT_TRUE(missed.has_value());
   TEST_ASSERT_TRUE(missed->state == PeerScheduleState::kMissedDeadline);
+  auto const got = st.QueryCoverage();
+  TEST_ASSERT_EQUAL_UINT(0, got.failed_server_count);
+  TEST_ASSERT_EQUAL_UINT(2, got.successful_server_count);
+  TEST_ASSERT_EQUAL_UINT(1, got.quarantined_skipped_count);
+}
+
+void test_ActiveServerQueryErrorGivesUnknown() {
+  PeerTimingQueryState st;
+  st.Begin({20, 21, 22});
+  auto const q20 = st.RegisterSend(20, Tp(0), Ms(40));
+  auto const q21 = st.RegisterSend(21, Tp(0), Ms(40));
+  auto const q22 = st.RegisterSend(22, Tp(0), Ms(40));
+  TEST_ASSERT_TRUE(st.ApplyTiming(20, q20, ClientTiming{-1000, -5}));
+  TEST_ASSERT_TRUE(st.ApplyTiming(21, q21, ClientTiming{-800, -8}));
+  TEST_ASSERT_TRUE(st.ApplyTerminalError(22, q22));
+  auto const unknown = st.TryAggregate();
+  TEST_ASSERT_TRUE(unknown.has_value());
+  TEST_ASSERT_TRUE(unknown->state == PeerScheduleState::kUnknown);
+}
+
+void test_ServerLeavingQuarantineFreshQueryCanBeExpected() {
+  PeerTimingQueryState st;
+  st.Begin({20, 21, 22});
+  auto const q20 = st.RegisterSend(20, Tp(0), Ms(40));
+  auto const q21 = st.RegisterSend(21, Tp(0), Ms(40));
+  auto const q22 = st.RegisterSend(22, Tp(0), Ms(40));
+  TEST_ASSERT_TRUE(st.ApplyTiming(20, q20, ClientTiming{-1000, -5}));
+  TEST_ASSERT_TRUE(st.ApplyTiming(21, q21, ClientTiming{-800, -8}));
+  TEST_ASSERT_TRUE(st.ApplyTiming(22, q22, ClientTiming{2000, -7}));
+  auto const expected = st.TryAggregate();
+  TEST_ASSERT_TRUE(expected.has_value());
+  TEST_ASSERT_TRUE(expected->state == PeerScheduleState::kExpected);
+}
+
+void test_AllSelectedServersQuarantinedYieldsEmptyQuerySet() {
+  std::vector<ServerId> query_set;
+  auto const cov = BuildPeerTimingQuerySet(
+      {
+          SelectedServerSnapshotItem{20, true, true},
+          SelectedServerSnapshotItem{21, true, true},
+          SelectedServerSnapshotItem{22, true, true},
+      },
+      query_set);
+  TEST_ASSERT_EQUAL_UINT(0, cov.queried_server_count);
+  TEST_ASSERT_EQUAL_UINT(3, cov.quarantined_skipped_count);
+  TEST_ASSERT_TRUE(query_set.empty());
 }
 
 void test_ThousandQueriesDestroyPendingAndCloudRequestFlags() {
@@ -502,6 +550,11 @@ int test_uap_peer_timing() {
   RUN_TEST(ae::test_uap_peer_timing::
                test_ThousandQueriesDestroyPendingAndCloudRequestFlags);
   RUN_TEST(ae::test_uap_peer_timing::
-               test_QuarantinedConfiguredServerMakesSnapshotIncomplete);
+               test_QuarantinedServerExcludedFromQuerySetAllowsMissedDeadline);
+  RUN_TEST(ae::test_uap_peer_timing::test_ActiveServerQueryErrorGivesUnknown);
+  RUN_TEST(ae::test_uap_peer_timing::
+               test_ServerLeavingQuarantineFreshQueryCanBeExpected);
+  RUN_TEST(ae::test_uap_peer_timing::
+               test_AllSelectedServersQuarantinedYieldsEmptyQuerySet);
   return UNITY_END();
 }

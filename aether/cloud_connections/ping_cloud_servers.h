@@ -24,6 +24,7 @@
 #  include <map>
 #  include <memory>
 #  include <optional>
+#  include <variant>
 
 #  include "aether/ae_context.h"
 #  include "aether/events/event_subscription.h"
@@ -35,6 +36,8 @@
 #  include "aether/client_connectivity_policy.h"
 #  include "aether/cloud_connections/cloud_server_connections.h"
 #  include "aether/cloud_connections/ping_schedule_guard.h"
+
+#  include "aether-miscpp/types/result.h"
 
 namespace ae {
 
@@ -81,6 +84,10 @@ struct PingTraceEvent {
   std::int64_t wire_next_connect_ms{0};
   Duration retry_delay{};
   TimePoint next_local_send_at{};
+  Duration attempt_lead{};
+  Duration retry_reserve{};
+  Duration loss_timeout{};
+  bool predeadline_retry_guaranteed{true};
 };
 
 using PingTraceHook = void (*)(PingTraceEvent const&);
@@ -97,6 +104,8 @@ class PingCloudServers {
     AE_CLASS_NO_COPY_MOVE(ServerPing)
 
     void Stop();
+    void AnnounceUnknown();
+    bool quarantined() const noexcept;
 
     TimePoint next_service_time() const noexcept { return next_ping_time_; }
     std::size_t priority() const noexcept { return priority_; }
@@ -147,6 +156,7 @@ class PingCloudServers {
     std::optional<TimePoint> required_rx_until_{};
     LocalRxWindowState local_rx_{};
     bool rx_window_held_{false};
+    bool announce_unknown_{false};
 
     struct PingAttempt {
       ServerId server_id{};
@@ -173,6 +183,10 @@ class PingCloudServers {
       std::int64_t wire_next_connect_ms{0};
       Duration retry_delay{};
       TimePoint next_local_send_at{};
+      Duration attempt_lead{};
+      Duration retry_reserve{};
+      Duration loss_timeout{};
+      bool predeadline_retry_guaranteed{true};
     };
     std::optional<PingAttempt> in_flight_{};
     std::uint64_t send_generation_{0};
@@ -184,12 +198,18 @@ class PingCloudServers {
                    ClientConnectivityPolicy& policy);
   ~PingCloudServers();
 
+  void StopAutomaticPing() noexcept;
+  void BeginAnnounceUnknown();
+  using AnnounceEvent = Event<void(Result<std::monostate, int>)>;
+  AnnounceEvent::Subscriber announce_event();
+
  private:
   void ServersUpdate();
   void DispatchToServers();
   void ReconcileServer(CloudServerConnection& cloud_sc);
   void ServerQuarantined(CloudServerConnection* cloud_sc);
   void ServerQuarantineReleased(CloudServerConnection* cloud_sc);
+  void OnAnnounceServerDone(bool ok);
 
   AeContext ae_context_;
   CloudServerConnections* cloud_server_connections_;
@@ -202,6 +222,11 @@ class PingCloudServers {
 
   std::map<ServerId, LogicalPingCycleState> cycle_states_;
   std::map<ServerId, std::unique_ptr<ServerPing>> server_pings_;
+  bool auto_ping_enabled_{true};
+  std::size_t announce_pending_{0};
+  bool announce_in_progress_{false};
+  bool announce_any_ok_{false};
+  AnnounceEvent announce_event_;
 };
 }  // namespace ae
 

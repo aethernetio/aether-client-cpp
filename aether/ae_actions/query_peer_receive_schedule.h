@@ -121,6 +121,41 @@ inline ConvertedServerTiming ConvertClientTiming(
   return out;
 }
 
+struct PeerTimingQueryCoverage {
+  std::size_t selected_server_count{0};
+  std::size_t queried_server_count{0};
+  std::size_t successful_server_count{0};
+  std::size_t failed_server_count{0};
+  std::size_t quarantined_skipped_count{0};
+};
+
+struct SelectedServerSnapshotItem {
+  ServerId id{};
+  bool quarantine{false};
+  bool has_descriptor{true};
+};
+
+inline PeerTimingQueryCoverage BuildPeerTimingQuerySet(
+    std::vector<SelectedServerSnapshotItem> const& selected,
+    std::vector<ServerId>& query_set) noexcept {
+  PeerTimingQueryCoverage cov;
+  cov.selected_server_count = selected.size();
+  query_set.clear();
+  query_set.reserve(selected.size());
+  for (auto const& item : selected) {
+    if (item.quarantine) {
+      ++cov.quarantined_skipped_count;
+      continue;
+    }
+    if (!item.has_descriptor) {
+      continue;
+    }
+    query_set.push_back(item.id);
+  }
+  cov.queried_server_count = query_set.size();
+  return cov;
+}
+
 // Conservative aggregation for a query with a known expected-server snapshot.
 // MissedDeadline is returned only when every expected server succeeded with a
 // negative nextPingDelta. Partial failure, retry, or an unqueried expected
@@ -241,17 +276,23 @@ struct PeerTimingQueryState {
   bool completed{false};
   int user_callback_count{0};
   bool snapshot_incomplete{false};
+  PeerTimingQueryCoverage coverage{};
   std::vector<ServerId> expected_server_ids;
   std::map<ServerId, ServerTimingAttempt> attempts;
 
   std::uint64_t Begin(std::vector<ServerId> expected = {},
-                      bool incomplete = false) {
+                      bool incomplete = false,
+                      PeerTimingQueryCoverage cov = {}) {
     ++query_generation;
     cancelled = false;
     completed = false;
     user_callback_count = 0;
     snapshot_incomplete = incomplete;
+    coverage = cov;
     expected_server_ids = std::move(expected);
+    if (coverage.queried_server_count == 0) {
+      coverage.queried_server_count = expected_server_ids.size();
+    }
     attempts.clear();
     for (auto const id : expected_server_ids) {
       attempts[id].status = ServerTimingAttemptStatus::kPending;
@@ -425,6 +466,26 @@ struct PeerTimingQueryState {
     return out;
   }
 
+  PeerTimingQueryCoverage QueryCoverage() const {
+    auto c = coverage;
+    c.queried_server_count = expected_server_ids.size();
+    c.successful_server_count = 0;
+    c.failed_server_count = 0;
+    for (auto const id : expected_server_ids) {
+      auto it = attempts.find(id);
+      if (it == attempts.end()) {
+        continue;
+      }
+      if (it->second.status == ServerTimingAttemptStatus::kSuccess) {
+        ++c.successful_server_count;
+      } else if (it->second.status ==
+                 ServerTimingAttemptStatus::kTerminalError) {
+        ++c.failed_server_count;
+      }
+    }
+    return c;
+  }
+
   void Cancel() { cancelled = true; }
 };
 
@@ -505,6 +566,8 @@ class QueryPeerReceiveSchedule final : public Action {
   ResultEvent::Subscriber result_event() noexcept;
   // Per-server timing captured for this query. Not part of PeerReceiveSchedule.
   std::vector<ServerTimingDiagnostic> const& server_diagnostics() const noexcept;
+  PeerTimingQueryCoverage coverage() const noexcept;
+  Uid peer_uid() const noexcept { return peer_uid_; }
 
  private:
   Duration OneWayEstimateFor(CloudServerConnection* sc) const;

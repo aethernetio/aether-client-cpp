@@ -39,6 +39,7 @@
 #define AE_EXAMPLE_ETHERNET 1
 #include "aether/all.h"
 #include "aether/ae_actions/query_peer_receive_schedule.h"
+#include "aether/ae_actions/announce_next_ping_unknown.h"
 #include "aether/channels/channel.h"
 #include "aether/client_messages/p2p_message_stream.h"
 #include "aether/cloud_connections/ping_schedule_guard.h"
@@ -79,7 +80,11 @@ using IpcSide = ae::bench::uap::Side;
 namespace {
 constexpr std::uint8_t kIpcArmFault = 13;
 constexpr std::uint8_t kIpcSendTagged = 14;
+constexpr std::uint8_t kIpcQueryNow = 15;
 constexpr std::uint8_t kIpcPingTraceEx = 16;
+constexpr std::uint8_t kIpcAnnounceUnknown = 17;
+constexpr std::uint8_t kIpcScheduleState = 18;
+constexpr std::uint8_t kIpcPingBudget = 19;
 constexpr std::uint32_t kTagRequestLossQueued = 1;
 constexpr std::uint32_t kTagResponseLossFirstWindow = 2;
 constexpr std::uint32_t kTagAfterRetryWindow = 3;
@@ -94,6 +99,17 @@ inline std::int64_t TimePointUs(TimePoint tp) {
   return std::chrono::duration_cast<std::chrono::microseconds>(
              tp.time_since_epoch())
       .count();
+}
+
+// Duration is unsigned; never add a negative chrono duration to TimePoint.
+inline TimePoint AddOffsetMs(TimePoint base, std::int64_t offset_ms) {
+  auto const mag_ms = offset_ms < 0 ? -offset_ms : offset_ms;
+  auto const mag = std::chrono::duration_cast<Duration>(
+      std::chrono::milliseconds{mag_ms});
+  if (offset_ms >= 0) {
+    return base + mag;
+  }
+  return base - mag;
 }
 
 inline std::int64_t DurationUs(Duration d) {
@@ -116,16 +132,23 @@ inline std::int64_t SteadyUsNow() {
       .count();
 }
 
+inline std::uint64_t QpcNow() {
+  LARGE_INTEGER v{};
+  QueryPerformanceCounter(&v);
+  return static_cast<std::uint64_t>(v.QuadPart);
+}
+
 #if AE_ENABLE_PING
 struct PendingPingTrace {
   PingTraceEvent event;
   std::int64_t steady_us{0};
+  std::int64_t qpc{0};
 };
 std::vector<PendingPingTrace> g_pending_ping_traces;
 std::vector<PendingPingTrace> g_all_ping_traces;
 
 void OnPingTrace(PingTraceEvent const& event) {
-  PendingPingTrace rec{event, SteadyUsNow()};
+  PendingPingTrace rec{event, SteadyUsNow(), static_cast<std::int64_t>(QpcNow())};
   g_pending_ping_traces.push_back(rec);
   if (g_all_ping_traces.size() < 4096) {
     g_all_ping_traces.push_back(rec);
@@ -145,12 +168,6 @@ inline Uid UidFromHalves(std::int64_t lo, std::int64_t hi) {
   return uid;
 }
 
-inline std::uint64_t QpcNow() {
-  LARGE_INTEGER v{};
-  QueryPerformanceCounter(&v);
-  return static_cast<std::uint64_t>(v.QuadPart);
-}
-
 struct RoleState {
   IpcSide side{};
   std::int64_t ping_interval_ms{3000};
@@ -162,12 +179,18 @@ struct RoleState {
   Uid peer_uid{};
   bool peer_set{false};
   std::shared_ptr<P2pStream> stream;
+  std::vector<std::shared_ptr<P2pStream>> retired_streams_;
   Subscription stream_sub;
   Subscription new_port_sub;
   Subscription select_sub;
+  Subscription announce_sub;
   Subscription query_sub;
+  bool query_state_only_{false};
+  bool query_in_flight_{false};
+  PeerTimingQueryCoverage last_coverage_{};
   Subscription dest_cloud_sub;
   bool dest_proof_sent{false};
+  bool dest_cloud_failed_{false};
   bool own_proof_sent{false};
   std::optional<TimePoint> dest_retry_at_{};
   ChannelProof own_proof{};
@@ -180,6 +203,7 @@ struct RoleState {
   bool sample_in_flight{false};
   std::uint32_t pending_sequence{0};
   std::uint32_t pending_offset_ms{0};
+  std::int64_t pending_offset_signed_{0};
   std::optional<TimePoint> send_at_{};
   std::optional<TimePoint> requery_at_{};
   std::int64_t pending_last_us_{0};
@@ -267,7 +291,28 @@ struct RoleState {
       extra.h = e.request_was_sent ? 1 : 0;
       extra.i = e.response_was_ignored ? 1 : 0;
       extra.j = static_cast<std::int64_t>(e.server_id);
+      extra.k = rec.qpc;
+      extra.l = DurationUs(e.retry_reserve);
       pipe.WriteFrame(extra);
+      IpcFrame budget{};
+      budget.type = kIpcPingBudget;
+      budget.side = static_cast<std::uint8_t>(side);
+      budget.event_kind = static_cast<std::uint8_t>(e.kind);
+      budget.run_id_hash = run_id_hash;
+      budget.seq = ++ipc_seq;
+      budget.local_steady_us = rec.steady_us;
+      budget.a = DurationUs(e.attempt_lead);
+      budget.b = DurationUs(e.retry_reserve);
+      budget.c = DurationUs(e.loss_timeout);
+      budget.d = e.predeadline_retry_guaranteed ? 1 : 0;
+      budget.e = TimePointUs(e.cycle_anchor);
+      budget.f = TimePointUs(e.contract_deadline);
+      budget.g = DurationUs(e.ping_guard);
+      budget.h = static_cast<std::int64_t>(e.logical_cycle_id);
+      budget.i = static_cast<std::int64_t>(e.physical_attempt_index);
+      budget.j = static_cast<std::int64_t>(e.server_id);
+      budget.k = rec.qpc;
+      pipe.WriteFrame(budget);
     }
     g_pending_ping_traces.clear();
 #endif
@@ -312,25 +357,51 @@ struct RoleState {
     if (dest_proof_sent || !client || !peer_set) {
       return;
     }
+    if (dest_cloud_failed_) {
+      dest_cloud_sub.Reset();
+      dest_cloud_failed_ = false;
+    }
+    if (dest_cloud_sub) {
+      return;
+    }
     auto const now = Now();
     if (dest_retry_at_ && now < *dest_retry_at_) {
       return;
     }
     dest_retry_at_ = now + std::chrono::milliseconds{250};
-    dest_cloud_sub.Reset();
     auto& get_cloud = client->cloud_manager()->GetCloud(peer_uid);
     dest_cloud_sub = get_cloud.result_event().Subscribe(
         [this](Result<Cloud::ptr, int> const& res) {
           if (!res) {
+            dest_cloud_failed_ = true;
+            dest_retry_at_ = Now() + std::chrono::milliseconds{250};
             return;
           }
           auto proof = CollectDestinationProofFromCloud(*client, res.value());
           if (!proof.present || !IsClassifiedWorkProtocol(proof.protocol)) {
+            dest_cloud_failed_ = true;
+            dest_retry_at_ = Now() + std::chrono::milliseconds{250};
             return;
           }
           dest_proof_sent = true;
           EmitUdpProof(UdpProofPath::kDestination, proof);
         });
+  }
+
+  void ResetPeerBinding() {
+    sample_in_flight = false;
+    send_at_.reset();
+    requery_at_.reset();
+    stream_sub.Reset();
+    if (stream) {
+      retired_streams_.push_back(std::move(stream));
+    }
+    new_port_sub.Reset();
+    dest_cloud_sub.Reset();
+    dest_proof_sent = false;
+    dest_cloud_failed_ = false;
+    dest_proof = {};
+    dest_retry_at_.reset();
   }
 
   void EnsureStreams() {
@@ -470,8 +541,8 @@ struct RoleState {
     if (n < kWarmupSamples) {
       return;
     }
-    auto const interval =
-        std::chrono::duration_cast<Duration>(kBobPingInterval);
+    auto const interval = std::chrono::duration_cast<Duration>(
+        std::chrono::milliseconds{ping_interval_ms});
     auto const guard = ClampPingSendGuard(
         ComputePingSendGuard(min_rtt, p99_rtt), interval);
     auto const min_ms =
@@ -496,15 +567,15 @@ struct RoleState {
          min_ms, p99_ms);
   }
 
-  void StartSample(std::uint32_t sequence, std::uint32_t offset_ms) {
+  void StartSample(std::uint32_t sequence, std::int64_t offset_ms) {
     if (side != IpcSide::kA || !client || !peer_set) {
       return;
     }
-    // Coordinator may time out while we are waiting to requery; always take
-    // the latest sample request.
     sample_in_flight = true;
+    query_state_only_ = false;
     pending_sequence = sequence;
-    pending_offset_ms = offset_ms;
+    pending_offset_signed_ = offset_ms;
+    pending_offset_ms = offset_ms < 0 ? 0u : static_cast<std::uint32_t>(offset_ms);
     send_at_.reset();
     requery_at_.reset();
     EnsureStreams();
@@ -514,10 +585,18 @@ struct RoleState {
   void BeginQuery() {
     // Reset subscription before replacing Client-owned action.
     query_sub.Reset();
+    query_in_flight_ = true;
     auto& action = client->QueryPeerReceiveSchedule(peer_uid);
     query_sub = action.result_event().Subscribe(
         [this, &action](Result<PeerReceiveSchedule, int> const& res) {
           last_diagnostics_ = action.server_diagnostics();
+          last_coverage_ = action.coverage();
+          query_in_flight_ = false;
+          if (query_state_only_) {
+            EmitScheduleState(res);
+            query_state_only_ = false;
+            return;
+          }
           OnSchedule(res);
         });
   }
@@ -573,11 +652,11 @@ struct RoleState {
       return;
     }
 
-    auto const offset = std::chrono::milliseconds{pending_offset_ms};
     auto const cycle_start =
         *diag->converted.next_ping_deadline -
-        std::chrono::duration_cast<Duration>(kBobPingInterval);
-    auto const target = cycle_start + offset;
+        std::chrono::duration_cast<Duration>(
+            std::chrono::milliseconds{ping_interval_ms});
+    auto const target = AddOffsetMs(cycle_start, pending_offset_signed_);
     auto const now = Now();
     pending_last_us_ = TimePointUs(cycle_start);
     pending_next_us_ = TimePointUs(*diag->converted.next_ping_deadline);
@@ -606,7 +685,7 @@ struct RoleState {
                                                                        now)
                      .count()
               << " to_next_ms=" << to_next_ms
-              << " offset_ms=" << pending_offset_ms
+              << " offset_ms=" << pending_offset_signed_
               << " raw_delta_ms=" << pending_raw_delta_ms_ << std::endl;
 
     if (now + kSkipIfCloserThan > target && now < target) {
@@ -619,6 +698,30 @@ struct RoleState {
       return;
     }
     if (now >= target) {
+      auto const next_target = AddOffsetMs(*diag->converted.next_ping_deadline,
+                                           pending_offset_signed_);
+      if (next_target > now + kSkipIfCloserThan) {
+        auto const delay_ms =
+            std::chrono::duration_cast<std::chrono::milliseconds>(next_target -
+                                                                  now)
+                .count();
+        if (delay_ms > 15000) {
+          sample_in_flight = false;
+          Emit(IpcType::kSampleResult, EventKind::kSampleSkipped,
+               pending_sequence, pending_offset_ms, pending_last_us_,
+               pending_next_us_, 3, pending_schedule_server_id_,
+               pending_schedule_server_id_, pending_route_generation_);
+          return;
+        }
+        pending_last_us_ = TimePointUs(*diag->converted.next_ping_deadline);
+        pending_next_us_ = TimePointUs(
+            *diag->converted.next_ping_deadline +
+            std::chrono::duration_cast<Duration>(
+                std::chrono::milliseconds{ping_interval_ms}));
+        pending_target_us_ = TimePointUs(next_target);
+        send_at_ = next_target;
+        return;
+      }
       auto wait_until =
           *diag->converted.next_ping_deadline + std::chrono::milliseconds{150};
       if (wait_until <= now) {
@@ -775,7 +878,12 @@ struct RoleState {
     if (f.d > 0) {
       plan.timeout_override = Duration{static_cast<Duration::rep>(f.d)};
     }
-    PingTestFaults::Instance().Clear();
+    if (f.f > 0) {
+      plan.logical_cycle_id = static_cast<std::uint64_t>(f.f);
+    }
+    if (f.e == 0) {
+      PingTestFaults::Instance().Clear();
+    }
     PingTestFaults::Instance().Arm(plan);
     Emit(IpcType::kAck, EventKind::kAck, 0, 0, f.a, f.b, f.c);
 #else
@@ -783,20 +891,74 @@ struct RoleState {
     Emit(IpcType::kEvent, EventKind::kError, 0, 0, 12);
 #endif
   }
+
+  void EmitScheduleState(Result<PeerReceiveSchedule, int> const& res) {
+    IpcFrame frame{};
+    frame.type = kIpcScheduleState;
+    frame.side = static_cast<std::uint8_t>(side);
+    frame.run_id_hash = run_id_hash;
+    frame.seq = ++ipc_seq;
+    frame.local_steady_us = SteadyUsNow();
+    if (!res) {
+      frame.a = -1;
+      frame.b = res.error();
+    } else {
+      frame.a = static_cast<std::int64_t>(res.value().state);
+      frame.b = res.value().next_ping_deadline.has_value()
+                    ? TimePointUs(*res.value().next_ping_deadline)
+                    : 0;
+      frame.c = TimePointUs(res.value().last_online);
+    }
+    frame.d = static_cast<std::int64_t>(last_coverage_.selected_server_count);
+    frame.e = static_cast<std::int64_t>(last_coverage_.queried_server_count);
+    frame.f = static_cast<std::int64_t>(last_coverage_.successful_server_count);
+    frame.g = static_cast<std::int64_t>(last_coverage_.failed_server_count);
+    frame.h =
+        static_cast<std::int64_t>(last_coverage_.quarantined_skipped_count);
+    frame.i = static_cast<std::int64_t>(QpcNow());
+    pipe.WriteFrame(frame);
+  }
+
+  void QueryNow() {
+    if (!client || !peer_set) {
+      return;
+    }
+    if (query_in_flight_) {
+      return;
+    }
+    query_state_only_ = true;
+    BeginQuery();
+  }
+
+  void StartAnnounceUnknown() {
+    if (!client) {
+      Emit(IpcType::kEvent, EventKind::kError, 0, 0, 13);
+      return;
+    }
+    announce_sub.Reset();
+    auto& action = client->AnnounceNextPingUnknown();
+    announce_sub = action.result_event().Subscribe(
+        [this](Result<std::monostate, int> const& res) {
+          Emit(IpcType::kAck, EventKind::kAck, 0, 0, res ? 0 : res.error(),
+               static_cast<std::int64_t>(QpcNow()));
+        });
+  }
   void HandleIpc(IpcFrame const& f) {
     auto const type = static_cast<IpcType>(f.type);
     switch (type) {
-      case IpcType::kSetPeerUid:
-        peer_uid = UidFromHalves(f.a, f.b);
-        peer_set = true;
-        if (client) {
-          // Bob: schedule already applied; Alice: default schedule.
-          TryEmitOwnProof();
-          TryEmitDestProof();
+      case IpcType::kSetPeerUid: {
+        auto const next = UidFromHalves(f.a, f.b);
+        if (!peer_set || next != peer_uid) {
+          ResetPeerBinding();
+          std::cerr << (side == IpcSide::kA ? "Alice" : "Bob")
+                    << " peer uid changed; rebuilt P2P binding" << std::endl;
         }
+        peer_uid = next;
+        peer_set = true;
         EnsureStreams();
         Emit(IpcType::kAck, EventKind::kAck);
         break;
+      }
       case IpcType::kWaitWarmup:
         warmup_active = true;
         std::cerr << (side == IpcSide::kA ? "Alice" : "Bob")
@@ -804,9 +966,14 @@ struct RoleState {
         TryEmitOwnProof();
         TryEmitDestProof();
         break;
-      case IpcType::kRunSample:
-        StartSample(f.sequence, f.offset_ms);
+      case IpcType::kRunSample: {
+        auto offset = static_cast<std::int64_t>(f.offset_ms);
+        if (f.a != 0) {
+          offset = f.a;
+        }
+        StartSample(f.sequence, offset);
         break;
+      }
       case IpcType::kShutdown:
         exit_requested = true;
         Emit(IpcType::kAck, EventKind::kAck);
@@ -816,6 +983,10 @@ struct RoleState {
           ArmFault(f);
         } else if (f.type == kIpcSendTagged) {
           SendTaggedNow(f.sequence);
+        } else if (f.type == kIpcQueryNow) {
+          QueryNow();
+        } else if (f.type == kIpcAnnounceUnknown) {
+          StartAnnounceUnknown();
         }
         break;
     }

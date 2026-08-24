@@ -53,6 +53,10 @@ QueryPeerReceiveSchedule::server_diagnostics() const noexcept {
   return diagnostics_;
 }
 
+PeerTimingQueryCoverage QueryPeerReceiveSchedule::coverage() const noexcept {
+  return query_state_.QueryCoverage();
+}
+
 Duration QueryPeerReceiveSchedule::OneWayEstimateFor(
     CloudServerConnection* sc) const {
   auto const fallback = FallbackOneWayPingEstimate();
@@ -87,44 +91,27 @@ void QueryPeerReceiveSchedule::OnCloud(Result<Cloud::ptr, int> result) {
 
 void QueryPeerReceiveSchedule::SnapshotExpectedServers() {
   std::vector<ServerId> expected;
-  bool incomplete = false;
+  PeerTimingQueryCoverage cov;
   if (dest_cloud_ != nullptr) {
-    // RequestPolicy::All walks selected_servers(), not every configured cloud
-    // server. Unselected configured servers must not be treated as
-    // successful-negative for MissedDeadline.
-    expected.reserve(dest_cloud_->selected_servers().size());
-    for (auto* sc : dest_cloud_->selected_servers()) {
+    auto const& selected = dest_cloud_->selected_servers();
+    cov.selected_server_count = selected.size();
+    expected.reserve(selected.size());
+    for (auto* sc : selected) {
       if (sc == nullptr) {
         continue;
       }
       if (sc->quarantine()) {
-        incomplete = true;
+        ++cov.quarantined_skipped_count;
+        continue;
+      }
+      if (!sc->server()) {
         continue;
       }
       expected.push_back(sc->server_id());
     }
-    for (auto* sc : dest_cloud_->servers()) {
-      if (sc == nullptr) {
-        continue;
-      }
-      if (sc->quarantine()) {
-        incomplete = true;
-        continue;
-      }
-      bool selected = false;
-      for (auto const id : expected) {
-        if (id == sc->server_id()) {
-          selected = true;
-          break;
-        }
-      }
-      if (!selected) {
-        incomplete = true;
-        break;
-      }
-    }
+    cov.queried_server_count = expected.size();
   }
-  query_state_.Begin(std::move(expected), incomplete);
+  query_state_.Begin(std::move(expected), false, cov);
 }
 
 void QueryPeerReceiveSchedule::StartQuery() {
@@ -145,7 +132,7 @@ void QueryPeerReceiveSchedule::StartQuery() {
         if (finished_ || query_state_.cancelled) {
           return;
         }
-        if (sc == nullptr || !sc->server()) {
+        if (sc == nullptr || !sc->server() || sc->quarantine()) {
           return;
         }
         auto const server_id = sc->server_id();

@@ -19,9 +19,11 @@
 #include <utility>
 
 #include "aether/ae_actions/query_peer_receive_schedule.h"
+#include "aether/ae_actions/announce_next_ping_unknown.h"
 #include "aether/ae_actions/telemetry.h"
 
 #include "aether/aether.h"
+#include "aether/config.h"
 
 namespace ae {
 
@@ -155,11 +157,28 @@ Result<std::monostate, int> Client::SetReceiveSchedule(ReceiveSchedule schedule)
 }
 
 ::ae::QueryPeerReceiveSchedule& Client::QueryPeerReceiveSchedule(Uid peer_uid) {
+  if (query_peer_receive_schedule_ &&
+      !query_peer_receive_schedule_->is_finished() &&
+      query_peer_receive_schedule_->peer_uid() == peer_uid) {
+    return *query_peer_receive_schedule_;
+  }
   query_peer_receive_schedule_ =
       std::make_unique<::ae::QueryPeerReceiveSchedule>(
           AeContext{*aether_.Load().as<Aether>()}, *this, peer_uid);
   return *query_peer_receive_schedule_;
 }
+
+::ae::AnnounceNextPingUnknown& Client::AnnounceNextPingUnknown() {
+  announce_next_ping_unknown_ = std::make_unique<::ae::AnnounceNextPingUnknown>(
+      AeContext{*aether_.Load().as<Aether>()}, *this);
+  return *announce_next_ping_unknown_;
+}
+
+#if AE_ENABLE_PING
+PingCloudServers* Client::ping_cloud_servers() noexcept {
+  return ping_cloud_servers_.get();
+}
+#endif
 
 void Client::SendTelemetry() {
 #if TELEMETRY_ENABLED

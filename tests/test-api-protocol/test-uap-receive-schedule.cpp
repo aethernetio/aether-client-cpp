@@ -186,7 +186,7 @@ void test_EarlyRxWindowComputation() {
   auto at = [&](std::uint32_t ms) { return t0 + Ms(ms); };
 
   auto none = ComputeEarlyRxWindow(EarlyRxWindowInput{
-      .has_planned_send = false,
+      .has_nominal_ping = false,
       .actual_send_at = at(100),
       .base_rx_window = Ms(1000),
   });
@@ -194,8 +194,8 @@ void test_EarlyRxWindowComputation() {
   TEST_ASSERT_TRUE(none.effective_wire_rx_window == Ms(1000));
 
   auto on_time = ComputeEarlyRxWindow(EarlyRxWindowInput{
-      .has_planned_send = true,
-      .planned_send_at = at(3000),
+      .has_nominal_ping = true,
+      .nominal_ping_at = at(3000),
       .actual_send_at = at(3000),
       .base_rx_window = Ms(1000),
   });
@@ -203,8 +203,8 @@ void test_EarlyRxWindowComputation() {
   TEST_ASSERT_TRUE(on_time.effective_wire_rx_window == Ms(1000));
 
   auto early700 = ComputeEarlyRxWindow(EarlyRxWindowInput{
-      .has_planned_send = true,
-      .planned_send_at = at(3000),
+      .has_nominal_ping = true,
+      .nominal_ping_at = at(3000),
       .actual_send_at = at(2300),
       .base_rx_window = Ms(1000),
   });
@@ -212,8 +212,8 @@ void test_EarlyRxWindowComputation() {
   TEST_ASSERT_TRUE(early700.effective_wire_rx_window == Ms(1700));
 
   auto early1200 = ComputeEarlyRxWindow(EarlyRxWindowInput{
-      .has_planned_send = true,
-      .planned_send_at = at(3000),
+      .has_nominal_ping = true,
+      .nominal_ping_at = at(3000),
       .actual_send_at = at(1800),
       .base_rx_window = Ms(1000),
   });
@@ -221,8 +221,8 @@ void test_EarlyRxWindowComputation() {
   TEST_ASSERT_TRUE(early1200.effective_wire_rx_window == Ms(2200));
 
   auto late = ComputeEarlyRxWindow(EarlyRxWindowInput{
-      .has_planned_send = true,
-      .planned_send_at = at(3000),
+      .has_nominal_ping = true,
+      .nominal_ping_at = at(3000),
       .actual_send_at = at(3200),
       .base_rx_window = Ms(1000),
   });
@@ -230,8 +230,8 @@ void test_EarlyRxWindowComputation() {
   TEST_ASSERT_TRUE(late.effective_wire_rx_window == Ms(1000));
 
   auto held = ComputeEarlyRxWindow(EarlyRxWindowInput{
-      .has_planned_send = true,
-      .planned_send_at = at(7000),
+      .has_nominal_ping = true,
+      .nominal_ping_at = at(7000),
       .actual_send_at = at(7000),
       .base_rx_window = Ms(1000),
       .has_required_rx_until = true,
@@ -240,8 +240,8 @@ void test_EarlyRxWindowComputation() {
   TEST_ASSERT_TRUE(held.effective_wire_rx_window == Ms(3000));
 
   auto second = ComputeEarlyRxWindow(EarlyRxWindowInput{
-      .has_planned_send = true,
-      .planned_send_at = at(2800),
+      .has_nominal_ping = true,
+      .nominal_ping_at = at(2800),
       .actual_send_at = at(2800),
       .base_rx_window = Ms(1000),
       .has_required_rx_until = true,
@@ -252,16 +252,16 @@ void test_EarlyRxWindowComputation() {
                    SaturatingSubTime(early1200.required_rx_until, at(2800)));
 
   auto zero_base = ComputeEarlyRxWindow(EarlyRxWindowInput{
-      .has_planned_send = true,
-      .planned_send_at = at(3000),
+      .has_nominal_ping = true,
+      .nominal_ping_at = at(3000),
       .actual_send_at = at(1800),
       .base_rx_window = Ms(0),
   });
   TEST_ASSERT_TRUE(zero_base.effective_wire_rx_window == Ms(1200));
 
   auto past_planned = ComputeEarlyRxWindow(EarlyRxWindowInput{
-      .has_planned_send = true,
-      .planned_send_at = at(100),
+      .has_nominal_ping = true,
+      .nominal_ping_at = at(100),
       .actual_send_at = at(2000),
       .base_rx_window = Ms(1000),
   });
@@ -311,8 +311,8 @@ void test_ServerWindowInvariantIndependentOfRtt() {
   auto const actual = t0 + Ms(1800);
   auto const base = Ms(1000);
   auto const out = ComputeEarlyRxWindow(EarlyRxWindowInput{
-      .has_planned_send = true,
-      .planned_send_at = planned,
+      .has_nominal_ping = true,
+      .nominal_ping_at = planned,
       .actual_send_at = actual,
       .base_rx_window = base,
   });
@@ -394,17 +394,17 @@ void test_LogicalPingSuccessConfirmsOnceAndIgnoresStale() {
   req.base_rx_window = Ms(1000);
   auto const first = ApplyLogicalPingAttempt(st, req);
   TEST_ASSERT_TRUE(ShouldAcceptCycleResult(
-      st.active, st.confirmed, st.attempt_index, first.attempt_index,
-      st.current_attempt_timed_out, true));
+      st.active, st.confirmed, st.cycle_id, first.cycle_id, st.attempt_index,
+      first.attempt_index, st.current_attempt_timed_out, true));
   ConfirmLogicalPingCycle(st);
   TEST_ASSERT_TRUE(st.confirmed);
   TEST_ASSERT_FALSE(st.active);
   TEST_ASSERT_FALSE(ShouldAcceptCycleResult(
-      st.active, st.confirmed, st.attempt_index, first.attempt_index,
-      st.current_attempt_timed_out, true));
+      st.active, st.confirmed, st.cycle_id, first.cycle_id, st.attempt_index,
+      first.attempt_index, st.current_attempt_timed_out, true));
 }
 
-void test_LogicalPingTimeoutIgnoresLateOldAttempt() {
+void test_LogicalPingLateOldAttemptConfirmsActiveCycle() {
   LogicalPingCycleState st{};
   LogicalPingAttemptRequest req{};
   req.actual_send_at = TimePoint{} + Ms(3000);
@@ -413,19 +413,36 @@ void test_LogicalPingTimeoutIgnoresLateOldAttempt() {
   req.base_rx_window = Ms(1000);
   auto const first = ApplyLogicalPingAttempt(st, req);
   MarkLogicalPingAttemptTimedOut(st);
-  // Late pong for the timed-out attempt is still the cycle result.
   TEST_ASSERT_TRUE(ShouldAcceptCycleResult(
-      st.active, st.confirmed, st.attempt_index, first.attempt_index,
-      st.current_attempt_timed_out, true));
-  TEST_ASSERT_TRUE(ShouldAcceptCycleResult(
-      st.active, st.confirmed, st.attempt_index, first.attempt_index,
-      st.current_attempt_timed_out, false));
+      st.active, st.confirmed, st.cycle_id, first.cycle_id, st.attempt_index,
+      first.attempt_index, st.current_attempt_timed_out, true));
   req.actual_send_at = TimePoint{} + Ms(3200);
   auto const retry = ApplyLogicalPingAttempt(st, req);
   TEST_ASSERT_EQUAL_UINT(2, retry.attempt_index);
+  TEST_ASSERT_TRUE(ShouldAcceptCycleResult(
+      st.active, st.confirmed, st.cycle_id, first.cycle_id, st.attempt_index,
+      first.attempt_index, st.current_attempt_timed_out, true));
+  ConfirmLogicalPingCycle(st);
   TEST_ASSERT_FALSE(ShouldAcceptCycleResult(
-      st.active, st.confirmed, st.attempt_index, first.attempt_index,
-      st.current_attempt_timed_out, true));
+      st.active, st.confirmed, st.cycle_id, first.cycle_id, st.attempt_index,
+      first.attempt_index, st.current_attempt_timed_out, true));
+}
+
+void test_LogicalPingPreviousCyclePongIgnored() {
+  LogicalPingCycleState st{};
+  LogicalPingAttemptRequest req{};
+  req.actual_send_at = TimePoint{} + Ms(3000);
+  req.interval = Ms(3000);
+  req.guard = Ms(10);
+  req.base_rx_window = Ms(1000);
+  auto const first = ApplyLogicalPingAttempt(st, req);
+  ConfirmLogicalPingCycle(st);
+  req.actual_send_at = TimePoint{} + Ms(5990);
+  auto const second = ApplyLogicalPingAttempt(st, req);
+  TEST_ASSERT_TRUE(second.cycle_id != first.cycle_id);
+  TEST_ASSERT_FALSE(ShouldAcceptCycleResult(
+      st.active, st.confirmed, st.cycle_id, first.cycle_id, st.attempt_index,
+      first.attempt_index, st.current_attempt_timed_out, true));
 }
 
 void test_LogicalPingErrorRetryActions() {
@@ -437,22 +454,184 @@ void test_LogicalPingErrorRetryActions() {
                    PingErrorRetryAction::kRestreamThenSameCycle);
 }
 
-void test_LogicalPingSendAfterGuardBeforeDeadlineAnchorsToActual() {
+void test_LogicalPingEarlyAttemptDoesNotShiftPhase() {
   LogicalPingCycleState st{};
   LogicalPingAttemptRequest req{};
   req.actual_send_at = TimePoint{} + Ms(3000);
   req.interval = Ms(3000);
   req.guard = Ms(50);
   req.base_rx_window = Ms(1000);
-  ApplyLogicalPingAttempt(st, req);
+  auto const first = ApplyLogicalPingAttempt(st, req);
+  TEST_ASSERT_TRUE(first.bootstrap);
+  TEST_ASSERT_TRUE(first.nominal_ping_at == req.actual_send_at);
   ConfirmLogicalPingCycle(st);
   req.actual_send_at = TimePoint{} + Ms(5960);
   auto const second = ApplyLogicalPingAttempt(st, req);
   TEST_ASSERT_TRUE(second.started_new_cycle);
-  TEST_ASSERT_EQUAL_INT64(3000, second.wire_next_connect_ms);
-  TEST_ASSERT_TRUE(second.contract_deadline == req.actual_send_at + Ms(3000));
-  TEST_ASSERT_TRUE(second.next_local_send ==
-                   req.actual_send_at + Ms(3000) - Ms(50));
+  TEST_ASSERT_FALSE(second.bootstrap);
+  TEST_ASSERT_TRUE(second.nominal_ping_at == first.next_nominal_ping_at);
+  TEST_ASSERT_TRUE(second.next_nominal_ping_at ==
+                   first.next_nominal_ping_at + Ms(3000));
+  TEST_ASSERT_EQUAL_INT64(3040, second.wire_next_connect_ms);
+}
+
+void test_LogicalPingSubsequentEarlyWireIsExtended() {
+  LogicalPingCycleState st{};
+  LogicalPingAttemptRequest req{};
+  req.actual_send_at = TimePoint{} + Ms(4000);
+  req.interval = Ms(1000);
+  req.guard = Ms(10);
+  req.attempt_lead = Ms(250);
+  req.base_rx_window = Ms(250);
+  ApplyLogicalPingAttempt(st, req);
+  ConfirmLogicalPingCycle(st);
+  req.actual_send_at = TimePoint{} + Ms(4750);
+  auto const second = ApplyLogicalPingAttempt(st, req);
+  TEST_ASSERT_TRUE(second.nominal_ping_at == TimePoint{} + Ms(5000));
+  TEST_ASSERT_TRUE(second.next_nominal_ping_at == TimePoint{} + Ms(6000));
+  TEST_ASSERT_EQUAL_INT64(1250, second.wire_next_connect_ms);
+  TEST_ASSERT_TRUE(second.rx.effective_wire_rx_window == Ms(500));
+}
+
+void test_LogicalPingRetryKeepsNominalAndShrinksWire() {
+  LogicalPingCycleState st{};
+  LogicalPingAttemptRequest req{};
+  req.actual_send_at = TimePoint{} + Ms(4000);
+  req.interval = Ms(1000);
+  req.guard = Ms(10);
+  req.attempt_lead = Ms(250);
+  req.base_rx_window = Ms(250);
+  ApplyLogicalPingAttempt(st, req);
+  ConfirmLogicalPingCycle(st);
+  req.actual_send_at = TimePoint{} + Ms(4750);
+  auto const first = ApplyLogicalPingAttempt(st, req);
+  req.actual_send_at = TimePoint{} + Ms(4920);
+  auto const retry = ApplyLogicalPingAttempt(st, req);
+  TEST_ASSERT_TRUE(retry.cycle_id == first.cycle_id);
+  TEST_ASSERT_TRUE(retry.nominal_ping_at == first.nominal_ping_at);
+  TEST_ASSERT_TRUE(retry.next_nominal_ping_at == first.next_nominal_ping_at);
+  TEST_ASSERT_EQUAL_INT64(1080, retry.wire_next_connect_ms);
+}
+
+void test_LogicalPingLateRetryAdvancesWholeIntervals() {
+  LogicalPingCycleState st{};
+  LogicalPingAttemptRequest req{};
+  req.actual_send_at = TimePoint{} + Ms(4000);
+  req.interval = Ms(1000);
+  req.guard = Ms(10);
+  req.attempt_lead = Ms(250);
+  req.base_rx_window = Ms(250);
+  ApplyLogicalPingAttempt(st, req);
+  ConfirmLogicalPingCycle(st);
+  req.actual_send_at = TimePoint{} + Ms(4750);
+  auto const first = ApplyLogicalPingAttempt(st, req);
+  req.actual_send_at = TimePoint{} + Ms(6200);
+  auto const retry = ApplyLogicalPingAttempt(st, req);
+  TEST_ASSERT_TRUE(retry.cycle_id == first.cycle_id);
+  TEST_ASSERT_TRUE(retry.next_nominal_ping_at == TimePoint{} + Ms(7000));
+  TEST_ASSERT_EQUAL_INT64(800, retry.wire_next_connect_ms);
+}
+
+void test_LogicalPingHundredCyclesNoPhaseDrift() {
+  LogicalPingCycleState st{};
+  LogicalPingAttemptRequest req{};
+  req.interval = Ms(1000);
+  req.guard = Ms(10);
+  req.attempt_lead = Ms(250);
+  req.base_rx_window = Ms(250);
+  TimePoint send = TimePoint{};
+  TimePoint last_tn{};
+  for (int i = 0; i < 100; ++i) {
+    req.actual_send_at = send;
+    auto const view = ApplyLogicalPingAttempt(st, req);
+    if (i == 0) {
+      TEST_ASSERT_TRUE(view.bootstrap);
+      TEST_ASSERT_TRUE(view.nominal_ping_at == TimePoint{});
+    } else {
+      TEST_ASSERT_FALSE(view.bootstrap);
+      TEST_ASSERT_TRUE(view.nominal_ping_at == TimePoint{} + Ms(static_cast<std::uint32_t>(i * 1000)));
+    }
+    last_tn = view.nominal_ping_at;
+    ConfirmLogicalPingCycle(st);
+    send = view.next_local_send;
+  }
+  TEST_ASSERT_TRUE(last_tn == TimePoint{} + Ms(99000));
+}
+
+void test_PingRetryBudgetEmptyStats() {
+  StatisticsCounter<Duration, 8> empty{};
+  auto const budget =
+      ComputePingRetryBudgetFromStats(empty, Ms(1000), Ms(200));
+  TEST_ASSERT_TRUE(budget.scheduler_margin == Ms(10));
+  TEST_ASSERT_TRUE(budget.retry_one_way_budget == Ms(100));
+  TEST_ASSERT_TRUE(budget.loss_timeout == Ms(210));
+  TEST_ASSERT_TRUE(budget.predeadline_retry_guaranteed);
+  TEST_ASSERT_TRUE(budget.loss_timeout.count() > 0);
+}
+
+void test_PingRetryBudgetRealMinP99() {
+  auto const guard = ComputePingSendGuard(Ms(60), Ms(100));
+  TEST_ASSERT_TRUE(guard == Ms(30));
+  auto const budget = ComputePingRetryBudget(
+      PingRetryBudgetInput{Ms(1000), guard, Ms(100), Ms(100)});
+  TEST_ASSERT_TRUE(budget.retry_one_way_budget == Ms(50));
+  TEST_ASSERT_TRUE(budget.loss_timeout == Ms(110));
+  TEST_ASSERT_TRUE(budget.retry_reserve == Ms(170));
+  TEST_ASSERT_TRUE(budget.attempt_lead == Ms(200));
+  TEST_ASSERT_TRUE(budget.predeadline_retry_guaranteed);
+}
+
+void test_PingRetryBudgetOneSecondAllowsRetryWithP99_80() {
+  auto const guard = ComputePingSendGuard(Ms(80), Ms(80));
+  auto const budget = ComputePingRetryBudget(
+      PingRetryBudgetInput{Ms(1000), guard, Ms(80), Ms(80)});
+  TEST_ASSERT_TRUE(guard == Ms(10));
+  TEST_ASSERT_TRUE(budget.loss_timeout == Ms(90));
+  TEST_ASSERT_TRUE(budget.attempt_lead < Ms(1000));
+  TEST_ASSERT_TRUE(budget.predeadline_retry_guaranteed);
+  TEST_ASSERT_TRUE(budget.loss_timeout < budget.attempt_lead);
+}
+
+void test_PingRetryBudgetShortIntervalSetsDiagnosticAndDoesNotWireZero() {
+  auto const budget = ComputePingRetryBudget(
+      PingRetryBudgetInput{Ms(40), Ms(10), Ms(200), Ms(200)});
+  TEST_ASSERT_FALSE(budget.predeadline_retry_guaranteed);
+  TEST_ASSERT_TRUE(budget.loss_timeout.count() > 0);
+  LogicalPingCycleState st{};
+  LogicalPingAttemptRequest req{};
+  req.actual_send_at = TimePoint{} + Ms(1000);
+  req.interval = Ms(40);
+  req.guard = Ms(10);
+  req.attempt_lead = budget.attempt_lead;
+  req.loss_timeout = budget.loss_timeout;
+  req.predeadline_retry_guaranteed = budget.predeadline_retry_guaranteed;
+  req.base_rx_window = Ms(20);
+  auto const view = ApplyLogicalPingAttempt(st, req);
+  TEST_ASSERT_TRUE(view.wire_next_connect_ms >= 1);
+}
+
+void test_RxWindowUsesNominalPlusBaseWindow() {
+  auto const t0 = TimePoint{};
+  auto const out = ComputeEarlyRxWindow(EarlyRxWindowInput{
+      .has_nominal_ping = true,
+      .nominal_ping_at = t0 + Ms(5000),
+      .actual_send_at = t0 + Ms(4750),
+      .base_rx_window = Ms(250),
+  });
+  TEST_ASSERT_TRUE(out.effective_wire_rx_window == Ms(500));
+  TEST_ASSERT_TRUE(out.required_rx_until == t0 + Ms(5250));
+}
+
+void test_AnnounceUnknownWiresZero() {
+  LogicalPingCycleState st{};
+  LogicalPingAttemptRequest req{};
+  req.actual_send_at = TimePoint{} + Ms(3000);
+  req.interval = Ms(1000);
+  req.guard = Ms(10);
+  req.base_rx_window = Ms(250);
+  req.announce_unknown = true;
+  auto const view = ApplyLogicalPingAttempt(st, req);
+  TEST_ASSERT_EQUAL_INT64(0, view.wire_next_connect_ms);
 }
 
 void test_LogicalPingRetryAfterDeadlineKeepsPhaseAndNeverWiresZero() {
@@ -546,6 +725,32 @@ void test_PingTestFaultsBindNextCycleAndIgnoreResponse() {
   TEST_ASSERT_EQUAL_UINT(1, PingTestFaults::Instance().protocol_responses());
   PingTestFaults::Instance().Clear();
 }
+
+void test_PingTestFaultsConsecutiveAttempts() {
+  PingTestFaults::Instance().Clear();
+  PingFaultPlan drop1{};
+  drop1.server_id = 20;
+  drop1.logical_cycle_id = 4;
+  drop1.physical_attempt_index = 1;
+  drop1.mode = PingFaultMode::kDropRequest;
+  PingFaultPlan drop2{};
+  drop2.server_id = 20;
+  drop2.logical_cycle_id = 4;
+  drop2.physical_attempt_index = 2;
+  drop2.mode = PingFaultMode::kDropRequest;
+  PingTestFaults::Instance().Arm(drop1);
+  PingTestFaults::Instance().Arm(drop2);
+  auto a1 = PingTestFaults::Instance().Consume(
+      PingFaultContext{20, 4, 1, TimePoint{}, TimePoint{}});
+  auto a2 = PingTestFaults::Instance().Consume(
+      PingFaultContext{20, 4, 2, TimePoint{}, TimePoint{}});
+  auto a3 = PingTestFaults::Instance().Consume(
+      PingFaultContext{20, 4, 3, TimePoint{}, TimePoint{}});
+  TEST_ASSERT_TRUE(a1.mode == PingFaultMode::kDropRequest);
+  TEST_ASSERT_TRUE(a2.mode == PingFaultMode::kDropRequest);
+  TEST_ASSERT_TRUE(a3.mode == PingFaultMode::kNone);
+  PingTestFaults::Instance().Clear();
+}
 #endif
 
 }  // namespace ae::test_uap_receive_schedule
@@ -584,10 +789,28 @@ int test_uap_receive_schedule() {
   RUN_TEST(ae::test_uap_receive_schedule::
                test_LogicalPingSuccessConfirmsOnceAndIgnoresStale);
   RUN_TEST(ae::test_uap_receive_schedule::
-               test_LogicalPingTimeoutIgnoresLateOldAttempt);
+               test_LogicalPingLateOldAttemptConfirmsActiveCycle);
+  RUN_TEST(ae::test_uap_receive_schedule::
+               test_LogicalPingPreviousCyclePongIgnored);
   RUN_TEST(ae::test_uap_receive_schedule::test_LogicalPingErrorRetryActions);
   RUN_TEST(ae::test_uap_receive_schedule::
-               test_LogicalPingSendAfterGuardBeforeDeadlineAnchorsToActual);
+               test_LogicalPingEarlyAttemptDoesNotShiftPhase);
+  RUN_TEST(ae::test_uap_receive_schedule::
+               test_LogicalPingSubsequentEarlyWireIsExtended);
+  RUN_TEST(ae::test_uap_receive_schedule::
+               test_LogicalPingRetryKeepsNominalAndShrinksWire);
+  RUN_TEST(ae::test_uap_receive_schedule::
+               test_LogicalPingLateRetryAdvancesWholeIntervals);
+  RUN_TEST(ae::test_uap_receive_schedule::
+               test_LogicalPingHundredCyclesNoPhaseDrift);
+  RUN_TEST(ae::test_uap_receive_schedule::test_PingRetryBudgetEmptyStats);
+  RUN_TEST(ae::test_uap_receive_schedule::test_PingRetryBudgetRealMinP99);
+  RUN_TEST(ae::test_uap_receive_schedule::
+               test_PingRetryBudgetOneSecondAllowsRetryWithP99_80);
+  RUN_TEST(ae::test_uap_receive_schedule::
+               test_PingRetryBudgetShortIntervalSetsDiagnosticAndDoesNotWireZero);
+  RUN_TEST(ae::test_uap_receive_schedule::test_RxWindowUsesNominalPlusBaseWindow);
+  RUN_TEST(ae::test_uap_receive_schedule::test_AnnounceUnknownWiresZero);
   RUN_TEST(ae::test_uap_receive_schedule::
                test_LogicalPingRetryAfterDeadlineKeepsPhaseAndNeverWiresZero);
   RUN_TEST(
@@ -598,6 +821,8 @@ int test_uap_receive_schedule() {
                test_PingTestFaultsTargetExactServerCycleAttempt);
   RUN_TEST(ae::test_uap_receive_schedule::
                test_PingTestFaultsBindNextCycleAndIgnoreResponse);
+  RUN_TEST(ae::test_uap_receive_schedule::
+               test_PingTestFaultsConsecutiveAttempts);
 #endif
   return UNITY_END();
 }
