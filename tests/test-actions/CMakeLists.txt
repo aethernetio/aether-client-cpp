@@ -24,6 +24,7 @@ list(APPEND action_srcs
 list(APPEND test_srcs
   main.cpp
   test-actions-queue.cpp
+  test-action-pool.cpp
 )
 
 if(NOT CM_PLATFORM)

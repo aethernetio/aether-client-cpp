@@ -20,9 +20,11 @@ void setUp() {}
 void tearDown() {}
 
 extern int test_actions_queue();
+extern int test_action_pool();
 
 int main() {
   auto res = 0;
   res += test_actions_queue();
+  res += test_action_pool();
   return res;
 }
