@@ -155,10 +155,9 @@ CPMAddPackage(
 CPMAddPackage(
   NAME aether-tele
   GIT_REPOSITORY "https://github.com/aethernetio/aether-tele.git"
-  GIT_TAG "main"
+  GIT_TAG "4aa5666281eceba5ce486076e7ab3cc5c8fd39b3"
   OPTIONS "AE_TELE_INSTALL ${AE_INSTALL}"
           "AE_TELE_BUILD_TESTS ${AE_BUILD_TESTS}"
-  PATCHES "${CMAKE_CURRENT_LIST_DIR}/third_party/aether-tele-ae-numeric.patch"
   EXCLUDE_FROM_ALL FALSE
 )
 CPMAddPackage(
