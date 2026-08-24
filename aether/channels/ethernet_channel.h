@@ -17,9 +17,8 @@
 #ifndef AETHER_CHANNELS_ETHERNET_CHANNEL_H_
 #define AETHER_CHANNELS_ETHERNET_CHANNEL_H_
 
-#include "aether/memory.h"
-#include "aether/types/address.h"
 #include "aether/channels/channel.h"
+#include "aether/types/address.h"
 
 namespace ae {
 class Aether;

@@ -25,7 +25,7 @@ namespace ae {
 
 DomainGraph::DomainGraph(Domain* domain) : domain(domain) { assert(domain); }
 
-Ptr<Obj> DomainGraph::LoadRootImpl(ObjId obj_id) {
+Ptr<Obj> DomainGraph::LoadRoot(ObjId obj_id) {
   if (!obj_id.is_valid()) {
     return {};
   }
@@ -65,7 +65,7 @@ Ptr<Obj> DomainGraph::LoadCopyImpl(ObjId ref_id, ObjId copy_id) {
   return ptr;
 }
 
-void DomainGraph::SaveRootImpl(Ptr<Obj> const& ptr, ObjId obj_id) {
+void DomainGraph::SaveRoot(Ptr<Obj> const& ptr, ObjId obj_id) {
   if (!ptr) {
     return;
   }

@@ -17,7 +17,6 @@
 #ifndef AETHER_CHANNELS_CHANNELS_TYPES_H_
 #define AETHER_CHANNELS_CHANNELS_TYPES_H_
 
-#include <cstddef>
 #include <cstdint>
 
 #include "aether-miscpp/reflect/reflect.h"

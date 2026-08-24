@@ -20,8 +20,8 @@
 #  include "aether/aether.h"
 #  include "aether/lora_modules/ilora_module_driver.h"
 
-#  include "aether/channels/lora_module_channel.h"
 #  include "aether/access_points/filter_endpoints.h"
+#  include "aether/channels/lora_module_channel.h"
 
 namespace ae {
 LoraModuleConnectAction::LoraModuleConnectAction(
@@ -80,7 +80,7 @@ ActionPtr<LoraModuleConnectAction> LoraModuleAccessPoint::Connect() {
   // reuse connect action if it's in progress
   if (!connect_action_) {
     connect_action_ = ActionPtr<LoraModuleConnectAction>{
-        *aether_.as<Aether>(), lora_module_adapter_->lora_module_driver()};
+        *aether_, lora_module_adapter_->lora_module_driver()};
     connect_sub_ = connect_action_->FinishedEvent().Subscribe(
         [this]() { connect_action_.reset(); });
   }

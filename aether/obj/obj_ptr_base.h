@@ -21,8 +21,11 @@
 
 #include "aether/obj/domain.h"
 #include "aether/obj/obj_id.h"
+#include "aether/ptr/ptr.h"
 
 namespace ae {
+
+class Obj;
 
 class ObjectPtrBase {
   friend struct seri::Serializer<seri::BinaryArchive<DomainBuffer>,
@@ -31,9 +34,14 @@ class ObjectPtrBase {
  public:
   ObjectPtrBase();
   ObjectPtrBase(Domain* domain, ObjId obj_id, ObjFlags flags);
+  ObjectPtrBase(Domain* domain, ObjId obj_id, ObjFlags flags,
+                Ptr<Obj> ptr) noexcept;
 
   ObjectPtrBase(ObjectPtrBase const& ptr) noexcept;
+  ObjectPtrBase(ObjectPtrBase&& ptr) noexcept;
   ObjectPtrBase& operator=(ObjectPtrBase const& ptr) noexcept;
+  ObjectPtrBase& operator=(ObjectPtrBase&& ptr) noexcept;
+  ~ObjectPtrBase();
 
   ObjId id() const;
   ObjFlags flags() const;
@@ -41,10 +49,21 @@ class ObjectPtrBase {
 
   void SetFlags(ObjFlags flags);
 
+  bool is_valid() const;
+  bool is_loaded() const;
+  Ptr<Obj> const& LoadCached();
+  Ptr<Obj> const& LoadCached() const;
+  void Save() const;
+  void Reset();
+
+  Ptr<Obj> const& cached() const;
+  Ptr<Obj>& cached();
+
  protected:
   Domain* domain_;
   ObjId id_;
   ObjFlags flags_;
+  Ptr<Obj> cached_;
 };
 
 namespace seri {
@@ -52,9 +71,9 @@ template <>
 struct Serializer<BinaryArchive<DomainBuffer>, ObjectPtrBase> {
   using Archive = BinaryArchive<DomainBuffer>;
 
-  SeriResult Seri(Archive& archive, Meta<ObjectPtrBase const> meta) const;
+  static SeriResult Seri(Archive& archive, Meta<ObjectPtrBase const> meta);
 
-  SeriResult Deseri(Archive& archive, Meta<ObjectPtrBase> meta) const;
+  static SeriResult Deseri(Archive& archive, Meta<ObjectPtrBase> meta);
 };
 }  // namespace seri
 }  // namespace ae

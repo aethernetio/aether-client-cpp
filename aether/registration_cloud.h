@@ -42,7 +42,7 @@ class RegistrationCloud : public Cloud {
   void AddServerSettings(Endpoint address);
 
  private:
-  Obj::ptr aether_;
+  ObjPtr<Aether> aether_;
 };
 }  // namespace ae
 #else

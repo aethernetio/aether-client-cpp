@@ -153,14 +153,13 @@ ClientCloudManager::ClientCloudManager(ObjProp prop, ObjPtr<Aether> aether,
   // save cloud cache for current client
   [[maybe_unused]] auto const cache_initialized =
       client_.WithLoaded([&](auto const& obj) {
-        auto* c = obj.template as<Client>();
-        cloud_cache_.emplace(c->uid(),
-                             client_cloud_manager_internal::CloudCache{
-                                 .version_confirmed = true,
-                                 .subject_uid = c->uid(),
-                                 .version = 0,
-                                 .cloud = c->cloud(),
-                             });
+        cloud_cache_.emplace(obj->uid(),
+                              client_cloud_manager_internal::CloudCache{
+                                  .version_confirmed = true,
+                                  .subject_uid = obj->uid(),
+                                  .version = 0,
+                                  .cloud = obj->cloud(),
+                              });
       });
   assert(cache_initialized && "Client did not load");
 

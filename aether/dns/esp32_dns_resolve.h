@@ -24,8 +24,8 @@
 #  if (defined(ESP_PLATFORM))
 #    define ESP32_DNS_RESOLVER_ENABLED 1
 
-#    include "aether/obj/obj.h"
 #    include "aether/dns/dns_resolve.h"
+#    include "aether/obj/obj.h"
 
 namespace ae {
 class Aether;
@@ -45,7 +45,7 @@ class Esp32DnsResolver : public DnsResolver {
                         Protocol protocol_hint) override;
 
  private:
-  Obj::ptr aether_;
+  ObjPtr<Aether> aether_;
 };
 }  // namespace ae
 

@@ -20,13 +20,13 @@
 #include "aether/config.h"
 #if AE_SUPPORT_MODEMS
 
-#  include "aether/obj/obj.h"
-#  include "aether/ae_context.h"
-#  include "aether/events/events.h"
+#  include "aether/access_points/access_point.h"
 #  include "aether/actions/action.h"
 #  include "aether/adapters/modem_adapter.h"
+#  include "aether/ae_context.h"
 #  include "aether/events/event_subscription.h"
-#  include "aether/access_points/access_point.h"
+#  include "aether/events/events.h"
+#  include "aether/obj/obj.h"
 
 namespace ae {
 class Aether;
@@ -66,7 +66,7 @@ class ModemAccessPoint final : public AccessPoint {
       ObjPtr<Server> const& server) override;
 
  private:
-  Obj::ptr aether_;
+  ObjPtr<Aether> aether_;
   ModemAdapter::ptr modem_adapter_;
   std::optional<ModemConnectAction> connect_action_;
   Subscription connect_sub_;

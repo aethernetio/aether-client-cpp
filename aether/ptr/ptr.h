@@ -114,7 +114,7 @@ class Ptr : public PtrBase {
       : PtrBase{other.ptr_storage_}, ptr_{other.ptr_} {}
 
   template <typename U>
-  Ptr(Ptr<U> const& other) noexcept  // NOLINT(google-explicit-constructor)
+  Ptr(Ptr<U> const& other) noexcept  // NOLINT(*explicit-constructor)
                                      // intentional implicit pointer-like upcast
       : PtrBase{other.ptr_storage_}, ptr_{static_cast<T*>(other.ptr_)} {}
 
@@ -137,7 +137,7 @@ class Ptr : public PtrBase {
   Ptr(Ptr&& other) noexcept : PtrBase{std::move(other)}, ptr_{other.ptr_} {}
 
   template <typename U>
-  Ptr(Ptr<U>&& other) noexcept  // NOLINT(google-explicit-constructor)
+  Ptr(Ptr<U>&& other) noexcept  // NOLINT(*explicit-constructor)
                                 // intentional implicit pointer-like upcast
       : PtrBase{std::move(other)}, ptr_{static_cast<T*>(other.ptr_)} {}
 

@@ -21,9 +21,9 @@
 
 #if AE_SUPPORT_WIFIS
 
-#  include "aether/types/address.h"
-#  include "aether/channels/channel.h"
 #  include "aether/access_points/wifi_access_point.h"
+#  include "aether/channels/channel.h"
+#  include "aether/types/address.h"
 
 namespace ae {
 class Aether;

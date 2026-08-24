@@ -28,6 +28,7 @@ list(APPEND test_obj_srcs
 list(APPEND test_srcs
     main.cpp
     test-obj-create.cpp
+    test-obj-ptr-forward-decl.cpp
     test-update-objects.cpp
     test-version-iterator.cpp
     map_domain_storage.cpp

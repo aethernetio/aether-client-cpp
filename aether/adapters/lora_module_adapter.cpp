@@ -17,9 +17,9 @@
 #include "aether/adapters/lora_module_adapter.h"
 #if AE_SUPPORT_LORA
 
+#  include "aether/access_points/lora_module_access_point.h"
 #  include "aether/aether.h"
 #  include "aether/lora_modules/lora_module_factory.h"
-#  include "aether/access_points/lora_module_access_point.h"
 
 #  include "aether/adapters/adapter_tele.h"
 
@@ -56,7 +56,7 @@ std::vector<AccessPoint::ptr> LoraModuleAdapter::access_points() {
 ILoraModuleDriver& LoraModuleAdapter::lora_module_driver() {
   if (!lora_module_driver_) {
     lora_module_driver_ = LoraModuleDriverFactory::CreateLoraModule(
-        *aether_.as<Aether>(), poller_, lora_module_init_);
+        *aether_, poller_, lora_module_init_);
   }
   return *lora_module_driver_;
 }

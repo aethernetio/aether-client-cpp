@@ -19,10 +19,10 @@
 
 #  include <utility>
 
-#  include "aether/memory.h"
 #  include "aether/aether.h"
-#  include "aether/types/state_machine.h"
+#  include "aether/memory.h"
 #  include "aether/transport/lora_modules/lora_module_transport.h"
+#  include "aether/types/state_machine.h"
 
 namespace ae {
 namespace lora_module_channel_internal {
@@ -169,7 +169,7 @@ ActionPtr<TransportBuilderAction> LoraModuleChannel::TransportBuilder() {
   }
   return ActionPtr<
       lora_module_channel_internal::LoraModuleTransportBuilderAction>{
-      *aether_.as<Aether>(), *this, *access_point_, address};
+      *aether_, *this, *access_point_, address};
 }
 
 Duration LoraModuleChannel::TransportBuildTimeout() const {

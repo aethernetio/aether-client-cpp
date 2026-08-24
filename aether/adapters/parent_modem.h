@@ -42,8 +42,8 @@ class ParentModemAdapter : public Adapter {
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, modem_init_))
 
-  Obj::ptr aether_;
-  Obj::ptr poller_;
+  ObjPtr<Aether> aether_;
+  ObjPtr<IPoller> poller_;
 
   ModemInit modem_init_{};
 };

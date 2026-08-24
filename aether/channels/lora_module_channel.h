@@ -20,8 +20,8 @@
 #include "aether/config.h"
 
 #if AE_SUPPORT_LORA
-#  include "aether/channels/channel.h"
 #  include "aether/access_points/lora_module_access_point.h"
+#  include "aether/channels/channel.h"
 
 namespace ae {
 class Aether;
@@ -42,7 +42,7 @@ class LoraModuleChannel final : public Channel {
   Duration TransportBuildTimeout() const override;
 
  private:
-  Obj::ptr aether_;
+  ObjPtr<Aether> aether_;
   LoraModuleAccessPoint::ptr access_point_;
 };
 }  // namespace ae

@@ -68,6 +68,47 @@ struct CreateWith {
   std::optional<ObjFlags> flags;
 };
 
+/**
+ * \brief A typed, non-owning view of an ObjectPtrBase cache.
+ *
+ * The referenced cache and its ObjPtr owner must outlive this view and must not
+ * be reset or replaced while the view is used.
+ */
+template <typename T>
+class ProxyPtr {
+ public:
+  explicit ProxyPtr(Ptr<Obj> const& ptr) noexcept : ptr_{ptr} {}
+  ProxyPtr(Ptr<Obj>&&) = delete;
+  ProxyPtr(Ptr<Obj> const&&) = delete;
+
+  [[nodiscard]] explicit operator bool() const noexcept {
+    return static_cast<bool>(ptr_);
+  }
+
+  [[nodiscard]] T* get() const noexcept { return static_cast<T*>(ptr_.get()); }
+
+  [[nodiscard]] T* operator->() const noexcept {
+    assert(ptr_ && "Dereferencing uninitialized ProxyPtr");
+    return get();
+  }
+
+  [[nodiscard]] T& operator*() const noexcept {
+    assert(ptr_ && "Dereferencing uninitialized ProxyPtr");
+    return *get();
+  }
+
+  // Materializing Ptr is intentional when the caller needs ownership.
+  template <typename U>
+    requires(std::is_convertible_v<T*, U*>)
+  // NOLINTNEXTLINE(*explicit*)
+  operator Ptr<U>() const noexcept {
+    return Ptr<T>{ptr_};
+  }
+
+ private:
+  Ptr<Obj> const& ptr_;
+};
+
 template <typename T>
 class ObjPtr : public ObjectPtrBase {
   template <typename U>
@@ -92,19 +133,17 @@ class ObjPtr : public ObjectPtrBase {
    */
   static ObjPtr<T> MakeFromThis(T* self);
 
-  ObjPtr() noexcept : ObjectPtrBase{}, ptr_{} {}
-
-  ~ObjPtr() {
-    if (ptr_) {
-      ptr_.Reset();
-    }
-  }
+  ObjPtr() noexcept : ObjectPtrBase{} {}
 
   ObjPtr(Domain* domain, ObjId obj_id, ObjFlags flags)
       : ObjectPtrBase{domain, obj_id, flags} {}
 
-  ObjPtr(Domain* domain, ObjId obj_id, ObjFlags flags, Ptr<T> ptr) noexcept
-      : ObjectPtrBase{domain, obj_id, flags}, ptr_{std::move(ptr)} {}
+  ObjPtr(Domain* domain, ObjId obj_id, ObjFlags flags, Ptr<T>&& ptr) noexcept
+      : ObjectPtrBase{domain, obj_id, flags, std::move(ptr)} {}
+
+  ObjPtr(Domain* domain, ObjId obj_id, ObjFlags flags,
+         Ptr<T> const& ptr) noexcept
+      : ObjectPtrBase{domain, obj_id, flags, ptr} {}
 
   ObjPtr(ObjPtr const& ptr) noexcept = default;
   ObjPtr(ObjPtr&& ptr) noexcept = default;
@@ -112,38 +151,43 @@ class ObjPtr : public ObjectPtrBase {
   template <typename U>
     requires(IsAbleToCast<T, U>::value)
   ObjPtr(ObjPtr<U> ptr) noexcept  // NOLINT(*explicit*)
-      : ObjectPtrBase{static_cast<ObjectPtrBase const&>(ptr)},
-        ptr_{std::move(ptr.ptr_)} {}
+      : ObjectPtrBase{std::move(static_cast<ObjectPtrBase&>(ptr))} {}
 
   ObjPtr& operator=(ObjPtr const& ptr) noexcept = default;
   ObjPtr& operator=(ObjPtr&& ptr) noexcept = default;
 
-  template <typename U, std::enable_if_t<IsAbleToCast<T, U>::value, int> = 0>
+  template <typename U>
+    requires(IsAbleToCast<T, U>::value)
   ObjPtr& operator=(ObjPtr<U> ptr) noexcept {
-    ptr_.Reset();
-    ObjectPtrBase::operator=(static_cast<ObjectPtrBase&>(ptr));
-    ptr_ = std::move(ptr.ptr_);
+    ObjectPtrBase::operator=(std::move(static_cast<ObjectPtrBase&>(ptr)));
     return *this;
   }
 
-  Ptr<T> const& operator->();
-  Ptr<T> const& operator->() const;
-  T& operator*();
-  T const& operator*() const;
+  using ObjectPtrBase::domain;
+  using ObjectPtrBase::flags;
+  using ObjectPtrBase::id;
+  using ObjectPtrBase::is_loaded;
+  using ObjectPtrBase::is_valid;
+  using ObjectPtrBase::Reset;
+  using ObjectPtrBase::Save;
+  using ObjectPtrBase::SetFlags;
 
-  bool is_valid() const;
-  bool is_loaded() const;
+  T* operator->() &;
+  T* operator->() const&;
+  T* operator->() &&;
+  T* operator->() const&&;
+  T& operator*();
+  T& operator*() const;
+
   explicit operator bool() const { return is_valid() && is_loaded(); }
 
   /**
    * \brief Load current object to Ptr
    */
-  Ptr<T> const& Load();
-  Ptr<T> const& Load() const;
-  /**
-   * \brief Save current object state
-   */
-  void Save() const;
+  ProxyPtr<T> Load() &;       // NOLINT(*shadowing*)
+  ProxyPtr<T> Load() const&;  // NOLINT(*shadowing*)
+  Ptr<T> Load() &&;           // NOLINT(*shadowing*)
+  Ptr<T> Load() const&&;      // NOLINT(*shadowing*)
   /**
    * \brief Clone current object into new object
    * \param obj_id Optional object ID to use for the new object, if not provided
@@ -156,11 +200,6 @@ class ObjPtr : public ObjectPtrBase {
   auto WithLoaded(Func&& func) -> decltype(auto);
   template <typename Func>
   auto WithLoaded(Func&& func) const -> decltype(auto);
-
-  void Reset();
-
- private:
-  Ptr<T> ptr_;
 };
 
 template <typename T>
@@ -203,70 +242,65 @@ ObjPtr<T> ObjPtr<T>::MakeFromThis(T* self) {
 }
 
 template <typename T>
-Ptr<T> const& ObjPtr<T>::operator->() {
-  auto const& ptr = Load();
+T* ObjPtr<T>::operator->() & {
+  auto ptr = Load();
   assert(ptr && "Dereferencing invalid object");
-  return ptr;
+  return ptr.get();
 }
 
 template <typename T>
-Ptr<T> const& ObjPtr<T>::operator->() const {
-  auto const& ptr = Load();
+T* ObjPtr<T>::operator->() const& {
+  auto ptr = Load();
   assert(ptr && "Dereferencing invalid object");
-  return ptr;
+  return ptr.get();
+}
+
+template <typename T>
+T* ObjPtr<T>::operator->() && {
+  auto ptr = std::move(*this).Load();
+  assert(ptr && "Dereferencing invalid object");
+  return ptr.get();
+}
+
+template <typename T>
+T* ObjPtr<T>::operator->() const&& {
+  auto ptr = std::move(*this).Load();
+  assert(ptr && "Dereferencing invalid object");
+  return ptr.get();
 }
 
 template <typename T>
 T& ObjPtr<T>::operator*() {
-  auto const& ptr = Load();
+  auto ptr = Load();
   assert(ptr && "Dereferencing invalid object");
   return *ptr;
 }
 
 template <typename T>
-T const& ObjPtr<T>::operator*() const {
-  auto const& ptr = Load();
+T& ObjPtr<T>::operator*() const {
+  auto ptr = Load();
   assert(ptr && "Dereferencing invalid object");
   return *ptr;
 }
 
 template <typename T>
-bool ObjPtr<T>::is_valid() const {
-  return id().is_valid();
-}
-template <typename T>
-bool ObjPtr<T>::is_loaded() const {
-  return static_cast<bool>(ptr_);
+ProxyPtr<T> ObjPtr<T>::Load() & {
+  return ProxyPtr<T>{ObjectPtrBase::LoadCached()};
 }
 
 template <typename T>
-Ptr<T> const& ObjPtr<T>::Load() {
-  // already loaded
-  if (ptr_) {
-    return ptr_;
-  }
-  // return empty for invalid object
-  if (!is_valid()) {
-    return ptr_;
-  }
-  ptr_ = DomainGraph{domain()}.template LoadPtr<T>(id());
-  if (ptr_) {
-    flags_ = flags() & ~ObjFlags::kUnloaded;
-  }
-  return ptr_;
+ProxyPtr<T> ObjPtr<T>::Load() const& {
+  return ProxyPtr<T>{ObjectPtrBase::LoadCached()};
 }
 
 template <typename T>
-Ptr<T> const& ObjPtr<T>::Load() const {
-  return const_cast<ObjPtr<T>*>(this)->Load();  // NOLINT(*const-cast)
+Ptr<T> ObjPtr<T>::Load() && {
+  return Ptr<T>{ObjectPtrBase::LoadCached()};
 }
 
 template <typename T>
-void ObjPtr<T>::Save() const {
-  if (!ptr_) {
-    return;
-  }
-  DomainGraph{domain()}.SavePtr(ptr_, id());
+Ptr<T> ObjPtr<T>::Load() const&& {
+  return Ptr<T>{ObjectPtrBase::LoadCached()};
 }
 
 template <typename T>
@@ -286,11 +320,10 @@ ObjPtr<T> ObjPtr<T>::Clone(ObjId obj_id) const {
 
 template <typename U, typename Func>
 auto WithLoadedImpl(U&& obj_ptr, Func&& func) -> decltype(auto) {
-  using InvokeRes =
-      std::invoke_result_t<Func, decltype(std::forward<U>(obj_ptr).Load())>;
+  auto ptr = std::forward<U>(obj_ptr).Load();
+  using InvokeRes = decltype(std::invoke(std::forward<Func>(func), ptr));
   using ReturnType = std::conditional_t<std::is_void_v<InvokeRes>, bool,
                                         std::optional<InvokeRes>>;
-  auto const& ptr = std::forward<U>(obj_ptr).Load();
   if (!ptr) {
     return ReturnType{};
   }
@@ -314,12 +347,6 @@ auto ObjPtr<T>::WithLoaded(Func&& func) const -> decltype(auto) {
   return WithLoadedImpl(*this, std::forward<Func>(func));
 }
 
-template <typename T>
-void ObjPtr<T>::Reset() {
-  ptr_.Reset();
-  flags_ = flags() & ObjFlags::kUnloaded;
-}
-
 }  // namespace ae
 
 namespace ae::seri {
@@ -328,49 +355,56 @@ struct Serializer<BinaryArchive<DomainBuffer>, ObjPtr<T>> {
   using Archive = BinaryArchive<DomainBuffer>;
 
   SeriResult Seri(Archive& archive, Meta<ObjPtr<T> const> meta) const {
-    TRY_RESULT((archive.Save(static_cast<ObjectPtrBase const&>(meta.value))));
-    if (meta.value.ptr_) {
-      archive.buffer().domain_graph->SavePtr(meta.value.ptr_, meta.value.id());
-    }
-    return Ok{seri::good};
+    return archive.Save(static_cast<ObjectPtrBase const&>(meta.value));
   }
 
   SeriResult Deseri(Archive& archive, Meta<ObjPtr<T>> meta) const {
-    TRY_RESULT((archive.Load(static_cast<ObjectPtrBase&>(meta.value))));
-
-    if (!(meta.value.flags() & ObjFlags::kUnloadedByDefault) &&
-        !(meta.value.flags() & ObjFlags::kUnloaded)) {
-      // Load the object only if it's valid and unloaded flag is not set
-      meta.value.ptr_ =
-          archive.buffer().domain_graph->LoadPtr<T>(meta.value.id());
-    }
-    return Ok{seri::good};
+    return archive.Load(static_cast<ObjectPtrBase&>(meta.value));
   }
 };
 }  // namespace ae::seri
 
 namespace ae::domain_visitor {
 template <typename T>
-struct NodeVisitor<ae::ObjPtr<T>> : NodeVisitor<ae::Ptr<T>> {
+struct NodeVisitor<ae::ObjPtr<T>> : NodeVisitor<ae::Ptr<ae::Obj>> {
   using Policy = PolicyMatch<VisitPolicy::kPointers>;
-  using Base = NodeVisitor<ae::Ptr<T>>;
+  using Base = NodeVisitor<ae::Ptr<ae::Obj>>;
+  void Visit(ae::ObjPtr<T>& obj_ptr, CycleDetector& cycle_detector,
+             PtrRefDnv const& visitor) const {
+    Base::Visit(obj_ptr.cached(), cycle_detector, visitor);
+  }
+
+  void Visit(ae::ObjPtr<T> const& obj_ptr, CycleDetector& cycle_detector,
+             PtrRefDnv const& visitor) const {
+    Base::Visit(obj_ptr.cached(), cycle_detector, visitor);
+  }
 
   template <typename Visitor>
+    requires(!std::is_same_v<PtrRefDnv, std::decay_t<Visitor>>)
   void Visit(ae::ObjPtr<T>& obj_ptr, CycleDetector& cycle_detector,
              Visitor&& visitor) const {
-    if (obj_ptr.is_loaded()) {
-      Base::Visit(obj_ptr.Load(), cycle_detector,
-                  std::forward<Visitor>(visitor));
+    auto proxy = ae::ProxyPtr<T>{obj_ptr.cached()};
+    if (proxy) {
+      ApplyVisit(*proxy, cycle_detector, std::forward<Visitor>(visitor));
     }
   }
 
   template <typename Visitor>
+    requires(!std::is_same_v<PtrRefDnv, std::decay_t<Visitor>>)
   void Visit(ae::ObjPtr<T> const& obj_ptr, CycleDetector& cycle_detector,
              Visitor&& visitor) const {
-    if (obj_ptr.is_loaded()) {
-      Base::Visit(obj_ptr.Load(), cycle_detector,
-                  std::forward<Visitor>(visitor));
+    auto proxy = ae::ProxyPtr<T>{obj_ptr.cached()};
+    if (proxy) {
+      ApplyVisit(*proxy, cycle_detector, std::forward<Visitor>(visitor));
     }
+  }
+
+ private:
+  template <typename U, typename Visitor>
+  void ApplyVisit(U&& obj, CycleDetector& cycle_detector,
+                  Visitor&& visitor) const {
+    domain_visitor::ApplyVisitor(std::forward<U>(obj), cycle_detector,
+                                 std::forward<Visitor>(visitor));
   }
 };
 }  // namespace ae::domain_visitor

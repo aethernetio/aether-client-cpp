@@ -42,9 +42,9 @@ class EthernetAccessPoint : public AccessPoint {
       ObjPtr<Server> const& server) override;
 
  private:
-  Obj::ptr aether_;
-  Obj::ptr poller_;
-  Obj::ptr dns_resolver_;
+  ObjPtr<Aether> aether_;
+  ObjPtr<IPoller> poller_;
+  ObjPtr<DnsResolver> dns_resolver_;
 };
 }  // namespace ae
 

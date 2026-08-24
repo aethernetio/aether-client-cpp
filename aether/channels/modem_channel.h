@@ -20,9 +20,9 @@
 #include "aether/config.h"
 #if AE_SUPPORT_MODEMS
 
-#  include "aether/types/address.h"
-#  include "aether/channels/channel.h"
 #  include "aether/access_points/modem_access_point.h"
+#  include "aether/channels/channel.h"
+#  include "aether/types/address.h"
 
 namespace ae {
 class Aether;
@@ -44,7 +44,7 @@ class ModemChannel final : public Channel {
   Endpoint address;
 
  private:
-  Obj::ptr aether_;
+  ObjPtr<Aether> aether_;
   ModemAccessPoint::ptr access_point_;
 };
 }  // namespace ae
