@@ -18,6 +18,8 @@
 
 #include <cstddef>
 
+#include "aether/packed_size.h"
+
 namespace ae {
 StreamApiImpl::StreamApiImpl(ProtocolContext& protocol_context)
     : ApiClass{protocol_context}, stream{protocol_context} {}
@@ -46,8 +48,7 @@ std::uint8_t StreamIdGenerator::GetNextServerStreamId() {
 
 static constexpr std::size_t kStreamMessageOverhead =
     1 + 1 +
-    sizeof(
-        PackedSize::ValueType);  // message code + stream id +  child data size
+    PackedSize::kMaxWireBytes;  // message code + stream id + child data size
 
 StreamApiGate::StreamApiGate(StreamApiImpl& stream_api, StreamId stream_id)
     : stream_id_{stream_id},

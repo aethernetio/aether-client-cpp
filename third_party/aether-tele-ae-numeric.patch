@@ -1,0 +1,100 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index f183fa2..f3b1a1e 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -31,14 +31,17 @@ option(AE_TELE_INSTALL "Install aether-tele library" ${IS_ROOT_PROJECT})
+ include(GNUInstallDirs)
+ include(cmake/CPM.cmake)
+ 
+-CPMAddPackage(
+-  NAME numeric
+-  GITHUB_REPOSITORY aethernetio/aethernet-numeric
+-  GIT_TAG main
+-  OPTIONS
+-    "AE_NUMERIC_INSTALL ${AE_TELE_INSTALL}"
+-    "AE_BUILD_TESTS OFF"
+-)
++# Prefer parent-provided ae-numeric (pinned by aether-client-cpp).
++if(NOT TARGET ae-numeric)
++  CPMAddPackage(
++    NAME ae-numeric
++    GITHUB_REPOSITORY aethernetio/aethernet-numeric
++    GIT_TAG b82a3674a119f4e8257b17c0f7cf592ce7ad48c0
++    OPTIONS
++      "AE_NUMERIC_INSTALL ${AE_TELE_INSTALL}"
++      "AE_BUILD_TESTS OFF"
++  )
++endif()
+ CPMAddPackage(
+   NAME aether-miscpp
+   GITHUB_REPOSITORY aethernetio/aether-miscpp
+@@ -66,7 +69,7 @@ target_compile_features(aether-tele PUBLIC cxx_std_20)
+ target_compile_options(aether-tele PUBLIC
+   $<$<CXX_COMPILER_ID:MSVC>:/Zc:preprocessor>
+ )
+-target_link_libraries(aether-tele PUBLIC aether-miscpp numeric)
++target_link_libraries(aether-tele PUBLIC aether-miscpp ae-numeric)
+ 
+ # setup release build options
+ if (CMAKE_BUILD_TYPE STREQUAL "Release" AND NOT MINGW)
+diff --git a/src/aether-tele/traps/statistics_trap.cpp b/src/aether-tele/traps/statistics_trap.cpp
+index a5a8419..661b22e 100644
+--- a/src/aether-tele/traps/statistics_trap.cpp
++++ b/src/aether-tele/traps/statistics_trap.cpp
+@@ -97,7 +97,9 @@ StatisticsTrapBasic::~StatisticsTrapBasic() = default;
+ 
+ void StatisticsTrapBasic::AddInvoke(Tag const& tag, std::uint32_t count) {
+   auto lock = std::scoped_lock(sync_lock_);
+-  metrics_store_.metrics[tag.index()].invocations_count += count;
++  auto& invocations = metrics_store_.metrics[tag.index()].invocations_count;
++  invocations = MetricsStore::PackedCount{
++      static_cast<MetricsStore::PackedCount::ValueType>(invocations) + count};
+ }
+ 
+ void StatisticsTrapBasic::AddInvokeDuration(Tag const& tag, Duration duration) {
+@@ -141,7 +143,11 @@ void StatisticsTrapBasic::MergeStatistics(StatisticsTrapBasic const& newer) {
+       metrics_store_.metrics[index] = metric;
+       continue;
+     }
+-    it->second.invocations_count += metric.invocations_count;
++    it->second.invocations_count = MetricsStore::PackedCount{
++        static_cast<MetricsStore::PackedCount::ValueType>(
++            it->second.invocations_count) +
++        static_cast<MetricsStore::PackedCount::ValueType>(
++            metric.invocations_count)};
+     it->second.max_duration =
+         std::max(it->second.max_duration, metric.max_duration);
+     it->second.min_duration =
+diff --git a/src/aether-tele/traps/statistics_trap.h b/src/aether-tele/traps/statistics_trap.h
+index 40d7723..2cebff0 100644
+--- a/src/aether-tele/traps/statistics_trap.h
++++ b/src/aether-tele/traps/statistics_trap.h
+@@ -29,7 +29,7 @@
+ #include <vector>
+ 
+ #include "aether-miscpp/reflect/reflect.h"
+-#include "numeric/tiered_int.h"
++#include "ae-numeric/tiered_int.h"
+ 
+ #include "aether-tele/itrap.h"
+ 
+@@ -38,8 +38,8 @@ namespace ae::tele {
+  * \brief Map of telemetry metrics.
+  */
+ struct MetricsStore {
+-  using PackedIndex = TieredInt<std::uint64_t, std::uint8_t, 250>;
+-  using PackedCount = TieredInt<std::uint64_t, std::uint8_t, 250>;
++  using PackedIndex = TieredInt<std::uint8_t, 250, 1514, 1049834>;
++  using PackedCount = TieredInt<std::uint8_t, 250, 1514, 1049834>;
+   struct Metric {
+     PackedCount invocations_count;
+     std::uint32_t max_duration;
+@@ -62,7 +62,7 @@ struct MetricsStore {
+  * of the application.
+  */
+ struct EnvStore {
+-  using PackedIndex = TieredInt<std::uint32_t, std::uint8_t, 250>;
++  using PackedIndex = TieredInt<std::uint8_t, 250, 1514>;
+ 
+   std::string library_version;
+   std::string platform;

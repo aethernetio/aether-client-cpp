@@ -22,17 +22,14 @@
 #include <tuple>
 #include <vector>
 
-#include <numeric/tiered_int.h>
-
 #include "aether-miscpp/serialization/serialization.h"
 
+#include "aether/packed_size.h"
 #include "aether/vector_buffer.h"
 
 namespace ae {
 
 using MessageId = std::uint8_t;
-
-using PackedSize = TieredInt<std::uint64_t, std::uint8_t, 250>;
 
 class ApiParser;
 class ApiPacker;

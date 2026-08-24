@@ -134,12 +134,17 @@ CPMAddPackage(
   EXCLUDE_FROM_ALL FALSE
 )
 CPMAddPackage(
-  NAME numeric
+  NAME ae-numeric
   GIT_REPOSITORY "https://github.com/aethernetio/aethernet-numeric.git"
-  GIT_TAG "main"
-  OPTIONS "AE_NUMERIC_INSTALL ${AE_INSTALL}" "AE_BUILD_TESTS ${AE_BUILD_TESTS}"
+  GIT_TAG "b82a3674a119f4e8257b17c0f7cf592ce7ad48c0"
+  OPTIONS "AE_NUMERIC_INSTALL ${AE_INSTALL}" "AE_BUILD_TESTS OFF"
   EXCLUDE_FROM_ALL FALSE
 )
+# ae-numeric TieredInt has an intentional post-if-constexpr fallback return that
+# MSVC flags as C4702 under Aether's /WX. Keep numeric untouched; silence locally.
+if(TARGET ae-numeric AND MSVC)
+  target_compile_options(ae-numeric INTERFACE /wd4702)
+endif()
 CPMAddPackage(
   NAME aether-miscpp
   GIT_REPOSITORY "https://github.com/aethernetio/aether-miscpp.git"
@@ -153,6 +158,7 @@ CPMAddPackage(
   GIT_TAG "main"
   OPTIONS "AE_TELE_INSTALL ${AE_INSTALL}"
           "AE_TELE_BUILD_TESTS ${AE_BUILD_TESTS}"
+  PATCHES "${CMAKE_CURRENT_LIST_DIR}/third_party/aether-tele-ae-numeric.patch"
   EXCLUDE_FROM_ALL FALSE
 )
 CPMAddPackage(
@@ -188,7 +194,7 @@ target_link_libraries(${TARGET_NAME} PUBLIC
                                       gcem
                                       etl
                                       stdexec
-                                      numeric
+                                      ae-numeric
                                       aether::miscpp)
 
 message(STATUS "Aether build for CMAKE_SYSTEM_NAME: ${CMAKE_SYSTEM_NAME}")
@@ -310,6 +316,7 @@ target_compile_options(${TARGET_NAME} PRIVATE
   $<$<CXX_COMPILER_ID:MSVC>:
       /W4
       /WX
+      /wd4702 # ae-numeric TieredInt post-if-constexpr fallback
       /w15262 #implisitfallthrough
       /wd4388 #Wno-sign-compare
       /wd4389 #Wno-sign-compare
