@@ -18,38 +18,39 @@ namespace {
 
 class PreparedSendMessageKeyProvider final : public ISyncKeyProvider {
  public:
-  explicit PreparedSendMessageKeyProvider(PreparedSendMessageBlock& block)
+  explicit PreparedSendMessageKeyProvider(PreparedSendMessage& block)
       : block_{&block} {}
 
-  Key GetKey() const override {
-    return block_->client_to_server_key;
-  }
+  Key GetKey() const override { return block_->client_to_server_key; }
 
-  CryptoNonce const& Nonce() const override {
-    return block_->next_nonce;
-  }
+  CryptoNonce const& Nonce() const override { return block_->next_nonce; }
 
  private:
-  PreparedSendMessageBlock* block_;
+  PreparedSendMessage* block_;
 };
 
 }  // namespace
 
-EncodePacketResult EncodePacket(PreparedSendMessageBlock& block,
-                                DataBuffer const& payload,
-                                DataBuffer& out) {
-  if (block.nonce_left == 0) {
-    out.clear();
-    return EncodePacketResult{EncodePacketError::kNonceExhausted, 0};
+Result<std::size_t, EncodePacketError> EncodePacket(
+    PreparedSendMessageBlock& prepared_block, DataBuffer const& payload,
+    DataBuffer& out) {
+  if (!prepared_block.is_valid()) {
+    return Error{block_is_invalid};
+  }
+
+  auto send_message = prepared_block.Resolve();
+
+  if (send_message->message_left == 0) {
+    return Error{messages_exhausted};
   }
 
   // Match the existing ClientKeyProvider semantics:
   // consume next nonce before encryption.
-  block.next_nonce.Next();
-  --block.nonce_left;
+  send_message->next_nonce.Next();
+  --send_message->message_left;
 
   auto key_provider =
-      std::make_unique<PreparedSendMessageKeyProvider>(block);
+      std::make_unique<PreparedSendMessageKeyProvider>(*send_message);
   SyncEncryptProvider encrypt_provider{std::move(key_provider)};
 
   ProtocolContext protocol_context;
@@ -58,16 +59,17 @@ EncodePacketResult EncodePacket(PreparedSendMessageBlock& block,
   auto api_context = ApiContext{login_api};
 
   api_context->login_by_alias(
-      block.sender_ephemeral_uid,
+      send_message->sender_ephemeral,
       SubApi<AuthorizedApi>{
-          [&block, &payload](ApiContext<AuthorizedApi>& auth_api) {
+          [&](auto& auth_api) {
             auth_api->send_message(
-                AeMessage{block.target_uid, DataBuffer{payload}});
-          }});
+                AeMessage{send_message->destination_uid, DataBuffer{payload}});
+          },
+      });
 
   out = std::move(api_context).Pack();
 
-  return EncodePacketResult{EncodePacketError::kNone, out.size()};
+  return Ok{out.size()};
 }
 
 }  // namespace ae::prepared_packet

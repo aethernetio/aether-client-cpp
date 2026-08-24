@@ -199,6 +199,14 @@ GetCloudAction& ClientCloudManager::GetCloud(Uid client_uid) {
   return *action;
 }
 
+Cloud::ptr ClientCloudManager::GetCachedCloud(Uid client_uid) {
+  auto cached = cloud_cache_.find(client_uid);
+  if ((cached == cloud_cache_.end()) || !cached->second.cloud.is_valid()) {
+    return {};
+  }
+  return cached->second.cloud;
+}
+
 void ClientCloudManager::StartListenForCloudUpdate() {
   auto aether = aether_.Load();
   assert(aether && "Aether must be loaded");

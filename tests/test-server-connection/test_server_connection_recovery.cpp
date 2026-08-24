@@ -185,6 +185,8 @@ class FakeChannel final : public Channel {
     return std::chrono::milliseconds{50};
   }
 
+  std::optional<Endpoint> endpoint() const override { return std::nullopt; };
+
  private:
   FakeBuildPolicy policy_;
 };

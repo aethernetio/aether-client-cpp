@@ -59,9 +59,6 @@ class P2pStream final : public ByteIStream {
   void WriteOut(DataBuffer const& data);
   Uid const& destination() const;
 
-  std::optional<prepared_packet::PreparedSendMessageBlock>
-  ExportPreparedSendMessageBlock(std::uint32_t reserve_nonce_count);
-
  private:
   void ConnectReceive();
   void ConnectSend();

@@ -17,9 +17,6 @@
 #ifndef AETHER_SERVER_CONNECTIONS_CLIENT_SERVER_CONNECTION_H_
 #define AETHER_SERVER_CONNECTIONS_CLIENT_SERVER_CONNECTION_H_
 
-#include <cstdint>
-#include <optional>
-
 #include "aether/ae_context.h"
 #include "aether/common.h"
 #include "aether/crypto/icrypto_provider.h"
@@ -31,7 +28,6 @@
 #include "aether/work_cloud_api/work_server_api/login_api.h"
 
 #include "aether/server_connections/server_connection.h"
-#include "aether/prepared_packet/prepared_send_message.h"
 
 namespace ae {
 class Client;
@@ -77,10 +73,6 @@ class ClientServerConnection {
   ClientApiSafe& client_safe_api();
 
   ServerConnection& server_connection();
-
-  std::optional<prepared_packet::PreparedSendMessageBlock>
-  ExportPreparedSendMessageBlock(Uid target_uid,
-                                 std::uint32_t reserve_nonce_count);
 
  private:
   void OutData(DataBuffer const& data);

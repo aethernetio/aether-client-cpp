@@ -8,86 +8,96 @@
 #ifndef AETHER_PREPARED_PACKET_PREPARED_SEND_MESSAGE_H_
 #define AETHER_PREPARED_PACKET_PREPARED_SEND_MESSAGE_H_
 
-#include <array>
-#include <cstddef>
-#include <cstdint>
-#include <optional>
+#include <string_view>
 
-#include "aether/types/address.h"
-#include "aether/types/data_buffer.h"
-#include "aether/types/uid.h"
+#include "aether-miscpp/reflect/reflect.h"
+#include "aether-miscpp/types/result.h"
 
-#include "aether/crypto/key.h"
 #include "aether/crypto/crypto_nonce.h"
+#include "aether/crypto/key.h"
+#include "aether/obj/obj_ptr.h"
+#include "aether/types/address.h"
+#include "aether/types/server_id.h"
+#include "aether/types/uid.h"
+#include "aether/types/variant_type.h"
+
+#include "aether/prepared_packet/prepared_block.h"
+
+namespace ae {
+class Client;
+}
 
 namespace ae::prepared_packet {
-static constexpr std::uint32_t kMagic = 0x50534456;  // "PSDV"
-static constexpr std::uint32_t kVersion = 1;
-// Serialized PreparedSendMessageBlock is a few hundred bytes. Keep the RTC
-// footprint small enough for ESP32 RTC slow memory (8 KiB on ESP32-C6).
-static constexpr std::size_t kMaxPreparedBlockBytes = 512;
 
-struct RetainedPreparedBlock {
-  std::uint32_t magic;
-  std::uint32_t version;
-  std::uint32_t size;
-  std::uint32_t checksum;
-  std::array<std::uint8_t, kMaxPreparedBlockBytes> bytes;
-};
-
-enum class PreparedIpVersion : std::uint8_t {
-  kIpV4 = 4,
-  kIpV6 = 6,
+struct PreparedAddr
+    : VariantType<AddrVersion, VPair<AddrVersion::kIpV4, IpV4Addr>,
+                  VPair<AddrVersion::kIpV6, IpV6Addr>> {
+  using VariantType::VariantType;
+  using VariantType::operator=;
 };
 
 struct PreparedEndpoint {
-  AE_REFLECT_MEMBERS(version, protocol, port, ip)
-  PreparedIpVersion version = PreparedIpVersion::kIpV4;
-  Protocol protocol = Protocol::kUdp;
-  std::uint16_t port = 0;
-
-  // IPv4 uses first 4 bytes.
-  // IPv6 uses all 16 bytes.
-  std::array<std::uint8_t, 16> ip{};
+  AE_REFLECT_MEMBERS(address, port, protocol)
+  PreparedAddr address;
+  std::uint16_t port;
+  Protocol protocol;
 };
 
-struct PreparedSendMessageBlock {
-  AE_REFLECT_MEMBERS(endpoint, sender_ephemeral_uid, target_uid,
-                     client_to_server_key, next_nonce, nonce_left)
-  PreparedEndpoint endpoint;
+struct PreparedSendMessage {
+  AE_REFLECT_MEMBERS(sender_ephemeral, destination_uid, endpoint, server_id,
+                     client_to_server_key, next_nonce, message_left)
+  // Client ephemeral UID sent to login_by_alias.
+  Uid sender_ephemeral;
+  Uid destination_uid;
 
-  Uid sender_ephemeral_uid;
-  Uid target_uid;
+  PreparedEndpoint endpoint;
+  ServerId server_id;
 
   Key client_to_server_key;
 
   CryptoNonce next_nonce;
-  std::uint32_t nonce_left = 0;
+
+  std::uint32_t message_left;
 };
 
-enum class EncodePacketError {
-  kNone = 0,
-  kNonceExhausted,
+using PreparedSendMessageBlock = PreparedBlock<PreparedSendMessage>;
+
+struct PreparedBlockError {
+  int ec;
+  std::string_view msg;
 };
 
-inline char const* ToString(EncodePacketError error) {
-  switch (error) {
-    case EncodePacketError::kNone:
-      return "none";
-    case EncodePacketError::kNonceExhausted:
-      return "nonce_exhausted";
-  }
-  return "unknown";
-}
+static constexpr inline auto client_is_not_valid =
+    PreparedBlockError{1, "Client is not valid"};
+static constexpr inline auto dest_cloud_is_not_in_cache =
+    PreparedBlockError{2, "Dest cloud is not cached"};
+static constexpr inline auto unable_to_get_server =
+    PreparedBlockError{3, "Unable to select a usable server"};
+static constexpr inline auto unable_to_get_endpoint =
+    PreparedBlockError{4, "Unable to get destination endpoint"};
+static constexpr inline auto unable_to_get_server_state =
+    PreparedBlockError{5, "Unable to get client server state"};
 
-struct EncodePacketResult {
-  EncodePacketError error = EncodePacketError::kNone;
-  std::size_t bytes_written = 0;
-
-  explicit operator bool() const { return error == EncodePacketError::kNone; }
-};
-
-std::optional<PreparedEndpoint> MakePreparedEndpoint(Endpoint const& endpoint);
+/**
+ * \brief Make prepared send message block.
+ * Reserves message_count nonces for sending through a user-provided fast path.
+ * The destination cloud must already be cached by the client. This function
+ * does not retrieve a destination cloud when it is absent from the cache.
+ * The selected server is the usable server with the lowest numeric priority;
+ * higher-priority servers without a loadable IPv4 or IPv6 UDP endpoint are
+ * skipped. Selection does not retry after a server and endpoint are selected.
+ * Use EncodePacket to build the Aether packet; it does not send the packet.
+ * After the block is ready, do not send regular Aether messages because they
+ * invalidate the prepared block.
+ * \param client - Client object to send messages from
+ * \param destination_uid - Client's uid to send messages to
+ * \param message_count - Reserved message count. Messages must be reserved in
+ * aether's crypto layer to prevent nonce collisions.
+ * \return Result with either PreparedSendMessageBlock or PreparedBlockError.
+ */
+Result<PreparedSendMessageBlock, PreparedBlockError> PrepareSendMessageBlock(
+    ObjPtr<Client> const& client, Uid destination_uid,
+    std::uint32_t message_count);
 
 }  // namespace ae::prepared_packet
 
