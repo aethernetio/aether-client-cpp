@@ -27,6 +27,9 @@
 
 #  include "aether/channels/channel.h"
 #  include "aether/executors/executors.h"
+#  if AE_ENABLE_PING_TEST_FAULTS
+#    include "aether/ae_actions/ping_test_faults.h"
+#  endif
 
 #  include "aether/cloud_connections/cloud_connections_tele.h"
 
@@ -38,10 +41,12 @@ PingTraceHook g_ping_trace_hook{nullptr};
 void SetPingTraceHook(PingTraceHook hook) noexcept { g_ping_trace_hook = hook; }
 
 PingCloudServers::ServerPing::ServerPing(AeContext const& ae_context,
+                                         PingCloudServers& owner,
                                          ClientConnectivityPolicy& policy,
                                          CloudServerConnection& cloud_sc,
                                          std::size_t priority)
     : ae_context_{ae_context},
+      owner_{&owner},
       policy_{&policy},
       cloud_sc_{&cloud_sc},
       priority_{priority} {
@@ -53,6 +58,19 @@ PingCloudServers::ServerPing::ServerPing(AeContext const& ae_context,
 
   if (timings.next_rx_point != TimePoint{}) {
     planned_send_at_ = timings.next_rx_point;
+  }
+
+  auto& st = Cycle();
+  if (st.required_rx_until != TimePoint{}) {
+    required_rx_until_ = st.required_rx_until;
+  }
+  if (st.active && !st.confirmed) {
+    if (st.planned_send_at != TimePoint{}) {
+      planned_send_at_ = st.planned_send_at;
+    }
+    ping_blocker_ = policy_->AcquireSuspendBlock();
+    start_sub_ = ae_context_.scheduler().Task([&]() { Start(); });
+    return;
   }
 
   // if it's to early for next rx wait a bit
@@ -153,46 +171,92 @@ auto PingCloudServers::ServerPing::MakePing() {
           }
 
           auto const actual_send_at = Now();
-          EarlyRxWindowInput window_in{};
-          window_in.has_planned_send = planned_send_at_.has_value();
-          if (planned_send_at_.has_value()) {
-            window_in.planned_send_at = *planned_send_at_;
+          auto& st = Cycle();
+          if (st.confirmed && actual_send_at < st.next_local_send_at) {
+            return ex::set_value(std::move(ctx.receiver));
           }
-          window_in.actual_send_at = actual_send_at;
-          window_in.base_rx_window = timing_conf_.rx_window;
-          window_in.has_required_rx_until = required_rx_until_.has_value();
           if (required_rx_until_.has_value()) {
-            window_in.required_rx_until = *required_rx_until_;
+            st.required_rx_until = *required_rx_until_;
           }
-          auto const window_out = ComputeEarlyRxWindow(window_in);
+          LogicalPingAttemptRequest attempt_req{};
+          attempt_req.actual_send_at = actual_send_at;
+          attempt_req.has_planned_send = planned_send_at_.has_value();
+          attempt_req.planned_send_at =
+              planned_send_at_.value_or(actual_send_at);
+          attempt_req.interval = timing_conf_.interval;
+          attempt_req.guard = guard;
+          attempt_req.base_rx_window = timing_conf_.rx_window;
+          auto const view = ApplyLogicalPingAttempt(st, attempt_req);
+          if (view.started_new_cycle) {
+#if AE_ENABLE_PING_TEST_FAULTS
+            PingTestFaults::Instance().BindNextCycle(cloud_sc_->server_id(),
+                                                     view.cycle_id);
+#endif
+            EmitTrace(PingTraceKind::kCycleStarted);
+          }
+
+          Duration timeout = c->ResponseTimeout();
+          // p99 RTT is too aggressive as a loss detector: a late pong then
+          // retries, shrinks nextConnect, and starves dest-server timing.
+          auto const min_loss =
+              std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1000});
+          if (timeout < min_loss) {
+            timeout = min_loss;
+          }
+          bool request_sent = true;
+          bool response_ignored = false;
+          std::int32_t fault_mode = 0;
+#if AE_ENABLE_PING_TEST_FAULTS
+          auto const fault = PingTestFaults::Instance().Consume(PingFaultContext{
+              cloud_sc_->server_id(), view.cycle_id, view.attempt_index,
+              attempt_req.planned_send_at, actual_send_at});
+          if (fault.timeout_override.count() > 0) {
+            timeout = fault.timeout_override;
+          }
+          request_sent = fault.mode != PingFaultMode::kDropRequest;
+          response_ignored = fault.mode == PingFaultMode::kIgnoreResponse;
+          fault_mode = static_cast<std::int32_t>(fault.mode);
+#endif
 
           PingAttempt attempt{};
           attempt.server_id = cloud_sc_->server_id();
           attempt.planned_send_at = planned_send_at_;
           attempt.actual_send_at = actual_send_at;
-          attempt.early_by = window_out.early_by;
+          attempt.early_by = view.rx.early_by;
           attempt.base_rx_window = timing_conf_.rx_window;
-          attempt.effective_wire_rx_window = window_out.effective_wire_rx_window;
+          attempt.effective_wire_rx_window = view.rx.effective_wire_rx_window;
           attempt.required_rx_until_before = required_rx_until_;
-          attempt.required_rx_until = window_out.required_rx_until;
+          attempt.required_rx_until = view.rx.required_rx_until;
           attempt.min_rtt = min_rtt;
           attempt.p99_rtt = p99_rtt;
           attempt.ping_guard = guard;
           attempt.channel_generation = ++send_generation_;
+          attempt.logical_cycle_id = view.cycle_id;
+          attempt.physical_attempt_index = view.attempt_index;
+          attempt.fault_mode = fault_mode;
+          attempt.request_was_sent = request_sent;
+          attempt.response_was_ignored = response_ignored;
+          attempt.cycle_anchor = view.cycle_anchor;
+          attempt.contract_deadline = view.contract_deadline;
+          attempt.wire_next_connect_ms = view.wire_next_connect_ms;
+          attempt.retry_delay =
+              view.is_retry
+                  ? SaturatingSubTime(actual_send_at, st.first_attempt_send_at)
+                  : Duration{};
+          attempt.next_local_send_at = view.next_local_send;
 
-          if (timing_conf_.interval > Duration{}) {
-            next_ping_time_ = actual_send_at + timing_conf_.interval - guard;
-          } else {
-            next_ping_time_ = TimePoint::max();
-          }
+          next_ping_time_ = view.next_local_send;
           attempt.next_planned_send = next_ping_time_;
-          required_rx_until_ = window_out.required_rx_until;
+          required_rx_until_ = view.rx.required_rx_until;
           in_flight_ = attempt;
+          EmitTrace(PingTraceKind::kAttemptPrepared);
           EmitTrace(PingTraceKind::kPrepared);
 
-          ping_.emplace(ae_context_, *cloud_sc_, timing_conf_.interval,
-                        window_out.effective_wire_rx_window,
-                        c->ResponseTimeout());
+          ping_.emplace(ae_context_, *cloud_sc_, view.wire_next_connect,
+                        view.rx.effective_wire_rx_window, timeout);
+#if AE_ENABLE_PING_TEST_FAULTS
+          ping_->ApplyTestFault(static_cast<std::uint8_t>(fault_mode));
+#endif
 
           ping_blocker_ = policy_->AcquireSuspendBlock();
           ping_->result_event().Subscribe(
@@ -202,16 +266,25 @@ auto PingCloudServers::ServerPing::MakePing() {
               });
 
           ping_->Start(actual_send_at);
-          OpenRxWindow();
-          EmitTrace(PingTraceKind::kSent);
+          if (request_sent) {
+            OpenRxWindow();
+            EmitTrace(PingTraceKind::kSent);
+            EmitTrace(PingTraceKind::kRequestSent);
+            if (response_ignored) {
+              EmitTrace(PingTraceKind::kResponseIgnored);
+            }
+          } else {
+            EmitTrace(PingTraceKind::kRequestDropped);
+          }
           if (timing_conf_.interval > Duration{}) {
             policy_->ReportNextServiceTime(priority_, next_ping_time_);
           }
           AE_TELED_DEBUG(
               "Next ping time for priority {} at {} after {} (guard {}) "
-              "early_by {} wire_rx {}",
+              "early_by {} wire_rx {} cycle {} attempt {}",
               priority_, next_ping_time_, timing_conf_.interval, guard,
-              window_out.early_by, window_out.effective_wire_rx_window);
+              view.rx.early_by, view.rx.effective_wire_rx_window, view.cycle_id,
+              view.attempt_index);
 
           return ex::set_value(std::move(ctx.receiver));
         });
@@ -220,6 +293,10 @@ auto PingCloudServers::ServerPing::MakePing() {
 
 void PingCloudServers::ServerPing::Start() {
   if (stop_) {
+    return;
+  }
+  auto const& st = Cycle();
+  if (st.confirmed && Now() < st.next_local_send_at) {
     return;
   }
   waiter_.emplace(
@@ -247,13 +324,7 @@ void PingCloudServers::ServerPing::Start() {
               }),
       [this]<typename R>(std::optional<R>&& res) noexcept {
         if (res && res->IsOk()) {
-          // interval == 0: unknown next ping; do not auto-reschedule.
-          if (timing_conf_.interval > Duration{}) {
-            planned_send_at_ = next_ping_time_;
-            start_sub_ = ae_context_.scheduler().DelayedTask(
-                [&]() noexcept { Start(); },  // ~['_']~
-                next_ping_time_);
-          }
+          // Next logical cycle is scheduled only after confirmation.
         } else if (res && res->IsErr()) {
           AE_TELED_ERROR("Ping start error {}", std::move(res)->error());
         } else {
@@ -275,35 +346,81 @@ void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
     return;
   }
 
+  auto& st = Cycle();
+  auto const attempt =
+      in_flight_.has_value() ? in_flight_->physical_attempt_index : 0;
   auto const wire = in_flight_.has_value() ? in_flight_->effective_wire_rx_window
                                            : timing_conf_.rx_window;
+  bool const request_sent =
+      !in_flight_.has_value() || in_flight_->request_was_sent;
 
   std::visit(
-      [this, c, wire](auto const& value) {
+      [this, c, wire, attempt, request_sent, &st](auto const& value) {
         using T = std::decay_t<decltype(value)>;
-        if constexpr (std::is_same_v<T, Ok<Duration>>) {
-          c->channel_statistics().AddResponseTime(value.value);
-          ScheduleRxWindowClose(ComputeRxWindowCloseTime(Now(), wire));
-          EmitTrace(PingTraceKind::kResult, 0);
-        } else if constexpr (std::is_same_v<T, Ping::LateDuration>) {
-          AE_TELED_DEBUG("Got late ping duration");
-          c->channel_statistics().AddResponseTime(value.duration);
-          ScheduleRxWindowClose(ComputeRxWindowCloseTime(Now(), wire));
-          EmitTrace(PingTraceKind::kResult, 4);
+        if constexpr (std::is_same_v<T, Ok<Duration>> ||
+                      std::is_same_v<T, Ping::LateDuration>) {
+          if (!ShouldAcceptCycleResult(st.active, st.confirmed,
+                                       st.attempt_index, attempt,
+                                       st.current_attempt_timed_out, true)) {
+            return;
+          }
+          if constexpr (std::is_same_v<T, Ok<Duration>>) {
+            c->channel_statistics().AddResponseTime(value.value);
+            EmitTrace(PingTraceKind::kResult, 0);
+          } else {
+            AE_TELED_DEBUG("Got late ping duration");
+            c->channel_statistics().AddResponseTime(value.duration);
+            EmitTrace(PingTraceKind::kResult, 4);
+          }
+          if (request_sent) {
+            ScheduleRxWindowClose(ComputeRxWindowCloseTime(Now(), wire));
+          }
+          ConfirmCycleAndScheduleNext();
         } else if constexpr (std::is_same_v<T, Error<int>>) {
+          if (!ShouldAcceptCycleResult(st.active, st.confirmed,
+                                       st.attempt_index, attempt,
+                                       st.current_attempt_timed_out, false)) {
+            return;
+          }
           AE_TELED_ERROR("Ping error!");
+          if (value.error == 2) {
+            MarkLogicalPingAttemptTimedOut(st);
+            EmitTrace(PingTraceKind::kAttemptTimeout, 2);
+            EmitTrace(PingTraceKind::kResult, 2);
+            // Keep the RX window open: a late pong or same-cycle retry still
+            // needs it. Closing here drops the next attempt's response.
+            ScheduleSameCycleRetry(false);
+            return;
+          }
           if (value.error == 1) {
             MaybeCloseAfterWriteFailure();
+            st.required_rx_until = required_rx_until_.value_or(TimePoint{});
             EmitTrace(PingTraceKind::kResult, 1);
-          } else {
-            ScheduleRxWindowClose(ComputeRxWindowCloseTime(Now(), wire));
-            EmitTrace(PingTraceKind::kResult, value.error);
+            ScheduleSameCycleRetry(true);
+            return;
           }
+          if (request_sent) {
+            ScheduleRxWindowClose(ComputeRxWindowCloseTime(Now(), wire));
+          }
+          EmitTrace(PingTraceKind::kResult, value.error);
+          st.active = false;
+          st.confirmed = false;
           ScheduleRestream();
+          planned_send_at_ = st.next_local_send_at;
+          next_ping_time_ = st.next_local_send_at;
+          if (timing_conf_.interval > Duration{}) {
+            policy_->ReportNextServiceTime(priority_, next_ping_time_);
+            start_sub_ = ae_context_.scheduler().DelayedTask(
+                [this]() { Start(); }, next_ping_time_);
+          }
         } else {
           AE_TELED_ERROR("Ping error!");
-          ScheduleRxWindowClose(ComputeRxWindowCloseTime(Now(), wire));
+          if (request_sent) {
+            ScheduleRxWindowClose(ComputeRxWindowCloseTime(Now(), wire));
+          }
           EmitTrace(PingTraceKind::kResult, 3);
+          st.active = false;
+          st.confirmed = false;
           ScheduleRestream();
         }
       },
@@ -377,6 +494,16 @@ void PingCloudServers::ServerPing::EmitTrace(PingTraceKind kind,
   event.channel_generation = a.channel_generation;
   event.result_type = result_type;
   event.event_time = Now();
+  event.logical_cycle_id = a.logical_cycle_id;
+  event.physical_attempt_index = a.physical_attempt_index;
+  event.fault_mode = a.fault_mode;
+  event.request_was_sent = a.request_was_sent;
+  event.response_was_ignored = a.response_was_ignored;
+  event.cycle_anchor = a.cycle_anchor;
+  event.contract_deadline = a.contract_deadline;
+  event.wire_next_connect_ms = a.wire_next_connect_ms;
+  event.retry_delay = a.retry_delay;
+  event.next_local_send_at = a.next_local_send_at;
   g_ping_trace_hook(event);
 }
 
@@ -394,6 +521,80 @@ void PingCloudServers::ServerPing::ScheduleRestream() {
     }
     restream_blocker_.Reset();
   });
+}
+
+LogicalPingCycleState& PingCloudServers::ServerPing::Cycle() {
+  return owner_->cycle_states_[cloud_sc_->server_id()];
+}
+
+void PingCloudServers::ServerPing::ConfirmCycleAndScheduleNext() {
+  auto& st = Cycle();
+  ConfirmLogicalPingCycle(st);
+  EmitTrace(PingTraceKind::kCycleConfirmed);
+  planned_send_at_ = st.next_local_send_at;
+  next_ping_time_ = st.next_local_send_at;
+  if (timing_conf_.interval == Duration{}) {
+    return;
+  }
+  policy_->ReportNextServiceTime(priority_, next_ping_time_);
+  EmitTrace(PingTraceKind::kNextCycleScheduled);
+  if (Now() >= next_ping_time_) {
+    start_sub_ = ae_context_.scheduler().Task([this]() { Start(); });
+  } else {
+    start_sub_ = ae_context_.scheduler().DelayedTask([this]() { Start(); },
+                                                     next_ping_time_);
+  }
+}
+
+bool PingCloudServers::ServerPing::ChannelLinkedAndWritable() const {
+  auto* cc = cloud_sc_->client_connection();
+  if (cc == nullptr) {
+    return false;
+  }
+  auto const info = cc->stream_info();
+  return info.link_state == LinkState::kLinked && info.is_writable;
+}
+
+void PingCloudServers::ServerPing::ScheduleSameCycleRetry(bool restream_first) {
+  if (stop_) {
+    return;
+  }
+  auto& st = Cycle();
+  st.awaiting_relink_retry = restream_first || !ChannelLinkedAndWritable();
+  EmitTrace(PingTraceKind::kRetryScheduled);
+  auto kick_start = [this]() {
+    start_sub_ = ae_context_.scheduler().Task([this]() { Start(); });
+  };
+  if (restream_first) {
+    restream_blocker_ = policy_->AcquireSuspendBlock();
+    restream_sub_ = ae_context_.scheduler().Task([this, kick_start]() {
+      auto* cc = cloud_sc_->client_connection();
+      if (cc != nullptr) {
+        cc->Restream();
+      }
+      restream_blocker_.Reset();
+      cc = cloud_sc_->client_connection();
+      if (cc != nullptr &&
+          cc->stream_info().link_state == LinkState::kLinked) {
+        kick_start();
+      } else if (cc != nullptr) {
+        WaitForLink(*cc, kick_start);
+      } else {
+        kick_start();
+      }
+    });
+    return;
+  }
+  if (ChannelLinkedAndWritable()) {
+    kick_start();
+    return;
+  }
+  auto* cc = cloud_sc_->client_connection();
+  if (cc != nullptr) {
+    WaitForLink(*cc, kick_start);
+  } else {
+    kick_start();
+  }
 }
 
 PingCloudServers::PingCloudServers(
@@ -456,8 +657,9 @@ void PingCloudServers::ReconcileServer(CloudServerConnection& cloud_sc) {
       it->second.reset();
     }
     server_pings_.insert_or_assign(
-        server_id, std::make_unique<ServerPing>(ae_context_, *policy_, cloud_sc,
-                                                priority));
+        server_id,
+        std::make_unique<ServerPing>(ae_context_, *this, *policy_, cloud_sc,
+                                     priority));
     return;
   }
 }

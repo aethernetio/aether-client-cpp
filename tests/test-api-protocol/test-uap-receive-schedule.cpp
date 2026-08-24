@@ -26,6 +26,10 @@
 #include "aether/ae_actions/query_peer_receive_schedule.h"
 #include "aether/channels/channel.h"
 #include "aether/cloud_connections/ping_schedule_guard.h"
+#include "aether/config.h"
+#if AE_ENABLE_PING_TEST_FAULTS
+#include "aether/ae_actions/ping_test_faults.h"
+#endif
 #include "aether/receive_schedule.h"
 #include "aether/types/statistic_counter.h"
 #include "aether/work_cloud_api/client_timing.h"
@@ -321,6 +325,229 @@ void test_ServerWindowInvariantIndependentOfRtt() {
   }
 }
 
+void test_LogicalPingFirstAttemptAnchorsSchedule() {
+  LogicalPingCycleState st{};
+  LogicalPingAttemptRequest req{};
+  req.actual_send_at = TimePoint{} + Ms(3000);
+  req.interval = Ms(3000);
+  req.guard = Ms(10);
+  req.base_rx_window = Ms(1000);
+  auto const view = ApplyLogicalPingAttempt(st, req);
+  TEST_ASSERT_TRUE(view.started_new_cycle);
+  TEST_ASSERT_FALSE(view.is_retry);
+  TEST_ASSERT_EQUAL_UINT(1, view.attempt_index);
+  TEST_ASSERT_EQUAL_INT64(3000, view.wire_next_connect_ms);
+  TEST_ASSERT_TRUE(view.contract_deadline == req.actual_send_at + Ms(3000));
+  TEST_ASSERT_EQUAL_INT64(
+      (view.contract_deadline - std::chrono::milliseconds{10})
+          .time_since_epoch()
+          .count(),
+      view.next_local_send.time_since_epoch().count());
+  TEST_ASSERT_TRUE(st.cycle_id == view.cycle_id);
+}
+
+void test_LogicalPingOneRetryKeepsPhase() {
+  LogicalPingCycleState st{};
+  LogicalPingAttemptRequest req{};
+  req.actual_send_at = TimePoint{} + Ms(3000);
+  req.interval = Ms(3000);
+  req.guard = Ms(10);
+  req.base_rx_window = Ms(1000);
+  auto const first = ApplyLogicalPingAttempt(st, req);
+  req.actual_send_at = TimePoint{} + Ms(3200);
+  auto const retry = ApplyLogicalPingAttempt(st, req);
+  TEST_ASSERT_FALSE(retry.started_new_cycle);
+  TEST_ASSERT_TRUE(retry.is_retry);
+  TEST_ASSERT_TRUE(retry.cycle_id == first.cycle_id);
+  TEST_ASSERT_EQUAL_UINT(2, retry.attempt_index);
+  TEST_ASSERT_EQUAL_INT64(2800, retry.wire_next_connect_ms);
+  TEST_ASSERT_TRUE(retry.contract_deadline == first.contract_deadline);
+  TEST_ASSERT_TRUE(retry.next_local_send == first.next_local_send);
+}
+
+void test_LogicalPingTwoRetriesKeepPhase() {
+  LogicalPingCycleState st{};
+  LogicalPingAttemptRequest req{};
+  req.actual_send_at = TimePoint{} + Ms(3000);
+  req.interval = Ms(3000);
+  req.guard = Ms(10);
+  req.base_rx_window = Ms(1000);
+  auto const first = ApplyLogicalPingAttempt(st, req);
+  req.actual_send_at = TimePoint{} + Ms(3100);
+  auto const r2 = ApplyLogicalPingAttempt(st, req);
+  req.actual_send_at = TimePoint{} + Ms(3400);
+  auto const r3 = ApplyLogicalPingAttempt(st, req);
+  TEST_ASSERT_TRUE(r2.cycle_id == first.cycle_id);
+  TEST_ASSERT_TRUE(r3.cycle_id == first.cycle_id);
+  TEST_ASSERT_EQUAL_INT64(2900, r2.wire_next_connect_ms);
+  TEST_ASSERT_EQUAL_INT64(2600, r3.wire_next_connect_ms);
+  TEST_ASSERT_TRUE(r3.contract_deadline == first.contract_deadline);
+  TEST_ASSERT_TRUE(r3.next_local_send == first.next_local_send);
+}
+
+void test_LogicalPingSuccessConfirmsOnceAndIgnoresStale() {
+  LogicalPingCycleState st{};
+  LogicalPingAttemptRequest req{};
+  req.actual_send_at = TimePoint{} + Ms(3000);
+  req.interval = Ms(3000);
+  req.guard = Ms(10);
+  req.base_rx_window = Ms(1000);
+  auto const first = ApplyLogicalPingAttempt(st, req);
+  TEST_ASSERT_TRUE(ShouldAcceptCycleResult(
+      st.active, st.confirmed, st.attempt_index, first.attempt_index,
+      st.current_attempt_timed_out, true));
+  ConfirmLogicalPingCycle(st);
+  TEST_ASSERT_TRUE(st.confirmed);
+  TEST_ASSERT_FALSE(st.active);
+  TEST_ASSERT_FALSE(ShouldAcceptCycleResult(
+      st.active, st.confirmed, st.attempt_index, first.attempt_index,
+      st.current_attempt_timed_out, true));
+}
+
+void test_LogicalPingTimeoutIgnoresLateOldAttempt() {
+  LogicalPingCycleState st{};
+  LogicalPingAttemptRequest req{};
+  req.actual_send_at = TimePoint{} + Ms(3000);
+  req.interval = Ms(3000);
+  req.guard = Ms(10);
+  req.base_rx_window = Ms(1000);
+  auto const first = ApplyLogicalPingAttempt(st, req);
+  MarkLogicalPingAttemptTimedOut(st);
+  // Late pong for the timed-out attempt is still the cycle result.
+  TEST_ASSERT_TRUE(ShouldAcceptCycleResult(
+      st.active, st.confirmed, st.attempt_index, first.attempt_index,
+      st.current_attempt_timed_out, true));
+  TEST_ASSERT_TRUE(ShouldAcceptCycleResult(
+      st.active, st.confirmed, st.attempt_index, first.attempt_index,
+      st.current_attempt_timed_out, false));
+  req.actual_send_at = TimePoint{} + Ms(3200);
+  auto const retry = ApplyLogicalPingAttempt(st, req);
+  TEST_ASSERT_EQUAL_UINT(2, retry.attempt_index);
+  TEST_ASSERT_FALSE(ShouldAcceptCycleResult(
+      st.active, st.confirmed, st.attempt_index, first.attempt_index,
+      st.current_attempt_timed_out, true));
+}
+
+void test_LogicalPingErrorRetryActions() {
+  TEST_ASSERT_TRUE(PingErrorRetryActionFor(2) ==
+                   PingErrorRetryAction::kImmediateSameCycle);
+  TEST_ASSERT_TRUE(PingErrorRetryActionFor(1) ==
+                   PingErrorRetryAction::kRestreamThenSameCycle);
+  TEST_ASSERT_TRUE(PingErrorRetryActionFor(3) ==
+                   PingErrorRetryAction::kRestreamThenSameCycle);
+}
+
+void test_LogicalPingSendAfterGuardBeforeDeadlineAnchorsToActual() {
+  LogicalPingCycleState st{};
+  LogicalPingAttemptRequest req{};
+  req.actual_send_at = TimePoint{} + Ms(3000);
+  req.interval = Ms(3000);
+  req.guard = Ms(50);
+  req.base_rx_window = Ms(1000);
+  ApplyLogicalPingAttempt(st, req);
+  ConfirmLogicalPingCycle(st);
+  req.actual_send_at = TimePoint{} + Ms(5960);
+  auto const second = ApplyLogicalPingAttempt(st, req);
+  TEST_ASSERT_TRUE(second.started_new_cycle);
+  TEST_ASSERT_EQUAL_INT64(3000, second.wire_next_connect_ms);
+  TEST_ASSERT_TRUE(second.contract_deadline == req.actual_send_at + Ms(3000));
+  TEST_ASSERT_TRUE(second.next_local_send ==
+                   req.actual_send_at + Ms(3000) - Ms(50));
+}
+
+void test_LogicalPingRetryAfterDeadlineKeepsPhaseAndNeverWiresZero() {
+  LogicalPingCycleState st{};
+  LogicalPingAttemptRequest req{};
+  req.actual_send_at = TimePoint{} + Ms(3000);
+  req.interval = Ms(3000);
+  req.guard = Ms(10);
+  req.base_rx_window = Ms(1000);
+  auto const first = ApplyLogicalPingAttempt(st, req);
+  req.actual_send_at = TimePoint{} + Ms(7000);
+  auto const retry = ApplyLogicalPingAttempt(st, req);
+  TEST_ASSERT_TRUE(retry.cycle_id == first.cycle_id);
+  TEST_ASSERT_TRUE(retry.wire_next_connect_ms >= 1);
+  TEST_ASSERT_TRUE(retry.contract_deadline ==
+                   first.contract_deadline + Ms(3000));
+  TEST_ASSERT_EQUAL_INT64(
+      (retry.contract_deadline - std::chrono::milliseconds{10})
+          .time_since_epoch()
+          .count(),
+      retry.next_local_send.time_since_epoch().count());
+}
+
+void test_WireRoundingFloorConnectCeilRxRemainders() {
+  for (std::uint32_t us = 1; us <= 999; ++us) {
+    Duration const rem{us};
+    TEST_ASSERT_EQUAL_INT64(1, FloorDurationToPositiveInt64Ms(rem));
+    TEST_ASSERT_EQUAL_INT64(1, CeilDurationToSaturatedInt64Ms(rem));
+  }
+  TEST_ASSERT_EQUAL_INT64(1, FloorDurationToPositiveInt64Ms(Duration{1000}));
+  TEST_ASSERT_EQUAL_INT64(1, FloorDurationToPositiveInt64Ms(Duration{1999}));
+  TEST_ASSERT_EQUAL_INT64(2, FloorDurationToPositiveInt64Ms(Duration{2000}));
+  TEST_ASSERT_EQUAL_INT64(1, CeilDurationToSaturatedInt64Ms(Duration{1000}));
+  TEST_ASSERT_EQUAL_INT64(2, CeilDurationToSaturatedInt64Ms(Duration{1001}));
+  TEST_ASSERT_EQUAL_INT64(1, FloorDurationToPositiveInt64Ms(Duration{}));
+}
+
+void test_LogicalPingSaturationAndOverflow() {
+  TEST_ASSERT_TRUE(SaturatingAddTime(TimePoint::max(), Ms(1)) ==
+                   TimePoint::max());
+  TEST_ASSERT_TRUE(DurationToSaturatedInt64Ms(Duration::max()) > 0);
+  TEST_ASSERT_TRUE(FloorDurationToPositiveInt64Ms(Duration::max()) > 0);
+  TEST_ASSERT_TRUE(CeilDurationToSaturatedInt64Ms(Duration::max()) > 0);
+  auto const advanced =
+      AdvanceContractDeadlinePast(TimePoint{}, TimePoint::max(), Ms(3000));
+  TEST_ASSERT_TRUE(advanced == TimePoint::max() || advanced > TimePoint{});
+}
+
+#if AE_ENABLE_PING_TEST_FAULTS
+void test_PingTestFaultsTargetExactServerCycleAttempt() {
+  PingTestFaults::Instance().Clear();
+  PingFaultPlan plan{};
+  plan.server_id = 20;
+  plan.logical_cycle_id = 7;
+  plan.physical_attempt_index = 1;
+  plan.mode = PingFaultMode::kDropRequest;
+  PingTestFaults::Instance().Arm(plan);
+
+  auto miss_server = PingTestFaults::Instance().Consume(
+      PingFaultContext{21, 7, 1, TimePoint{}, TimePoint{}});
+  TEST_ASSERT_TRUE(miss_server.mode == PingFaultMode::kNone);
+  auto miss_cycle = PingTestFaults::Instance().Consume(
+      PingFaultContext{20, 8, 1, TimePoint{}, TimePoint{}});
+  TEST_ASSERT_TRUE(miss_cycle.mode == PingFaultMode::kNone);
+  auto hit = PingTestFaults::Instance().Consume(
+      PingFaultContext{20, 7, 1, TimePoint{}, TimePoint{}});
+  TEST_ASSERT_TRUE(hit.mode == PingFaultMode::kDropRequest);
+  auto consumed = PingTestFaults::Instance().Consume(
+      PingFaultContext{20, 7, 1, TimePoint{}, TimePoint{}});
+  TEST_ASSERT_TRUE(consumed.mode == PingFaultMode::kNone);
+  PingTestFaults::Instance().Clear();
+}
+
+void test_PingTestFaultsBindNextCycleAndIgnoreResponse() {
+  PingTestFaults::Instance().Clear();
+  PingFaultPlan plan{};
+  plan.server_id = 20;
+  plan.logical_cycle_id = 0;
+  plan.physical_attempt_index = 1;
+  plan.mode = PingFaultMode::kIgnoreResponse;
+  plan.timeout_override = Ms(400);
+  PingTestFaults::Instance().Arm(plan);
+  PingTestFaults::Instance().BindNextCycle(20, 3);
+  auto hit = PingTestFaults::Instance().Consume(
+      PingFaultContext{20, 3, 1, TimePoint{}, TimePoint{}});
+  TEST_ASSERT_TRUE(hit.mode == PingFaultMode::kIgnoreResponse);
+  TEST_ASSERT_TRUE(hit.timeout_override == Ms(400));
+  PingTestFaults::Instance().OnAuthPing();
+  PingTestFaults::Instance().OnProtocolResponse();
+  TEST_ASSERT_EQUAL_UINT(1, PingTestFaults::Instance().auth_ping_calls());
+  TEST_ASSERT_EQUAL_UINT(1, PingTestFaults::Instance().protocol_responses());
+  PingTestFaults::Instance().Clear();
+}
+#endif
+
 }  // namespace ae::test_uap_receive_schedule
 
 int test_uap_receive_schedule() {
@@ -350,5 +577,27 @@ int test_uap_receive_schedule() {
       ae::test_uap_receive_schedule::test_LocalRxWindowMonotonicAndStaleTimer);
   RUN_TEST(
       ae::test_uap_receive_schedule::test_ServerWindowInvariantIndependentOfRtt);
+  RUN_TEST(
+      ae::test_uap_receive_schedule::test_LogicalPingFirstAttemptAnchorsSchedule);
+  RUN_TEST(ae::test_uap_receive_schedule::test_LogicalPingOneRetryKeepsPhase);
+  RUN_TEST(ae::test_uap_receive_schedule::test_LogicalPingTwoRetriesKeepPhase);
+  RUN_TEST(ae::test_uap_receive_schedule::
+               test_LogicalPingSuccessConfirmsOnceAndIgnoresStale);
+  RUN_TEST(ae::test_uap_receive_schedule::
+               test_LogicalPingTimeoutIgnoresLateOldAttempt);
+  RUN_TEST(ae::test_uap_receive_schedule::test_LogicalPingErrorRetryActions);
+  RUN_TEST(ae::test_uap_receive_schedule::
+               test_LogicalPingSendAfterGuardBeforeDeadlineAnchorsToActual);
+  RUN_TEST(ae::test_uap_receive_schedule::
+               test_LogicalPingRetryAfterDeadlineKeepsPhaseAndNeverWiresZero);
+  RUN_TEST(
+      ae::test_uap_receive_schedule::test_WireRoundingFloorConnectCeilRxRemainders);
+  RUN_TEST(ae::test_uap_receive_schedule::test_LogicalPingSaturationAndOverflow);
+#if AE_ENABLE_PING_TEST_FAULTS
+  RUN_TEST(ae::test_uap_receive_schedule::
+               test_PingTestFaultsTargetExactServerCycleAttempt);
+  RUN_TEST(ae::test_uap_receive_schedule::
+               test_PingTestFaultsBindNextCycleAndIgnoreResponse);
+#endif
   return UNITY_END();
 }

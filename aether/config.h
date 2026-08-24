@@ -290,6 +290,11 @@
 #  define AE_ENABLE_PING 1
 #endif
 
+// Test-only ping request/response fault injection. Production default is 0.
+#ifndef AE_ENABLE_PING_TEST_FAULTS
+#  define AE_ENABLE_PING_TEST_FAULTS 0
+#endif
+
 // Send ping interval, ms
 #ifndef AE_PING_INTERVAL_MS
 #  define AE_PING_INTERVAL_MS AE_DEFAULT_RESPONSE_TIMEOUT_MS + 1000
