@@ -27,6 +27,9 @@
 #  include "aether/cloud_connections/cloud_server_connection.h"
 #  include "aether/cloud_connections/ping_schedule_guard.h"
 #  include "aether/work_cloud_api/work_server_api/authorized_api.h"
+#  if AE_ENABLE_PING_TEST_FAULTS
+#    include "aether/ae_actions/ping_test_faults.h"
+#  endif
 
 #  include "aether/ae_actions/ae_actions_tele.h"
 
@@ -90,13 +93,39 @@ void Ping::Start(TimePoint current_time) {
   }
   state_ = RequestState::kPending;
 
+#if AE_ENABLE_PING_TEST_FAULTS
+  if (test_fault_mode_ ==
+      static_cast<std::uint8_t>(PingFaultMode::kDropRequest)) {
+    request_start_ = current_time;
+    timeout_sub_ = ae_context_.scheduler().DelayedTask(
+        [this]() { PingResponseTimeout(RequestId{}); },
+        current_time + timeout_);
+    if (state_ == RequestState::kPending && !timeout_sub_) {
+      AE_TELE_ERROR(
+          kPingTimeoutError,
+          "Ping timeout task allocation failed server id {} request {}",
+          server_id_, RequestId{});
+      state_ = RequestState::kFinished;
+      ResetRequestSubscriptions();
+      result_event_.Emit(PingResult{Error{5}});
+    }
+    return;
+  }
+#endif
+
   auto& write_action = cc->AuthorizedApiCall(
       SubApi{[this, current_time](ApiContext<AuthorizedApi>& auth_api) {
-        auto next_ping_hint_ms = DurationToSaturatedInt64Ms(next_ping_hint_);
-        auto rx_window_ms = DurationToSaturatedInt64Ms(rx_window_);
+        auto next_ping_hint_ms =
+            next_ping_hint_.count() == 0
+                ? std::int64_t{0}
+                : FloorDurationToPositiveInt64Ms(next_ping_hint_);
+        auto rx_window_ms = CeilDurationToSaturatedInt64Ms(rx_window_);
 
         // ping() is the full schedule contract: nextConnectMsDuration and
         // rxWindowMs. Do not follow with set_next_read_delay(interval).
+#if AE_ENABLE_PING_TEST_FAULTS
+        PingTestFaults::Instance().OnAuthPing();
+#endif
         auto pong_promise = auth_api->ping(next_ping_hint_ms, rx_window_ms);
         auto req_id = pong_promise.request_id();
 
@@ -108,6 +137,13 @@ void Ping::Start(TimePoint current_time) {
 
         auto wait_result_sub =
             pong_promise.Subscribe([this, req_id](auto&& res) {
+#if AE_ENABLE_PING_TEST_FAULTS
+              PingTestFaults::Instance().OnProtocolResponse();
+              if (test_fault_mode_ ==
+                  static_cast<std::uint8_t>(PingFaultMode::kIgnoreResponse)) {
+                return;
+              }
+#endif
               if (res) {
                 PingResponse(req_id);
               } else {

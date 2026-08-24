@@ -44,6 +44,15 @@ enum class PingTraceKind : std::uint8_t {
   kResult = 2,
   kRxCloseScheduled = 3,
   kRxClosed = 4,
+  kCycleStarted = 5,
+  kAttemptPrepared = 6,
+  kRequestDropped = 7,
+  kRequestSent = 8,
+  kResponseIgnored = 9,
+  kAttemptTimeout = 10,
+  kRetryScheduled = 11,
+  kCycleConfirmed = 12,
+  kNextCycleScheduled = 13,
 };
 
 struct PingTraceEvent {
@@ -62,6 +71,16 @@ struct PingTraceEvent {
   std::uint64_t channel_generation{0};
   int result_type{-1};
   TimePoint event_time{};
+  std::uint64_t logical_cycle_id{0};
+  std::uint32_t physical_attempt_index{0};
+  std::int32_t fault_mode{0};
+  bool request_was_sent{false};
+  bool response_was_ignored{false};
+  TimePoint cycle_anchor{};
+  TimePoint contract_deadline{};
+  std::int64_t wire_next_connect_ms{0};
+  Duration retry_delay{};
+  TimePoint next_local_send_at{};
 };
 
 using PingTraceHook = void (*)(PingTraceEvent const&);
@@ -70,7 +89,8 @@ void SetPingTraceHook(PingTraceHook hook) noexcept;
 class PingCloudServers {
   class ServerPing {
    public:
-    ServerPing(AeContext const& ae_context, ClientConnectivityPolicy& policy,
+    ServerPing(AeContext const& ae_context, PingCloudServers& owner,
+               ClientConnectivityPolicy& policy,
                CloudServerConnection& cloud_sc, std::size_t priority);
     ~ServerPing();
 
@@ -99,8 +119,13 @@ class PingCloudServers {
     void MaybeCloseAfterWriteFailure();
     void EmitTrace(PingTraceKind kind, int result_type = -1) const;
     void ScheduleRestream();
+    LogicalPingCycleState& Cycle();
+    void ConfirmCycleAndScheduleNext();
+    void ScheduleSameCycleRetry(bool restream_first);
+    bool ChannelLinkedAndWritable() const;
 
     AeContext ae_context_;
+    PingCloudServers* owner_{};
     ClientConnectivityPolicy* policy_;
     CloudServerConnection* cloud_sc_;
     RxTimingConf timing_conf_{};
@@ -138,6 +163,16 @@ class PingCloudServers {
       Duration ping_guard{};
       std::uint64_t channel_generation{0};
       bool write_failed{false};
+      std::uint64_t logical_cycle_id{0};
+      std::uint32_t physical_attempt_index{0};
+      std::int32_t fault_mode{0};
+      bool request_was_sent{true};
+      bool response_was_ignored{false};
+      TimePoint cycle_anchor{};
+      TimePoint contract_deadline{};
+      std::int64_t wire_next_connect_ms{0};
+      Duration retry_delay{};
+      TimePoint next_local_send_at{};
     };
     std::optional<PingAttempt> in_flight_{};
     std::uint64_t send_generation_{0};
@@ -165,6 +200,7 @@ class PingCloudServers {
   Subscription server_quarantine_released_sub_;
   TaskSubscription task_sub_;
 
+  std::map<ServerId, LogicalPingCycleState> cycle_states_;
   std::map<ServerId, std::unique_ptr<ServerPing>> server_pings_;
 };
 }  // namespace ae

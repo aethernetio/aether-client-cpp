@@ -21,6 +21,7 @@
 
 #if AE_ENABLE_PING
 
+#  include <cstdint>
 #  include <variant>
 
 #  include "aether-miscpp/types/result.h"
@@ -55,6 +56,10 @@ class Ping {
 
   void Start(TimePoint current_time);
 
+#if AE_ENABLE_PING_TEST_FAULTS
+  void ApplyTestFault(std::uint8_t mode) noexcept { test_fault_mode_ = mode; }
+#endif
+
  private:
   void PingResponse(RequestId request_id);
   void PingResponseError(RequestId request_id, std::int32_t error_code);
@@ -82,6 +87,9 @@ class Ping {
 
   ResultEvent result_event_;
   RequestState state_{RequestState::kCreated};
+#if AE_ENABLE_PING_TEST_FAULTS
+  std::uint8_t test_fault_mode_{0};
+#endif
 };
 }  // namespace ae
 #endif  // AE_ENABLE_PING
