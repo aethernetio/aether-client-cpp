@@ -31,7 +31,7 @@
 #include "aether-miscpp/serialization/binary_archive.h"
 #include "aether-miscpp/serialization/serialization.h"
 #include "aether/ptr/ptr_view.h"
-#include "aether/tiered_int_serializer.h"
+#include "aether/types/packed_size.h"
 
 #include "aether/obj/idomain_storage.h"
 #include "aether/obj/obj_id.h"

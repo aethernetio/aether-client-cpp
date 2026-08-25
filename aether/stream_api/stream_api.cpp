@@ -18,7 +18,7 @@
 
 #include <cstddef>
 
-#include "aether/packed_size.h"
+#include "aether/types/packed_size.h"
 
 namespace ae {
 StreamApiImpl::StreamApiImpl(ProtocolContext& protocol_context)

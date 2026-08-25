@@ -24,7 +24,7 @@
 #include <utility>
 #include <vector>
 
-#include "aether/packed_size.h"
+#include "aether/types/packed_size.h"
 #include "aether/types/data_buffer.h"
 
 namespace ae {

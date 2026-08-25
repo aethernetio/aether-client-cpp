@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TIERED_INT_SERIALIZER_H_
-#define AETHER_TIERED_INT_SERIALIZER_H_
+#ifndef AETHER_TYPES_PACKED_SIZE_H_
+#define AETHER_TYPES_PACKED_SIZE_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -24,6 +24,19 @@
 #include "ae-numeric/wire_io.h"
 
 #include "aether-miscpp/serialization/binary_archive.h"
+
+namespace ae {
+
+// Canonical legacy-compatible wire size encoding used by packet and message
+// framing. Byte-for-byte equivalent of the old
+// TieredInt<std::uint64_t, std::uint8_t, 250>.
+using PackedSize = TieredInt<std::uint8_t, 250, 1514, 1049834>;
+
+// Transport framing uses the same wire encoding; keep the historical name as
+// an alias so packet code stays readable without duplicating the type.
+using PacketSize = PackedSize;
+
+}  // namespace ae
 
 namespace ae::seri {
 
@@ -73,4 +86,4 @@ struct Serializer<BinaryArchive<B>, TieredInt<WireCell, TierMaxVals...>> {
 
 }  // namespace ae::seri
 
-#endif  // AETHER_TIERED_INT_SERIALIZER_H_
+#endif  // AETHER_TYPES_PACKED_SIZE_H_

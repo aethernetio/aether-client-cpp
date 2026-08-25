@@ -23,7 +23,7 @@
 
 #include "aether-miscpp/serialization/binary_archive.h"
 
-#include "aether/tiered_int_serializer.h"
+#include "aether/types/packed_size.h"
 
 namespace ae {
 

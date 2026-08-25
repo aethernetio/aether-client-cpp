@@ -24,7 +24,7 @@
 
 #include "aether-miscpp/serialization/serialization.h"
 
-#include "aether/packed_size.h"
+#include "aether/types/packed_size.h"
 #include "aether/vector_buffer.h"
 
 namespace ae {

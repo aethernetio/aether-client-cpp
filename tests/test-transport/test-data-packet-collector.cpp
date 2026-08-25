@@ -23,7 +23,7 @@
 
 #include "aether-miscpp/serialization/binary_archive.h"
 
-#include "aether/packed_size.h"
+#include "aether/types/packed_size.h"
 #include "aether/transport/data_packet_collector.h"
 #include "aether/vector_buffer.h"
 
