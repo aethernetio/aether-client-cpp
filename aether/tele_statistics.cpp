@@ -16,8 +16,6 @@
 
 #include "aether/tele_statistics.h"
 
-#include "aether/tele.h"
-
 namespace ae {
 #ifdef AE_DISTILLATION
 TeleStatistics::TeleStatistics(ObjProp prop) : Obj{prop} {}
@@ -25,32 +23,5 @@ TeleStatistics::TeleStatistics(ObjProp prop) : Obj{prop} {}
 
 #if AE_TELE_ENABLED && AE_TELE_LOG_TO_STATISTICS
 auto TeleStatistics::trap() -> std::shared_ptr<Trap> const& { return trap_; }
-
-void TeleStatistics::OnLoaded() {
-  auto& sink = TELE_SINK::Instance();
-  auto const& trap = sink.trap();
-  if (!trap) {
-    sink.SetTrap(trap_);
-    return;
-  }
-  // !NOTICE it's error if AE_TELE_LOG_TO_STATISTICS is defined to 1 but actual
-  // trap is set to something different
-#  if AE_TELE_LOG_CONSOLE && AE_TELE_LOG_TO_STATISTICS
-  // if proxy trap is used
-  auto proxy = std::static_pointer_cast<
-      ae::tele::ProxyTrap<ae::tele::IoStreamTrap,
-                          ae::tele::StatisticsTrap<AE_STATISTICS_MAX_SIZE>>>(
-      trap);
-  auto const& current_statistics = proxy->second;
-  trap_->MergeStatistics(*current_statistics);
-  proxy->second = trap_;
-#  elif AE_TELE_LOG_TO_STATISTICS
-  auto current_statistics = std::static_pointer_cast<
-      ae::tele::StatisticsTrap<AE_STATISTICS_MAX_SIZE>>(trap);
-  trap_->MergeStatistics(*current_statistics);
-  sink.SetTrap(trap_);
-#  endif
-}
-
 #endif
 }  // namespace ae

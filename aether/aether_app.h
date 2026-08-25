@@ -45,9 +45,10 @@
 #include "aether/domain_storage/domain_storage_factory.h"
 
 namespace ae {
+using TeleStatisticsTrap = ae::tele::StatisticsTrap<AE_STATISTICS_MAX_SIZE>;
+
 class AetherAppContext {
   friend class AetherApp;
-  static void TelemetryInit();
 
  public:
   explicit AetherAppContext()
@@ -126,6 +127,9 @@ class AetherAppContext {
 #endif  // AE_DISTILLATION
 
  private:
+  void TelemetryInit();
+  void TeleStatisticsInit(TeleStatistics::ptr const& tele_statistics) const;
+
   void InitComponentContext();
 
   ComponentFactory<std::unique_ptr<IDomainStorage>> domain_storage_;
@@ -139,6 +143,8 @@ class AetherAppContext {
   ComponentFactory<AetherAppContext, DnsResolver::ptr> dns_resolver_;
   ComponentFactory<AetherAppContext, Client::ptr> client_prefab_;
   ComponentFactory<AetherAppContext, TeleStatistics::ptr> tele_statistics_;
+
+  bool tele_statistics_trap_is_set{false};
 };
 
 /**

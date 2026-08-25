@@ -49,38 +49,59 @@ void AetherAppContext::TelemetryInit() {
   if (!TELE_SINK::Instance().trap()) {
 #  if AE_TELE_LOG_CONSOLE && AE_TELE_LOG_TO_STATISTICS
     // telemetry to both console and statistics
+    tele_statistics_trap_is_set = true;
     auto trap = std::make_shared<
-        ae::tele::ProxyTrap<ae::tele::IoStreamTrap,
-                            ae::tele::StatisticsTrap<AE_STATISTICS_MAX_SIZE>>>(
+        ae::tele::ProxyTrap<ae::tele::IoStreamTrap, ae::TeleStatisticsTrap>>(
         std::make_shared<ae::tele::IoStreamTrap>(std::cout),
-        std::make_shared<ae::tele::StatisticsTrap<AE_STATISTICS_MAX_SIZE>>());
+        std::make_shared<ae::TeleStatisticsTrap>());
+
 #  elif AE_TELE_LOG_CONSOLE
     // telemetry to console only
     auto trap = std::make_shared<ae::tele::IoStreamTrap>(std::cout);
 #  elif AE_TELE_LOG_TO_STATISTICS
     // telemetry to statistics only
-    auto trap =
-        std::make_shared<ae::tele::StatisticsTrap<AE_STATISTICS_MAX_SIZE>>();
+    tele_statistics_trap_is_set = true;
+    auto trap = std::make_shared<ae::TeleStatisticsTrap>();
 #  else
     // NONE trap is enabled
     return;
 #  endif
     TELE_SINK::Instance().SetTrap(trap);
   }
-#  if AE_TELE_LOG_TO_STATISTICS
-  else {
-    // TODO: is it possible to fix?
-    // IF AE_TELE_LOG_TO_STATISTICS is defined user are not allowed to set
-    // custom trap, because it's static_casts in TeleStatistics object
-    std::cerr
-        << "Custom trap are not allowed with AE_TELE_LOG_TO_STATISTICS==1\n";
-    std::abort();
-  }
-#  endif
 
   AE_TELE_ENV(CompileOptions());
   AE_TELE_INFO(AetherStarted);
   Registry::GetRegistry().Log();
+#endif
+}
+
+void AetherAppContext::TeleStatisticsInit(
+    TeleStatistics::ptr const& tele_statistics) const {
+#if AE_TELE_ENABLED
+#  if AE_TELE_LOG_TO_STATISTICS
+  if (!tele_statistics_trap_is_set) {
+    return;
+  }
+
+  auto& sink = TELE_SINK::Instance();
+  auto trap = sink.trap();
+  // !NOTICE it's error if AE_TELE_LOG_TO_STATISTICS is defined to 1 but actual
+  // trap is set to something different
+#    if AE_TELE_LOG_CONSOLE && AE_TELE_LOG_TO_STATISTICS
+  // if proxy trap is used
+  auto proxy = std::static_pointer_cast<
+      ae::tele::ProxyTrap<ae::tele::IoStreamTrap, ae::TeleStatisticsTrap>>(
+      trap);
+  auto const& current_statistics = proxy->second;
+  tele_statistics->trap()->MergeStatistics(*current_statistics);
+  proxy->second = tele_statistics->trap();
+#    elif AE_TELE_LOG_TO_STATISTICS
+  auto current_statistics =
+      std::static_pointer_cast<ae::TeleStatisticsTrap>(trap);
+  tele_statistics->trap()->MergeStatistics(*current_statistics);
+  sink.SetTrap(tele_statistics->trap());
+#    endif
+#  endif
 #endif
 }
 
@@ -348,6 +369,9 @@ std::unique_ptr<AetherApp> AetherApp::Construct(AetherAppContext context) {
 
   app->aether_.Save();
 #endif  // AE_DISTILLATION
+
+  // reinit telemetry with tele_statistics object
+  context.TeleStatisticsInit(app->aether_->tele_statistics);
 
   // save domain from context to the app
   app->domain_facility_ =
