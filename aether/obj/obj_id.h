@@ -21,6 +21,7 @@
 
 #include "aether-miscpp/format/format.h"
 #include "aether-miscpp/reflect/reflect.h"
+#include "aether-miscpp/serialization/serialization.h"
 
 namespace ae {
 
@@ -67,6 +68,23 @@ struct Formatter<ObjId> : public Formatter<typename ObjId::Type> {
   }
 };
 
+namespace seri {
+template <Archive A>
+struct Serializer<A, ObjId> {
+  SeriResult Seri(A& archive, Meta<ObjId const> meta) const {
+    auto const id = meta.value.id();
+    return archive.Save(Meta{id, meta.name});
+  }
+
+  SeriResult Deseri(A& archive, Meta<ObjId> meta) const {
+    ObjId::Type id{};
+    TRY_RESULT((archive.Load(Meta{id, meta.name})));
+    meta.value = ObjId{id};
+    return Ok{good};
+  }
+};
+}  // namespace seri
+
 class ObjFlags {
  public:
   using Type = std::uint8_t;
@@ -105,6 +123,23 @@ struct Formatter<ObjFlags> : public Formatter<typename ObjFlags::Type> {
         static_cast<typename ObjFlags::Type>(value), ctx);
   }
 };
+
+namespace seri {
+template <Archive A>
+struct Serializer<A, ObjFlags> {
+  SeriResult Seri(A& archive, Meta<ObjFlags const> meta) const {
+    ObjFlags::Type const flag = meta.value;
+    return archive.Save(Meta{flag, meta.name});
+  }
+
+  SeriResult Deseri(A& archive, Meta<ObjFlags> meta) const {
+    ObjFlags::Type flag{};
+    TRY_RESULT((archive.Load(Meta{flag, meta.name})));
+    meta.value = ObjFlags{flag};
+    return Ok{good};
+  }
+};
+}  // namespace seri
 
 }  // namespace ae
 
