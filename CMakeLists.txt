@@ -136,15 +136,10 @@ CPMAddPackage(
 CPMAddPackage(
   NAME ae-numeric
   GIT_REPOSITORY "https://github.com/aethernetio/aethernet-numeric.git"
-  GIT_TAG "b82a3674a119f4e8257b17c0f7cf592ce7ad48c0"
+  GIT_TAG "8dff88b5e65fb284db52a168f0a87ff845e4e0cd"
   OPTIONS "AE_NUMERIC_INSTALL ${AE_INSTALL}" "AE_BUILD_TESTS OFF"
   EXCLUDE_FROM_ALL FALSE
 )
-# ae-numeric TieredInt has an intentional post-if-constexpr fallback return that
-# MSVC flags as C4702 under Aether's /WX. Keep numeric untouched; silence locally.
-if(TARGET ae-numeric AND MSVC)
-  target_compile_options(ae-numeric INTERFACE /wd4702)
-endif()
 CPMAddPackage(
   NAME aether-miscpp
   GIT_REPOSITORY "https://github.com/aethernetio/aether-miscpp.git"
@@ -155,7 +150,7 @@ CPMAddPackage(
 CPMAddPackage(
   NAME aether-tele
   GIT_REPOSITORY "https://github.com/aethernetio/aether-tele.git"
-  GIT_TAG "4aa5666281eceba5ce486076e7ab3cc5c8fd39b3"
+  GIT_TAG "bcdbc4bd833922017861fc57c856bd023a2c3198"
   OPTIONS "AE_TELE_INSTALL ${AE_INSTALL}"
           "AE_TELE_BUILD_TESTS ${AE_BUILD_TESTS}"
   EXCLUDE_FROM_ALL FALSE
@@ -315,7 +310,6 @@ target_compile_options(${TARGET_NAME} PRIVATE
   $<$<CXX_COMPILER_ID:MSVC>:
       /W4
       /WX
-      /wd4702 # ae-numeric TieredInt post-if-constexpr fallback
       /w15262 #implisitfallthrough
       /wd4388 #Wno-sign-compare
       /wd4389 #Wno-sign-compare
