@@ -24,7 +24,7 @@
 
 #  include "aether/aether.h"
 #  include "aether/tele_statistics.h"
-#  include "aether/tiered_int_serializer.h"  // IWYU pragma: keep
+#  include "aether/types/packed_size.h"  // IWYU pragma: keep
 
 #  include "aether/ae_actions/ae_actions_tele.h"
 

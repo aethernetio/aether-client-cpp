@@ -17,27 +17,25 @@
 #ifndef AETHER_VECTOR_BUFFER_H_
 #define AETHER_VECTOR_BUFFER_H_
 
-#include <cassert>
 #include <cstddef>
 #include <cstring>
 #include <vector>
 
-#include <numeric/tiered_int.h>  // IWYU pragma: keep
 #include "aether-miscpp/serialization/binary_archive.h"
 
-#include "aether/tiered_int_serializer.h"
+#include "aether/types/packed_size.h"
 
 namespace ae {
 
-template <typename TieredInt>
+template <typename SizeT>
 struct VectorBuffer {
-  using PackedSize = TieredInt;
+  using PackedSize = SizeT;
 
   seri::SeriResult Write(seri::SizeWriteTag tag) {
-    auto v = PackedSize{tag.size};
-    auto writer = seri::TIntWriter{.buffer = *this};
-    v.Serialize(writer);
-    return writer.res;
+    auto const v = PackedSize{tag.size};
+    std::uint8_t buf[PackedSize::kMaxWireBytes];
+    std::size_t const n = v.Serialize(buf);
+    return Write(seri::DataWriteTag{buf, n});
   }
 
   seri::SeriResult Write(seri::DataWriteTag tag) {
@@ -47,16 +45,21 @@ struct VectorBuffer {
   }
 
   seri::SeriResult Read(seri::SizeReadTag tag) {
-    auto v = PackedSize{};
-    auto reader = seri::TIntReader{.buffer = *this};
-    TierDeserializeRes r = v.Deserialize(reader);
-    if (r != TierDeserializeRes::kFinished) {
+    auto const available = buff.size() - read_offset;
+    std::size_t const n =
+        PackedSize::WireBytesNeeded(buff.data() + read_offset, available);
+    if (n == 0) {
       return Error{seri::read_eof};
     }
-    if (!reader.res) {
-      return reader.res;
+
+    PackedSize decoded{};
+    std::size_t const bytes_read =
+        decoded.Deserialize(buff.data() + read_offset, n);
+    if (bytes_read == 0) {
+      return Error{seri::read_eof};
     }
-    tag.size = static_cast<std::size_t>(v);
+    read_offset += bytes_read;
+    tag.size = static_cast<std::size_t>(decoded);
     return Ok{seri::good};
   }
 

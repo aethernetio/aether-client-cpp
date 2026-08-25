@@ -74,10 +74,9 @@ std::pair<std::size_t, std::size_t> StreamDataPacketCollector::GetPacketSize(
     std::uint8_t const* data, std::size_t size) {
   auto temp_buffer_size = temp_data_buffer_.size();
 
-  // use no more than packet size may contain
-  auto use_max_size = sizeof(PacketSize::ValueType) < size
-                          ? sizeof(PacketSize::ValueType)
-                          : size;
+  // use no more than the max serialized packet-size header
+  auto use_max_size =
+      PacketSize::kMaxWireBytes < size ? PacketSize::kMaxWireBytes : size;
 
   temp_data_buffer_.insert(temp_data_buffer_.end(), data, data + use_max_size);
 

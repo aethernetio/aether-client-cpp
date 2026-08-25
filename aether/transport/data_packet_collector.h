@@ -24,13 +24,10 @@
 #include <utility>
 #include <vector>
 
-#include <numeric/tiered_int.h>
-
+#include "aether/types/packed_size.h"
 #include "aether/types/data_buffer.h"
 
 namespace ae {
-
-using PacketSize = TieredInt<std::uint64_t, std::uint8_t, 250>;
 
 struct Packet {
   explicit Packet(std::size_t expected_size);

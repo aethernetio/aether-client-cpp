@@ -134,10 +134,10 @@ CPMAddPackage(
   EXCLUDE_FROM_ALL FALSE
 )
 CPMAddPackage(
-  NAME numeric
+  NAME ae-numeric
   GIT_REPOSITORY "https://github.com/aethernetio/aethernet-numeric.git"
-  GIT_TAG "main"
-  OPTIONS "AE_NUMERIC_INSTALL ${AE_INSTALL}" "AE_BUILD_TESTS ${AE_BUILD_TESTS}"
+  GIT_TAG "68fcbb3d7975adddf2be5fae4c8c22ef725da5e7"
+  OPTIONS "AE_NUMERIC_INSTALL ${AE_INSTALL}" "AE_BUILD_TESTS OFF"
   EXCLUDE_FROM_ALL FALSE
 )
 CPMAddPackage(
@@ -150,7 +150,7 @@ CPMAddPackage(
 CPMAddPackage(
   NAME aether-tele
   GIT_REPOSITORY "https://github.com/aethernetio/aether-tele.git"
-  GIT_TAG "main"
+  GIT_TAG "7424eb5bdd49e78bd73aa1e453594d3660c111c4"
   OPTIONS "AE_TELE_INSTALL ${AE_INSTALL}"
           "AE_TELE_BUILD_TESTS ${AE_BUILD_TESTS}"
   EXCLUDE_FROM_ALL FALSE
@@ -188,7 +188,7 @@ target_link_libraries(${TARGET_NAME} PUBLIC
                                       gcem
                                       etl
                                       stdexec
-                                      numeric
+                                      ae-numeric
                                       aether::miscpp)
 
 message(STATUS "Aether build for CMAKE_SYSTEM_NAME: ${CMAKE_SYSTEM_NAME}")

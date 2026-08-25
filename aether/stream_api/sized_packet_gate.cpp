@@ -23,7 +23,7 @@
 namespace ae {
 
 static constexpr std::size_t kSizedPacketOverhead =
-    sizeof(PacketSize::ValueType);  // max for packet size
+    PacketSize::kMaxWireBytes;  // max for packet size
 
 DataBuffer SizedPacketGate::WriteIn(DataBuffer&& buffer) {
   DataBuffer write_buffer;

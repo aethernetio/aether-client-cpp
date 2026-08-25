@@ -24,6 +24,7 @@
 
 #include "aether/config.h"
 #include "aether/obj/obj.h"
+#include "aether/types/packed_size.h"
 
 namespace ae {
 class TeleStatistics : public Obj {

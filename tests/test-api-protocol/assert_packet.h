@@ -25,7 +25,7 @@
 #include "aether-miscpp/serialization/binary_archive.h"
 
 #include "aether/api_protocol/api_message.h"
-#include "aether/tiered_int_serializer.h"  // IWYU pragma: export
+#include "aether/types/packed_size.h"  // IWYU pragma: export
 
 #if defined(__clang__) || defined(__GNUC__)
 #  define FUNCTION_NAME __PRETTY_FUNCTION__
