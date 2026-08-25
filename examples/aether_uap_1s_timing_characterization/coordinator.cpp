@@ -603,20 +603,8 @@ int RunCharacterization(CharacterizationArgs const& in_args) {
   }
   if (args.quick) {
     args.skip_long_characterization = true;
-    if (args.logical_cycles > 10) {
-      args.logical_cycles = 10;
-    }
-    if (args.hard_stop_runs > 3) {
-      args.hard_stop_runs = 3;
-    }
-    if (args.graceful_runs > 3) {
-      args.graceful_runs = 3;
-    }
     args.window_samples_main = 0;
     args.window_samples_extra = 0;
-    if (args.loss_cases <= 0) {
-      args.loss_cases = 2;
-    }
   }
 
   std::filesystem::create_directories(args.artifact_dir);
@@ -837,25 +825,53 @@ int RunCharacterization(CharacterizationArgs const& in_args) {
     rng = rng * 1664525u + 1013904223u;
     return rng;
   };
-  int const n_cycles = args.logical_cycles < 1 ? 1 : args.logical_cycles;
+  int const n_nominal = args.logical_cycles < 0 ? 0 : args.logical_cycles;
+  int n_drop = 0;
+  int n_ignore = 0;
+  bool const explicit_split =
+      args.request_loss_cases >= 0 || args.response_loss_cases >= 0;
+  if (explicit_split) {
+    n_drop = args.request_loss_cases > 0 ? args.request_loss_cases : 0;
+    n_ignore = args.response_loss_cases > 0 ? args.response_loss_cases : 0;
+  } else if (args.loss_cases > 0) {
+    n_drop = args.loss_cases;
+    n_ignore = args.loss_cases;
+  } else if (!args.quick && !args.skip_long_characterization) {
+    n_drop = std::max(1, n_nominal / 10);
+    n_ignore = n_drop;
+    if (n_nominal >= 20) {
+      n_drop = 10;
+      n_ignore = 10;
+    }
+  }
+  int const n_cycles =
+      explicit_split ? (n_nominal + n_drop + n_ignore) : n_nominal;
   std::vector<int> fault_plan(static_cast<std::size_t>(n_cycles), 0);
-  int n_drop = args.loss_cases > 0 ? args.loss_cases : std::max(1, n_cycles / 10);
-  int n_ignore = n_drop;
-  if (args.loss_cases <= 0 && n_cycles >= 20) {
-    n_drop = 10;
-    n_ignore = 10;
-  }
-  for (int i = 0; i < n_drop && i < n_cycles; ++i) {
-    fault_plan[static_cast<std::size_t>(i)] = 1;
-  }
-  for (int i = 0; i < n_ignore && n_drop + i < n_cycles; ++i) {
-    fault_plan[static_cast<std::size_t>(n_drop + i)] = 2;
+  if (explicit_split) {
+    for (int i = 0; i < n_drop && i < n_cycles; ++i) {
+      fault_plan[static_cast<std::size_t>(i)] = 1;
+    }
+    for (int i = 0; i < n_ignore && n_drop + i < n_cycles; ++i) {
+      fault_plan[static_cast<std::size_t>(n_drop + i)] = 2;
+    }
+  } else {
+    for (int i = 0; i < n_drop && i < n_cycles; ++i) {
+      fault_plan[static_cast<std::size_t>(i)] = 1;
+    }
+    for (int i = 0; i < n_ignore && n_drop + i < n_cycles; ++i) {
+      fault_plan[static_cast<std::size_t>(n_drop + i)] = 2;
+    }
   }
   for (int i = n_cycles - 1; i > 0; --i) {
     auto j = static_cast<int>(rnd() % static_cast<std::uint32_t>(i + 1));
     std::swap(fault_plan[static_cast<std::size_t>(i)],
               fault_plan[static_cast<std::size_t>(j)]);
   }
+
+  std::cout << "COUNTS nominal=" << n_nominal << " request_loss=" << n_drop
+            << " response_loss=" << n_ignore
+            << " hard_stop=" << args.hard_stop_runs
+            << " graceful=" << args.graceful_runs << std::endl;
 
   std::vector<CycleRec> cycles;
   cycles.reserve(static_cast<std::size_t>(n_cycles));
@@ -873,7 +889,9 @@ int RunCharacterization(CharacterizationArgs const& in_args) {
   int route_changes = 0;
 
   std::cout << "Running " << n_cycles << " logical cycles..." << std::endl;
-  wait_window_closed(8000);
+  if (n_cycles > 0) {
+    wait_window_closed(8000);
+  }
 
   for (int ci = 0; ci < n_cycles; ++ci) {
     CycleRec rec{};
@@ -1359,12 +1377,14 @@ int RunCharacterization(CharacterizationArgs const& in_args) {
   std::cout << "Graceful-close runs=" << args.graceful_runs << std::endl;
   for (int r = 0; r < args.graceful_runs; ++r) {
     int variant = 0;
-    if (r % 20 < 8) {
-      variant = 0;
-    } else if (r % 20 < 14) {
-      variant = 1;
-    } else {
-      variant = 2;
+    if (!args.quick && !args.skip_long_characterization) {
+      if (r % 20 < 8) {
+        variant = 0;
+      } else if (r % 20 < 14) {
+        variant = 1;
+      } else {
+        variant = 2;
+      }
     }
     wait_window_closed(4000);
     if (variant == 1) {

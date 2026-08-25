@@ -37,6 +37,8 @@ struct CharacterizationArgs {
   int window_samples_main{30};
   int window_samples_extra{10};
   int loss_cases{0};
+  int request_loss_cases{-1};
+  int response_loss_cases{-1};
   bool quick{false};
   bool skip_long_characterization{false};
 };

@@ -52,11 +52,41 @@ bool HasFlag(int argc, char** argv, std::string_view key) {
 int main(int argc, char** argv) {
   using namespace ae::test_uap_ping_retry_window;
 
+  if (HasFlag(argc, argv, "--help") || HasFlag(argc, argv, "-h")) {
+    std::cout
+        << "aether_uap_1s_timing_characterization\n"
+           "Count/seed/output:\n"
+           "  --artifact-dir DIR | --output DIR\n"
+           "  --seed N\n"
+           "  --cycles N | --nominal-cycles N\n"
+           "  --request-loss-cases N\n"
+           "  --response-loss-cases N\n"
+           "  --loss-cases N\n"
+           "  --hard-stop-cases N | --hard-stop-runs N\n"
+           "  --graceful-stop-cases N | --graceful-runs N\n"
+           "  --window-samples-main N\n"
+           "  --window-samples-extra N\n"
+           "Other:\n"
+           "  --quick\n"
+           "  --no-long-characterization\n"
+           "  --transport tcp|udp\n"
+           "  --run-id ID\n"
+           "  --exe PATH\n"
+           "  --parent-uid UID\n"
+           "  --ping-interval-ms N\n"
+           "  --receive-window-ms N\n"
+           "  --role coordinator|client\n";
+    return 0;
+  }
+
   auto role = ArgValue(argc, argv, "--role");
   if (role.empty() || role == "coordinator") {
     CharacterizationArgs args;
     args.run_id = std::string{ArgValue(argc, argv, "--run-id")};
     args.artifact_dir = std::string{ArgValue(argc, argv, "--artifact-dir")};
+    if (args.artifact_dir.empty()) {
+      args.artifact_dir = std::string{ArgValue(argc, argv, "--output")};
+    }
     args.exe_path = std::string{ArgValue(argc, argv, "--exe")};
     auto parent = ArgValue(argc, argv, "--parent-uid");
     if (!parent.empty()) {
@@ -79,14 +109,23 @@ int main(int argc, char** argv) {
       args.seed = static_cast<std::uint32_t>(std::strtoul(seed.data(), nullptr, 10));
     }
     auto cycles = ArgValue(argc, argv, "--cycles");
+    if (cycles.empty()) {
+      cycles = ArgValue(argc, argv, "--nominal-cycles");
+    }
     if (!cycles.empty()) {
       args.logical_cycles = std::atoi(cycles.data());
     }
     auto hard_stop = ArgValue(argc, argv, "--hard-stop-runs");
+    if (hard_stop.empty()) {
+      hard_stop = ArgValue(argc, argv, "--hard-stop-cases");
+    }
     if (!hard_stop.empty()) {
       args.hard_stop_runs = std::atoi(hard_stop.data());
     }
     auto graceful = ArgValue(argc, argv, "--graceful-runs");
+    if (graceful.empty()) {
+      graceful = ArgValue(argc, argv, "--graceful-stop-cases");
+    }
     if (!graceful.empty()) {
       args.graceful_runs = std::atoi(graceful.data());
     }
@@ -102,28 +141,29 @@ int main(int argc, char** argv) {
     if (!loss.empty()) {
       args.loss_cases = std::atoi(loss.data());
     }
+    auto req_loss = ArgValue(argc, argv, "--request-loss-cases");
+    if (!req_loss.empty()) {
+      args.request_loss_cases = std::atoi(req_loss.data());
+    }
+    auto resp_loss = ArgValue(argc, argv, "--response-loss-cases");
+    if (!resp_loss.empty()) {
+      args.response_loss_cases = std::atoi(resp_loss.data());
+    }
     args.quick = HasFlag(argc, argv, "--quick");
     args.skip_long_characterization =
         HasFlag(argc, argv, "--no-long-characterization") || args.quick;
     if (args.quick) {
-      if (ArgValue(argc, argv, "--cycles").empty()) {
+      if (ArgValue(argc, argv, "--cycles").empty() &&
+          ArgValue(argc, argv, "--nominal-cycles").empty()) {
         args.logical_cycles = 10;
       }
       if (ArgValue(argc, argv, "--hard-stop-runs").empty() &&
           ArgValue(argc, argv, "--hard-stop-cases").empty()) {
         args.hard_stop_runs = 3;
       }
-      auto hard_cases = ArgValue(argc, argv, "--hard-stop-cases");
-      if (!hard_cases.empty()) {
-        args.hard_stop_runs = std::atoi(hard_cases.data());
-      }
       if (ArgValue(argc, argv, "--graceful-runs").empty() &&
           ArgValue(argc, argv, "--graceful-stop-cases").empty()) {
         args.graceful_runs = 3;
-      }
-      auto grace_cases = ArgValue(argc, argv, "--graceful-stop-cases");
-      if (!grace_cases.empty()) {
-        args.graceful_runs = std::atoi(grace_cases.data());
       }
       if (ArgValue(argc, argv, "--window-samples-main").empty()) {
         args.window_samples_main = 0;
@@ -131,7 +171,9 @@ int main(int argc, char** argv) {
       if (ArgValue(argc, argv, "--window-samples-extra").empty()) {
         args.window_samples_extra = 0;
       }
-      if (args.loss_cases <= 0) {
+      if (ArgValue(argc, argv, "--loss-cases").empty() &&
+          ArgValue(argc, argv, "--request-loss-cases").empty() &&
+          ArgValue(argc, argv, "--response-loss-cases").empty()) {
         args.loss_cases = 2;
       }
     }
