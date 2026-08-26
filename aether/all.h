@@ -22,6 +22,7 @@
 #include "aether/aether_app.h"
 #include "aether/common.h"
 #include "aether/config.h"
+#include "aether/env.h"
 #include "aether/memory.h"
 
 #include "aether/actions/action_context.h"
@@ -93,6 +94,9 @@
 
 #include "aether/modems/imodem_driver.h"
 #include "aether/modems/modem_factory.h"
+
+#include "aether/prepared_packet/packet_encoder.h"
+#include "aether/prepared_packet/prepared_send_message.h"
 
 #include "aether/aether.h"
 #include "aether/channels/channel.h"
