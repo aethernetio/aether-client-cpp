@@ -54,8 +54,13 @@ class SpiFsSotorageWriter final : public IDomainStorageWriter {
       AE_TELED_ERROR("Failed to open file {} for writing.", file_path);
       return;
     }
-    fwrite(buffer.data(), 1, buffer.size(), file);
+    auto res = fwrite(buffer.data(), 1, buffer.size(), file);
     fclose(file);
+
+    if (res != buffer.size()) {
+      AE_TELED_ERROR("Failed to write data to file {}", file_path);
+      return;
+    }
 
     AE_TELE_DEBUG(kSpifsDsObjSaved,
                   "Saved object id={}, class id={}, version={}, data size={}",
@@ -102,6 +107,7 @@ class SpiFsSotorageReader final : public IDomainStorageReader {
     }
     // make buffer actual read size
     buffer.resize(off);
+    AE_TELED_DEBUG("SpiFsSotorageReader loaded {} bytes", buffer.size());
 
     fclose(f);
   }
@@ -291,19 +297,21 @@ void SpiFsDomainStorage::InitState() {
   std::size_t off = 0;
   while (true) {
     buffer.resize(off + kReadSize);
-    auto res = fread(buffer.data() + off, kReadSize, 1, file);
+    auto res = fread(buffer.data() + off, 1, kReadSize, file);
     off += res;
     if (res < kReadSize) {
       break;
     }
   }
+  fclose(file);
+
   // resize to actual read size
   buffer.resize(off);
 
   auto bin_archive =
       seri::BinaryArchive{seri::BinaryVectorBuffer<std::uint32_t>{buffer}};
-  if (!bin_archive.Load(object_map_)) {
-    AE_TELED_DEBUG("Failed to load object map");
+  if (auto res = bin_archive.Load(object_map_); !res) {
+    AE_TELED_DEBUG("Failed to load object map, error{}", res.error().message);
   }
 }
 
@@ -316,10 +324,10 @@ void SpiFsDomainStorage::SyncState() {
   std::vector<std::uint8_t> buffer;
   auto bin_archive =
       seri::BinaryArchive{seri::BinaryVectorBuffer<std::uint32_t>{buffer}};
-  if (bin_archive.Save(object_map_)) {
-    fwrite(buffer.data(), 1, buffer.size(), file);
+  if (auto res = bin_archive.Save(object_map_); !res) {
+    AE_TELED_DEBUG("Failed to save object map, error {}", res.error().message);
   } else {
-    AE_TELED_DEBUG("Failed to save object map");
+    fwrite(buffer.data(), 1, buffer.size(), file);
   }
 
   fclose(file);
