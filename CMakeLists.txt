@@ -136,7 +136,7 @@ CPMAddPackage(
 CPMAddPackage(
   NAME ae-numeric
   GIT_REPOSITORY "https://github.com/aethernetio/aethernet-numeric.git"
-  GIT_TAG "68fcbb3d7975adddf2be5fae4c8c22ef725da5e7"
+  GIT_TAG "edbdc0bef6e6b4140f52e3f841cb1b0e53a686e7"
   OPTIONS "AE_NUMERIC_INSTALL ${AE_INSTALL}" "AE_BUILD_TESTS OFF"
   EXCLUDE_FROM_ALL FALSE
 )
