@@ -43,7 +43,6 @@ class TeleStatistics : public Obj {
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {
     dnv(base_, *trap_);
-    OnLoaded();
   }
   template <typename Dnv>
   void Save(CurrentVersion, Dnv& dnv) const {
@@ -57,7 +56,6 @@ class TeleStatistics : public Obj {
   std::shared_ptr<Trap> const& trap();
 
  private:
-  void OnLoaded();
   std::shared_ptr<Trap> trap_ = std::make_shared<Trap>();
 #endif
 };

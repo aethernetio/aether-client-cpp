@@ -92,15 +92,10 @@ class ClientCloudManager : public Obj {
   GetCloudAction& GetCloud(Uid client_uid);
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, client_, cloud_cache_))
-  template <typename Dnv>
-  void Load(CurrentVersion, Dnv& dnv) {
-    dnv(base_, aether_, client_, cloud_cache_);
-    Init();
-  }
+
+  void StartListenForCloudUpdate();
 
  private:
-  void Init();
-  void ListenForCloudUpdate();
   void CloudConfigs(std::vector<CloudConfig> const& configs);
   void FinalizeCloudConfig(CloudConfig const& conf);
   auto MakeServersSender(std::vector<ServerId> const& sids);

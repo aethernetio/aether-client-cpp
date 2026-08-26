@@ -22,8 +22,8 @@
 #if defined ESP_PLATFORM && AE_SUPPORT_SPIFS_FS
 #  define AE_SPIFS_DOMAIN_STORAGE_ENABLED 1
 
-#  include <map>
 #  include <cstdint>
+#  include <map>
 #  include <string_view>
 
 #  include "aether/obj/idomain_storage.h"

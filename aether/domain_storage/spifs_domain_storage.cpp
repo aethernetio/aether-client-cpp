@@ -18,6 +18,8 @@
 
 #if defined AE_SPIFS_DOMAIN_STORAGE_ENABLED
 
+#  include <cstring>
+
 #  include "sys/stat.h"
 
 #  include "esp_err.h"
@@ -25,26 +27,11 @@
 #  include "spiffs_config.h"
 
 #  include "aether-miscpp/crc.h"
-#  include "aether/mstream.h"
-#  include "aether/mstream_buffers.h"
+#  include "aether-miscpp/serialization/binary_archive.h"
 
 #  include "aether/domain_storage/domain_storage_tele.h"
 
 namespace ae {
-
-class FileWriter : public IDomainStorageWriter {
- public:
-  explicit FileWriter(FILE* f) : file{f} {}
-
-  ~FileWriter() override { fclose(file); }
-
-  void write(void const* data, std::size_t size) override {
-    fwrite(data, 1, size, file);
-  }
-
-  FILE* file;
-};
-
 class SpiFsSotorageWriter final : public IDomainStorageWriter {
  public:
   explicit SpiFsSotorageWriter(SpiFsDomainStorage& storage,
@@ -76,8 +63,15 @@ class SpiFsSotorageWriter final : public IDomainStorageWriter {
                   static_cast<int>(query.version), buffer.size());
   }
 
-  void write(void const* data, std::size_t size) override {
-    writer.write(data, size);
+  seri::SeriResult Write(seri::SizeWriteTag data) override {
+    auto const size = static_cast<std::uint32_t>(data.size);
+    return Write(seri::DataTag{size});
+  }
+
+  seri::SeriResult Write(seri::DataWriteTag data) override {
+    auto const* p = static_cast<std::uint8_t const*>(data.data);
+    buffer.insert(std::end(buffer), p, p + data.size);
+    return Ok{seri::good};
   }
 
  private:
@@ -89,29 +83,49 @@ class SpiFsSotorageWriter final : public IDomainStorageWriter {
   std::string file_path;
   DomainQuery query;
   std::vector<std::uint8_t> buffer;
-  VectorWriter<IDomainStorageWriter::size_type> writer{buffer};
 };
 
 class SpiFsSotorageReader final : public IDomainStorageReader {
  public:
-  explicit SpiFsSotorageReader(FILE* f) : file{f} {}
-  ~SpiFsSotorageReader() override { fclose(file); }
-
-  void read(void* data, std::size_t size) override {
-    auto res = fread(data, 1, size, file);
-    if (res != size) {
-      printf("read error!\n");
-      read_result = ReadResult::kNo;
-      return;
+  explicit SpiFsSotorageReader(FILE* f) {
+    // read all file into buffer
+    // store actual buffer size in a buff_size
+    constexpr auto kRead = 256;
+    std::size_t off = 0;
+    while (true) {
+      buffer.resize(off + kRead);
+      auto res = fread(buffer.data() + off, 1, kRead, f);
+      off += res;
+      if (res < kRead) {
+        break;
+      }
     }
-    read_result = ReadResult::kYes;
+    // make buffer actual read size
+    buffer.resize(off);
+
+    fclose(f);
   }
 
-  ReadResult result() const override { return read_result; }
-  void result(ReadResult res) override { read_result = res; }
+  seri::SeriResult Read(seri::SizeReadTag data) override {
+    std::uint32_t size{};
+    if (auto res = Read(seri::DataTag{size}); !res) {
+      return res;
+    }
+    data.size = static_cast<std::size_t>(size);
+    return Ok{seri::good};
+  }
 
-  FILE* file;
-  ReadResult read_result{ReadResult::kYes};
+  seri::SeriResult Read(seri::DataReadTag data) override {
+    if ((offset + data.size) > buffer.size()) {
+      return Error{seri::read_eof};
+    }
+    std::memcpy(data.data, buffer.data() + offset, data.size);
+    offset += data.size;
+    return Ok{seri::good};
+  }
+
+  std::vector<std::uint8_t> buffer;
+  std::size_t offset{};
 };
 
 SpiFsDomainStorage::SpiFsDomainStorage() {
@@ -266,26 +280,49 @@ void SpiFsDomainStorage::DeInitFs() {
 }
 
 void SpiFsDomainStorage::InitState() {
-  auto file = fopen(kObjectMapPath.data(), "r");
-  if (!file) {
+  auto* file = fopen(kObjectMapPath.data(), "r");
+  if (file == nullptr) {
     AE_TELED_DEBUG("File {} does not exists ", kObjectMapPath);
     return;
   }
 
-  auto file_reader = SpiFsSotorageReader{file};
-  imstream is{file_reader};
-  is >> object_map_;
+  constexpr std::size_t kReadSize = 256;
+  std::vector<std::uint8_t> buffer;
+  std::size_t off = 0;
+  while (true) {
+    buffer.resize(off + kReadSize);
+    auto res = fread(buffer.data() + off, kReadSize, 1, file);
+    off += res;
+    if (res < kReadSize) {
+      break;
+    }
+  }
+  // resize to actual read size
+  buffer.resize(off);
+
+  auto bin_archive =
+      seri::BinaryArchive{seri::BinaryVectorBuffer<std::uint32_t>{buffer}};
+  if (!bin_archive.Load(object_map_)) {
+    AE_TELED_DEBUG("Failed to load object map");
+  }
 }
 
 void SpiFsDomainStorage::SyncState() {
-  auto file = fopen(kObjectMapPath.data(), "w");
-  if (!file) {
+  auto* file = fopen(kObjectMapPath.data(), "w");
+  if (file == nullptr) {
     AE_TELED_ERROR("Failed to open file {} for writing.", kObjectMapPath);
     return;
   }
-  auto file_writer = FileWriter{file};
-  omstream os{file_writer};
-  os << object_map_;
+  std::vector<std::uint8_t> buffer;
+  auto bin_archive =
+      seri::BinaryArchive{seri::BinaryVectorBuffer<std::uint32_t>{buffer}};
+  if (bin_archive.Save(object_map_)) {
+    fwrite(buffer.data(), 1, buffer.size(), file);
+  } else {
+    AE_TELED_DEBUG("Failed to save object map");
+  }
+
+  fclose(file);
 }
 
 bool SpiFsDomainStorage::SaveObject(DomainQuery const& query, DataCrc crc) {

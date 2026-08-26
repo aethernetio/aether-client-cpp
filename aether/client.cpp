@@ -79,6 +79,9 @@ CloudServerConnections& Client::cloud_connection() {
     // also create telemetry
     telemetry_ = std::make_unique<Telemetry>(*aether_, *cloud_connection_);
 #endif
+
+    client_cloud_manager_.WithLoaded(
+        [&](auto const& ccm) { ccm->StartListenForCloudUpdate(); });
   }
 
   return *cloud_connection_;

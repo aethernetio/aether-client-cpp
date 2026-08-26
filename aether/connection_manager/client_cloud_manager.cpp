@@ -154,17 +154,14 @@ ClientCloudManager::ClientCloudManager(ObjProp prop, ObjPtr<Aether> aether,
   [[maybe_unused]] auto const cache_initialized =
       client_.WithLoaded([&](auto const& obj) {
         cloud_cache_.emplace(obj->uid(),
-                              client_cloud_manager_internal::CloudCache{
-                                  .version_confirmed = true,
-                                  .subject_uid = obj->uid(),
-                                  .version = 0,
-                                  .cloud = obj->cloud(),
-                              });
+                             client_cloud_manager_internal::CloudCache{
+                                 .version_confirmed = true,
+                                 .subject_uid = obj->uid(),
+                                 .version = 0,
+                                 .cloud = obj->cloud(),
+                             });
       });
   assert(cache_initialized && "Client did not load");
-
-  // init the rest
-  Init();
 }
 
 ClientCloudManager::CloudUpdateEvent::Subscriber
@@ -175,10 +172,11 @@ ClientCloudManager::cloud_update_event() {
 GetCloudAction& ClientCloudManager::GetCloud(Uid client_uid) {
   AE_TELED_DEBUG("Ask cloud for uid: {}", client_uid);
 
-  auto aether = Aether::ptr{aether_}.Load();
+  auto aether = aether_.Load();
   assert(aether && "Aether did not loaded");
-
-  assert(cloud_actions_ && "Cloud actions did not initiated");
+  if (!cloud_actions_) {
+    cloud_actions_.emplace(*aether);
+  }
 
   auto cached = cloud_cache_.find(client_uid);
   if ((cached != cloud_cache_.end()) && cached->second.cloud.is_valid()) {
@@ -192,7 +190,7 @@ GetCloudAction& ClientCloudManager::GetCloud(Uid client_uid) {
   }
 
   // get from aethernet
-  auto client = Client::ptr{client_}.Load();
+  auto client = client_.Load();
   assert(client);
 
   auto* action = cloud_actions_->Create<GetCloudFromAether>(
@@ -201,19 +199,13 @@ GetCloudAction& ClientCloudManager::GetCloud(Uid client_uid) {
   return *action;
 }
 
-void ClientCloudManager::Init() {
-  auto aether = Aether::ptr{aether_}.Load();
+void ClientCloudManager::StartListenForCloudUpdate() {
+  auto aether = aether_.Load();
   assert(aether && "Aether must be loaded");
-
-  cloud_actions_.emplace(*aether);
   get_servers_pool_.emplace(*aether);
 
-  ListenForCloudUpdate();
-}
-
-void ClientCloudManager::ListenForCloudUpdate() {
-  auto client = Client::ptr{client_}.Load();
-  assert(client != nullptr && "Client does not loaded");
+  auto client = client_.Load();
+  assert(client && "Client does not loaded");
 
   cloud_update_sub_ = CloudEventListener{
       ApiEventSubscriber{[this](ClientApiSafe& client_api,
@@ -227,12 +219,11 @@ void ClientCloudManager::ListenForCloudUpdate() {
 auto ClientCloudManager::MakeServersSender(std::vector<ServerId> const& sids) {
   using namespace client_cloud_manager_internal;  // NOLINT(*using-namespace)
 
-  auto aether = Aether::ptr{aether_};
-  auto client = Client::ptr{client_};
   assert(get_servers_pool_.has_value() && "Get servers pool did not initiated");
 
-  return SplitMissingLoaded(aether, sids) |
-         LoadMissing(aether, client, *get_servers_pool_) | SortNewServers(sids);
+  return SplitMissingLoaded(aether_, sids) |
+         LoadMissing(aether_, client_, *get_servers_pool_) |
+         SortNewServers(sids);
 }
 
 void ClientCloudManager::CloudConfigs(std::vector<CloudConfig> const& configs) {
@@ -275,7 +266,7 @@ void ClientCloudManager::CloudConfigs(std::vector<CloudConfig> const& configs) {
 }
 
 void ClientCloudManager::FinalizeCloudConfig(CloudConfig const& conf) {
-  auto aether = Aether::ptr{aether_}.Load();
+  auto aether = aether_.Load();
 
   AE_TELED_DEBUG("Finalize servers for new cloud config [{}]", conf.cloud.sids);
   // make async waiter for building the new cloud

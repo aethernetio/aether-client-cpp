@@ -37,7 +37,7 @@ class Channel;
 namespace client_server_connection_internal {
 class BufferedServerConnection : public ByteIStream {
  public:
-  static constexpr std::size_t kBufferCapacity = 200;
+  static constexpr std::size_t kBufferCapacity = 10;
 
   BufferedServerConnection(AeContext const& ae_context,
                            Ptr<Server> const& server);
