@@ -19,6 +19,7 @@
 #if defined ESP_WIFI_DRIVER_ENABLED
 
 #  include <string.h>
+#  include <inttypes.h>
 
 #  include "esp_event.h"
 #  include "esp_log.h"
@@ -61,7 +62,7 @@ void EventHandler(void* arg, esp_event_base_t event_base, int32_t event_id,
     return "UNKNOWN_EVENT";
   };
 
-  ESP_LOGI(kTag, "Event handler event_base %s event_id %d",
+  ESP_LOGI(kTag, "Event handler event_base %s event_id %" PRId32,
            base_type(event_base), event_id);
 
   auto* driver = static_cast<EspWifiDriver*>(arg);
