@@ -35,7 +35,6 @@ if(NOT CM_PLATFORM AND WIN32)
     ${CMAKE_CURRENT_SOURCE_DIR}/../benches/aether_uap_delivery_timing_bench
   )
   target_compile_definitions(aether_uap_ping_retry_window_test PRIVATE
-    AE_TELE_LOG_CONSOLE=0
     _CRT_SECURE_NO_WARNINGS
   )
   if(MSVC)

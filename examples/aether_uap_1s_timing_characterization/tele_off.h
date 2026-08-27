@@ -15,5 +15,11 @@
  */
 
 #pragma once
+
+// Load USER_CONFIG (and the rest of aether/config.h) first, then override
+// console telemetry for this benchmark/example target. Force-include this
+// header so the override wins without a conflicting /D AE_TELE_LOG_CONSOLE.
+#include "aether/config.h"
+
 #undef AE_TELE_LOG_CONSOLE
 #define AE_TELE_LOG_CONSOLE 0

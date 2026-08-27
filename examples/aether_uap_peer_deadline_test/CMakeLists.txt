@@ -28,9 +28,6 @@ if(NOT CM_PLATFORM AND WIN32)
     ${CMAKE_CURRENT_SOURCE_DIR}/common
   )
   target_link_libraries(aether_uap_peer_deadline_test_common PUBLIC aether)
-  target_compile_definitions(aether_uap_peer_deadline_test_common PRIVATE
-    AE_TELE_LOG_CONSOLE=0
-  )
 
   add_executable(aether_uap_peer_deadline_test
     main.cpp
@@ -45,7 +42,6 @@ if(NOT CM_PLATFORM AND WIN32)
     ${CMAKE_CURRENT_SOURCE_DIR}/../..
   )
   target_compile_definitions(aether_uap_peer_deadline_test PRIVATE
-    AE_TELE_LOG_CONSOLE=0
     _CRT_SECURE_NO_WARNINGS
   )
   if(MSVC)
@@ -53,7 +49,10 @@ if(NOT CM_PLATFORM AND WIN32)
       /W4 /WX
       "/FI${CMAKE_CURRENT_SOURCE_DIR}/tele_off.h"
     )
-    target_compile_options(aether_uap_peer_deadline_test_common PRIVATE /W4 /WX)
+    target_compile_options(aether_uap_peer_deadline_test_common PRIVATE
+      /W4 /WX
+      "/FI${CMAKE_CURRENT_SOURCE_DIR}/tele_off.h"
+    )
   endif()
 else()
   message(WARNING "aether_uap_peer_deadline_test is Windows desktop only; skipped")
