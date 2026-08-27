@@ -18,6 +18,7 @@
 
 #include <chrono>
 #include <cstring>
+#include <limits>
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -85,6 +86,8 @@ constexpr std::uint8_t kIpcPingTraceEx = 16;
 constexpr std::uint8_t kIpcAnnounceUnknown = 17;
 constexpr std::uint8_t kIpcScheduleState = 18;
 constexpr std::uint8_t kIpcPingBudget = 19;
+constexpr std::uint8_t kIpcQueryStats = 20;
+constexpr std::uint8_t kIpcFaultTrace = 21;
 constexpr std::uint32_t kTagRequestLossQueued = 1;
 constexpr std::uint32_t kTagResponseLossFirstWindow = 2;
 constexpr std::uint32_t kTagAfterRetryWindow = 3;
@@ -154,6 +157,19 @@ void OnPingTrace(PingTraceEvent const& event) {
     g_all_ping_traces.push_back(rec);
   }
 }
+
+#if AE_ENABLE_PING_TEST_FAULTS
+struct PendingFaultTrace {
+  PingFaultTraceEvent event;
+  std::int64_t steady_us{0};
+};
+std::vector<PendingFaultTrace> g_pending_fault_traces;
+
+void OnPingFaultTrace(PingFaultTraceEvent const& event) {
+  g_pending_fault_traces.push_back(
+      PendingFaultTrace{event, SteadyUsNow()});
+}
+#endif
 #endif
 
 inline void UidToHalves(Uid const& uid, std::int64_t& lo, std::int64_t& hi) {
@@ -187,6 +203,13 @@ struct RoleState {
   Subscription query_sub;
   bool query_state_only_{false};
   bool query_in_flight_{false};
+  std::int64_t pending_query_checkpoint_{-1};
+  std::int64_t query_attempts_{0};
+  std::int64_t query_created_{0};
+  std::int64_t query_reused_{0};
+  std::int64_t query_skipped_inflight_{0};
+  std::int64_t query_extra_subscribers_{0};
+  Subscription extra_query_sub_;
   PeerTimingQueryCoverage last_coverage_{};
   Subscription dest_cloud_sub;
   bool dest_proof_sent{false};
@@ -200,6 +223,7 @@ struct RoleState {
   bool exit_requested{false};
   bool client_ready{false};
   bool warmup_active{false};
+  std::optional<TimePoint> warmup_requery_at_{};
   bool sample_in_flight{false};
   std::uint32_t pending_sequence{0};
   std::uint32_t pending_offset_ms{0};
@@ -315,6 +339,29 @@ struct RoleState {
       pipe.WriteFrame(budget);
     }
     g_pending_ping_traces.clear();
+#endif
+  }
+
+  void DrainFaultTraces() {
+#if AE_ENABLE_PING_TEST_FAULTS
+    for (auto const& rec : g_pending_fault_traces) {
+      auto const& e = rec.event;
+      IpcFrame frame{};
+      frame.type = kIpcFaultTrace;
+      frame.side = static_cast<std::uint8_t>(side);
+      frame.run_id_hash = run_id_hash;
+      frame.seq = ++ipc_seq;
+      frame.local_steady_us = rec.steady_us;
+      frame.a = static_cast<std::int64_t>(e.server_id);
+      frame.b = static_cast<std::int64_t>(e.logical_cycle_id);
+      frame.c = static_cast<std::int64_t>(e.physical_attempt_index);
+      frame.d = static_cast<std::int64_t>(e.mode);
+      frame.e = static_cast<std::int64_t>(e.harness_state);
+      frame.f = static_cast<std::int64_t>(e.kind);
+      frame.g = e.steady_us;
+      pipe.WriteFrame(frame);
+    }
+    g_pending_fault_traces.clear();
 #endif
   }
 
@@ -487,27 +534,107 @@ struct RoleState {
     }
     if (side == IpcSide::kA) {
       EnsureStreams();
-      if (!stream) {
-        return;
+      TryEmitOwnProof();
+      TryEmitDestProof();
+      auto const now = Now();
+      if (!warmup_requery_at_ || now >= *warmup_requery_at_) {
+        warmup_requery_at_ = now + std::chrono::milliseconds{250};
+        if (!query_in_flight_ && peer_set) {
+          query_state_only_ = true;
+          BeginQuery();
+        }
       }
-      auto const route = stream->InspectSendRoute();
+
+      ServerId server_id{};
+      std::size_t sample_count = 0;
+      Duration min_rtt{};
+      Duration p99_rtt{};
+      Protocol protocol = Protocol::kTcp;
+      bool present = false;
+
+      if (stream) {
+        auto const route = stream->InspectSendRoute();
+        if (route.present) {
+          present = true;
+          server_id = route.server_id;
+          sample_count = route.ping_sample_count;
+          min_rtt = route.min_rtt;
+          p99_rtt = route.p99_rtt;
+          protocol = route.protocol;
+        }
+      }
+      // Prefer dest-route stats. Fall back to Alice's own cloud channel so
+      // warm-up can complete when dest GetCloud is slow; Q2 may still fail
+      // separately and is classified as harness if QueryPeer is unavailable.
+      if (sample_count < kWarmupSamples) {
+        Duration own_min{};
+        Duration own_p99{};
+        ServerId own_sid{};
+        Protocol own_proto = Protocol::kTcp;
+        std::size_t own_n = 0;
+        auto& csc = client->cloud_connection();
+        for (auto* sc : csc.servers()) {
+          if (sc == nullptr) {
+            continue;
+          }
+          auto* cc = sc->client_connection();
+          if (cc == nullptr) {
+            continue;
+          }
+          auto ch = cc->server_connection().current_channel();
+          if (!ch) {
+            continue;
+          }
+          auto const& stats =
+              ch->channel_statistics().response_time_statistics();
+          if (stats.size() > own_n) {
+            own_n = stats.size();
+            own_sid = sc->server_id();
+            if (!stats.empty()) {
+              own_min = stats.min();
+              own_p99 = stats.percentile<99>();
+            }
+            auto const& props = ch->transport_properties();
+            own_proto =
+                props.connection_type == ConnectionType::kConnectionLess
+                    ? Protocol::kUdp
+                    : Protocol::kTcp;
+          }
+        }
+        if (own_n > sample_count) {
+          sample_count = own_n;
+          min_rtt = own_min;
+          p99_rtt = own_p99;
+          if (!present) {
+            present = true;
+            server_id = own_sid;
+            protocol = own_proto;
+          }
+          if (own_proof.present) {
+            server_id = own_proof.server_id;
+            protocol = own_proof.protocol == BenchProtocol::kUdp
+                           ? Protocol::kUdp
+                           : Protocol::kTcp;
+          }
+        }
+      }
+
       static std::size_t last_logged = 0;
-      if (route.ping_sample_count != last_logged &&
-          (route.ping_sample_count % 2 == 0 ||
-           route.ping_sample_count >= kWarmupSamples)) {
-        last_logged = route.ping_sample_count;
-        std::cerr << "Alice dest warmup server=" << route.server_id
-                  << " samples=" << route.ping_sample_count
-                  << " present=" << route.present << std::endl;
+      if (sample_count != last_logged &&
+          (sample_count % 2 == 0 || sample_count >= kWarmupSamples)) {
+        last_logged = sample_count;
+        std::cerr << "Alice dest warmup server=" << server_id
+                  << " samples=" << sample_count
+                  << " present=" << present << std::endl;
       }
-      if (!route.present || route.ping_sample_count < kWarmupSamples) {
+      if (!present || sample_count < kWarmupSamples) {
         return;
       }
       auto const min_ms =
-          std::chrono::duration_cast<std::chrono::milliseconds>(route.min_rtt)
+          std::chrono::duration_cast<std::chrono::milliseconds>(min_rtt)
               .count();
       auto const p99_ms =
-          std::chrono::duration_cast<std::chrono::milliseconds>(route.p99_rtt)
+          std::chrono::duration_cast<std::chrono::milliseconds>(p99_rtt)
               .count();
       if ((min_ms == 200 && p99_ms == 200) || min_ms == 5000 || p99_ms == 5000) {
         std::cerr << "Alice dest warmup stats look synthetic: min=" << min_ms
@@ -515,16 +642,17 @@ struct RoleState {
         return;
       }
       warmup_active = false;
+      warmup_requery_at_.reset();
       std::cout << "## Alice dest-server ping statistics (child)\n"
-                << "server_id=" << route.server_id
-                << " samples=" << route.ping_sample_count
+                << "server_id=" << server_id
+                << " samples=" << sample_count
                 << " min_rtt_ms=" << min_ms << " p99_rtt_ms=" << p99_ms
                 << " protocol="
-                << (route.protocol == Protocol::kUdp ? "udp" : "tcp") << "\n";
+                << (protocol == Protocol::kUdp ? "udp" : "tcp") << "\n";
       Emit(IpcType::kWarmupDone, EventKind::kWarmupDone, 0, 0,
-           static_cast<std::int64_t>(route.ping_sample_count), min_ms, p99_ms,
-           static_cast<std::int64_t>(route.server_id),
-           BenchProtocolFromAe(route.protocol));
+           static_cast<std::int64_t>(sample_count), min_ms, p99_ms,
+           static_cast<std::int64_t>(server_id),
+           BenchProtocolFromAe(protocol));
       return;
     }
     if (side != IpcSide::kB) {
@@ -586,6 +714,7 @@ struct RoleState {
     // Reset subscription before replacing Client-owned action.
     query_sub.Reset();
     query_in_flight_ = true;
+    ++query_created_;
     auto& action = client->QueryPeerReceiveSchedule(peer_uid);
     query_sub = action.result_event().Subscribe(
         [this, &action](Result<PeerReceiveSchedule, int> const& res) {
@@ -599,6 +728,10 @@ struct RoleState {
           }
           OnSchedule(res);
         });
+    if (action.is_finished()) {
+      // Synchronous completion can race Subscribe; clear the stuck flag.
+      query_in_flight_ = false;
+    }
   }
 
   ServerTimingDiagnostic const* FindDestDiagnostic(
@@ -883,8 +1016,29 @@ struct RoleState {
     }
     if (f.e == 0) {
       PingTestFaults::Instance().Clear();
+      PingFaultTraceEvent cleared{};
+      cleared.kind = PingFaultTraceKind::kCleared;
+      cleared.harness_state = PingFaultHarnessState::kIdle;
+      cleared.steady_us = SteadyUsNow();
+      g_pending_fault_traces.push_back({cleared, SteadyUsNow()});
     }
-    PingTestFaults::Instance().Arm(plan);
+    if (f.h != 0) {
+      plan.hold_enabled = true;
+      plan.retry_hold_offset_us = f.g;
+    }
+    if (plan.mode != PingFaultMode::kNone) {
+      PingTestFaults::Instance().Arm(plan);
+      PingFaultTraceEvent armed{};
+      armed.kind = PingFaultTraceKind::kArmed;
+      armed.server_id = plan.server_id;
+      armed.logical_cycle_id = plan.logical_cycle_id;
+      armed.physical_attempt_index = plan.physical_attempt_index;
+      armed.mode = plan.mode;
+      armed.harness_state = PingFaultHarnessState::kArmed;
+      armed.steady_us = SteadyUsNow();
+      g_pending_fault_traces.push_back({armed, SteadyUsNow()});
+    }
+    DrainFaultTraces();
     Emit(IpcType::kAck, EventKind::kAck, 0, 0, f.a, f.b, f.c);
 #else
     (void)f;
@@ -916,15 +1070,62 @@ struct RoleState {
     frame.h =
         static_cast<std::int64_t>(last_coverage_.quarantined_skipped_count);
     frame.i = static_cast<std::int64_t>(QpcNow());
+    frame.j = pending_query_checkpoint_;
+    frame.k = std::numeric_limits<std::int64_t>::min();
+    frame.l = std::numeric_limits<std::int64_t>::min();
+    for (auto const& d : last_diagnostics_) {
+      if (d.has_raw &&
+          d.status == ServerTimingAttemptStatus::kSuccess) {
+        frame.k = d.raw.next_ping_delta_ms;
+        frame.l = d.raw.last_connect_delta_ms;
+        break;
+      }
+    }
     pipe.WriteFrame(frame);
+    EmitQueryStats();
   }
 
-  void QueryNow() {
+  void EmitQueryStats() {
+    IpcFrame stats{};
+    stats.type = kIpcQueryStats;
+    stats.side = static_cast<std::uint8_t>(side);
+    stats.run_id_hash = run_id_hash;
+    stats.seq = ++ipc_seq;
+    stats.local_steady_us = SteadyUsNow();
+    stats.a = query_attempts_;
+    stats.b = query_created_;
+    stats.c = query_reused_;
+    stats.d = query_skipped_inflight_;
+    stats.e = query_extra_subscribers_;
+    stats.f = pending_query_checkpoint_;
+    stats.i = static_cast<std::int64_t>(QpcNow());
+    pipe.WriteFrame(stats);
+  }
+
+  void QueryNow(std::int64_t checkpoint, bool force) {
     if (!client || !peer_set) {
       return;
     }
+    ++query_attempts_;
+    pending_query_checkpoint_ = checkpoint;
     if (query_in_flight_) {
-      return;
+      ++query_skipped_inflight_;
+      auto& existing = client->QueryPeerReceiveSchedule(peer_uid);
+      if (existing.is_finished()) {
+        query_in_flight_ = false;
+      } else {
+        ++query_reused_;
+        if (force) {
+          ++query_extra_subscribers_;
+          extra_query_sub_.Reset();
+          extra_query_sub_ = existing.result_event().Subscribe(
+              [this](Result<PeerReceiveSchedule, int> const& res) {
+                EmitScheduleState(res);
+              });
+        }
+        EmitQueryStats();
+        return;
+      }
     }
     query_state_only_ = true;
     BeginQuery();
@@ -961,6 +1162,7 @@ struct RoleState {
       }
       case IpcType::kWaitWarmup:
         warmup_active = true;
+        warmup_requery_at_.reset();
         std::cerr << (side == IpcSide::kA ? "Alice" : "Bob")
                   << " WaitWarmup received" << std::endl;
         TryEmitOwnProof();
@@ -984,7 +1186,7 @@ struct RoleState {
         } else if (f.type == kIpcSendTagged) {
           SendTaggedNow(f.sequence);
         } else if (f.type == kIpcQueryNow) {
-          QueryNow();
+          QueryNow(f.a, f.c != 0);
         } else if (f.type == kIpcAnnounceUnknown) {
           StartAnnounceUnknown();
         }
@@ -1059,6 +1261,9 @@ int RunClientRole(ClientArgs const& args) {
 #if AE_ENABLE_PING
           SetPingTraceHook(&OnPingTrace);
 #endif
+#if AE_ENABLE_PING_TEST_FAULTS
+          SetPingFaultTraceHook(&OnPingFaultTrace);
+#endif
         }
         state.client_ready = true;
         std::int64_t lo = 0;
@@ -1074,6 +1279,7 @@ int RunClientRole(ClientArgs const& args) {
     auto const now = Now();
     auto next = state.app->Update(now);
     state.DrainPingTraces();
+    state.DrainFaultTraces();
     if (auto frame = state.pipe.TryReadFrame(0)) {
       state.HandleIpc(*frame);
     }

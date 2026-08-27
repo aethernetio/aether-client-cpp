@@ -41,6 +41,18 @@ struct CharacterizationArgs {
   int response_loss_cases{-1};
   bool quick{false};
   bool skip_long_characterization{false};
+  bool phase_preservation{false};
+  bool phase_preservation_stress{false};
+  // When >0 with --phase-preservation, stop arming new cycles after this
+  // many wall-clock seconds (shard budget). Fixed fast/stress step lists are
+  // replaced by a repeating mix sized for long characterization.
+  int phase_preservation_budget_sec{0};
+  // Focused first-request-loss vs p99 timing policy (Alice query only after Tn).
+  bool first_request_loss_p99{false};
+  int first_request_loss_cases{100};
+  // ping_retry_count=0 post-deadline recovery acceptance (deterministic drop #1).
+  bool retry_count_zero_runtime{false};
+  int retry_count_zero_cases{10};
 };
 
 int RunCharacterization(CharacterizationArgs const& args);

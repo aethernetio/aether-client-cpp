@@ -69,6 +69,13 @@ int main(int argc, char** argv) {
            "Other:\n"
            "  --quick\n"
            "  --no-long-characterization\n"
+           "  --phase-preservation\n"
+           "  --phase-preservation-stress\n"
+           "  --phase-preservation-budget-sec N\n"
+           "  --first-request-loss-p99\n"
+           "  --first-request-loss-cases N\n"
+           "  --retry-count-zero-runtime\n"
+           "  --retry-count-zero-cases N\n"
            "  --transport tcp|udp\n"
            "  --run-id ID\n"
            "  --exe PATH\n"
@@ -150,8 +157,39 @@ int main(int argc, char** argv) {
       args.response_loss_cases = std::atoi(resp_loss.data());
     }
     args.quick = HasFlag(argc, argv, "--quick");
+    args.phase_preservation = HasFlag(argc, argv, "--phase-preservation") ||
+                              HasFlag(argc, argv, "--phase-preservation-stress");
+    args.phase_preservation_stress =
+        HasFlag(argc, argv, "--phase-preservation-stress");
+    auto budget_sec = ArgValue(argc, argv, "--phase-preservation-budget-sec");
+    if (!budget_sec.empty()) {
+      args.phase_preservation_budget_sec = std::atoi(budget_sec.data());
+      if (args.phase_preservation_budget_sec > 0) {
+        args.phase_preservation = true;
+      }
+    }
+    args.first_request_loss_p99 =
+        HasFlag(argc, argv, "--first-request-loss-p99");
+    auto frl_cases = ArgValue(argc, argv, "--first-request-loss-cases");
+    if (!frl_cases.empty()) {
+      args.first_request_loss_cases = std::atoi(frl_cases.data());
+    }
+    if (args.first_request_loss_p99 && args.first_request_loss_cases <= 0) {
+      args.first_request_loss_cases = 100;
+    }
+    args.retry_count_zero_runtime =
+        HasFlag(argc, argv, "--retry-count-zero-runtime");
+    auto rcz_cases = ArgValue(argc, argv, "--retry-count-zero-cases");
+    if (!rcz_cases.empty()) {
+      args.retry_count_zero_cases = std::atoi(rcz_cases.data());
+    }
+    if (args.retry_count_zero_runtime && args.retry_count_zero_cases <= 0) {
+      args.retry_count_zero_cases = 10;
+    }
     args.skip_long_characterization =
-        HasFlag(argc, argv, "--no-long-characterization") || args.quick;
+        HasFlag(argc, argv, "--no-long-characterization") || args.quick ||
+        args.phase_preservation || args.first_request_loss_p99 ||
+        args.retry_count_zero_runtime;
     if (args.quick) {
       if (ArgValue(argc, argv, "--cycles").empty() &&
           ArgValue(argc, argv, "--nominal-cycles").empty()) {

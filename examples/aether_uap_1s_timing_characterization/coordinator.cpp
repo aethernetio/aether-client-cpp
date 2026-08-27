@@ -20,15 +20,20 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <map>
+#include <numeric>
 #include <optional>
+#include <set>
 #include <sstream>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #ifndef NOMINMAX
@@ -73,6 +78,19 @@ constexpr std::uint8_t kIpcPingTraceEx = 16;
 constexpr std::uint8_t kIpcAnnounceUnknown = 17;
 constexpr std::uint8_t kIpcScheduleState = 18;
 constexpr std::uint8_t kIpcPingBudget = 19;
+constexpr std::uint8_t kIpcQueryStats = 20;
+constexpr std::uint8_t kIpcFaultTrace = 21;
+
+struct BobFaultTraceEvent {
+  std::uint8_t kind{0};
+  std::int64_t server_id{0};
+  std::int64_t logical_cycle_id{0};
+  std::int64_t physical_attempt_index{0};
+  std::int64_t mode{0};
+  std::int64_t harness_state{0};
+  std::int64_t trace_kind{0};
+  std::int64_t steady_us{0};
+};
 
 struct BobPingEvent {
   std::uint8_t kind{0};
@@ -115,6 +133,20 @@ struct ScheduleSnap {
   std::int64_t successful{0};
   std::int64_t failed{0};
   std::int64_t skipped{0};
+  std::int64_t qpc{0};
+  std::int64_t steady_us{0};
+  std::int64_t checkpoint{-1};
+  std::int64_t next_ping_delta_ms{std::numeric_limits<std::int64_t>::min()};
+  std::int64_t last_connect_delta_ms{std::numeric_limits<std::int64_t>::min()};
+};
+
+struct QueryStatsSnap {
+  std::int64_t attempts{0};
+  std::int64_t created{0};
+  std::int64_t reused{0};
+  std::int64_t skipped{0};
+  std::int64_t extra{0};
+  std::int64_t checkpoint{-1};
   std::int64_t qpc{0};
   std::int64_t steady_us{0};
 };
@@ -189,7 +221,9 @@ struct ChildProc {
   bool got_own_proof{false};
   bool got_dest_proof{false};
   std::vector<BobPingEvent> ping_events;
+  std::vector<BobFaultTraceEvent> fault_traces;
   std::vector<ScheduleSnap> schedules;
+  std::vector<QueryStatsSnap> query_stats;
   std::map<std::uint32_t, int> recv_counts;
   std::map<std::uint32_t, std::int64_t> recv_qpc;
   std::map<std::uint32_t, std::int64_t> recv_steady;
@@ -219,6 +253,7 @@ void ResetChildRuntime(ChildProc& child) {
   child.got_dest_proof = false;
   child.ping_events.clear();
   child.schedules.clear();
+  child.query_stats.clear();
   child.recv_counts.clear();
   child.recv_qpc.clear();
   child.recv_steady.clear();
@@ -260,7 +295,8 @@ bool SendCmd(ChildProc& child, IpcType type, std::uint32_t sequence = 0,
 
 bool SendRaw(ChildProc& child, std::uint8_t type, std::uint32_t sequence = 0,
              std::int64_t a = 0, std::int64_t b = 0, std::int64_t c = 0,
-             std::int64_t d = 0, std::int64_t e = 0, std::int64_t f = 0) {
+             std::int64_t d = 0, std::int64_t e = 0, std::int64_t f = 0,
+             std::int64_t g = 0, std::int64_t h = 0) {
   IpcFrame frame{};
   frame.type = type;
   frame.side = static_cast<std::uint8_t>(IpcSide::kCoordinator);
@@ -272,6 +308,8 @@ bool SendRaw(ChildProc& child, std::uint8_t type, std::uint32_t sequence = 0,
   frame.d = d;
   frame.e = e;
   frame.f = f;
+  frame.g = g;
+  frame.h = h;
   return child.pipe.WriteFrame(frame);
 }
 
@@ -392,6 +430,18 @@ void HandleChildFrame(ChildProc& child, IpcFrame const& frame) {
       e.guard_us = frame.g;
     }
   }
+  if (frame.type == kIpcFaultTrace) {
+    BobFaultTraceEvent t{};
+    t.kind = static_cast<std::uint8_t>(frame.f);
+    t.server_id = frame.a;
+    t.logical_cycle_id = frame.b;
+    t.physical_attempt_index = frame.c;
+    t.mode = frame.d;
+    t.harness_state = frame.e;
+    t.trace_kind = frame.f;
+    t.steady_us = frame.g != 0 ? frame.g : frame.local_steady_us;
+    child.fault_traces.push_back(t);
+  }
   if (frame.type == kIpcScheduleState) {
     ScheduleSnap s{};
     s.state = frame.a;
@@ -404,7 +454,22 @@ void HandleChildFrame(ChildProc& child, IpcFrame const& frame) {
     s.skipped = frame.h;
     s.qpc = frame.i;
     s.steady_us = frame.local_steady_us;
+    s.checkpoint = frame.j;
+    s.next_ping_delta_ms = frame.k;
+    s.last_connect_delta_ms = frame.l;
     child.schedules.push_back(s);
+  }
+  if (frame.type == kIpcQueryStats) {
+    QueryStatsSnap q{};
+    q.attempts = frame.a;
+    q.created = frame.b;
+    q.reused = frame.c;
+    q.skipped = frame.d;
+    q.extra = frame.e;
+    q.checkpoint = frame.f;
+    q.qpc = frame.i;
+    q.steady_us = frame.local_steady_us;
+    child.query_stats.push_back(q);
   }
 }
 
@@ -819,6 +884,18 @@ int RunCharacterization(CharacterizationArgs const& in_args) {
     SendRaw(bob, kIpcArmFault, 0, dest, attempt, mode, timeout_us, e, 0);
     drain(150);
   };
+
+  if (args.phase_preservation) {
+#include "phase_preservation.inc.cpp"
+  }
+
+  if (args.first_request_loss_p99) {
+#include "first_request_loss_p99.inc.cpp"
+  }
+
+  if (args.retry_count_zero_runtime) {
+#include "retry_count_zero_runtime.inc.cpp"
+  }
 
   std::uint32_t rng = args.seed;
   auto rnd = [&]() {
