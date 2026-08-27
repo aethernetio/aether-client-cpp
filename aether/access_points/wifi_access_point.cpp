@@ -27,6 +27,7 @@
 #  include "aether/poller/poller.h"
 #  include "aether/server.h"
 
+#  include "aether/ae_exp_diag.h"
 #  include "aether/tele.h"
 
 namespace ae {
@@ -42,7 +43,14 @@ WifiConnectAction::WifiConnectAction(
       psp_{std::move(psp)},
       base_station_{std::move(base_station)},
       scheduler_sub_{
-          ae_context_.scheduler().Task([this]() { EnsureConnected(); })} {
+          ae_context_.scheduler().Task([this]() { EnsureConnected(); })}
+#  if defined(AE_EXP_DIAG)
+      ,
+      exp_id_{AeExpNextId()}
+#  endif
+{
+  AE_EXP_LC("WifiConnectAction", ExpId(), this, 0, "ctor", "ssid=%s",
+            wifi_ap_.creds.ssid.c_str());
   AE_TELED_DEBUG("WifiConnectAction created");
 }
 
@@ -57,13 +65,19 @@ void WifiConnectAction::EnsureConnected() {
                  connected_to.value_or("NOT CONNECTED"));
   // if already connected
   if (connected_to && (*connected_to == wifi_ap_.creds.ssid)) {
+    AE_EXP_LC("WifiConnectAction", ExpId(), this, 0, "EnsureConnected",
+              "already_connected");
     SetConnected(true);
     return;
   }
+  AE_EXP_LC("WifiConnectAction", ExpId(), this, 0, "EnsureConnected",
+            "calling_driver_Connect");
   Connect();
 }
 
 void WifiConnectAction::Connect() {
+  AE_EXP_LC("WifiConnectAction", ExpId(), this, 0, "Connect",
+            "ssid=%s before_driver_Connect", wifi_ap_.creds.ssid.c_str());
   connect_sub_ = driver_->connect_res_event().Subscribe(
       [&](Result<WiFiBaseStation, int>&& res) {
         connect_sub_.Reset();
@@ -134,24 +148,31 @@ std::vector<ObjPtr<Channel>> WifiAccessPoint::GenerateChannels(
 WifiConnectAction& WifiAccessPoint::Connect() {
   // reuse connect action if it's in progress
   if (!connect_action_ || connect_action_->is_finished()) {
+    AE_EXP_LC("WifiAccessPoint", 0, this, 0, "Connect", "new_action");
     auto driver = WifiAdapter::ptr{adapter_}.WithLoaded(
         [](auto const& a) { return &a->driver(); });
     assert(driver.has_value());
 
     connect_action_.emplace(*aether_, *this, **driver, wifi_ap_, psp_,
                             base_station_);
+  } else {
+    AE_EXP_LC("WifiAccessPoint", 0, this, 0, "Connect", "reuse");
   }
   return *connect_action_;
 }
 
 bool WifiAccessPoint::IsConnected() {
-  return WifiAdapter::ptr{adapter_}
-      .WithLoaded([this](auto const& a) {
-        auto& driver = a->driver();
-        auto connected_to = driver.connected_to();
-        return connected_to && (*connected_to == wifi_ap_.creds.ssid);
-      })
-      .value_or(false);
+  auto const result =
+      WifiAdapter::ptr{adapter_}
+          .WithLoaded([this](auto const& a) {
+            auto& driver = a->driver();
+            auto connected_to = driver.connected_to();
+            return connected_to && (*connected_to == wifi_ap_.creds.ssid);
+          })
+          .value_or(false);
+  AE_EXP_LC("WifiAccessPoint", 0, this, 0, "IsConnected", "result=%d",
+            result ? 1 : 0);
+  return result;
 }
 
 void WifiAccessPoint::SetWifiBaseStation(WiFiBaseStation&& wifi_base_station) {

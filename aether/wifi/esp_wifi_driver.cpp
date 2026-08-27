@@ -34,6 +34,7 @@
 #  include "lwip/ip6_addr.h"
 #  include "lwip/sys.h"
 
+#  include "aether/ae_exp_diag.h"
 #  include "aether/tele.h"
 
 extern "C" esp_err_t esp_wifi_internal_set_retry_counter(uint8_t short_retry,
@@ -41,6 +42,15 @@ extern "C" esp_err_t esp_wifi_internal_set_retry_counter(uint8_t short_retry,
 extern "C" esp_err_t esp_wifi_internal_get_fix_rate(wifi_interface_t ifx,
                                                     bool* is_fixed,
                                                     wifi_phy_rate_t* rate);
+
+// Experiment hooks (esp32c6_aether_full_cycle); weak no-ops if undefined.
+extern "C" void ae_exp_on_wifi_connect(int has_cached_bs) __attribute__((weak));
+extern "C" void ae_exp_on_wifi_start(void) __attribute__((weak));
+extern "C" void ae_exp_on_wifi_sta_start(void) __attribute__((weak));
+extern "C" void ae_exp_on_wifi_sta_connected(int channel) __attribute__((weak));
+extern "C" void ae_exp_on_wifi_got_ip(void) __attribute__((weak));
+extern "C" void ae_exp_on_wifi_sta_disconnected(int reason)
+    __attribute__((weak));
 
 namespace ae {
 #  define WIFI_CONNECTED_BIT BIT0
@@ -66,6 +76,47 @@ void EventHandler(void* arg, esp_event_base_t event_base, int32_t event_id,
            base_type(event_base), event_id);
 
   auto* driver = static_cast<EspWifiDriver*>(arg);
+
+  if (event_base == WIFI_EVENT) {
+    switch (event_id) {
+      case WIFI_EVENT_STA_START:
+        AE_EXP_LC("EspWifiDriver", driver->ExpId(), driver, 0, "STA_START", "");
+        if (ae_exp_on_wifi_sta_start) {
+          ae_exp_on_wifi_sta_start();
+        }
+        break;
+      case WIFI_EVENT_STA_CONNECTED: {
+        auto* ev = static_cast<wifi_event_sta_connected_t*>(event_data);
+        AE_EXP_LC("EspWifiDriver", driver->ExpId(), driver, 0, "STA_CONNECTED",
+                  "ch=%d", ev != nullptr ? static_cast<int>(ev->channel) : -1);
+        if (ae_exp_on_wifi_sta_connected) {
+          ae_exp_on_wifi_sta_connected(ev != nullptr ? ev->channel : 0);
+        }
+        break;
+      }
+      case WIFI_EVENT_STA_DISCONNECTED: {
+        auto* event = static_cast<wifi_event_sta_disconnected_t*>(event_data);
+        AE_EXP_LC("EspWifiDriver", driver->ExpId(), driver, 0,
+                  "STA_DISCONNECTED", "reason=%d",
+                  event != nullptr ? static_cast<int>(event->reason) : -1);
+        if (ae_exp_on_wifi_sta_disconnected) {
+          ae_exp_on_wifi_sta_disconnected(
+              event != nullptr ? static_cast<int>(event->reason) : -1);
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  } else if (event_base == IP_EVENT) {
+    if (event_id == IP_EVENT_STA_GOT_IP || event_id == IP_EVENT_GOT_IP6) {
+      AE_EXP_LC("EspWifiDriver", driver->ExpId(), driver, 0, "GOT_IP", "");
+      if (ae_exp_on_wifi_got_ip) {
+        ae_exp_on_wifi_got_ip();
+      }
+    }
+  }
+
   switch (driver->connection_state_.state) {
     case EspWifiDriver::State::kDisconnected:
       driver->DisconnectedEventHandler(event_base, event_id, event_data);
@@ -226,7 +277,7 @@ esp_err_t SetStaticIp(esp_netif_t* netif, WiFiIP const& config) {
 }
 
 esp_err_t StartWifiConnection(
-    esp_netif_t* espt_init_sta, WiFiAp const& wifi_ap,
+    EspWifiDriver* driver, esp_netif_t* espt_init_sta, WiFiAp const& wifi_ap,
     std::optional<WiFiPowerSaveParam> const& psp,
     std::optional<WiFiBaseStation> const& base_station) {
   esp_err_t err = ESP_OK;
@@ -292,6 +343,11 @@ esp_err_t StartWifiConnection(
     }
   }
 
+  if (ae_exp_on_wifi_start) {
+    ae_exp_on_wifi_start();
+  }
+  AE_EXP_LC("EspWifiDriver", driver != nullptr ? driver->ExpId() : 0, driver, 0,
+            "esp_wifi_start", "");
   err = esp_wifi_start();
   if (err != ESP_OK) {
     ESP_LOGE(kTag, "Failed to start WiFi!");
@@ -330,22 +386,44 @@ esp_err_t StartWifiConnection(
 }  // namespace esp_wifi_driver_internal
 
 EspWifiDriver::EspWifiDriver(AeContext const& ae_context)
-    : ae_context_{ae_context} {
+    : ae_context_{ae_context}
+#  if defined(AE_EXP_DIAG)
+      ,
+      exp_id_{AeExpNextId()}
+#  endif
+{
+  AE_EXP_LC("EspWifiDriver", ExpId(), this, 0, "ctor_begin", "");
   esp_log_level_set(esp_wifi_driver_internal::kTag, ESP_LOG_DEBUG);
   Init();
+  AE_EXP_LC("EspWifiDriver", ExpId(), this, 0, "ctor_end", "");
 }
 
 EspWifiDriver::~EspWifiDriver() {
+  AE_EXP_LC("EspWifiDriver", ExpId(), this, 0, "dtor_begin", "");
   if (connected_to_) {
     Disconnect();
   }
   Deinit();
+  AE_EXP_LC("EspWifiDriver", ExpId(), this, 0, "dtor_end", "");
 }
 
 void EspWifiDriver::Connect(
     WiFiAp const& wifi_ap, std::optional<WiFiPowerSaveParam> const& psp,
     std::optional<WiFiBaseStation> const& base_station) {
+  bool const has_connected_to = connected_to_.has_value();
+  bool const will_disconnect_first = has_connected_to;
+  AE_EXP_LC("EspWifiDriver", ExpId(), this, 0, "Connect",
+            "ssid=%s has_connected_to=%d will_disconnect_first=%d",
+            wifi_ap.creds.ssid.c_str(), has_connected_to ? 1 : 0,
+            will_disconnect_first ? 1 : 0);
+
+  if (ae_exp_on_wifi_connect) {
+    ae_exp_on_wifi_connect(base_station.has_value() ? 1 : 0);
+  }
+
   if (connected_to_) {
+    AE_EXP_LC("EspWifiDriver", ExpId(), this, 0, "connect_forces_disconnect",
+              "");
     Disconnect();
   }
   connected_to_.reset();
@@ -354,7 +432,8 @@ void EspWifiDriver::Connect(
   connection_state_.state = State::kConnecting;
 
   auto err = esp_wifi_driver_internal::StartWifiConnection(
-      static_cast<esp_netif_t*>(espt_init_sta_), wifi_ap, psp, base_station);
+      this, static_cast<esp_netif_t*>(espt_init_sta_), wifi_ap, psp,
+      base_station);
   // the connection result will be handled in ConnectingEventHandler
   if (err != ESP_OK) {
     // Emitting the error, 2 for example.
@@ -371,6 +450,7 @@ std::optional<std::string> EspWifiDriver::connected_to() const {
 }
 
 void EspWifiDriver::Init() {
+  AE_EXP_LC("EspWifiDriver", ExpId(), this, 0, "Init_begin", "");
   esp_err_t err = ESP_OK;
 
   InitNvs();
@@ -379,12 +459,14 @@ void EspWifiDriver::Init() {
   if (err != ESP_OK) {
     ESP_LOGE(esp_wifi_driver_internal::kTag, "Failed to netif init.");
     // If an error occurs, exit
+    AE_EXP_LC("EspWifiDriver", ExpId(), this, 0, "Init_end", "err=netif_init");
     return;
   }
   err = esp_event_loop_create_default();
   if (err != ESP_OK) {
     ESP_LOGE(esp_wifi_driver_internal::kTag, "Failed to create event loop.");
     // If an error occurs, exit
+    AE_EXP_LC("EspWifiDriver", ExpId(), this, 0, "Init_end", "err=event_loop");
     return;
   }
 
@@ -399,6 +481,7 @@ void EspWifiDriver::Init() {
   if (err != ESP_OK) {
     ESP_LOGE(esp_wifi_driver_internal::kTag, "Failed to wifi init.");
     // If an error occurs, exit
+    AE_EXP_LC("EspWifiDriver", ExpId(), this, 0, "Init_end", "err=wifi_init");
     return;
   }
 
@@ -408,6 +491,7 @@ void EspWifiDriver::Init() {
                              esp_wifi_driver_internal::EventHandler, this);
   connection_state_ = {};
   connection_state_.state = State::kDisconnected;
+  AE_EXP_LC("EspWifiDriver", ExpId(), this, 0, "Init_end", "ok");
 }
 
 void EspWifiDriver::InitNvs() {
@@ -428,8 +512,13 @@ void EspWifiDriver::InitNvs() {
 }
 
 void EspWifiDriver::Deinit() {
+  AE_EXP_LC("EspWifiDriver", ExpId(), this, 0, "Deinit", "");
+  // Stop before deinit; otherwise a subsequent Construct can see a half-live
+  // wifi stack (esp_wifi_init → already initialized) on ESP-IDF v6.
+  esp_wifi_stop();
   esp_wifi_deinit();
   esp_netif_destroy_default_wifi(static_cast<esp_netif_t*>(espt_init_sta_));
+  espt_init_sta_ = nullptr;
 
   esp_event_handler_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID,
                                esp_wifi_driver_internal::EventHandler);
@@ -438,6 +527,7 @@ void EspWifiDriver::Deinit() {
 }
 
 void EspWifiDriver::Disconnect() {
+  AE_EXP_LC("EspWifiDriver", ExpId(), this, 0, "Disconnect", "");
   connection_state_.state = State::kDisconnecting;
   connected_to_.reset();
   esp_wifi_disconnect();

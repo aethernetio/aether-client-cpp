@@ -26,6 +26,7 @@
 #  include "aether/poller/poller.h"
 #  include "aether/wifi/wifi_driver_factory.h"
 
+#  include "aether/ae_exp_diag.h"
 #  include "aether/tele.h"
 
 namespace ae {
@@ -34,7 +35,13 @@ WifiAdapter::WifiAdapter(ObjProp prop, ObjPtr<Aether> aether,
                          IPoller::ptr poller, DnsResolver::ptr dns_resolver,
                          WiFiInit wifi_init)
     : ParentWifiAdapter{prop, std::move(aether), std::move(poller),
-                        std::move(dns_resolver), std::move(wifi_init)} {
+                        std::move(dns_resolver), std::move(wifi_init)}
+#    if defined(AE_EXP_DIAG)
+      ,
+      exp_id_{AeExpNextId()}
+#    endif
+{
+  AE_EXP_LC("WifiAdapter", ExpId(), this, 0, "ctor", "");
   AE_TELED_DEBUG("Wifi instance created!");
 }
 #  endif  // AE_DISTILLATION
@@ -57,6 +64,11 @@ std::vector<AccessPoint::ptr> WifiAdapter::access_points() {
 WifiDriver& WifiAdapter::driver() {
   if (!wifi_driver_) {
     wifi_driver_ = WifiDriverFactory::CreateWifiDriver(*aether_);
+    AE_EXP_LC("WifiAdapter", ExpId(), this, 0, "driver_create", "driver=%p",
+              static_cast<void*>(wifi_driver_.get()));
+  } else {
+    AE_EXP_LC("WifiAdapter", ExpId(), this, 0, "driver_reuse", "driver=%p",
+              static_cast<void*>(wifi_driver_.get()));
   }
   return *wifi_driver_;
 }

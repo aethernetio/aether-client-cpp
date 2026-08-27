@@ -28,6 +28,7 @@
 #include "aether/cloud_connections/cloud_subscription.h"
 
 #include "aether/client_messages/client_messages_tele.h"
+#include "aether/ae_exp_diag.h"
 
 namespace ae {
 namespace p2p_stream_internal {
@@ -121,6 +122,10 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
       return std::any_of(std::begin(infos), std::end(infos),
                          [](auto const& i) { return i.is_writable; });
     });
+    if (stream_info_.is_writable) {
+      AE_EXP_LC("MessageSendStream", 0, this, 0, "stream_update",
+                "is_writable=1");
+    }
     // if all reliable
     stream_info_.is_reliable = std::invoke([&]() {
       return std::all_of(std::begin(infos), std::end(infos),
@@ -214,11 +219,13 @@ void P2pStream::ConnectSend() {
   auto client_ptr = client_.Lock();
   assert(client_ptr);
 
+  AE_EXP_LC("P2pStream", 0, this, 0, "GetCloud", "start");
   auto& get_client_cloud = client_ptr->cloud_manager()->GetCloud(destination_);
 
   get_client_cloud_sub_ = get_client_cloud.result_event().Subscribe(
       [this, client_ptr](Result<Cloud::ptr, int>&& result) {
         if (result) {
+          AE_EXP_LC("P2pStream", 0, this, 0, "get_cloud_ok", "");
           auto cloud = std::move(result).value();
           dest_cloud_conn_ = MakeDestinationCloudConn(
               cloud.Load(), client_ptr->server_connection_manager()
@@ -226,12 +233,14 @@ void P2pStream::ConnectSend() {
           message_send_stream_ =
               std::make_unique<p2p_stream_internal::MessageSendStream>(
                   *dest_cloud_conn_, RequestPolicy::MainServer{});
+          AE_EXP_LC("P2pStream", 0, this, 0, "message_send_stream", "created");
           message_send_stream_->stream_update_event().Subscribe(
               stream_update_event_);
           AE_TELED_DEBUG("Send connected");
           buffer_write_.buffer_off();
           stream_update_event_.Emit();
         } else {
+          AE_EXP_LC("P2pStream", 0, this, 0, "get_cloud_fail", "");
           AE_TELED_ERROR("Send connection failed ");
           buffer_write_.Drop();
           buffer_write_.buffer_on();

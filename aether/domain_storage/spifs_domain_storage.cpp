@@ -30,6 +30,7 @@
 #  include "aether-miscpp/serialization/binary_archive.h"
 
 #  include "aether/domain_storage/domain_storage_tele.h"
+#  include "aether/ae_exp_diag.h"
 
 namespace ae {
 class SpiFsSotorageWriter final : public IDomainStorageWriter {
@@ -41,13 +42,21 @@ class SpiFsSotorageWriter final : public IDomainStorageWriter {
         query{std::move(q)} {}
 
   ~SpiFsSotorageWriter() override {
+#  if defined(AE_EXP_DIAG)
+    auto const t0 = AeExpNowUs();
+#  endif
     if (!storage_->SaveObject(query, CalcBufferCrc())) {
+      AE_EXP_SAVE("crc_skip", "path=%s bytes=%zu obj_id=%lu", file_path.c_str(),
+                  buffer.size(), static_cast<unsigned long>(query.id.id()));
       AE_TELED_DEBUG(
           "For object id={}, class id={}, version={} crc is the same, not "
           "update data",
           query.id.id(), query.class_id, static_cast<int>(query.version));
       return;
     }
+    AE_EXP_SAVE("write_begin", "path=%s bytes=%zu obj_id=%lu",
+                file_path.c_str(), buffer.size(),
+                static_cast<unsigned long>(query.id.id()));
     // save object data to file
     FILE* file = fopen(file_path.c_str(), "w");
     if (file == nullptr) {
@@ -61,6 +70,12 @@ class SpiFsSotorageWriter final : public IDomainStorageWriter {
       AE_TELED_ERROR("Failed to write data to file {}", file_path);
       return;
     }
+
+#  if defined(AE_EXP_DIAG)
+    AE_EXP_SAVE("write_end", "path=%s bytes=%zu duration_us=%lld",
+                file_path.c_str(), buffer.size(),
+                static_cast<long long>(AeExpNowUs() - t0));
+#  endif
 
     AE_TELE_DEBUG(kSpifsDsObjSaved,
                   "Saved object id={}, class id={}, version={}, data size={}",
@@ -328,6 +343,8 @@ void SpiFsDomainStorage::SyncState() {
     AE_TELED_DEBUG("Failed to save object map, error {}", res.error().message);
   } else {
     fwrite(buffer.data(), 1, buffer.size(), file);
+    AE_EXP_SAVE("map_rewrite", "path=%s bytes=%zu", kObjectMapPath.data(),
+                buffer.size());
   }
 
   fclose(file);

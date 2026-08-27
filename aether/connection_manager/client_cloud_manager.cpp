@@ -24,6 +24,7 @@
 #include "aether/client.h"
 #include "aether/work_cloud.h"
 
+#include "aether/ae_exp_diag.h"
 #include "aether/tele.h"
 
 namespace ae {
@@ -180,6 +181,7 @@ GetCloudAction& ClientCloudManager::GetCloud(Uid client_uid) {
 
   auto cached = cloud_cache_.find(client_uid);
   if ((cached != cloud_cache_.end()) && cached->second.cloud.is_valid()) {
+    AE_EXP_LC("ClientCloudManager", 0, this, 0, "GetCloud", "cache_hit");
     // cloud stored in cache, return GetCloudFromCache
     auto* action =
         cloud_actions_
@@ -189,6 +191,7 @@ GetCloudAction& ClientCloudManager::GetCloud(Uid client_uid) {
     return *action;
   }
 
+  AE_EXP_LC("ClientCloudManager", 0, this, 0, "GetCloud", "cache_miss");
   // get from aethernet
   auto client = client_.Load();
   assert(client);

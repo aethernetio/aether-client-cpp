@@ -24,6 +24,8 @@
 #include "aether/server.h"
 
 #include "aether/tele.h"
+#include "aether/ae_exp_diag.h"
+#include "aether-miscpp/format/format.h"
 
 namespace ae {
 
@@ -125,9 +127,23 @@ ChannelEntry* ServerConnection::TopChannel() {
   auto it = std::find_if(std::begin(channels_), std::end(channels_),
                          [](auto const& entry) { return !entry.failed; });
   if (it == std::end(channels_)) {
+    AE_EXP_LC("ServerConnection", 0, this, 0, "TopChannel", "none");
     return nullptr;
   }
-  return &*it;
+  auto* entry = &*it;
+  if (auto channel = entry->channel.Lock()) {
+    auto ep = channel->endpoint();
+    if (ep) {
+      auto const ep_str = Format("{}", *ep);
+      AE_EXP_LC("ServerConnection", 0, this, 0, "TopChannel", "endpoint=%s",
+                ep_str.c_str());
+    } else {
+      AE_EXP_LC("ServerConnection", 0, this, 0, "TopChannel", "selected");
+    }
+  } else {
+    AE_EXP_LC("ServerConnection", 0, this, 0, "TopChannel", "selected");
+  }
+  return entry;
 }
 
 void ServerConnection::SelectChannel() {
@@ -137,6 +153,7 @@ void ServerConnection::SelectChannel() {
     return;
   }
 
+  AE_EXP_LC("ServerConnection", 0, this, 0, "SelectChannel", "start");
   AE_TELED_DEBUG("Select channel");
   auto* top = TopChannel();
   if (top == nullptr) {
@@ -211,11 +228,29 @@ void ServerConnection::ChannelUpdated(ChannelEntry& new_channel,
   // now it's safe to write to server stream_
   stream_info_.link_state = LinkState::kLinked;
   stream_info_.is_writable = true;
+  if (auto ep = channel->endpoint()) {
+    auto const ep_str = Format("{}", *ep);
+    AE_EXP_LC("ServerConnection", 0, this, 0, "ChannelUpdated",
+              "writable=1 endpoint=%s", ep_str.c_str());
+  } else {
+    AE_EXP_LC("ServerConnection", 0, this, 0, "ChannelUpdated", "writable=1");
+  }
   stream_update_event_.Emit();
 }
 
 void ServerConnection::ChannelBuildFailed(ChannelEntry& attempted_channel) {
   AE_TELED_ERROR("SERVER_CHANNEL_BUILD_FAILED");
+  if (auto channel = attempted_channel.channel.Lock()) {
+    if (auto ep = channel->endpoint()) {
+      auto const ep_str = Format("{}", *ep);
+      AE_EXP_LC("ServerConnection", 0, this, 0, "ChannelBuildFailed",
+                "endpoint=%s", ep_str.c_str());
+    } else {
+      AE_EXP_LC("ServerConnection", 0, this, 0, "ChannelBuildFailed", "");
+    }
+  } else {
+    AE_EXP_LC("ServerConnection", 0, this, 0, "ChannelBuildFailed", "");
+  }
   channel_stream_update_sub_.Reset();
   channel_stream_out_data_sub_.Reset();
   stream_info_.is_writable = false;

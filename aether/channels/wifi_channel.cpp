@@ -31,6 +31,7 @@
 
 #  include "aether/channels/ethernet_transport_factory.h"
 
+#  include "aether/ae_exp_diag.h"
 #  include "aether/tele.h"
 
 namespace ae {
@@ -206,6 +207,9 @@ TransportBuildSender WifiChannel::TransportBuilder() {
   assert(poller && "Poller is not loaded");
   assert(access_point && "Access point is not loaded");
 
+  auto const endpoint_str = Format("{}", address);
+  AE_EXP_LC("WifiChannel", 0, this, 0, "TransportBuilder", "%s",
+            endpoint_str.c_str());
   AE_TELED_DEBUG("Make transport builder for {}", address);
 
   return wifi_channel_internal::MakeTransportBuilder(*aether_, resolver, poller,

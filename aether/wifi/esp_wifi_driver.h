@@ -21,6 +21,7 @@
 
 #if (defined(ESP_PLATFORM)) && AE_SUPPORT_WIFIS && AE_ENABLE_ESP32_WIFI
 #  define ESP_WIFI_DRIVER_ENABLED 1
+#  include <cstdint>
 #  include <optional>
 
 #  include "freertos/FreeRTOS.h"
@@ -70,6 +71,14 @@ class EspWifiDriver final : public WifiDriver {
 
   std::optional<std::string> connected_to() const override;
 
+  std::uint32_t ExpId() const {
+#  if defined(AE_EXP_DIAG)
+    return exp_id_;
+#  else
+    return 0;
+#  endif
+  }
+
  private:
   void Init();
   static void InitNvs();
@@ -95,6 +104,9 @@ class EspWifiDriver final : public WifiDriver {
 
   // driver could be initialized only once
   void* espt_init_sta_ = nullptr;
+#  if defined(AE_EXP_DIAG)
+  std::uint32_t exp_id_{};
+#  endif
 };
 }  // namespace ae
 #endif

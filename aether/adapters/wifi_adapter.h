@@ -27,6 +27,10 @@
 #  include "aether/adapters/parent_wifi.h"
 #  include "aether/access_points/wifi_access_point.h"
 
+#  if defined(AE_EXP_DIAG)
+#    include <cstdint>
+#  endif
+
 namespace ae {
 
 class WifiAdapter final : public ParentWifiAdapter {
@@ -45,9 +49,20 @@ class WifiAdapter final : public ParentWifiAdapter {
 
   WifiDriver& driver();
 
+  std::uint32_t ExpId() const {
+#  if defined(AE_EXP_DIAG)
+    return exp_id_;
+#  else
+    return 0;
+#  endif
+  }
+
  private:
   std::unique_ptr<WifiDriver> wifi_driver_;
   std::vector<AccessPoint::ptr> access_points_;
+#  if defined(AE_EXP_DIAG)
+  std::uint32_t exp_id_{};
+#  endif
 };
 }  // namespace ae
 #endif

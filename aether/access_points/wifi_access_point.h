@@ -22,6 +22,10 @@
 #include "aether/config.h"
 
 #if AE_SUPPORT_WIFIS
+#  if defined(AE_EXP_DIAG)
+#    include <cstdint>
+#  endif
+
 #  include "aether/actions/action.h"
 #  include "aether/ae_context.h"
 #  include "aether/events/events.h"
@@ -48,6 +52,14 @@ class WifiConnectAction final : public Action {
 
   ConnectionEvent::Subscriber connection_event();
 
+  std::uint32_t ExpId() const {
+#  if defined(AE_EXP_DIAG)
+    return exp_id_;
+#  else
+    return 0;
+#  endif
+  }
+
  private:
   void EnsureConnected();
   void Connect();
@@ -62,6 +74,9 @@ class WifiConnectAction final : public Action {
   ConnectionEvent connection_event_;
   TaskSubscription scheduler_sub_;
   Subscription connect_sub_;
+#  if defined(AE_EXP_DIAG)
+  std::uint32_t exp_id_{};
+#  endif
 };
 
 class WifiAccessPoint final : public AccessPoint {

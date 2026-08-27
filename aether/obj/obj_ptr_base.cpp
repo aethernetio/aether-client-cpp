@@ -19,6 +19,7 @@
 #include "aether/obj/domain.h"
 #include "aether/obj/obj.h"
 #include "aether/obj/obj_id.h"
+#include "aether/ae_exp_diag.h"
 
 namespace ae {
 
@@ -78,7 +79,17 @@ Ptr<Obj> const& ObjectPtrBase::LoadCached() const {
 
 void ObjectPtrBase::Save() const {
   if (cached_) {
+#if defined(AE_EXP_DIAG)
+    auto const t0 = AeExpNowUs();
+    AE_EXP_SAVE("begin", "obj_id=%lu",
+                static_cast<unsigned long>(id_.id()));
+#endif
     DomainGraph{domain_}.SaveRoot(cached_, id_);
+#if defined(AE_EXP_DIAG)
+    AE_EXP_SAVE("end", "obj_id=%lu duration_us=%lld",
+                static_cast<unsigned long>(id_.id()),
+                static_cast<long long>(AeExpNowUs() - t0));
+#endif
   }
 }
 

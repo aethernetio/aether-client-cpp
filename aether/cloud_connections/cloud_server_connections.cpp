@@ -25,6 +25,7 @@
 #include "aether/server_connections/server_connection.h"
 
 #include "aether/cloud_connections/cloud_connections_tele.h"  // IWYU pragma: keep
+#include "aether/ae_exp_diag.h"
 
 namespace ae {
 #if DEBUG
@@ -186,6 +187,8 @@ bool CloudServerConnections::QuarantineServer(
   if (server_connection.quarantine()) {
     return false;
   }
+  AE_EXP_LC("CloudServerConnections", 0, this, 0, "quarantine",
+            "server_id=%u", static_cast<unsigned>(server_connection.server_id()));
   AE_TELED_DEBUG("CLOUD_SERVER_QUARANTINED server_id={} priority={}",
                  server_connection.server_id(), server_connection.priority());
   UnsubscribeFromServerState(server_connection);
@@ -236,6 +239,8 @@ void CloudServerConnections::ReleaseQuarantinedServer(
   }
   AE_TELED_DEBUG("CLOUD_SERVER_RELEASED server_id={} priority={}",
                  server_connection.server_id(), server_connection.priority());
+  AE_EXP_LC("CloudServerConnections", 0, this, 0, "Disconnect",
+            "server_id=%u", static_cast<unsigned>(server_connection.server_id()));
   server_connection.Disconnect();
   auto const first_quarantined =
       std::find_if(all_servers_.begin(), all_servers_.end(),
@@ -291,6 +296,8 @@ void CloudServerConnections::ReconcileServers() {
     }
     AE_TELED_DEBUG("CLOUD_SERVER_CONNECT_ATTEMPT server_id={} priority={}",
                    candidate->server_id(), candidate->priority());
+    AE_EXP_LC("CloudServerConnections", 0, this, 0, "Connect",
+              "server_id=%u", static_cast<unsigned>(candidate->server_id()));
 
     if (!candidate->Connect() || !SubscribeToServerState(*candidate)) {
       AE_TELED_DEBUG(

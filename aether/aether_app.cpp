@@ -382,9 +382,13 @@ std::unique_ptr<AetherApp> AetherApp::Construct(AetherAppContext context) {
 
 AetherApp::~AetherApp() {
   // save aether_ state on exit
+#if defined(AE_EXP_SKIP_DTOR_SAVE)
+  // Experiment harness already called Save() explicitly; skip duplicate.
+#else
   if (aether_) {
     aether_.Save();
   }
+#endif
 
   // reset telemetry before delete all objects
   TELE_SINK::Instance().SetTrap(nullptr);
