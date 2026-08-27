@@ -23,6 +23,8 @@
 #include <optional>
 
 #include "aether/clock.h"
+#include "aether/config.h"
+#include "aether/receive_schedule.h"
 
 namespace ae {
 
@@ -51,6 +53,23 @@ inline Duration ClampPingSendGuard(Duration guard,
   return guard > max_guard ? max_guard : guard;
 }
 
+#ifdef AE_PING_GUARD_OVERRIDE_US
+inline Duration ResolvePingSendGuard(Duration min_rtt, Duration p99_rtt,
+                                     Duration ping_interval) noexcept {
+  (void)min_rtt;
+  (void)p99_rtt;
+  auto const fixed =
+      Duration{static_cast<Duration::rep>(AE_PING_GUARD_OVERRIDE_US)};
+  return ClampPingSendGuard(fixed, ping_interval);
+}
+#else
+inline Duration ResolvePingSendGuard(Duration min_rtt, Duration p99_rtt,
+                                     Duration ping_interval) noexcept {
+  return ClampPingSendGuard(ComputePingSendGuard(min_rtt, p99_rtt),
+                            ping_interval);
+}
+#endif
+
 // Empty stats: min = p99 = 200ms → guard = 10ms.
 // One sample: min == p99 → guard = 10ms.
 template <typename Stats>
@@ -64,8 +83,7 @@ inline Duration ComputePingSendGuardFromStats(
     min_rtt = stats.min();
     p99_rtt = stats.template percentile<99>();
   }
-  return ClampPingSendGuard(ComputePingSendGuard(min_rtt, p99_rtt),
-                            ping_interval);
+  return ResolvePingSendGuard(min_rtt, p99_rtt, ping_interval);
 }
 
 inline Duration SaturatingSubDurationValue(Duration a, Duration b) noexcept {
@@ -81,8 +99,60 @@ inline Duration SaturatingSubDurationValue(Duration a, Duration b) noexcept {
 
 inline Duration SaturatingAddDuration(Duration a, Duration b) noexcept;
 
+inline Duration SaturatingMulDuration(Duration d,
+                                      std::uint32_t factor) noexcept {
+  if (factor == 0 || d.count() <= 0) {
+    return Duration{};
+  }
+  auto const max = Duration::max();
+  std::uint64_t acc = static_cast<std::uint64_t>(d.count());
+  auto const step = static_cast<std::uint64_t>(d.count());
+  auto const max_count = static_cast<std::uint64_t>(max.count());
+  for (std::uint32_t i = 1; i < factor; ++i) {
+    if (acc > max_count - step) {
+      return max;
+    }
+    acc += step;
+  }
+  if (acc > max_count) {
+    return max;
+  }
+  return Duration{static_cast<Duration::rep>(acc)};
+}
+
+inline Duration DivideDurationFloor(Duration total,
+                                    std::uint32_t divisor) noexcept {
+  if (divisor == 0 || total.count() <= 0) {
+    return Duration{};
+  }
+  return Duration{static_cast<Duration::rep>(total.count() / divisor)};
+}
+
+inline bool CanSchedulePreDeadlineSameCycleRetry(
+    TimePoint now, TimePoint contract_deadline, std::uint32_t attempt_index,
+    std::uint8_t pre_deadline_retry_count) noexcept {
+  if (contract_deadline == TimePoint{} || now >= contract_deadline) {
+    return true;
+  }
+  return attempt_index <= pre_deadline_retry_count;
+}
+
+inline void IncrementLogicalPingAttemptIndex(
+    std::uint32_t& attempt_index) noexcept {
+  if (attempt_index < std::numeric_limits<std::uint32_t>::max()) {
+    ++attempt_index;
+  }
+}
+
 inline constexpr Duration kPingSchedulerMargin =
     std::chrono::duration_cast<Duration>(std::chrono::milliseconds{10});
+// Fixed allowance for local timeout-to-retry dispatch/scheduling latency.
+// Network uncertainty is accounted for separately by RTT p99 and the ping
+// guard. Sized from first-request-loss p99 characterization (combined
+// required-extra p99 ~40ms, observed max ~48ms); raised to 60ms after a
+// residual ~3ms TCP outlier at 50ms.
+inline constexpr Duration kPingRetryDispatchMargin =
+    std::chrono::duration_cast<Duration>(std::chrono::milliseconds{60});
 inline constexpr Duration kPingMinLossTimeout =
     std::chrono::duration_cast<Duration>(std::chrono::milliseconds{50});
 inline constexpr Duration kPingP99TimeoutMargin =
@@ -95,11 +165,13 @@ struct PingRetryBudgetInput {
   Duration guard{};
   Duration raw_timeout{};
   Duration p99_rtt{};
+  std::uint8_t retry_count{kDefaultPingRetryCount};
 };
 
 struct PingRetryBudget {
   Duration retry_one_way_budget{};
   Duration scheduler_margin{};
+  Duration retry_dispatch_margin{};
   Duration loss_timeout{};
   Duration retry_reserve{};
   Duration attempt_lead{};
@@ -107,12 +179,19 @@ struct PingRetryBudget {
   bool predeadline_retry_guaranteed{true};
 };
 
-// loss_timeout = max(raw, p99+10ms, 50ms), capped so one retry can still
+// loss_timeout = max(raw, p99+10ms, 50ms), capped so N retries can still
 // finish before Tn when the interval allows it.
+// retry_reserve = N*loss_timeout + p99/2 + N*scheduler_margin
+//                 + N*retry_dispatch_margin
+//               ≈ (N + 0.5)*p99 + N*D + N*scheduler (when uncapped)
+// attempt_lead = guard + retry_reserve
 inline PingRetryBudget ComputePingRetryBudget(
     PingRetryBudgetInput const& in) noexcept {
   PingRetryBudget out{};
+  auto const retry_count =
+      in.retry_count > kMaxPingRetryCount ? kMaxPingRetryCount : in.retry_count;
   out.scheduler_margin = kPingSchedulerMargin;
+  out.retry_dispatch_margin = kPingRetryDispatchMargin;
   out.retry_one_way_budget = in.p99_rtt / 2;
 
   Duration loss = in.raw_timeout;
@@ -127,6 +206,10 @@ inline PingRetryBudget ComputePingRetryBudget(
 
   auto const one_ms =
       std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1});
+  auto const scheduler_total =
+      SaturatingMulDuration(out.scheduler_margin, retry_count);
+  auto const dispatch_total =
+      SaturatingMulDuration(out.retry_dispatch_margin, retry_count);
   auto remaining = in.interval;
   auto subtract_ok = [&](Duration d) {
     if (d.count() == 0) {
@@ -139,20 +222,32 @@ inline PingRetryBudget ComputePingRetryBudget(
     remaining = SaturatingSubDurationValue(remaining, d);
     return remaining.count() > 0;
   };
-  bool const budget_fits = subtract_ok(in.guard) &&
-                           subtract_ok(out.retry_one_way_budget) &&
-                           subtract_ok(out.scheduler_margin) &&
-                           subtract_ok(one_ms);
-  out.max_timeout_for_predeadline_retry = remaining;
-  out.predeadline_retry_guaranteed =
-      budget_fits && remaining.count() > 0;
-  if (out.predeadline_retry_guaranteed && loss > remaining) {
-    loss = remaining;
+  bool budget_fits = subtract_ok(in.guard) &&
+                     subtract_ok(out.retry_one_way_budget);
+  if (retry_count > 0) {
+    budget_fits = budget_fits && subtract_ok(scheduler_total) &&
+                  subtract_ok(dispatch_total);
+  }
+  budget_fits = budget_fits && subtract_ok(one_ms);
+  if (retry_count > 0) {
+    out.max_timeout_for_predeadline_retry =
+        DivideDurationFloor(remaining, retry_count);
+    out.predeadline_retry_guaranteed = budget_fits && remaining.count() > 0;
+    if (out.predeadline_retry_guaranteed &&
+        loss > out.max_timeout_for_predeadline_retry) {
+      loss = out.max_timeout_for_predeadline_retry;
+    }
+  } else {
+    out.max_timeout_for_predeadline_retry = Duration{};
+    out.predeadline_retry_guaranteed = budget_fits;
   }
   out.loss_timeout = loss.count() == 0 ? kPingMinLossTimeout : loss;
+  auto const loss_total = SaturatingMulDuration(out.loss_timeout, retry_count);
   out.retry_reserve = SaturatingAddDuration(
-      SaturatingAddDuration(out.loss_timeout, out.retry_one_way_budget),
-      out.scheduler_margin);
+      SaturatingAddDuration(
+          SaturatingAddDuration(loss_total, out.retry_one_way_budget),
+          scheduler_total),
+      dispatch_total);
   out.attempt_lead = SaturatingAddDuration(in.guard, out.retry_reserve);
   if (in.interval > one_ms) {
     auto const max_lead = SaturatingSubDurationValue(in.interval, one_ms);
@@ -173,22 +268,21 @@ inline PingRetryBudget ComputePingRetryBudget(
 
 template <typename Stats>
 inline PingRetryBudget ComputePingRetryBudgetFromStats(
-    Stats const& stats, Duration ping_interval,
-    Duration raw_timeout) noexcept {
+    Stats const& stats, Duration ping_interval, Duration raw_timeout,
+    std::uint8_t retry_count = kDefaultPingRetryCount) noexcept {
   Duration p99_rtt = kPingRttEstimate;
   Duration min_rtt = kPingRttEstimate;
   if (!stats.empty()) {
     min_rtt = stats.min();
     p99_rtt = stats.template percentile<99>();
   }
-  auto const guard =
-      ClampPingSendGuard(ComputePingSendGuard(min_rtt, p99_rtt), ping_interval);
+  auto const guard = ResolvePingSendGuard(min_rtt, p99_rtt, ping_interval);
   Duration raw = raw_timeout;
   if (raw.count() == 0) {
     raw = kPingRttEstimate;
   }
-  return ComputePingRetryBudget(
-      PingRetryBudgetInput{ping_interval, guard, raw, p99_rtt});
+  return ComputePingRetryBudget(PingRetryBudgetInput{
+      ping_interval, guard, raw, p99_rtt, retry_count});
 }
 
 inline Duration SaturatingAddDuration(Duration a, Duration b) noexcept {
@@ -582,7 +676,7 @@ inline LogicalPingAttemptView ApplyLogicalPingAttempt(
       st.next_nominal_ping_at = req.actual_send_at;
       st.bootstrap = false;
     } else {
-      st.attempt_index += 1;
+      IncrementLogicalPingAttemptIndex(st.attempt_index);
       st.current_attempt_timed_out = false;
       st.awaiting_relink_retry = false;
     }
@@ -626,7 +720,7 @@ inline LogicalPingAttemptView ApplyLogicalPingAttempt(
     st.next_local_send_at =
         SaturatingSubDuration(st.next_nominal_ping_at, lead);
   } else {
-    st.attempt_index += 1;
+    IncrementLogicalPingAttemptIndex(st.attempt_index);
     st.current_attempt_timed_out = false;
     st.awaiting_relink_retry = false;
     if (req.actual_send_at >= st.next_nominal_ping_at) {

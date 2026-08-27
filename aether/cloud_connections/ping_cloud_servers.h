@@ -131,6 +131,7 @@ class PingCloudServers {
     LogicalPingCycleState& Cycle();
     void ConfirmCycleAndScheduleNext();
     void ScheduleSameCycleRetry(bool restream_first);
+    void ScheduleSameCycleRetryWithPreDeadlinePolicy(bool restream_first);
     bool ChannelLinkedAndWritable() const;
 
     AeContext ae_context_;

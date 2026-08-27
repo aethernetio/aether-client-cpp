@@ -151,6 +151,8 @@ Result<std::monostate, int> Client::SetReceiveSchedule(ReceiveSchedule schedule)
   connectivity_policy_keep_alive_->ConfigureRxTimings().ForAllPriorities(
       RxTimingConf{.interval = schedule.ping_interval,
                    .rx_window = schedule.receive_window});
+  connectivity_policy_keep_alive_->set_ping_retry_count(
+      schedule.ping_retry_count);
   // Persist so a later Load() in cloud_connection() cannot revive defaults.
   connectivity_policy_.Save();
   return Ok{std::monostate{}};
@@ -164,13 +166,13 @@ Result<std::monostate, int> Client::SetReceiveSchedule(ReceiveSchedule schedule)
   }
   query_peer_receive_schedule_ =
       std::make_unique<::ae::QueryPeerReceiveSchedule>(
-          AeContext{*aether_.Load().as<Aether>()}, *this, peer_uid);
+          AeContext{*aether_}, *this, peer_uid);
   return *query_peer_receive_schedule_;
 }
 
 ::ae::AnnounceNextPingUnknown& Client::AnnounceNextPingUnknown() {
   announce_next_ping_unknown_ = std::make_unique<::ae::AnnounceNextPingUnknown>(
-      AeContext{*aether_.Load().as<Aether>()}, *this);
+      AeContext{*aether_}, *this);
   return *announce_next_ping_unknown_;
 }
 

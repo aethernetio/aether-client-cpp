@@ -20,6 +20,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <limits>
 #include <type_traits>
 #include <variant>
 
@@ -159,18 +160,55 @@ auto PingCloudServers::ServerPing::MakePing() {
             min_rtt = response_stats.min();
             p99_rtt = response_stats.template percentile<99>();
           }
-          auto const guard = ClampPingSendGuard(
-              ComputePingSendGuard(min_rtt, p99_rtt), timing_conf_.interval);
+          auto const guard = ResolvePingSendGuard(min_rtt, p99_rtt,
+                                                  timing_conf_.interval);
           auto const budget = ComputePingRetryBudget(PingRetryBudgetInput{
-              timing_conf_.interval, guard, c->ResponseTimeout(), p99_rtt});
+              timing_conf_.interval,
+              guard,
+              c->ResponseTimeout(),
+              p99_rtt,
+              policy_->ping_retry_count()});
 
           if (required_rx_until_.has_value() &&
               *required_rx_until_ <= Now() && !local_rx_.open) {
             required_rx_until_.reset();
           }
 
-          auto const actual_send_at = Now();
           auto& st = Cycle();
+#if AE_ENABLE_PING_TEST_FAULTS
+          // Test-only: hold a same-cycle retry until a coordinator-chosen
+          // send time relative to the original nominal Tn. Does not run when
+          // no hold plan is armed.
+          if (st.active && !st.confirmed && !announce_unknown_) {
+            auto const next_attempt = st.attempt_index + 1;
+            auto const hold_us = PingTestFaults::Instance().RetryHoldOffsetUs(
+                cloud_sc_->server_id(), st.cycle_id, next_attempt);
+            if (hold_us.has_value() && st.nominal_ping_at != TimePoint{}) {
+              TimePoint target = st.nominal_ping_at;
+              if (*hold_us >= 0) {
+                target = SaturatingAddTime(
+                    st.nominal_ping_at,
+                    Duration{static_cast<Duration::rep>(*hold_us)});
+              } else {
+                auto mag = static_cast<std::uint64_t>(-*hold_us);
+                auto const max_rep = static_cast<std::uint64_t>(
+                    std::numeric_limits<Duration::rep>::max());
+                if (mag > max_rep) {
+                  mag = max_rep;
+                }
+                target = SaturatingSubDuration(
+                    st.nominal_ping_at,
+                    Duration{static_cast<Duration::rep>(mag)});
+              }
+              if (Now() < target) {
+                start_sub_ = ae_context_.scheduler().DelayedTask(
+                    [this]() { Start(); }, target);
+                return ex::set_value(std::move(ctx.receiver));
+              }
+            }
+          }
+#endif
+          auto const actual_send_at = Now();
           if (!announce_unknown_ && owner_->auto_ping_enabled_ &&
               st.confirmed && actual_send_at < st.next_local_send_at) {
             return ex::set_value(std::move(ctx.receiver));
@@ -395,14 +433,14 @@ void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
             EmitTrace(PingTraceKind::kResult, 2);
             // Keep the RX window open: a late pong or same-cycle retry still
             // needs it. Closing here drops the next attempt's response.
-            ScheduleSameCycleRetry(false);
+            ScheduleSameCycleRetryWithPreDeadlinePolicy(false);
             return;
           }
           if (value.error == 1) {
             MaybeCloseAfterWriteFailure();
             st.required_rx_until = required_rx_until_.value_or(TimePoint{});
             EmitTrace(PingTraceKind::kResult, 1);
-            ScheduleSameCycleRetry(true);
+            ScheduleSameCycleRetryWithPreDeadlinePolicy(true);
             return;
           }
           if (announce_unknown_) {
@@ -579,6 +617,35 @@ bool PingCloudServers::ServerPing::ChannelLinkedAndWritable() const {
   }
   auto const info = cc->stream_info();
   return info.link_state == LinkState::kLinked && info.is_writable;
+}
+
+void PingCloudServers::ServerPing::ScheduleSameCycleRetryWithPreDeadlinePolicy(
+    bool restream_first) {
+  if (stop_) {
+    return;
+  }
+  if (announce_unknown_) {
+    ScheduleSameCycleRetry(restream_first);
+    return;
+  }
+  auto& st = Cycle();
+  auto const now = Now();
+  auto const deadline = st.next_nominal_ping_at;
+  if (CanSchedulePreDeadlineSameCycleRetry(now, deadline, st.attempt_index,
+                                           policy_->ping_retry_count())) {
+    ScheduleSameCycleRetry(restream_first);
+    return;
+  }
+  if (deadline != TimePoint{} && now < deadline) {
+    EmitTrace(PingTraceKind::kRetryScheduled);
+    start_sub_ = ae_context_.scheduler().DelayedTask(
+        [this, restream_first]() {
+          ScheduleSameCycleRetry(restream_first);
+        },
+        deadline);
+    return;
+  }
+  ScheduleSameCycleRetry(restream_first);
 }
 
 void PingCloudServers::ServerPing::ScheduleSameCycleRetry(bool restream_first) {

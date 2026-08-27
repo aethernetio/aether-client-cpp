@@ -17,15 +17,22 @@
 #ifndef AETHER_RECEIVE_SCHEDULE_H_
 #define AETHER_RECEIVE_SCHEDULE_H_
 
+#include <cstdint>
 #include <optional>
 
 #include "aether/clock.h"
 
 namespace ae {
 
+inline constexpr std::uint8_t kDefaultPingRetryCount = 0;
+inline constexpr std::uint8_t kMaxPingRetryCount = 8;
+
 struct ReceiveSchedule {
   Duration ping_interval{};
   Duration receive_window{};
+  // Additional same-cycle retries reserved in the pre-deadline send budget
+  // before Tn. Does not cap post-deadline recovery retries after Tn.
+  std::uint8_t ping_retry_count{kDefaultPingRetryCount};
 };
 
 enum class PeerScheduleState {

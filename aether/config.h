@@ -300,6 +300,12 @@
 #  define AE_PING_INTERVAL_MS AE_DEFAULT_RESPONSE_TIMEOUT_MS + 1000
 #endif
 
+// Optional fixed ping send guard in microseconds. When defined, overrides the
+// dynamic ComputePingSendGuard() result. When undefined, production uses the
+// dynamic guard. Defining this macro to 0 means a fixed zero guard, not
+// "override disabled".
+// #define AE_PING_GUARD_OVERRIDE_US 10000
+
 // window size for safe stream response time statistics
 #ifndef AE_STATISTICS_SAFE_STREAM_WINDOW_SIZE
 #  define AE_STATISTICS_SAFE_STREAM_WINDOW_SIZE 100

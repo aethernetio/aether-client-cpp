@@ -223,7 +223,7 @@ void ClientCloudManager::StartCloudUpdateListener() {
 
 void ClientCloudManager::ListenForCloudUpdate() {
   auto client = client_.Load();
-  assert(client != nullptr && "Client does not loaded");
+  assert(client && "Client does not loaded");
 
   cloud_update_sub_ = CloudEventListener{
       ApiEventSubscriber{[this](ClientApiSafe& client_api,

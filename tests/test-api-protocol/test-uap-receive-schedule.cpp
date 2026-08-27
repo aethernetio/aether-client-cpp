@@ -565,26 +565,116 @@ void test_PingRetryBudgetEmptyStats() {
   TEST_ASSERT_TRUE(budget.scheduler_margin == Ms(10));
   TEST_ASSERT_TRUE(budget.retry_one_way_budget == Ms(100));
   TEST_ASSERT_TRUE(budget.loss_timeout == Ms(210));
+  TEST_ASSERT_TRUE(budget.retry_reserve == Ms(100));
+  TEST_ASSERT_TRUE(budget.attempt_lead == Ms(110));
   TEST_ASSERT_TRUE(budget.predeadline_retry_guaranteed);
   TEST_ASSERT_TRUE(budget.loss_timeout.count() > 0);
+}
+
+void test_DefaultPingRetryCountIsZero() {
+  TEST_ASSERT_EQUAL_UINT(0, kDefaultPingRetryCount);
+  ReceiveSchedule schedule{};
+  TEST_ASSERT_EQUAL_UINT(0, schedule.ping_retry_count);
+}
+
+void test_PingRetryBudgetN0LeadIsGuardPlusHalfP99() {
+  auto const guard = ResolvePingSendGuard(Ms(80), Ms(80), Ms(1000));
+  auto const budget = ComputePingRetryBudget(PingRetryBudgetInput{
+      Ms(1000), guard, Ms(5000), Ms(80), /*retry_count=*/0});
+  TEST_ASSERT_TRUE(guard == Ms(10));
+  TEST_ASSERT_TRUE(budget.loss_timeout == Ms(5000));
+  TEST_ASSERT_TRUE(budget.retry_reserve == Ms(40));
+  TEST_ASSERT_TRUE(budget.attempt_lead == Ms(50));
+}
+
+void test_PingRetryBudgetN1PreDeadlineRetry() {
+  auto const guard = ComputePingSendGuard(Ms(60), Ms(100));
+  auto const budget = ComputePingRetryBudget(PingRetryBudgetInput{
+      Ms(1000), guard, Ms(100), Ms(100), /*retry_count=*/1});
+  TEST_ASSERT_TRUE(budget.retry_one_way_budget == Ms(50));
+  TEST_ASSERT_TRUE(budget.loss_timeout == Ms(110));
+  TEST_ASSERT_TRUE(budget.retry_dispatch_margin == Ms(60));
+  TEST_ASSERT_TRUE(budget.retry_reserve == Ms(230));
+  TEST_ASSERT_TRUE(budget.attempt_lead == Ms(260));
+  TEST_ASSERT_TRUE(budget.predeadline_retry_guaranteed);
+}
+
+void test_PingRetryBudgetN2PreDeadlineRetry() {
+  auto const guard = Ms(10);
+  auto const budget = ComputePingRetryBudget(PingRetryBudgetInput{
+      Ms(1000), guard, Ms(100), Ms(100), /*retry_count=*/2});
+  TEST_ASSERT_TRUE(budget.retry_reserve ==
+                   Ms(110 + 110 + 50 + 10 + 10 + 60 + 60));
+  TEST_ASSERT_TRUE(budget.attempt_lead == Ms(10) + budget.retry_reserve);
+}
+
+void test_PreDeadlineRetryCountExhaustion() {
+  auto const deadline = TimePoint{} + Ms(1000);
+  TEST_ASSERT_FALSE(CanSchedulePreDeadlineSameCycleRetry(
+      TimePoint{} + Ms(500), deadline, 1, 0));
+  TEST_ASSERT_TRUE(CanSchedulePreDeadlineSameCycleRetry(
+      TimePoint{} + Ms(500), deadline, 1, 1));
+  TEST_ASSERT_FALSE(CanSchedulePreDeadlineSameCycleRetry(
+      TimePoint{} + Ms(500), deadline, 2, 1));
+  TEST_ASSERT_TRUE(CanSchedulePreDeadlineSameCycleRetry(
+      TimePoint{} + Ms(500), deadline, 2, 2));
+  TEST_ASSERT_FALSE(CanSchedulePreDeadlineSameCycleRetry(
+      TimePoint{} + Ms(500), deadline, 3, 2));
+}
+
+void test_PostDeadlineRetryAllowedAfterZeroPreDeadlineBudget() {
+  auto const deadline = TimePoint{} + Ms(1000);
+  TEST_ASSERT_TRUE(CanSchedulePreDeadlineSameCycleRetry(
+      TimePoint{} + Ms(1000), deadline, 1, 0));
+  TEST_ASSERT_TRUE(CanSchedulePreDeadlineSameCycleRetry(
+      TimePoint{} + Ms(1500), deadline, 5, 0));
+}
+
+void test_PostDeadlineRecoveryKeepsLogicalCycleAndPhase() {
+  LogicalPingCycleState st{};
+  LogicalPingAttemptRequest req{};
+  req.interval = Ms(1000);
+  req.guard = Ms(10);
+  req.attempt_lead = Ms(50);
+  req.base_rx_window = Ms(250);
+  req.actual_send_at = TimePoint{};
+  auto const boot = ApplyLogicalPingAttempt(st, req);
+  ConfirmLogicalPingCycle(st);
+  req.actual_send_at = boot.next_local_send;
+  auto const first = ApplyLogicalPingAttempt(st, req);
+  TEST_ASSERT_TRUE(first.nominal_ping_at == TimePoint{} + Ms(1000));
+  req.actual_send_at = TimePoint{} + Ms(1100);
+  auto const retry = ApplyLogicalPingAttempt(st, req);
+  TEST_ASSERT_TRUE(retry.cycle_id == first.cycle_id);
+  TEST_ASSERT_TRUE(retry.attempt_index == 2U);
+  TEST_ASSERT_TRUE(retry.contract_deadline == TimePoint{} + Ms(2000));
+  TEST_ASSERT_EQUAL_INT64(900, retry.wire_next_connect_ms);
+  ConfirmLogicalPingCycle(st);
+  req.actual_send_at = retry.next_local_send;
+  auto const next = ApplyLogicalPingAttempt(st, req);
+  TEST_ASSERT_TRUE(next.cycle_id > first.cycle_id);
+  TEST_ASSERT_TRUE(next.nominal_ping_at == TimePoint{} + Ms(2000));
 }
 
 void test_PingRetryBudgetRealMinP99() {
   auto const guard = ComputePingSendGuard(Ms(60), Ms(100));
   TEST_ASSERT_TRUE(guard == Ms(30));
-  auto const budget = ComputePingRetryBudget(
-      PingRetryBudgetInput{Ms(1000), guard, Ms(100), Ms(100)});
+  auto const budget = ComputePingRetryBudget(PingRetryBudgetInput{
+      Ms(1000), guard, Ms(100), Ms(100), /*retry_count=*/1});
   TEST_ASSERT_TRUE(budget.retry_one_way_budget == Ms(50));
   TEST_ASSERT_TRUE(budget.loss_timeout == Ms(110));
-  TEST_ASSERT_TRUE(budget.retry_reserve == Ms(170));
-  TEST_ASSERT_TRUE(budget.attempt_lead == Ms(200));
+  TEST_ASSERT_TRUE(budget.retry_dispatch_margin == Ms(60));
+  // loss(110) + one_way(50) + scheduler(10) + dispatch(60) = 230
+  TEST_ASSERT_TRUE(budget.retry_reserve == Ms(230));
+  // guard(30) + retry_reserve(230) = 260
+  TEST_ASSERT_TRUE(budget.attempt_lead == Ms(260));
   TEST_ASSERT_TRUE(budget.predeadline_retry_guaranteed);
 }
 
 void test_PingRetryBudgetOneSecondAllowsRetryWithP99_80() {
   auto const guard = ComputePingSendGuard(Ms(80), Ms(80));
-  auto const budget = ComputePingRetryBudget(
-      PingRetryBudgetInput{Ms(1000), guard, Ms(80), Ms(80)});
+  auto const budget = ComputePingRetryBudget(PingRetryBudgetInput{
+      Ms(1000), guard, Ms(80), Ms(80), /*retry_count=*/1});
   TEST_ASSERT_TRUE(guard == Ms(10));
   TEST_ASSERT_TRUE(budget.loss_timeout == Ms(90));
   TEST_ASSERT_TRUE(budget.attempt_lead < Ms(1000));
@@ -804,6 +894,15 @@ int test_uap_receive_schedule() {
   RUN_TEST(ae::test_uap_receive_schedule::
                test_LogicalPingHundredCyclesNoPhaseDrift);
   RUN_TEST(ae::test_uap_receive_schedule::test_PingRetryBudgetEmptyStats);
+  RUN_TEST(ae::test_uap_receive_schedule::test_DefaultPingRetryCountIsZero);
+  RUN_TEST(ae::test_uap_receive_schedule::test_PingRetryBudgetN0LeadIsGuardPlusHalfP99);
+  RUN_TEST(ae::test_uap_receive_schedule::test_PingRetryBudgetN1PreDeadlineRetry);
+  RUN_TEST(ae::test_uap_receive_schedule::test_PingRetryBudgetN2PreDeadlineRetry);
+  RUN_TEST(ae::test_uap_receive_schedule::test_PreDeadlineRetryCountExhaustion);
+  RUN_TEST(
+      ae::test_uap_receive_schedule::test_PostDeadlineRetryAllowedAfterZeroPreDeadlineBudget);
+  RUN_TEST(
+      ae::test_uap_receive_schedule::test_PostDeadlineRecoveryKeepsLogicalCycleAndPhase);
   RUN_TEST(ae::test_uap_receive_schedule::test_PingRetryBudgetRealMinP99);
   RUN_TEST(ae::test_uap_receive_schedule::
                test_PingRetryBudgetOneSecondAllowsRetryWithP99_80);
