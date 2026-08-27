@@ -192,7 +192,7 @@ void QueryPeerReceiveSchedule::StartQuery() {
 
 void QueryPeerReceiveSchedule::OnServerTiming(
     CloudServerConnection* sc, std::uint64_t send_generation,
-    Result<ClientTiming, int> const& res) {
+    Result<ClientTiming, std::int32_t> const& res) {
   if (finished_ || sc == nullptr) {
     return;
   }

@@ -575,7 +575,7 @@ class QueryPeerReceiveSchedule final : public Action {
   void StartQuery();
   void SnapshotExpectedServers();
   void OnServerTiming(CloudServerConnection* sc, std::uint64_t send_generation,
-                      Result<ClientTiming, int> const& res);
+                      Result<ClientTiming, std::int32_t> const& res);
   void MaybeComplete();
   void Complete(PeerReceiveSchedule const& schedule);
   void Fail(int code);
