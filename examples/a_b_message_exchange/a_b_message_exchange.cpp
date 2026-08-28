@@ -171,7 +171,7 @@ static auto SendMessageBtoA(State* state, int message_num) {
 
 }  // namespace ae::examples
 
-int AetherABMessageExchangeExample() {
+int MessageServerExample() {
   using namespace ae::examples;  // NOLINT
   Log("app.create.start");
   auto aether_app = ae::examples::construct_aether_app();
