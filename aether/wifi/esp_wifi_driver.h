@@ -30,6 +30,7 @@
 #  include "freertos/event_groups.h"
 
 #  include "esp_err.h"
+#  include "esp_event.h"
 #  include "esp_netif_types.h"
 
 #  include "aether/ae_context.h"
@@ -86,6 +87,9 @@ class EspWifiDriver final : public WifiDriver {
 
   void Disconnect();
 
+  void RegisterEventHandlers();
+  void UnregisterEventHandlers();
+
   void ConnectingEventHandler(esp_event_base_t event_base, int32_t event_id,
                               void* event_data);
   void ConnectedEventHandler(esp_event_base_t event_base, int32_t event_id,
@@ -104,6 +108,9 @@ class EspWifiDriver final : public WifiDriver {
 
   // driver could be initialized only once
   void* espt_init_sta_ = nullptr;
+  esp_event_handler_instance_t wifi_handler_inst_{};
+  esp_event_handler_instance_t ip_handler_inst_{};
+  bool event_loop_created_{false};
 #  if defined(AE_EXP_DIAG)
   std::uint32_t exp_id_{};
 #  endif

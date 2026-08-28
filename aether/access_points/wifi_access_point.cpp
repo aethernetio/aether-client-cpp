@@ -28,6 +28,7 @@
 #  include "aether/server.h"
 
 #  include "aether/ae_exp_diag.h"
+#  include "aether/ae_exp_wifi.h"
 #  include "aether/tele.h"
 
 namespace ae {
@@ -87,18 +88,25 @@ void WifiConnectAction::Connect() {
           access_point_->SetWifiBaseStation(std::move(res).value());
           SetConnected(true);
         } else {
+#  if AE_WIFI_USE_BSSID_CACHE
           // retry without base station
           if (base_station_) {
             base_station_.reset();
             scheduler_sub_ = ae_context_.scheduler().Task([&]() { Connect(); });
             return;
           }
+#  endif
           AE_TELED_ERROR("Wifi did not connected with error {}", res.error());
           SetConnected(false);
         }
       });
 
+#  if AE_EXP_WIFI_IGNORE_BSSID
+  // Experiment: keep persisted base_station_ but never use it for connect.
+  driver_->Connect(wifi_ap_, psp_, std::nullopt);
+#  else
   driver_->Connect(wifi_ap_, psp_, base_station_);
+#  endif
 }
 
 void WifiConnectAction::SetConnected(bool is_connected) {

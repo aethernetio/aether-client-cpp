@@ -35,6 +35,7 @@
 #  include "lwip/sys.h"
 
 #  include "aether/ae_exp_diag.h"
+#  include "aether/ae_exp_wifi.h"
 #  include "aether/tele.h"
 
 extern "C" esp_err_t esp_wifi_internal_set_retry_counter(uint8_t short_retry,
@@ -283,6 +284,7 @@ esp_err_t StartWifiConnection(
   esp_err_t err = ESP_OK;
 
   wifi_config_t wifi_config{};
+#  if AE_WIFI_USE_BSSID_CACHE
   if (base_station) {
     // Restore saved Base Station
     auto err = esp_wifi_driver_internal::SetupBssid(wifi_config, *base_station);
@@ -291,7 +293,9 @@ esp_err_t StartWifiConnection(
       // If an error occurs, exit
     }
   }
+#  endif
 
+#  if AE_WIFI_USE_SCAN_THRESHOLD
   wifi_scan_threshold_t wifi_threshold{};
   wifi_threshold.rssi = 0;
   wifi_threshold.authmode = WIFI_AUTH_WPA2_PSK;
@@ -300,6 +304,7 @@ esp_err_t StartWifiConnection(
   if (psp) {
     wifi_config.sta.listen_interval = psp->listen_interval;
   }
+#  endif
 
   esp_wifi_driver_internal::SetupCredentials(wifi_config, wifi_ap.creds);
 
@@ -469,13 +474,16 @@ void EspWifiDriver::Init() {
     AE_EXP_LC("EspWifiDriver", ExpId(), this, 0, "Init_end", "err=event_loop");
     return;
   }
+  event_loop_created_ = true;
 
   espt_init_sta_ = esp_netif_create_default_wifi_sta();
 
   wifi_init_config_t wifi_init_config = WIFI_INIT_CONFIG_DEFAULT();
+#  if AE_WIFI_USE_AMPDU_OFF
   // We disable aggregation so that the packages go out one by one and quickly
   wifi_init_config.ampdu_rx_enable = 0;
   wifi_init_config.ampdu_tx_enable = 0;
+#  endif
 
   err = esp_wifi_init(&wifi_init_config);
   if (err != ESP_OK) {
@@ -485,13 +493,46 @@ void EspWifiDriver::Init() {
     return;
   }
 
+  RegisterEventHandlers();
+  connection_state_ = {};
+  connection_state_.state = State::kDisconnected;
+  AE_EXP_LC("EspWifiDriver", ExpId(), this, 0, "Init_end", "ok");
+}
+
+void EspWifiDriver::RegisterEventHandlers() {
+#  if AE_WIFI_USE_INSTANCE_HANDLERS
+  esp_event_handler_instance_register(
+      WIFI_EVENT, ESP_EVENT_ANY_ID, esp_wifi_driver_internal::EventHandler, this,
+      &wifi_handler_inst_);
+  esp_event_handler_instance_register(
+      IP_EVENT, ESP_EVENT_ANY_ID, esp_wifi_driver_internal::EventHandler, this,
+      &ip_handler_inst_);
+#  else
   esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID,
                              esp_wifi_driver_internal::EventHandler, this);
   esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID,
                              esp_wifi_driver_internal::EventHandler, this);
-  connection_state_ = {};
-  connection_state_.state = State::kDisconnected;
-  AE_EXP_LC("EspWifiDriver", ExpId(), this, 0, "Init_end", "ok");
+#  endif
+}
+
+void EspWifiDriver::UnregisterEventHandlers() {
+#  if AE_WIFI_USE_INSTANCE_HANDLERS
+  if (wifi_handler_inst_ != nullptr) {
+    esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID,
+                                          wifi_handler_inst_);
+    wifi_handler_inst_ = nullptr;
+  }
+  if (ip_handler_inst_ != nullptr) {
+    esp_event_handler_instance_unregister(IP_EVENT, ESP_EVENT_ANY_ID,
+                                          ip_handler_inst_);
+    ip_handler_inst_ = nullptr;
+  }
+#  else
+  esp_event_handler_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID,
+                               esp_wifi_driver_internal::EventHandler);
+  esp_event_handler_unregister(IP_EVENT, ESP_EVENT_ANY_ID,
+                               esp_wifi_driver_internal::EventHandler);
+#  endif
 }
 
 void EspWifiDriver::InitNvs() {
@@ -513,6 +554,20 @@ void EspWifiDriver::InitNvs() {
 
 void EspWifiDriver::Deinit() {
   AE_EXP_LC("EspWifiDriver", ExpId(), this, 0, "Deinit", "");
+#  if AE_WIFI_USE_FULL_DEINIT
+  esp_wifi_disconnect();
+  esp_wifi_stop();
+  UnregisterEventHandlers();
+  esp_wifi_deinit();
+  if (espt_init_sta_ != nullptr) {
+    esp_netif_destroy_default_wifi(static_cast<esp_netif_t*>(espt_init_sta_));
+    espt_init_sta_ = nullptr;
+  }
+  if (event_loop_created_) {
+    esp_event_loop_delete_default();
+    event_loop_created_ = false;
+  }
+#  else
   // Stop before deinit; otherwise a subsequent Construct can see a half-live
   // wifi stack (esp_wifi_init → already initialized) on ESP-IDF v6.
   esp_wifi_stop();
@@ -520,10 +575,8 @@ void EspWifiDriver::Deinit() {
   esp_netif_destroy_default_wifi(static_cast<esp_netif_t*>(espt_init_sta_));
   espt_init_sta_ = nullptr;
 
-  esp_event_handler_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID,
-                               esp_wifi_driver_internal::EventHandler);
-  esp_event_handler_unregister(IP_EVENT, ESP_EVENT_ANY_ID,
-                               esp_wifi_driver_internal::EventHandler);
+  UnregisterEventHandlers();
+#  endif
 }
 
 void EspWifiDriver::Disconnect() {
@@ -547,16 +600,23 @@ void EspWifiDriver::ConnectingEventHandler(esp_event_base_t event_base,
         ESP_LOGD(esp_wifi_driver_internal::kTag,
                  "Wifi event disconnected, reason %d",
                  static_cast<int>(event->reason));
+#  if AE_WIFI_USE_CONNECT_RETRY10
         if (connection_state_.retry_count <
             esp_wifi_driver_internal::kMaxRetry) {
           esp_wifi_connect();
           connection_state_.retry_count++;
-        } else {
+        } else
+#  endif
+        {
+#  if AE_WIFI_USE_FAIL_DISCONNECT
           event_task_sub_ = ae_context_.scheduler().Task([&]() {
             Disconnect();
             // connection failed
             connect_res_event_.Emit(Error(1));
           });
+#  else
+          connect_res_event_.Emit(Error(1));
+#  endif
         }
         break;
       }
@@ -581,14 +641,21 @@ void EspWifiDriver::ConnectingEventHandler(esp_event_base_t event_base,
         // Copy the BSSID to the configuration
         memcpy(base_station.target_bssid, ap_info.bssid,
                sizeof(base_station.target_bssid));
+#  if AE_WIFI_USE_BSSID_CACHE
         ESP_LOGD(esp_wifi_driver_internal::kTag,
                  "Storing to cache BSSID:" MACSTR " CHN:%u",
                  MAC2STR(base_station.target_bssid),
                  static_cast<unsigned>(base_station.target_channel));
+#  endif
 
         connection_state_.state = State::kConnected;
-        event_task_sub_ = ae_context_.scheduler().Task(
-            [&]() { connect_res_event_.Emit(Ok{base_station}); });
+        event_task_sub_ = ae_context_.scheduler().Task([&]() {
+#  if AE_WIFI_USE_BSSID_CACHE
+          connect_res_event_.Emit(Ok{base_station});
+#  else
+          connect_res_event_.Emit(Ok{WiFiBaseStation{}});
+#  endif
+        });
         break;
       }
       default:
