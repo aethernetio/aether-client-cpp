@@ -63,6 +63,17 @@ struct ConnectivityStatus {
   TimePoint next_service_time;
 };
 
+struct LocalConnectivitySnapshot {
+  TimePoint now{};
+  TimePoint last_success{};
+  TimePoint local_online_until{};
+  TimePoint pending_ping_deadline{};
+  std::uint32_t pings_in_flight{};
+  Duration receive_window{};
+  Duration age{};
+  bool online{};
+};
+
 class ClientConnectivityPolicy : public Obj {
   AE_OBJECT(ClientConnectivityPolicy, Obj, 0)
 
@@ -132,10 +143,26 @@ class ClientConnectivityPolicy : public Obj {
   ConnectivityStatus GetStatus() const noexcept;
   void ResetRxTimings();
 
+  // Updated when a cloud ping receives a successful response locally.
+  void ReportSuccessfulCloudResponse(TimePoint at = Now());
+  // Called when a ping is sent; keeps local online through in-flight RTT.
+  void ReportPingDispatched(TimePoint send_time, Duration response_timeout);
+  // Called when a ping completes without a successful cloud response.
+  void ReportPingCompletedWithoutSuccess(TimePoint at = Now());
+  TimePoint last_successful_cloud_response() const noexcept {
+    return last_successful_cloud_response_;
+  }
+  TimePoint local_online_until() const noexcept { return local_online_until_; }
+  // True while a recent successful cloud response is inside the configured
+  // receive window, or while an in-flight ping may still renew it.
+  bool IsLocallyOnline(TimePoint now = Now()) const noexcept;
+  LocalConnectivitySnapshot InspectLocalConnectivity(TimePoint now) const noexcept;
+
   SuspendBlocker AcquireSuspendBlock();
   void ReportNextServiceTime(std::size_t priority, TimePoint next_service_time);
 
  private:
+  Duration MaxReceiveWindow() const noexcept;
   void ResetRuntimeState();
   void IncrementSuspendBlock();
   void DecrementSuspendBlock();
@@ -145,6 +172,10 @@ class ClientConnectivityPolicy : public Obj {
 
   bool can_suspend_{true};
   std::uint8_t suspend_block_count_{};
+  TimePoint last_successful_cloud_response_{};
+  TimePoint local_online_until_{};
+  TimePoint pending_ping_deadline_{};
+  std::uint32_t pings_in_flight_{};
 
   Event<void()> suspend_allowed_event_;
 };

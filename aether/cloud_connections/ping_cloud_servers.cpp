@@ -140,6 +140,7 @@ auto PingCloudServers::ServerPing::MakePing() {
 
           // run ping request and open rx capability at send
           auto const current_time = Now();
+          policy_->ReportPingDispatched(current_time, c->ResponseTimeout());
           ping_->Start(current_time);
           OpenRxWindow();
           if (timing_conf_.interval > Duration{}) {
@@ -218,15 +219,18 @@ void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
         using T = std::decay_t<decltype(value)>;
         if constexpr (std::is_same_v<T, Ok<Duration>>) {
           c->channel_statistics().AddResponseTime(value.value);
+          policy_->ReportSuccessfulCloudResponse(Now());
           ScheduleRxWindowClose(
               ComputeRxWindowCloseTime(Now(), timing_conf_.rx_window));
         } else if constexpr (std::is_same_v<T, Ping::LateDuration>) {
           AE_TELED_DEBUG("Got late ping duration");
           c->channel_statistics().AddResponseTime(value.duration);
+          policy_->ReportSuccessfulCloudResponse(Now());
           ScheduleRxWindowClose(
               ComputeRxWindowCloseTime(Now(), timing_conf_.rx_window));
         } else if constexpr (std::is_same_v<T, Error<int>>) {
           AE_TELED_ERROR("Ping error!");
+          policy_->ReportPingCompletedWithoutSuccess(Now());
           // Error 1 = write failure before/at send: close RX immediately.
           // Other errors (e.g. timeout after write): close at now + window.
           if (value.error == 1) {
@@ -238,6 +242,7 @@ void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
           ScheduleRestream();
         } else {
           AE_TELED_ERROR("Ping error!");
+          policy_->ReportPingCompletedWithoutSuccess(Now());
           ScheduleRxWindowClose(
               ComputeRxWindowCloseTime(Now(), timing_conf_.rx_window));
           ScheduleRestream();

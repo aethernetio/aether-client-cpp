@@ -20,6 +20,7 @@ list(APPEND test_srcs
   test-uap-receive-schedule.cpp
   test-uap-peer-deadline-classify.cpp
   test-uap-peer-timing.cpp
+  test-local-connectivity.cpp
 )
 
 if(NOT CM_PLATFORM)

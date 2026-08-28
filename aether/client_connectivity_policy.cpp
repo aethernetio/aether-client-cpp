@@ -18,14 +18,25 @@
 
 #include <chrono>
 
+#include "aether/cloud_connections/ping_schedule_guard.h"
+
 namespace ae {
 
 namespace {
 constexpr auto kDefaultTiming = RxTiming{
     .conf = RxTimingConf::Every(std::chrono::milliseconds{AE_PING_INTERVAL_MS}),
     .next_rx_point = {},
-    .recordet_at = {}};
-;
+    .recordet_at = {}};;
+
+Duration AgeSince(TimePoint now, TimePoint then) noexcept {
+  if (then == TimePoint{}) {
+    return Duration{};
+  }
+  if (now <= then) {
+    return Duration{};
+  }
+  return std::chrono::duration_cast<Duration>(now - then);
+}
 
 std::array<RxTiming, kMaxRxServerPriorities> MakeDefaultRxTimings() {
   std::array<RxTiming, kMaxRxServerPriorities> timings{};
@@ -115,6 +126,81 @@ void ClientConnectivityPolicy::ResetRxTimings() {
     t.next_rx_point = {};
     t.recordet_at = {};
   }
+  last_successful_cloud_response_ = {};
+  local_online_until_ = {};
+  pending_ping_deadline_ = {};
+  pings_in_flight_ = 0;
+}
+
+void ClientConnectivityPolicy::ReportSuccessfulCloudResponse(TimePoint at) {
+  last_successful_cloud_response_ = at;
+  auto const window = MaxReceiveWindow();
+  local_online_until_ = ComputeRxWindowCloseTime(at, window);
+  if (pings_in_flight_ > 0) {
+    --pings_in_flight_;
+  }
+  if (pings_in_flight_ == 0) {
+    pending_ping_deadline_ = {};
+  }
+}
+
+void ClientConnectivityPolicy::ReportPingDispatched(
+    TimePoint send_time, Duration response_timeout) {
+  ++pings_in_flight_;
+  auto const resolve_at = send_time + response_timeout;
+  if (pending_ping_deadline_ == TimePoint{} ||
+      resolve_at > pending_ping_deadline_) {
+    pending_ping_deadline_ = resolve_at;
+  }
+}
+
+void ClientConnectivityPolicy::ReportPingCompletedWithoutSuccess(TimePoint at) {
+  if (pings_in_flight_ > 0) {
+    --pings_in_flight_;
+  }
+  if (pings_in_flight_ == 0) {
+    pending_ping_deadline_ = {};
+  }
+}
+
+Duration ClientConnectivityPolicy::MaxReceiveWindow() const noexcept {
+  Duration window{};
+  for (auto const& t : rx_timings_) {
+    if (t.conf.rx_window > window) {
+      window = t.conf.rx_window;
+    }
+  }
+  return window;
+}
+
+bool ClientConnectivityPolicy::IsLocallyOnline(TimePoint now) const noexcept {
+  auto const window = MaxReceiveWindow();
+  if (local_online_until_ != TimePoint{} && now < local_online_until_) {
+    return true;
+  }
+  if (pings_in_flight_ > 0 && pending_ping_deadline_ != TimePoint{} &&
+      now < pending_ping_deadline_) {
+    return true;
+  }
+  return false;
+}
+
+LocalConnectivitySnapshot ClientConnectivityPolicy::InspectLocalConnectivity(
+    TimePoint now) const noexcept {
+  auto const window = MaxReceiveWindow();
+  auto const age = AgeSince(now, last_successful_cloud_response_);
+  bool const online = IsLocallyOnline(now);
+  LocalConnectivitySnapshot snapshot{
+      .now = now,
+      .last_success = last_successful_cloud_response_,
+      .local_online_until = local_online_until_,
+      .pending_ping_deadline = pending_ping_deadline_,
+      .pings_in_flight = pings_in_flight_,
+      .receive_window = window,
+      .age = age,
+      .online = online,
+  };
+  return snapshot;
 }
 
 void ClientConnectivityPolicy::ReportNextServiceTime(
@@ -134,6 +220,12 @@ void ClientConnectivityPolicy::ResetRuntimeState() {
       t.next_rx_point = {};
       t.recordet_at = {};
     }
+  }
+  if (current_time < last_successful_cloud_response_) {
+    last_successful_cloud_response_ = {};
+    local_online_until_ = {};
+    pending_ping_deadline_ = {};
+    pings_in_flight_ = 0;
   }
 }
 
