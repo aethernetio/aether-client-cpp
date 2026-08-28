@@ -38,6 +38,7 @@
 #include "aether/dns/esp32_dns_resolve.h"
 
 #include "aether/tele.h"
+#include "aether/ae_exp_save_stats.h"
 #include "aether/tele_compile_options.h"
 // IWYU pragma: end_keeps
 
@@ -367,7 +368,9 @@ std::unique_ptr<AetherApp> AetherApp::Construct(AetherAppContext context) {
   app->aether_->dns_resolver = context.dns_resolver();
 #  endif
 
+  AeExpSaveSetCaller(AeExpSaveCaller::kConstructInternal);
   app->aether_.Save();
+  AeExpSaveSetCaller(AeExpSaveCaller::kNone);
 #endif  // AE_DISTILLATION
 
   // reinit telemetry with tele_statistics object
@@ -386,7 +389,9 @@ AetherApp::~AetherApp() {
   // Experiment harness already called Save() explicitly; skip duplicate.
 #else
   if (aether_) {
+    AeExpSaveSetCaller(AeExpSaveCaller::kDestructor);
     aether_.Save();
+    AeExpSaveSetCaller(AeExpSaveCaller::kNone);
   }
 #endif
 

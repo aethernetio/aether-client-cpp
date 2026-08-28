@@ -51,6 +51,8 @@ class SpiFsDomainStorage : public IDomainStorage {
   DomainLoad Load(DomainQuery const& query) override;
   void Remove(const ae::ObjId& obj_id) override;
   void CleanUp() override;
+  void BeginSaveTransaction() override;
+  void EndSaveTransaction() override;
 
  private:
   void InitFs();
@@ -58,14 +60,19 @@ class SpiFsDomainStorage : public IDomainStorage {
   void InitState();
   void SyncState();
 
-  // update object crc and return should we save object or not
-  bool SaveObject(DomainQuery const& query, DataCrc crc);
+  // True when CRC differs from the committed object_map entry (or missing).
+  bool ObjectCrcChanged(DomainQuery const& query, DataCrc crc) const;
+  // After a successful object-file write: update CRC and mark map dirty.
+  // Flushes map immediately when no SaveRoot transaction is open.
+  void ConfirmObjectWritten(DomainQuery const& query, DataCrc crc);
 
   bool SpifsRead(std::string_view path, ObjectData& out);
   bool SpifsWrite(std::string_view path, ObjectData const& in);
   bool FileRemove(std::string_view path);
 
   ObjectMap object_map_;
+  std::uint32_t save_tx_depth_{0};
+  bool map_dirty_{false};
 };
 }  // namespace ae
 

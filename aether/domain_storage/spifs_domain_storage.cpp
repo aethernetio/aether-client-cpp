@@ -31,6 +31,7 @@
 
 #  include "aether/domain_storage/domain_storage_tele.h"
 #  include "aether/ae_exp_diag.h"
+#  include "aether/ae_exp_save_stats.h"
 
 namespace ae {
 class SpiFsSotorageWriter final : public IDomainStorageWriter {
@@ -45,31 +46,64 @@ class SpiFsSotorageWriter final : public IDomainStorageWriter {
 #  if defined(AE_EXP_DIAG)
     auto const t0 = AeExpNowUs();
 #  endif
-    if (!storage_->SaveObject(query, CalcBufferCrc())) {
+    AeExpSaveInc(&AeExpSaveSample::objects_serialized);
+    AeExpSaveAdd(&AeExpSaveSample::serialized_bytes,
+                 static_cast<std::uint32_t>(buffer.size()));
+
+    auto const crc_t0 = AeExpSaveNowUs();
+    auto const crc = CalcBufferCrc();
+    AeExpSaveAdd(&AeExpSaveSample::crc_time_us,
+                 static_cast<std::uint32_t>(AeExpSaveNowUs() - crc_t0));
+    AeExpSaveInc(&AeExpSaveSample::crc_count);
+
+    if (!storage_->ObjectCrcChanged(query, crc)) {
       AE_EXP_SAVE("crc_skip", "path=%s bytes=%zu obj_id=%lu", file_path.c_str(),
                   buffer.size(), static_cast<unsigned long>(query.id.id()));
+      AeExpSaveInc(&AeExpSaveSample::crc_skip_count);
       AE_TELED_DEBUG(
           "For object id={}, class id={}, version={} crc is the same, not "
           "update data",
           query.id.id(), query.class_id, static_cast<int>(query.version));
       return;
     }
+
+    AeExpSaveInc(&AeExpSaveSample::changed_object_count);
     AE_EXP_SAVE("write_begin", "path=%s bytes=%zu obj_id=%lu",
                 file_path.c_str(), buffer.size(),
                 static_cast<unsigned long>(query.id.id()));
-    // save object data to file
+
+    auto const open_t0 = AeExpSaveNowUs();
     FILE* file = fopen(file_path.c_str(), "w");
+    AeExpSaveAdd(&AeExpSaveSample::object_open_us,
+                 static_cast<std::uint32_t>(AeExpSaveNowUs() - open_t0));
     if (file == nullptr) {
       AE_TELED_ERROR("Failed to open file {} for writing.", file_path);
+      AeExpSaveMarkFail();
       return;
     }
+
+    auto const write_t0 = AeExpSaveNowUs();
     auto res = fwrite(buffer.data(), 1, buffer.size(), file);
+    AeExpSaveAdd(&AeExpSaveSample::object_fwrite_us,
+                 static_cast<std::uint32_t>(AeExpSaveNowUs() - write_t0));
+
+    auto const close_t0 = AeExpSaveNowUs();
     fclose(file);
+    AeExpSaveAdd(&AeExpSaveSample::object_close_us,
+                 static_cast<std::uint32_t>(AeExpSaveNowUs() - close_t0));
 
     if (res != buffer.size()) {
       AE_TELED_ERROR("Failed to write data to file {}", file_path);
+      AeExpSaveMarkFail();
       return;
     }
+
+    AeExpSaveInc(&AeExpSaveSample::object_file_write_count);
+    AeExpSaveAdd(&AeExpSaveSample::object_file_bytes,
+                 static_cast<std::uint32_t>(buffer.size()));
+
+    // Commit CRC into object_map only after a successful object write.
+    storage_->ConfirmObjectWritten(query, crc);
 
 #  if defined(AE_EXP_DIAG)
     AE_EXP_SAVE("write_end", "path=%s bytes=%zu duration_us=%lld",
@@ -108,8 +142,6 @@ class SpiFsSotorageWriter final : public IDomainStorageWriter {
 class SpiFsSotorageReader final : public IDomainStorageReader {
  public:
   explicit SpiFsSotorageReader(FILE* f) {
-    // read all file into buffer
-    // store actual buffer size in a buff_size
     constexpr auto kRead = 256;
     std::size_t off = 0;
     while (true) {
@@ -120,7 +152,6 @@ class SpiFsSotorageReader final : public IDomainStorageReader {
         break;
       }
     }
-    // make buffer actual read size
     buffer.resize(off);
     AE_TELED_DEBUG("SpiFsSotorageReader loaded {} bytes", buffer.size());
 
@@ -158,7 +189,6 @@ SpiFsDomainStorage::~SpiFsDomainStorage() { DeInitFs(); }
 
 std::unique_ptr<IDomainStorageWriter> SpiFsDomainStorage::Store(
     DomainQuery const& query) {
-  // open file
   auto file_path = Format("{}/{}/{}/{}", kBasePath, query.id, query.class_id,
                           static_cast<int>(query.version));
   return std::make_unique<SpiFsSotorageWriter>(*this, file_path, query);
@@ -207,7 +237,6 @@ DomainLoad SpiFsDomainStorage::Load(DomainQuery const& query) {
     return {DomainLoadResult::kEmpty, {}};
   }
 
-  // open file
   auto file_path = Format("{}/{}/{}/{}", kBasePath, query.id, query.class_id,
                           static_cast<int>(query.version));
   FILE* file = fopen(file_path.c_str(), "r");
@@ -233,7 +262,6 @@ void SpiFsDomainStorage::Remove(const ae::ObjId& obj_id) {
 
   for (auto& [class_id, class_data] : obj_map_it->second) {
     for (auto version : class_data) {
-      // remove the file
       auto file_path = Format("{}/{}/{}/{}", kBasePath, obj_id, class_id,
                               static_cast<int>(version.first));
       unlink(file_path.c_str());
@@ -248,7 +276,6 @@ void SpiFsDomainStorage::CleanUp() {
   for (auto const& [obj_id, obj_map_data] : object_map_) {
     for (auto const& [class_id, class_data] : obj_map_data) {
       for (auto version : class_data) {
-        // remove the file
         auto file_path = Format("{}/{}/{}/{}", kBasePath, obj_id, class_id,
                                 static_cast<int>(version.first));
         unlink(file_path.c_str());
@@ -259,14 +286,28 @@ void SpiFsDomainStorage::CleanUp() {
   SyncState();
 }
 
+void SpiFsDomainStorage::BeginSaveTransaction() { ++save_tx_depth_; }
+
+void SpiFsDomainStorage::EndSaveTransaction() {
+  if (save_tx_depth_ == 0) {
+    return;
+  }
+  --save_tx_depth_;
+  if (save_tx_depth_ != 0) {
+    return;
+  }
+  if (map_dirty_) {
+    SyncState();
+    map_dirty_ = false;
+  }
+}
+
 void SpiFsDomainStorage::InitFs() {
   esp_vfs_spiffs_conf_t conf = {kBasePath.data(), kPartition.data(), 128, true};
 
-  // Use settings defined above to initialize and mount SPIFFS filesystem.
-  // Note: esp_vfs_spiffs_register is an all-in-one convenience function.
   esp_err_t ret = esp_vfs_spiffs_register(&conf);
 
-  if (ret != ESP_ERR_INVALID_STATE) {  // FS already is initialized
+  if (ret != ESP_ERR_INVALID_STATE) {
     if (ret != ESP_OK) {
       AE_TELE_ERROR(kSpifsDsStorageMountError, "Init SPIFS v1 error {}",
                     [ret]() -> std::string {
@@ -320,7 +361,6 @@ void SpiFsDomainStorage::InitState() {
   }
   fclose(file);
 
-  // resize to actual read size
   buffer.resize(off);
 
   auto bin_archive =
@@ -331,34 +371,76 @@ void SpiFsDomainStorage::InitState() {
 }
 
 void SpiFsDomainStorage::SyncState() {
+  auto const open_t0 = AeExpSaveNowUs();
   auto* file = fopen(kObjectMapPath.data(), "w");
+  AeExpSaveAdd(&AeExpSaveSample::map_open_us,
+               static_cast<std::uint32_t>(AeExpSaveNowUs() - open_t0));
   if (file == nullptr) {
     AE_TELED_ERROR("Failed to open file {} for writing.", kObjectMapPath);
+    AeExpSaveMarkFail();
     return;
   }
   std::vector<std::uint8_t> buffer;
   auto bin_archive =
       seri::BinaryArchive{seri::BinaryVectorBuffer<std::uint32_t>{buffer}};
+  auto const seri_t0 = AeExpSaveNowUs();
   if (auto res = bin_archive.Save(object_map_); !res) {
+    AeExpSaveAdd(&AeExpSaveSample::map_serialization_us,
+                 static_cast<std::uint32_t>(AeExpSaveNowUs() - seri_t0));
     AE_TELED_DEBUG("Failed to save object map, error {}", res.error().message);
+    AeExpSaveMarkFail();
   } else {
+    AeExpSaveAdd(&AeExpSaveSample::map_serialization_us,
+                 static_cast<std::uint32_t>(AeExpSaveNowUs() - seri_t0));
+    auto const write_t0 = AeExpSaveNowUs();
     fwrite(buffer.data(), 1, buffer.size(), file);
+    AeExpSaveAdd(&AeExpSaveSample::map_fwrite_us,
+                 static_cast<std::uint32_t>(AeExpSaveNowUs() - write_t0));
+    AeExpSaveInc(&AeExpSaveSample::map_rewrite_count);
+    AeExpSaveAdd(&AeExpSaveSample::map_bytes,
+                 static_cast<std::uint32_t>(buffer.size()));
     AE_EXP_SAVE("map_rewrite", "path=%s bytes=%zu", kObjectMapPath.data(),
                 buffer.size());
   }
 
+  auto const close_t0 = AeExpSaveNowUs();
   fclose(file);
+  AeExpSaveAdd(&AeExpSaveSample::map_close_us,
+               static_cast<std::uint32_t>(AeExpSaveNowUs() - close_t0));
 }
 
-bool SpiFsDomainStorage::SaveObject(DomainQuery const& query, DataCrc crc) {
-  auto [ver_it, _] =
-      object_map_[query.id][query.class_id].emplace(query.version, DataCrc{});
-  if (ver_it->second != crc) {
-    ver_it->second = crc;
-    SyncState();
+bool SpiFsDomainStorage::ObjectCrcChanged(DomainQuery const& query,
+                                          DataCrc crc) const {
+  auto obj_it = object_map_.find(query.id);
+  if (obj_it == std::end(object_map_)) {
     return true;
   }
-  return false;
+  auto class_it = obj_it->second.find(query.class_id);
+  if (class_it == std::end(obj_it->second)) {
+    return true;
+  }
+  auto ver_it = class_it->second.find(query.version);
+  if (ver_it == std::end(class_it->second)) {
+    return true;
+  }
+  return ver_it->second != crc;
+}
+
+void SpiFsDomainStorage::ConfirmObjectWritten(DomainQuery const& query,
+                                              DataCrc crc) {
+  object_map_[query.id][query.class_id][query.version] = crc;
+  map_dirty_ = true;
+#if defined(AE_EXP_LEGACY_MAP_SYNC)
+  // Baseline: rewrite object_map_dump once per changed object.
+  SyncState();
+  map_dirty_ = false;
+#else
+  // Optimized: defer SyncState until outermost EndSaveTransaction.
+  if (save_tx_depth_ == 0) {
+    SyncState();
+    map_dirty_ = false;
+  }
+#endif
 }
 
 }  // namespace ae

@@ -20,9 +20,11 @@ void setUp() {}
 void tearDown() {}
 
 extern int test_ds_synchronization();
+extern int test_ds_save_transaction();
 
 int main() {
   int res = 0;
   res += test_ds_synchronization();
+  res += test_ds_save_transaction();
   return res;
 }

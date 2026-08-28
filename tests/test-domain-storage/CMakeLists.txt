@@ -16,7 +16,9 @@ cmake_minimum_required( VERSION 3.16 )
 
 list(APPEND test_srcs
   main.cpp
-  test_ds_synchronization.cpp )
+  test_ds_synchronization.cpp
+  crc_map_commit_storage.cpp
+  test_ds_save_transaction.cpp )
 
 if(NOT CM_PLATFORM)
   project(test-domain-storage LANGUAGES CXX)
@@ -24,6 +26,7 @@ if(NOT CM_PLATFORM)
   add_executable(${PROJECT_NAME})
   target_sources(${PROJECT_NAME} PRIVATE ${test_srcs})
   # for aether
+  target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
   target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
   target_link_libraries(${PROJECT_NAME} PRIVATE aether unity)
 
@@ -33,7 +36,7 @@ else()
   if(CM_PLATFORM STREQUAL "ESP32")
     #ESP32 CMake
     idf_component_register(SRCS ${test_srcs}
-        INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/..
+        INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/..
         PRIV_REQUIRES aether unity)
   else()
     message(WARNING "Not implemented for ${CM_PLATFORM}")

@@ -33,6 +33,8 @@ class SyncDomainStorage final : public IDomainStorage {
   DomainLoad Load(DomainQuery const& query) override;
   void Remove(ObjId const& obj_id) override;
   void CleanUp() override;
+  void BeginSaveTransaction() override;
+  void EndSaveTransaction() override;
 
  private:
   std::unique_ptr<IDomainStorage> read_only_;

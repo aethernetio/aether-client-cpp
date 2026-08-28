@@ -93,6 +93,13 @@ class IDomainStorage {
    * \brief Clean up the whole storage.
    */
   virtual void CleanUp() = 0;
+
+  /**
+   * \brief Begin / end an outermost DomainGraph::SaveRoot transaction.
+   * Nested SaveRoot calls share the same transaction. Default: no-op.
+   */
+  virtual void BeginSaveTransaction() {}
+  virtual void EndSaveTransaction() {}
 };
 }  // namespace ae
 

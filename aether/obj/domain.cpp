@@ -20,6 +20,7 @@
 
 #include "aether/obj/obj.h"
 #include "aether/obj/obj_tele.h"
+#include "aether/ae_exp_save_stats.h"
 
 namespace ae {
 
@@ -69,10 +70,13 @@ void DomainGraph::SaveRoot(Ptr<Obj> const& ptr, ObjId obj_id) {
   if (!ptr) {
     return;
   }
+  AeExpSaveInc(&AeExpSaveSample::save_root_calls);
+  domain->storage_->BeginSaveTransaction();
   if (auto* factory = domain->FindClassFactory(ptr->GetClassId());
       factory != nullptr) {
     factory->save(this, ptr, obj_id);
   }
+  domain->storage_->EndSaveTransaction();
 }
 
 DomainLoad DomainGraph::GetReader(DomainQuery const& query) {
@@ -83,6 +87,7 @@ std::unique_ptr<IDomainStorageWriter> DomainGraph::GetWriter(
     DomainQuery const& query) {
   auto writer = domain->storage_->Store(query);
   assert(writer && "Writer must be created!");
+  AeExpSaveInc(&AeExpSaveSample::writers_created);
   return writer;
 }
 

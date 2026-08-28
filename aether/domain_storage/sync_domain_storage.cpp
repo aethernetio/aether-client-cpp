@@ -48,4 +48,12 @@ void SyncDomainStorage::Remove(ObjId const& obj_id) {
 
 void SyncDomainStorage::CleanUp() { read_write_->CleanUp(); }
 
+void SyncDomainStorage::BeginSaveTransaction() {
+  read_write_->BeginSaveTransaction();
+}
+
+void SyncDomainStorage::EndSaveTransaction() {
+  read_write_->EndSaveTransaction();
+}
+
 }  // namespace ae
