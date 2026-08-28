@@ -182,6 +182,23 @@ PingCloudServers* Client::ping_cloud_servers() noexcept {
 }
 #endif
 
+std::optional<TimePoint> Client::last_online_time() const noexcept {
+  return last_online_time_;
+}
+
+std::optional<TimePoint> Client::expected_ping_response_time() const noexcept {
+#if AE_ENABLE_PING
+  if (ping_cloud_servers_ != nullptr) {
+    return ping_cloud_servers_->expected_ping_response_time();
+  }
+#endif
+  return std::nullopt;
+}
+
+void Client::MarkServerResponseReceived(TimePoint when) noexcept {
+  last_online_time_ = when;
+}
+
 void Client::SendTelemetry() {
 #if TELEMETRY_ENABLED
   telemetry_->SendTelemetry();

@@ -204,6 +204,11 @@ class PingCloudServers {
   using AnnounceEvent = Event<void(Result<std::monostate, int>)>;
   AnnounceEvent::Subscriber announce_event();
 
+  // Expected local receive time of the scheduled ping response for the
+  // current/next logical contract (Tn + frozen p99_RTT/2). nullopt when ping
+  // scheduling is disabled or no contract deadline exists yet.
+  std::optional<TimePoint> expected_ping_response_time() const noexcept;
+
  private:
   void ServersUpdate();
   void DispatchToServers();

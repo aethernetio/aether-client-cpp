@@ -229,6 +229,10 @@ auto PingCloudServers::ServerPing::MakePing() {
           attempt_req.announce_unknown = announce_unknown_;
           auto const view = ApplyLogicalPingAttempt(st, attempt_req);
           if (view.started_new_cycle) {
+            // Freeze the R99 used for this logical cycle's expected response
+            // deadline so later RTT samples do not slide it.
+            st.frozen_p99_rtt = p99_rtt;
+            st.has_frozen_p99_rtt = true;
 #if AE_ENABLE_PING_TEST_FAULTS
             PingTestFaults::Instance().BindNextCycle(cloud_sc_->server_id(),
                                                      view.cycle_id);
@@ -791,6 +795,25 @@ bool PingCloudServers::ServerPing::quarantined() const noexcept {
 
 void PingCloudServers::StopAutomaticPing() noexcept {
   auto_ping_enabled_ = false;
+}
+
+std::optional<TimePoint> PingCloudServers::expected_ping_response_time()
+    const noexcept {
+  if (!auto_ping_enabled_) {
+    return std::nullopt;
+  }
+  std::optional<TimePoint> best;
+  for (auto const& [server_id, st] : cycle_states_) {
+    (void)server_id;
+    auto const expected = ExpectedPingResponseTimeForCycle(st);
+    if (!expected.has_value()) {
+      continue;
+    }
+    if (!best.has_value() || *expected < *best) {
+      best = expected;
+    }
+  }
+  return best;
 }
 
 PingCloudServers::AnnounceEvent::Subscriber

@@ -142,6 +142,7 @@ ClientServerConnection::ClientServerConnection(AeContext const& ae_context,
                                                Ptr<Client> const& client,
                                                Ptr<Server> const& server)
     : ae_context_{ae_context},
+      client_{client},
       server_{server},
       uid_{client->uid()},
       ephemeral_uid_{client->ephemeral_uid()},
@@ -153,6 +154,17 @@ ClientServerConnection::ClientServerConnection(AeContext const& ae_context,
       server_connection_{ae_context_, server} {
   AE_TELED_DEBUG("Client server connection from {}:e-{} to {}", uid_,
                  ephemeral_uid_, server->server_id);
+
+  protocol_context_.set_inbound_server_response_hook(
+      [](void* user) noexcept {
+        auto* self = static_cast<ClientServerConnection*>(user);
+        auto client_ptr = self->client_.Lock();
+        if (!client_ptr) {
+          return;
+        }
+        client_ptr->MarkServerResponseReceived(Now());
+      },
+      this);
 
   server_connection_.out_data_event().Subscribe(
       MethodPtr<&ClientServerConnection::OutData>{this});

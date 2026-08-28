@@ -70,6 +70,12 @@ class ProtocolContext {
   ProtocolContext();
   ~ProtocolContext();
 
+  // Invoked when an inbound server result/error response is matched to a
+  // pending request. Not called for local OnEvicted / synthetic failures.
+  using InboundServerResponseHook = void (*)(void* user);
+  void set_inbound_server_response_hook(InboundServerResponseHook hook,
+                                        void* user) noexcept;
+
   template <typename Entry>
   Entry& CreatePendingResponse(RequestId request_id) {
     static_assert(sizeof(Entry) <= kPendingResponseMaxSize,
@@ -124,6 +130,7 @@ class ProtocolContext {
   void PreparePendingResponseSlot(RequestId request_id);
   PendingEntry TakePending(RequestId request_id);
   PendingEntry TakeOldestPending();
+  void NotifyInboundServerResponse() noexcept;
 
   PendingResponsePool pending_response_pool_;
   PendingList pending_responses_;
@@ -131,6 +138,9 @@ class ProtocolContext {
   PacketStackStack packet_stacks_;
   ParserStack parsers_;
   PackerStack packers_;
+
+  InboundServerResponseHook inbound_server_response_hook_{nullptr};
+  void* inbound_server_response_user_{nullptr};
 };
 }  // namespace ae
 

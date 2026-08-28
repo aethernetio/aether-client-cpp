@@ -309,6 +309,22 @@ inline TimePoint SaturatingAddTime(TimePoint t, Duration d) noexcept {
   return t + add;
 }
 
+// One-way return-path estimate for expected ping response receive time:
+// R99/2 (same bootstrap RTT as ping scheduling when stats are empty).
+inline Duration OneWayReturnEstimateFromP99(Duration p99_rtt) noexcept {
+  return DivideDurationFloor(p99_rtt, 2);
+}
+
+// Expected local receive time of the scheduled ping response.
+// Tn is the request-arrival contract deadline; response return time is
+// estimated as Tn + p99_RTT/2. Guard and scheduler/dispatch margins are not
+// included.
+inline TimePoint ExpectedPingResponseTime(TimePoint contract_deadline_tn,
+                                          Duration p99_rtt) noexcept {
+  return SaturatingAddTime(contract_deadline_tn,
+                           OneWayReturnEstimateFromP99(p99_rtt));
+}
+
 // Positive later-earlier as Duration; zero if later <= earlier. Saturates.
 inline Duration SaturatingSubTime(TimePoint later, TimePoint earlier) noexcept {
   if (later <= earlier) {
@@ -597,7 +613,40 @@ struct LogicalPingCycleState {
   Duration current_retry_reserve{};
   Duration current_attempt_lead{};
   Duration current_loss_timeout{};
+  // R99 frozen when this logical cycle's schedule budget was established so
+  // expected_ping_response_time does not slide on later RTT samples.
+  bool has_frozen_p99_rtt{false};
+  Duration frozen_p99_rtt{kPingRttEstimate};
 };
+
+// Tn for the current outstanding scheduled ping response expectation.
+inline std::optional<TimePoint> LogicalPingContractDeadline(
+    LogicalPingCycleState const& st) noexcept {
+  if (!st.has_schedule) {
+    return std::nullopt;
+  }
+  if (st.active && !st.confirmed) {
+    // Request-arrival contract for the in-flight logical cycle.
+    if (st.nominal_ping_at == TimePoint{}) {
+      return std::nullopt;
+    }
+    return st.nominal_ping_at;
+  }
+  // After confirm (or before the next attempt starts): next nominal Tn.
+  if (st.next_nominal_ping_at == TimePoint{}) {
+    return std::nullopt;
+  }
+  return st.next_nominal_ping_at;
+}
+
+inline std::optional<TimePoint> ExpectedPingResponseTimeForCycle(
+    LogicalPingCycleState const& st) noexcept {
+  auto const tn = LogicalPingContractDeadline(st);
+  if (!tn.has_value() || !st.has_frozen_p99_rtt) {
+    return std::nullopt;
+  }
+  return ExpectedPingResponseTime(*tn, st.frozen_p99_rtt);
+}
 
 struct LogicalPingAttemptRequest {
   TimePoint actual_send_at{};
