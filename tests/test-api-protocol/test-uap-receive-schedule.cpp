@@ -124,6 +124,26 @@ void test_NegativeDeltaYieldsMissedDeadline() {
   TEST_ASSERT_TRUE(converted.state == PeerScheduleState::kMissedDeadline);
 }
 
+void test_NegativeDeltaInsideReceiveWindowYieldsExpected() {
+  auto const qsend = TimePoint{} + std::chrono::seconds{10};
+  auto const one_way = Ms(40);
+  // Server reports nominal deadline 50ms in the past while last connect was
+  // only 100ms ago — still inside a 3000ms receive window.
+  auto const converted = ConvertClientTiming(
+      qsend, one_way, ClientTiming{-50, -100}, {}, Ms(3000), Ms(3000));
+  TEST_ASSERT_TRUE(converted.state == PeerScheduleState::kExpected);
+  TEST_ASSERT_TRUE(converted.next_ping_deadline.has_value());
+  TEST_ASSERT_TRUE(*converted.next_ping_deadline ==
+                   converted.last_online + Ms(3000));
+}
+
+void test_NegativeDeltaOutsideReceiveWindowStaysMissed() {
+  auto const qsend = TimePoint{} + std::chrono::seconds{10};
+  auto const converted = ConvertClientTiming(
+      qsend, Ms(40), ClientTiming{-500, -4000}, {}, Ms(3000), Ms(3000));
+  TEST_ASSERT_TRUE(converted.state == PeerScheduleState::kMissedDeadline);
+}
+
 void test_UapWireFieldOrderAndSignedInt64() {
   Uap const uap{5'500, 1'700'000'000'000};
   std::vector<std::uint8_t> packed;
@@ -197,6 +217,10 @@ int test_uap_receive_schedule() {
   RUN_TEST(ae::test_uap_receive_schedule::test_DeltaZeroYieldsUnknownDeadline);
   RUN_TEST(
       ae::test_uap_receive_schedule::test_NegativeDeltaYieldsMissedDeadline);
+  RUN_TEST(ae::test_uap_receive_schedule::
+               test_NegativeDeltaInsideReceiveWindowYieldsExpected);
+  RUN_TEST(ae::test_uap_receive_schedule::
+               test_NegativeDeltaOutsideReceiveWindowStaysMissed);
   RUN_TEST(
       ae::test_uap_receive_schedule::test_UapWireFieldOrderAndSignedInt64);
   RUN_TEST(ae::test_uap_receive_schedule::test_BenchMessageCrcRoundTrip);

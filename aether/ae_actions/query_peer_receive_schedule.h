@@ -100,7 +100,8 @@ struct ConvertedServerTiming {
 
 inline ConvertedServerTiming ConvertClientTiming(
     TimePoint qsend, Duration one_way, ClientTiming const& timing,
-    ServerId server_id = {}) noexcept {
+    ServerId server_id = {}, Duration receive_window = Duration{},
+    Duration ping_interval = Duration{}) noexcept {
   auto const qserver = qsend + one_way;
   ConvertedServerTiming out;
   out.server_id = server_id;
@@ -113,7 +114,17 @@ inline ConvertedServerTiming ConvertClientTiming(
   } else if (timing.next_ping_delta_ms < 0) {
     out.next_ping_deadline =
         TimePointOffsetByMs(qserver, timing.next_ping_delta_ms);
-    out.state = PeerScheduleState::kMissedDeadline;
+    auto const since_last_online = qserver - out.last_online;
+    if (receive_window > Duration{} && ping_interval > Duration{} &&
+        since_last_online >= Duration{} &&
+        since_last_online < receive_window) {
+      // Server reports a past nominal ping deadline while last activity is still
+      // inside the configured receive window (query/deadline boundary race).
+      out.state = PeerScheduleState::kExpected;
+      out.next_ping_deadline = out.last_online + ping_interval;
+    } else {
+      out.state = PeerScheduleState::kMissedDeadline;
+    }
   } else {
     out.next_ping_deadline = std::nullopt;
     out.state = PeerScheduleState::kUnknown;
@@ -190,6 +201,8 @@ struct PeerTimingQueryState {
   bool cancelled{false};
   bool completed{false};
   int user_callback_count{0};
+  Duration receive_window{};
+  Duration ping_interval{};
   std::map<ServerId, ServerTimingAttempt> attempts;
 
   std::uint64_t Begin() {
@@ -227,7 +240,8 @@ struct PeerTimingQueryState {
     }
     it->second.status = ServerTimingAttemptStatus::kSuccess;
     it->second.converted = ConvertClientTiming(
-        it->second.qsend, it->second.one_way, timing, server_id);
+        it->second.qsend, it->second.one_way, timing, server_id,
+        receive_window, ping_interval);
     return true;
   }
 
