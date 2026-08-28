@@ -65,8 +65,7 @@ class EspWifiDriver final : public WifiDriver {
   ~EspWifiDriver() override;
 
   void Connect(WiFiAp const& wifi_ap,
-               std::optional<WiFiPowerSaveParam> const& psp,
-               std::optional<WiFiBaseStation> const& base_station_) override;
+               std::optional<WiFiPowerSaveParam> const& psp) override;
 
   ConnectResEvent::Subscriber connect_res_event() override;
 

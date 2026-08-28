@@ -30,20 +30,22 @@ namespace ae {
  */
 class WifiDriver {
  public:
+  struct ConnectOk {};
+
   /**
-   * \brief Wifi connection result.
-   * \param res - AP parameters or error code
+   * \brief Wifi connection result (success or error code).
    */
-  using ConnectResEvent = Event<void(Result<WiFiBaseStation, int>&& res)>;
+  using ConnectResEvent = Event<void(Result<ConnectOk, int>&& res)>;
 
   virtual ~WifiDriver() = default;
 
   /**
-   * \brief Connect to an access point with creds.
+   * \brief Connect to an access point with SSID/password (and optional PSP).
+   *
+   * Generic Aether Wi-Fi does not use BSSID or channel caches.
    */
   virtual void Connect(WiFiAp const& wifi_ap,
-                       std::optional<WiFiPowerSaveParam> const& psp,
-                       std::optional<WiFiBaseStation> const& base_station) = 0;
+                       std::optional<WiFiPowerSaveParam> const& psp) = 0;
 
   virtual ConnectResEvent::Subscriber connect_res_event() = 0;
 

@@ -22,9 +22,8 @@
 #include "aether/config.h"
 
 #if AE_SUPPORT_WIFIS
-#  if defined(AE_EXP_DIAG)
-#    include <cstdint>
-#  endif
+#  include <cstdint>
+#  include <optional>
 
 #  include "aether/actions/action.h"
 #  include "aether/ae_context.h"
@@ -47,8 +46,7 @@ class WifiConnectAction final : public Action {
 
   WifiConnectAction(AeContext const& ae_context, WifiAccessPoint& access_point,
                     WifiDriver& driver, WiFiAp wifi_ap,
-                    std::optional<WiFiPowerSaveParam> psp,
-                    std::optional<WiFiBaseStation> base_station);
+                    std::optional<WiFiPowerSaveParam> psp);
 
   ConnectionEvent::Subscriber connection_event();
 
@@ -70,7 +68,6 @@ class WifiConnectAction final : public Action {
   WifiDriver* driver_;
   WiFiAp wifi_ap_;
   std::optional<WiFiPowerSaveParam> psp_;
-  std::optional<WiFiBaseStation> base_station_;
   ConnectionEvent connection_event_;
   TaskSubscription scheduler_sub_;
   Subscription connect_sub_;
@@ -80,7 +77,7 @@ class WifiConnectAction final : public Action {
 };
 
 class WifiAccessPoint final : public AccessPoint {
-  AE_OBJECT(WifiAccessPoint, AccessPoint, 0)
+  AE_OBJECT(WifiAccessPoint, AccessPoint, 1)
   WifiAccessPoint();
 
  public:
@@ -89,8 +86,31 @@ class WifiAccessPoint final : public AccessPoint {
                   ObjPtr<DnsResolver> resolver, WiFiAp wifi_ap,
                   std::optional<WiFiPowerSaveParam> psp);
 
-  AE_OBJECT_REFLECT(AE_MMBRS(aether_, adapter_, poller_, resolver_, wifi_ap_,
-                             base_station_))
+  AE_OBJECT_REFLECT(AE_MMBRS(aether_, adapter_, poller_, resolver_, wifi_ap_))
+
+  // Legacy v0 may contain incompatible BSSID cache layouts. Do not deserialize
+  // that blob; WifiAdapter recreates APs from persisted wifi_init_ credentials.
+  template <typename Dnv>
+  void Load(Version<0>, Dnv& /*dnv*/) {}
+
+  template <typename Dnv>
+  void Load(CurrentVersion, Dnv& dnv) {
+    dnv(base_);
+    dnv(aether_, adapter_, poller_, resolver_, wifi_ap_);
+  }
+
+  template <typename Dnv>
+  void Save(Version<0>, Dnv& dnv) const {
+    dnv(base_);
+    std::optional<LegacyWifiBaseStationV0> empty{};
+    dnv(aether_, adapter_, poller_, resolver_, wifi_ap_, empty);
+  }
+
+  template <typename Dnv>
+  void Save(CurrentVersion, Dnv& dnv) const {
+    dnv(base_);
+    dnv(aether_, adapter_, poller_, resolver_, wifi_ap_);
+  }
 
   std::vector<ObjPtr<Channel>> GenerateChannels(
       ObjPtr<Server> const& server) override;
@@ -102,16 +122,22 @@ class WifiAccessPoint final : public AccessPoint {
 
   bool IsConnected();
 
-  void SetWifiBaseStation(WiFiBaseStation&& wifi_base_station);
+  bool HasWifiConfig() const { return !wifi_ap_.creds.ssid.empty(); }
 
  private:
+  // Former v0 optional Wi-Fi BSSID/channel cache (written empty on Save v0).
+  struct LegacyWifiBaseStationV0 {
+    AE_REFLECT_MEMBERS(target_bssid, target_channel)
+    uint8_t target_bssid[6]{};
+    uint8_t target_channel{};
+  };
+
   ObjPtr<Aether> aether_;
   ObjPtr<WifiAdapter> adapter_;
   ObjPtr<IPoller> poller_;
   ObjPtr<DnsResolver> resolver_;
   WiFiAp wifi_ap_{};
   std::optional<WiFiPowerSaveParam> psp_;
-  std::optional<WiFiBaseStation> base_station_;
   std::optional<WifiConnectAction> connect_action_;
 };
 }  // namespace ae

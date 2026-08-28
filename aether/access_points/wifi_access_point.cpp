@@ -28,21 +28,19 @@
 #  include "aether/server.h"
 
 #  include "aether/ae_exp_diag.h"
-#  include "aether/ae_exp_wifi.h"
 #  include "aether/tele.h"
 
 namespace ae {
 
-WifiConnectAction::WifiConnectAction(
-    AeContext const& ae_context, WifiAccessPoint& access_point,
-    WifiDriver& driver, WiFiAp wifi_ap, std::optional<WiFiPowerSaveParam> psp,
-    std::optional<WiFiBaseStation> base_station)
+WifiConnectAction::WifiConnectAction(AeContext const& ae_context,
+                                     WifiAccessPoint& access_point,
+                                     WifiDriver& driver, WiFiAp wifi_ap,
+                                     std::optional<WiFiPowerSaveParam> psp)
     : ae_context_{ae_context},
       access_point_{&access_point},
       driver_{&driver},
       wifi_ap_{std::move(wifi_ap)},
       psp_{std::move(psp)},
-      base_station_{std::move(base_station)},
       scheduler_sub_{
           ae_context_.scheduler().Task([this]() { EnsureConnected(); })}
 #  if defined(AE_EXP_DIAG)
@@ -80,33 +78,18 @@ void WifiConnectAction::Connect() {
   AE_EXP_LC("WifiConnectAction", ExpId(), this, 0, "Connect",
             "ssid=%s before_driver_Connect", wifi_ap_.creds.ssid.c_str());
   connect_sub_ = driver_->connect_res_event().Subscribe(
-      [&](Result<WiFiBaseStation, int>&& res) {
+      [&](Result<WifiDriver::ConnectOk, int>&& res) {
         connect_sub_.Reset();
         if (res) {
           AE_TELED_INFO("Wifi connected");
-          // save base station to access point
-          access_point_->SetWifiBaseStation(std::move(res).value());
           SetConnected(true);
         } else {
-#  if AE_WIFI_USE_BSSID_CACHE
-          // retry without base station
-          if (base_station_) {
-            base_station_.reset();
-            scheduler_sub_ = ae_context_.scheduler().Task([&]() { Connect(); });
-            return;
-          }
-#  endif
           AE_TELED_ERROR("Wifi did not connected with error {}", res.error());
           SetConnected(false);
         }
       });
 
-#  if AE_EXP_WIFI_IGNORE_BSSID
-  // Experiment: keep persisted base_station_ but never use it for connect.
-  driver_->Connect(wifi_ap_, psp_, std::nullopt);
-#  else
-  driver_->Connect(wifi_ap_, psp_, base_station_);
-#  endif
+  driver_->Connect(wifi_ap_, psp_);
 }
 
 void WifiConnectAction::SetConnected(bool is_connected) {
@@ -161,8 +144,7 @@ WifiConnectAction& WifiAccessPoint::Connect() {
         [](auto const& a) { return &a->driver(); });
     assert(driver.has_value());
 
-    connect_action_.emplace(*aether_, *this, **driver, wifi_ap_, psp_,
-                            base_station_);
+    connect_action_.emplace(*aether_, *this, **driver, wifi_ap_, psp_);
   } else {
     AE_EXP_LC("WifiAccessPoint", 0, this, 0, "Connect", "reuse");
   }
@@ -181,10 +163,6 @@ bool WifiAccessPoint::IsConnected() {
   AE_EXP_LC("WifiAccessPoint", 0, this, 0, "IsConnected", "result=%d",
             result ? 1 : 0);
   return result;
-}
-
-void WifiAccessPoint::SetWifiBaseStation(WiFiBaseStation&& wifi_base_station) {
-  base_station_.emplace(std::move(wifi_base_station));
 }
 }  // namespace ae
 #endif

@@ -134,26 +134,6 @@ void EventHandler(void* arg, esp_event_base_t event_base, int32_t event_id,
   }
 }
 
-esp_err_t SetupBssid(wifi_config_t& wifi_config,
-                     WiFiBaseStation const& base_station) {
-  std::array<uint8_t, sizeof(base_station.target_bssid)> debug_bssid;
-  memcpy(debug_bssid.data(), base_station.target_bssid,
-         sizeof(base_station.target_bssid));
-  AE_TELED_DEBUG("Restored from cash BSSID:{} CHN:{}", debug_bssid,
-                 static_cast<int>(base_station.target_channel));
-
-  wifi_config.sta.scan_method = WIFI_FAST_SCAN;  // Fast scan
-  wifi_config.sta.bssid_set = true;              // Enable BSSID binding
-  wifi_config.sta.channel = base_station.target_channel;  // Set channel
-  // Copy the BSSID to the configuration
-  memcpy(wifi_config.sta.bssid, base_station.target_bssid,
-         sizeof(base_station.target_bssid));
-  auto err =
-      esp_wifi_set_channel(base_station.target_channel, WIFI_SECOND_CHAN_NONE);
-
-  return err;
-}
-
 void SetupCredentials(wifi_config_t& wifi_config, WifiCreds const& creds) {
 #  ifdef DEBUG
   // for debug purpose only, it's private data
@@ -279,21 +259,10 @@ esp_err_t SetStaticIp(esp_netif_t* netif, WiFiIP const& config) {
 
 esp_err_t StartWifiConnection(
     EspWifiDriver* driver, esp_netif_t* espt_init_sta, WiFiAp const& wifi_ap,
-    std::optional<WiFiPowerSaveParam> const& psp,
-    std::optional<WiFiBaseStation> const& base_station) {
+    std::optional<WiFiPowerSaveParam> const& psp) {
   esp_err_t err = ESP_OK;
 
   wifi_config_t wifi_config{};
-#  if AE_WIFI_USE_BSSID_CACHE
-  if (base_station) {
-    // Restore saved Base Station
-    auto err = esp_wifi_driver_internal::SetupBssid(wifi_config, *base_station);
-    if (err != ESP_OK) {
-      AE_TELED_ERROR("Failed to set BSSID");
-      // If an error occurs, exit
-    }
-  }
-#  endif
 
 #  if AE_WIFI_USE_SCAN_THRESHOLD
   wifi_scan_threshold_t wifi_threshold{};
@@ -412,9 +381,8 @@ EspWifiDriver::~EspWifiDriver() {
   AE_EXP_LC("EspWifiDriver", ExpId(), this, 0, "dtor_end", "");
 }
 
-void EspWifiDriver::Connect(
-    WiFiAp const& wifi_ap, std::optional<WiFiPowerSaveParam> const& psp,
-    std::optional<WiFiBaseStation> const& base_station) {
+void EspWifiDriver::Connect(WiFiAp const& wifi_ap,
+                            std::optional<WiFiPowerSaveParam> const& psp) {
   bool const has_connected_to = connected_to_.has_value();
   bool const will_disconnect_first = has_connected_to;
   AE_EXP_LC("EspWifiDriver", ExpId(), this, 0, "Connect",
@@ -423,7 +391,7 @@ void EspWifiDriver::Connect(
             will_disconnect_first ? 1 : 0);
 
   if (ae_exp_on_wifi_connect) {
-    ae_exp_on_wifi_connect(base_station.has_value() ? 1 : 0);
+    ae_exp_on_wifi_connect(0);
   }
 
   if (connected_to_) {
@@ -437,8 +405,7 @@ void EspWifiDriver::Connect(
   connection_state_.state = State::kConnecting;
 
   auto err = esp_wifi_driver_internal::StartWifiConnection(
-      this, static_cast<esp_netif_t*>(espt_init_sta_), wifi_ap, psp,
-      base_station);
+      this, static_cast<esp_netif_t*>(espt_init_sta_), wifi_ap, psp);
   // the connection result will be handled in ConnectingEventHandler
   if (err != ESP_OK) {
     // Emitting the error, 2 for example.
@@ -628,33 +595,15 @@ void EspWifiDriver::ConnectingEventHandler(esp_event_base_t event_base,
       case IP_EVENT_STA_GOT_IP:
       case IP_EVENT_GOT_IP6: {
         // Successfully connected
-        // get AP info
         wifi_ap_record_t ap_info{};
         esp_wifi_sta_get_ap_info(&ap_info);
-        // save real SSID
         connected_to_ = std::string(reinterpret_cast<char*>(ap_info.ssid));
         ESP_LOGD(esp_wifi_driver_internal::kTag, "Connected to AP %s",
                  connected_to_->c_str());
 
-        WiFiBaseStation base_station{};
-        base_station.target_channel = ap_info.primary;  // Set channel
-        // Copy the BSSID to the configuration
-        memcpy(base_station.target_bssid, ap_info.bssid,
-               sizeof(base_station.target_bssid));
-#  if AE_WIFI_USE_BSSID_CACHE
-        ESP_LOGD(esp_wifi_driver_internal::kTag,
-                 "Storing to cache BSSID:" MACSTR " CHN:%u",
-                 MAC2STR(base_station.target_bssid),
-                 static_cast<unsigned>(base_station.target_channel));
-#  endif
-
         connection_state_.state = State::kConnected;
         event_task_sub_ = ae_context_.scheduler().Task([&]() {
-#  if AE_WIFI_USE_BSSID_CACHE
-          connect_res_event_.Emit(Ok{base_station});
-#  else
-          connect_res_event_.Emit(Ok{WiFiBaseStation{}});
-#  endif
+          connect_res_event_.Emit(Ok{ConnectOk{}});
         });
         break;
       }

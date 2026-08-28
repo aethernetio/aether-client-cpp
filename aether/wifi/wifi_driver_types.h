@@ -68,12 +68,6 @@ struct WiFiPowerSaveParam {
   uint8_t power;
 };
 
-struct WiFiBaseStation {
-  AE_REFLECT_MEMBERS(target_bssid, target_channel)
-  uint8_t target_bssid[6];
-  uint8_t target_channel;
-};
-
 struct WiFiInit {
   AE_REFLECT_MEMBERS(wifi_ap, psp)
   std::vector<WiFiAp> wifi_ap;

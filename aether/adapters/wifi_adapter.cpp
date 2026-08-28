@@ -47,7 +47,22 @@ WifiAdapter::WifiAdapter(ObjProp prop, ObjPtr<Aether> aether,
 #  endif  // AE_DISTILLATION
 
 std::vector<AccessPoint::ptr> WifiAdapter::access_points() {
-  if (access_points_.size() == 0) {
+  bool recreate = access_points_.empty();
+  if (!recreate) {
+    for (auto const& ap : access_points_) {
+      bool has_config = false;
+      WifiAccessPoint::ptr{ap}.WithLoaded([&](auto const& p) {
+        has_config = static_cast<bool>(p) && p->HasWifiConfig();
+      });
+      if (!has_config) {
+        recreate = true;
+        break;
+      }
+    }
+  }
+
+  if (recreate) {
+    access_points_.clear();
     auto self_ptr = WifiAdapter::ptr::MakeFromThis(this);
 
     for (const auto& ap : wifi_init_.wifi_ap) {

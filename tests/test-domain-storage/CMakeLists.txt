@@ -18,7 +18,8 @@ list(APPEND test_srcs
   main.cpp
   test_ds_synchronization.cpp
   crc_map_commit_storage.cpp
-  test_ds_save_transaction.cpp )
+  test_ds_save_transaction.cpp
+  test_wifi_access_point_migrate.cpp )
 
 if(NOT CM_PLATFORM)
   project(test-domain-storage LANGUAGES CXX)

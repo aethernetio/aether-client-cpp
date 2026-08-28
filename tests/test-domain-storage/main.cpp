@@ -21,10 +21,12 @@ void tearDown() {}
 
 extern int test_ds_synchronization();
 extern int test_ds_save_transaction();
+extern int test_wifi_access_point_migrate();
 
 int main() {
   int res = 0;
   res += test_ds_synchronization();
   res += test_ds_save_transaction();
+  res += test_wifi_access_point_migrate();
   return res;
 }
