@@ -19,7 +19,9 @@
 #include <memory>
 #include <string_view>
 
-#include <signal.h>
+#if defined __unix__ || defined _WIN32
+#  include <signal.h>
+#endif
 
 #include "aether/all.h"
 
