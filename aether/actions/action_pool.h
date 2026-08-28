@@ -18,6 +18,7 @@
 #define AETHER_ACTIONS_ACTION_POLL_H_
 
 #include <variant>
+#include <vector>
 #include <type_traits>
 
 #include "aether/warning_disable.h"
@@ -59,11 +60,12 @@ class ActionPool : public etl::pool<T, Capacity> {
 
  private:
   void Destroy(T* p) {
-    ts_ = ac_.scheduler().Task([&, p]() { base_t::template destroy<T>(p); });
+    destroy_tasks_.push_back(
+        ac_.scheduler().Task([this, p]() { base_t::template destroy<T>(p); }));
   }
 
   AC ac_;
-  TaskSubscription ts_;
+  std::vector<TaskSubscription> destroy_tasks_;
 };
 
 template <ActionContext AC, typename... T, std::size_t Capacity>
@@ -96,11 +98,12 @@ class ActionPool<AC, std::variant<T...>, Capacity>
 
  private:
   void Destroy(Action* p) {
-    ts_ = ac_.scheduler().Task([&, p]() { base_t::destroy(p); });
+    destroy_tasks_.push_back(
+        ac_.scheduler().Task([this, p]() { base_t::destroy(p); }));
   }
 
   AC ac_;
-  TaskSubscription ts_;
+  std::vector<TaskSubscription> destroy_tasks_;
 };
 }  // namespace ae
 

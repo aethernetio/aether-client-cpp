@@ -19,8 +19,13 @@
 
 #include <cassert>
 #include <map>
+#include <optional>
 #include <string>
+#include <variant>
 
+#include "aether-miscpp/types/result.h"
+
+#include "aether/clock.h"
 #include "aether/client_connectivity_policy.h"
 #include "aether/cloud.h"
 #include "aether/memory.h"
@@ -35,10 +40,14 @@
 #include "aether/connection_manager/server_connection_manager.h"
 
 #include "aether/client_messages/p2p_message_stream_manager.h"
+#include "aether/ptr/ptr.h"
+#include "aether/receive_schedule.h"
 
 namespace ae {
 class Aether;
 class Telemetry;
+class QueryPeerReceiveSchedule;
+class AnnounceNextPingUnknown;
 
 class Client : public Obj {
   AE_OBJECT(Client, Obj, 0)
@@ -59,7 +68,7 @@ class Client : public Obj {
   Uid const& ephemeral_uid() const;
   ServerKeys* server_state(ServerId server_id);
   Cloud::ptr const& cloud() const;
-  ClientCloudManager::ptr const& cloud_manager() const;
+  ClientCloudManager::ptr const& cloud_manager();
   ServerConnectionManager& server_connection_manager();
   CloudServerConnections& cloud_connection();
   ClientConnectivityPolicy::ptr const& connectivity_policy();
@@ -68,12 +77,38 @@ class Client : public Obj {
   void SetConfig(std::string client_id, Uid parent_uid, Uid uid,
                  Uid ephemeral_uid, Key master_key, Cloud::ptr c);
 
+  // Must run after SetConfig and before first cloud_connection()/ping start.
+  Result<std::monostate, int> SetReceiveSchedule(ReceiveSchedule schedule);
+
+  // Stores action on Client (replaced each call); returns a live reference.
+  ::ae::QueryPeerReceiveSchedule& QueryPeerReceiveSchedule(Uid peer_uid);
+  ::ae::AnnounceNextPingUnknown& AnnounceNextPingUnknown();
+
+#if AE_ENABLE_PING
+  PingCloudServers* ping_cloud_servers() noexcept;
+#endif
+
+  // Most recent local time at which a valid response from any cloud server was
+  // actually received. Not updated on send, connect, timeout, or eviction.
+  std::optional<TimePoint> last_online_time() const noexcept;
+
+  // Expected local receive time of the scheduled ping response.
+  // Tn is the request-arrival contract deadline; response return time is
+  // estimated as Tn + p99_RTT/2. nullopt when ping scheduling is disabled or
+  // no contract deadline exists yet.
+  std::optional<TimePoint> expected_ping_response_time() const noexcept;
+
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, client_id_, parent_uid_, uid_,
                              ephemeral_uid_, master_key_, cloud_, server_keys_,
                              connectivity_policy_, client_cloud_manager_))
   void SendTelemetry();
 
  private:
+  friend class ClientServerConnection;
+
+  // Central inbound-response hook used by cloud ProtocolContext matching.
+  void MarkServerResponseReceived(TimePoint when) noexcept;
+
   ObjPtr<Aether> aether_;
   // configuration
   std::string client_id_;  // User-defined client id
@@ -87,6 +122,8 @@ class Client : public Obj {
   std::map<ServerId, ServerKeys> server_keys_;
 
   ClientConnectivityPolicy::ptr connectivity_policy_;
+  // Keeps configured receive-schedule timings resident until/after ping start.
+  Ptr<ClientConnectivityPolicy> connectivity_policy_keep_alive_;
   ClientCloudManager::ptr client_cloud_manager_;
   std::unique_ptr<ServerConnectionManager> server_connection_manager_;
   std::unique_ptr<CloudServerConnections> cloud_connection_;
@@ -95,9 +132,14 @@ class Client : public Obj {
 #if AE_ENABLE_PING
   std::unique_ptr<PingCloudServers> ping_cloud_servers_;
 #endif
+  std::unique_ptr<::ae::QueryPeerReceiveSchedule> query_peer_receive_schedule_;
+  std::unique_ptr<::ae::AnnounceNextPingUnknown> announce_next_ping_unknown_;
 #if AE_TELE_ENABLED && AE_TELE_LOG_TO_STATISTICS
   std::unique_ptr<Telemetry> telemetry_;
 #endif
+
+  // Runtime-only connectivity timestamps (not serialized).
+  std::optional<TimePoint> last_online_time_;
 };
 }  // namespace ae
 

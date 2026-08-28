@@ -162,6 +162,10 @@ ClientCloudManager::ClientCloudManager(ObjProp prop, ObjPtr<Aether> aether,
                              });
       });
   assert(cache_initialized && "Client did not load");
+
+  // Action pools only — do not open cloud_connection()/ping here. Callers may
+  // still need SetReceiveSchedule() before the first cloud_connection().
+  Init();
 }
 
 ClientCloudManager::CloudUpdateEvent::Subscriber
@@ -174,9 +178,8 @@ GetCloudAction& ClientCloudManager::GetCloud(Uid client_uid) {
 
   auto aether = aether_.Load();
   assert(aether && "Aether did not loaded");
-  if (!cloud_actions_) {
-    cloud_actions_.emplace(*aether);
-  }
+
+  assert(cloud_actions_ && "Cloud actions did not initiated");
 
   auto cached = cloud_cache_.find(client_uid);
   if ((cached != cloud_cache_.end()) && cached->second.cloud.is_valid()) {
@@ -199,11 +202,26 @@ GetCloudAction& ClientCloudManager::GetCloud(Uid client_uid) {
   return *action;
 }
 
-void ClientCloudManager::StartListenForCloudUpdate() {
+void ClientCloudManager::Init() {
+  if (cloud_actions_) {
+    return;
+  }
   auto aether = aether_.Load();
   assert(aether && "Aether must be loaded");
+  cloud_actions_.emplace(*aether);
   get_servers_pool_.emplace(*aether);
+}
 
+void ClientCloudManager::StartCloudUpdateListener() {
+  Init();
+  if (cloud_update_listening_) {
+    return;
+  }
+  cloud_update_listening_ = true;
+  ListenForCloudUpdate();
+}
+
+void ClientCloudManager::ListenForCloudUpdate() {
   auto client = client_.Load();
   assert(client && "Client does not loaded");
 

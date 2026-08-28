@@ -17,6 +17,8 @@
 #ifndef AETHER_CHANNELS_CHANNEL_H_
 #define AETHER_CHANNELS_CHANNEL_H_
 
+#include <chrono>
+
 #include "aether/memory.h"
 #include "aether/obj/obj.h"
 #include "aether/executors/executors.h"
@@ -36,6 +38,10 @@ class Channel : public Obj {
   Channel() = default;
 
   explicit Channel(ObjProp prop);
+
+  // Used when response RTT samples are empty (no synthetic seed).
+  static constexpr Duration kInitialResponseEstimate =
+      std::chrono::duration_cast<Duration>(std::chrono::milliseconds{200});
 
   AE_OBJECT_REFLECT(AE_MMBRS(transport_properties_, channel_statistics_))
 

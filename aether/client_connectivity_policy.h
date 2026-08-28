@@ -25,8 +25,10 @@
 #include "aether/config.h"
 #include "aether/events/events.h"
 #include "aether/obj/obj.h"
+#include "aether/obj/version_iterator.h"
 
 #include "aether/cloud_connections/request_policy.h"
+#include "aether/receive_schedule.h"
 
 namespace ae {
 
@@ -64,7 +66,7 @@ struct ConnectivityStatus {
 };
 
 class ClientConnectivityPolicy : public Obj {
-  AE_OBJECT(ClientConnectivityPolicy, Obj, 0)
+  AE_OBJECT(ClientConnectivityPolicy, Obj, 1)
 
  public:
   class RxTimingConfig {
@@ -108,10 +110,19 @@ class ClientConnectivityPolicy : public Obj {
 
   AE_CLASS_NO_COPY_MOVE(ClientConnectivityPolicy);
 
-  AE_OBJECT_REFLECT(AE_MMBRS(rx_targets_, rx_timings_))
+  AE_OBJECT_REFLECT(AE_MMBRS(rx_targets_, rx_timings_, ping_retry_count_))
+  template <typename Dnv>
+  void Load(Version<0>, Dnv& dnv) {
+    dnv(base_, rx_targets_, rx_timings_);
+    ping_retry_count_ = kDefaultPingRetryCount;
+    ResetRuntimeState();
+  }
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {
-    dnv(base_, rx_targets_, rx_timings_);
+    dnv(base_, rx_targets_, rx_timings_, ping_retry_count_);
+    if (ping_retry_count_ > kMaxPingRetryCount) {
+      ping_retry_count_ = kMaxPingRetryCount;
+    }
     ResetRuntimeState();
   }
 
@@ -124,6 +135,11 @@ class ClientConnectivityPolicy : public Obj {
   std::array<RxTiming, kMaxRxServerPriorities> const& rx_timings()
       const noexcept {
     return rx_timings_;
+  }
+  std::uint8_t ping_retry_count() const noexcept { return ping_retry_count_; }
+  void set_ping_retry_count(std::uint8_t count) noexcept {
+    ping_retry_count_ =
+        count > kMaxPingRetryCount ? kMaxPingRetryCount : count;
   }
   Event<void()>::Subscriber suspend_allowed_event() noexcept {
     return EventSubscriber{suspend_allowed_event_};
@@ -142,6 +158,7 @@ class ClientConnectivityPolicy : public Obj {
 
   RequestPolicy::Variant rx_targets_;
   std::array<RxTiming, kMaxRxServerPriorities> rx_timings_;
+  std::uint8_t ping_retry_count_{kDefaultPingRetryCount};
 
   bool can_suspend_{true};
   std::uint8_t suspend_block_count_{};

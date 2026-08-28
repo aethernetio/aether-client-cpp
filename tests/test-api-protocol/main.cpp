@@ -20,10 +20,18 @@ void setUp() {}
 void tearDown() {}
 
 extern int test_method_call();
+extern int test_uap_receive_schedule();
+extern int test_uap_peer_deadline_classify();
+extern int test_uap_peer_timing();
+extern int test_client_online_timing();
 
 int main() {
   int res = 0;
   res += test_method_call();
+  res += test_uap_receive_schedule();
+  res += test_uap_peer_deadline_classify();
+  res += test_uap_peer_timing();
+  res += test_client_online_timing();
 
   return res;
 }

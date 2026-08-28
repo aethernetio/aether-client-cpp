@@ -24,8 +24,6 @@ namespace ae {
 
 Channel::Channel(ObjProp prop)
     : Obj{prop}, channel_statistics_{ChannelStatistics::ptr::Create(domain)} {
-  channel_statistics_->AddResponseTime(
-      std::chrono::milliseconds{AE_DEFAULT_RESPONSE_TIMEOUT_MS});
   channel_statistics_->AddConnectionTime(
       std::chrono::milliseconds{AE_DEFAULT_CONNECTION_TIMEOUT_MS});
 }
@@ -43,7 +41,11 @@ Duration Channel::TransportBuildTimeout() const {
 }
 
 Duration Channel::ResponseTimeout() const {
-  return channel_statistics_->response_time_statistics().percentile<99>();
+  auto const& stats = channel_statistics_->response_time_statistics();
+  if (stats.empty()) {
+    return Channel::kInitialResponseEstimate;
+  }
+  return stats.percentile<99>();
 }
 
 }  // namespace ae

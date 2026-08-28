@@ -33,6 +33,18 @@ ProtocolContext::~ProtocolContext() {
   }
 }
 
+void ProtocolContext::set_inbound_server_response_hook(
+    InboundServerResponseHook hook, void* user) noexcept {
+  inbound_server_response_hook_ = hook;
+  inbound_server_response_user_ = user;
+}
+
+void ProtocolContext::NotifyInboundServerResponse() noexcept {
+  if (inbound_server_response_hook_ != nullptr) {
+    inbound_server_response_hook_(inbound_server_response_user_);
+  }
+}
+
 void ProtocolContext::SetSendResultResponse(RequestId request_id) {
   auto entry = TakePending(request_id);
   if (entry.response == nullptr) {
@@ -42,6 +54,10 @@ void ProtocolContext::SetSendResultResponse(RequestId request_id) {
 
   auto* p = parser();
   assert(p != nullptr && "Parser shouldn't be null");
+  // Matched inbound result from the server (not a local eviction/timeout).
+  if (entry.response != nullptr) {
+    NotifyInboundServerResponse();
+  }
   entry.response->OnResult(*p);
   DestroyPending(entry);
 }
@@ -55,6 +71,10 @@ void ProtocolContext::SetSendErrorResponse(RequestId req_id,
     parser()->Cancel();
   }
 
+  // Matched inbound error response from the server (not OnEvicted).
+  if (entry.response != nullptr) {
+    NotifyInboundServerResponse();
+  }
   entry.response->OnError(error_type, static_cast<std::int32_t>(error_code));
   DestroyPending(entry);
 }

@@ -71,8 +71,55 @@ void CloudRequest::Failed() {
   result_event_.Emit(false);
 }
 
+
+void CloudRequest::SucceedAttempt(CloudServerConnection* sc) {
+  auto it = server_requests_.find(sc);
+  if (it == server_requests_.end()) {
+    return;
+  }
+  auto& sr = it->second;
+  if (sr.succeeded) {
+    return;
+  }
+  sr.state_subs.Reset();
+  sr.timeout_sub.Reset();
+  sr.succeeded = true;
+  EnqueueMakeRequest();
+}
+
+bool CloudRequest::FailAttempt(CloudServerConnection* sc) {
+  auto it = server_requests_.find(sc);
+  if (it == server_requests_.end()) {
+    return false;
+  }
+  auto& sr = it->second;
+  if (sr.succeeded) {
+    return false;
+  }
+  sr.state_subs.Reset();
+  sr.timeout_sub.Reset();
+  sr.retry_count++;
+  if (sr.retry_count >= max_retries_) {
+    AE_TELED_WARNING("Server {} retry budget exhausted on attempt failure",
+                     sc->server_id());
+    sr.exhausted = true;
+    EmitAttemptExhausted(sc);
+  }
+  EnqueueMakeRequest();
+  return sr.exhausted;
+}
+
 CloudRequest::ResultEvent::Subscriber CloudRequest::result_event() {
   return EventSubscriber{result_event_};
+}
+
+CloudRequest::AttemptExhaustedEvent::Subscriber
+CloudRequest::attempt_exhausted_event() {
+  return EventSubscriber{attempt_exhausted_event_};
+}
+
+void CloudRequest::EmitAttemptExhausted(CloudServerConnection* sc) {
+  attempt_exhausted_event_.Emit(sc);
 }
 
 void CloudRequest::PrefillServerRequests() {
@@ -92,7 +139,7 @@ void CloudRequest::MakeRequest() {
           sr = &new_it->second;
         } else {
           sr = &it->second;
-          if (sr->exhausted) {
+          if (sr->exhausted || sr->succeeded) {
             return;
           }
         }
@@ -100,15 +147,17 @@ void CloudRequest::MakeRequest() {
       },
       policy_);
 
-  // Check if all server requests are exhausted
-  bool all_exhausted = !server_requests_.empty();
+  bool any_open = false;
+  bool any_succeeded = false;
   for (auto const& [sc, sr] : server_requests_) {
-    if (!sr.exhausted) {
-      all_exhausted = false;
-      break;
+    if (sr.succeeded) {
+      any_succeeded = true;
+    } else if (!sr.exhausted) {
+      any_open = true;
     }
   }
-  if (all_exhausted) {
+  if (!server_requests_.empty() &&
+      CloudRequestShouldFailAll(any_open, any_succeeded)) {
     AE_TELED_ERROR("All server requests exhausted, failing");
     Failed();
   }
@@ -181,9 +230,13 @@ void CloudRequest::OnChannelChanged(CloudServerConnection* sc) {
     return;
   }
   auto& sr = it->second;
+  if (sr.succeeded) {
+    return;
+  }
   if (sr.retry_count >= max_retries_) {
     AE_TELED_WARNING("Server {} retry budget exhausted", sc->server_id());
     sr.exhausted = true;
+    EmitAttemptExhausted(sc);
     EnqueueMakeRequest();
     return;
   }
@@ -197,11 +250,15 @@ void CloudRequest::OnWriteFailed(CloudServerConnection* sc) {
     return;
   }
   auto& sr = it->second;
+  if (sr.succeeded) {
+    return;
+  }
   sr.retry_count++;
   if (sr.retry_count >= max_retries_) {
     AE_TELED_WARNING("Server {} retry budget exhausted on write failure",
                      sc->server_id());
     sr.exhausted = true;
+    EmitAttemptExhausted(sc);
   }
   EnqueueMakeRequest();
 }
@@ -212,10 +269,14 @@ void CloudRequest::OnServerRequestTimeout(CloudServerConnection* sc) {
     return;
   }
   auto& sr = it->second;
+  if (sr.succeeded) {
+    return;
+  }
   if (sr.retry_count >= max_retries_) {
     AE_TELED_WARNING("Server {} retry budget exhausted on timeout",
                      sc->server_id());
     sr.exhausted = true;
+    EmitAttemptExhausted(sc);
     EnqueueMakeRequest();
     return;
   }

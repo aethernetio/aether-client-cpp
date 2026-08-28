@@ -35,12 +35,42 @@ namespace ae {
  * response. On success, listener must call CloudRequest::Succeeded(). On
  * failure, listener must call CloudRequest::Failed().
  */
+// Testable per-server completion flags used by CloudRequest.
+struct CloudRequestAttemptState {
+  bool exhausted{false};
+  bool succeeded{false};
+  std::size_t retry_count{0};
+
+  bool ShouldSkipMake() const noexcept { return exhausted || succeeded; }
+
+  void MarkSucceeded() { succeeded = true; }
+
+  // Returns true when this failure exhausted the retry budget.
+  bool MarkFailed(std::size_t max_retries) {
+    if (succeeded) {
+      return false;
+    }
+    ++retry_count;
+    if (retry_count >= max_retries) {
+      exhausted = true;
+      return true;
+    }
+    return false;
+  }
+};
+
+inline bool CloudRequestShouldFailAll(bool any_open,
+                                      bool any_succeeded) noexcept {
+  return !any_open && !any_succeeded;
+}
+
 class CloudRequest final : public Action {
   struct ServerRequest {
     MultiSubscription state_subs;
     TaskSubscription timeout_sub;
     std::size_t retry_count{0};
     bool exhausted{false};
+    bool succeeded{false};
   };
 
  public:
@@ -49,6 +79,7 @@ class CloudRequest final : public Action {
       std::chrono::milliseconds{AE_CLOUD_REQUEST_TIMEOUT_MS};
 
   using ResultEvent = Event<void(bool)>;
+  using AttemptExhaustedEvent = Event<void(CloudServerConnection*)>;
 
   CloudRequest(AeContext const& ae_context, ApiCallWithListener&& api_call,
                CloudServerConnections& cloud_server_connections,
@@ -66,8 +97,15 @@ class CloudRequest final : public Action {
 
   void Succeeded();
   void Failed();
+  // Per-server success: stop this server's timeout/channel/write
+  // subscriptions, skip further retries, and do not finish CloudRequest.
+  void SucceedAttempt(CloudServerConnection* sc);
+  // Listener-side attempt failure: retry/exhaust this server without
+  // ending the whole CloudRequest. Returns true when the server is exhausted.
+  bool FailAttempt(CloudServerConnection* sc);
 
   ResultEvent::Subscriber result_event();
+  AttemptExhaustedEvent::Subscriber attempt_exhausted_event();
 
  private:
   void MakeRequest();
@@ -81,6 +119,7 @@ class CloudRequest final : public Action {
 
   void RemoveRequest(CloudServerConnection* server_connection);
   void EnqueueMakeRequest();
+  void EmitAttemptExhausted(CloudServerConnection* sc);
 
   void Finish();
 
@@ -95,6 +134,7 @@ class CloudRequest final : public Action {
   Subscription swa_sub_;
   Subscription server_changed_sub_;
   ResultEvent result_event_;
+  AttemptExhaustedEvent attempt_exhausted_event_;
 
   std::map<CloudServerConnection*, ServerRequest> server_requests_;
 };

@@ -64,6 +64,7 @@ option(AE_BUILD_TESTS "Build tests" ${AE_ROOT_PORJECT})
 option(AE_BUILD_ANDROID_SMOKE "Build Android NDK smoke shared library and runner" Off)
 option(AE_ADDRESS_SANITIZE "Enable address sanitizer" Off)
 option(AE_NO_STRIP_ALL "Do not apply --strip_all, useful for bloaty and similar tools " Off)
+option(AE_ENABLE_PING_TEST_FAULTS "Enable test-only ping request/response fault injection" Off)
 
 set(UTM_ID "0" CACHE STRING "User Tracking Measurement ID, must be a uint32 value")
 set(USER_CONFIG "" CACHE PATH "Path to user provided configuration header file")
@@ -81,6 +82,7 @@ message(STATUS "Aether build options:
    AE_BUILD_ANDROID_SMOKE=${AE_BUILD_ANDROID_SMOKE}
    AE_ADDRESS_SANITIZE=${AE_ADDRESS_SANITIZE}
    AE_NO_STRIP_ALL=${AE_NO_STRIP_ALL}
+   AE_ENABLE_PING_TEST_FAULTS=${AE_ENABLE_PING_TEST_FAULTS}
    UTM_ID=${UTM_ID}
    USER_CONFIG=${USER_CONFIG}
    FS_INIT=${FS_INIT}
@@ -268,6 +270,9 @@ endif()
 if (AE_FILTRATION)
   target_compile_definitions(${TARGET_NAME} PUBLIC "AE_FILTRATION=1")
 endif()
+if (AE_ENABLE_PING_TEST_FAULTS)
+  target_compile_definitions(${TARGET_NAME} PUBLIC "AE_ENABLE_PING_TEST_FAULTS=1")
+endif()
 
 # for debug purposes only, set registration server ip address
 if(NOT "${AE_REG_CLOUD_ADDR}" STREQUAL "")
@@ -320,7 +325,7 @@ target_compile_options(${TARGET_NAME} PRIVATE
 target_compile_options(${TARGET_NAME} PUBLIC
   $<$<CXX_COMPILER_ID:MSVC>:
       /wd4100 /wd4101 /wd4127 /wd4244 /wd4324
-      /wd4456 /wd4459 /wd4714
+      /wd4456 /wd4459 /wd4702 /wd4714
       >
 )
 
@@ -386,6 +391,10 @@ if(AE_BUILD_EXAMPLES)
   add_subdirectory(examples/capi/oddity)
   add_subdirectory(examples/benches/send_message_delays)
   add_subdirectory(examples/benches/send_messages_bandwidth)
+  add_subdirectory(examples/benches/aether_uap_delivery_timing_bench)
+  add_subdirectory(examples/aether_uap_peer_deadline_test)
+  add_subdirectory(examples/aether_uap_ping_retry_window_test)
+  add_subdirectory(examples/aether_uap_1s_timing_characterization)
 endif()
 
 if(AE_BUILD_TESTS)
