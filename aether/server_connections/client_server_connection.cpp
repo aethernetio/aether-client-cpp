@@ -142,6 +142,7 @@ ClientServerConnection::ClientServerConnection(AeContext const& ae_context,
                                                Ptr<Client> const& client,
                                                Ptr<Server> const& server)
     : ae_context_{ae_context},
+      client_{client},
       server_{server},
       uid_{client->uid()},
       ephemeral_uid_{client->ephemeral_uid()},

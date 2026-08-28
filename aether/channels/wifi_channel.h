@@ -42,6 +42,8 @@ class WifiChannel final : public Channel {
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, resolver_, access_point_,
                              address))
 
+  std::optional<Endpoint> endpoint() const override { return address; }
+
   Duration TransportBuildTimeout() const override;
 
   TransportBuildSender TransportBuilder() override;

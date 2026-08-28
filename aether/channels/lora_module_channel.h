@@ -37,6 +37,8 @@ class LoraModuleChannel final : public Channel {
 
   AE_OBJECT_REFLECT(AE_MMBRS(access_point_))
 
+  std::optional<Endpoint> endpoint() const override { return std::nullopt; }
+
   ActionPtr<TransportBuilderAction> TransportBuilder() override;
 
   Duration TransportBuildTimeout() const override;

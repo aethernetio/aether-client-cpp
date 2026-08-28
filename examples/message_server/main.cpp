@@ -14,9 +14,6 @@
  * limitations under the License.
  */
 
-#include "aether/config.h"
-#include "aether/tele.h"
-
 #if (defined(CM_ESP32))
 #  include <esp_task_wdt.h>
 #  include <iostream>
@@ -25,7 +22,7 @@
 extern "C" void app_main();
 extern int MessageServerExample();
 
-int test(void) { return MessageServerExample(); }
+int run(void) { return MessageServerExample(); }
 
 #if (defined(ESP_PLATFORM))
 void app_main(void) {
@@ -35,11 +32,11 @@ void app_main(void) {
   if (err != 0) {
     std::cerr << "Reconfigure WDT is failed!\n";
   }
-  test();
+  run();
 }
 #endif
 
 #if (defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
      defined(__FreeBSD__) || defined(_WIN64) || defined(_WIN32))
-int main() { return test(); }
+int main() { return run(); }
 #endif

@@ -70,7 +70,7 @@ class SendAction final : public PacketSendAction {
       AE_TELED_ERROR("Send error, sent size isn't same as packet size");
       SetStatus(WriteAction::Status::kFail);
       return;
-    }    
+    }
     SetStatus(WriteAction::Status::kSuccess);
   }
 

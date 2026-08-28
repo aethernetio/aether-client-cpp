@@ -17,10 +17,14 @@
 #ifndef AETHER_STREAM_API_API_CALL_ADAPTER_H_
 #define AETHER_STREAM_API_API_CALL_ADAPTER_H_
 
+#include <cassert>
 #include <utility>
 
-#include "aether/stream_api/istream.h"
 #include "aether/api_protocol/api_context.h"
+#include "aether/stream_api/istream.h"
+#include "aether/types/data_buffer.h"
+
+#include "aether/tele.h"
 
 namespace ae {
 /**
@@ -35,7 +39,9 @@ class ApiCallAdapter {
 
   AE_CLASS_MOVE_ONLY(ApiCallAdapter)
 
-  WriteAction& Flush() { return byte_stream_->Write(std::move(api_context_)); }
+  WriteAction& Flush() {
+    return byte_stream_->Write(DataBuffer{std::move(api_context_)});
+  }
 
   ApiContext<TApi>& operator->() { return api_context_; }
 

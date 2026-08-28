@@ -89,7 +89,16 @@ class ClientCloudManager : public Obj {
 
   CloudUpdateEvent::Subscriber cloud_update_event();
 
+  /**
+   * \brief Make request for cloud for client_uid.
+   * New request to client cloud is performed or cloud returned from cache.
+   */
   GetCloudAction& GetCloud(Uid client_uid);
+
+  /**
+   * \brief Returns cloud from cache for client_uid or empty Cloud::ptr.
+   */
+  Cloud::ptr GetCachedCloud(Uid client_uid);
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, client_, cloud_cache_))
 

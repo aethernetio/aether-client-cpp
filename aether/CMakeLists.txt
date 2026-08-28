@@ -198,6 +198,8 @@ list(APPEND aether_srcs
 
 list(APPEND aether_srcs
             "server_connections/client_server_connection.cpp"
+            "prepared_packet/prepared_send_message.cpp"
+            "prepared_packet/packet_encoder.cpp"
             "server_connections/channel_select_action.cpp"
             "server_connections/server_connection.cpp")
 

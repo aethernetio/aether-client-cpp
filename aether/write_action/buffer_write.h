@@ -45,6 +45,7 @@ namespace ae {
     do {                             \
       AE_TELED_WARNING(__VA_ARGS__); \
     } while (false)
+
 #else
 #  define BW_LOG_DEBUG(...)
 #  define BW_LOG_WARNING(...)

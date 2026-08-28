@@ -17,6 +17,9 @@
 #ifndef AETHER_CLIENT_MESSAGES_P2P_MESSAGE_STREAM_H_
 #define AETHER_CLIENT_MESSAGES_P2P_MESSAGE_STREAM_H_
 
+#include <cstdint>
+#include <optional>
+
 #include "aether/common.h"
 
 #include "aether/ae_context.h"
@@ -28,6 +31,8 @@
 #include "aether/client_messages/p2p_port_handle.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
 #include "aether/connection_manager/client_cloud_manager.h"
+
+#include "aether/prepared_packet/packet_encoder.h"
 
 namespace ae {
 class Client;

@@ -78,6 +78,7 @@ class ClientServerConnection {
   void OutData(DataBuffer const& data);
 
   AeContext ae_context_;
+  PtrView<Client> client_;
   PtrView<Server> server_;
   Uid uid_;
   Uid ephemeral_uid_;

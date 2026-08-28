@@ -17,12 +17,15 @@
 #ifndef AETHER_CHANNELS_CHANNEL_H_
 #define AETHER_CHANNELS_CHANNEL_H_
 
+#include <optional>
+
+#include "aether/channels/channel_statistics.h"
+#include "aether/channels/channels_types.h"
+#include "aether/executors/executors.h"
 #include "aether/memory.h"
 #include "aether/obj/obj.h"
-#include "aether/executors/executors.h"
 #include "aether/stream_api/istream.h"
-#include "aether/channels/channels_types.h"
-#include "aether/channels/channel_statistics.h"
+#include "aether/types/address.h"
 
 namespace ae {
 using TransportBuildSender =
@@ -44,6 +47,7 @@ class Channel : public Obj {
    */
   virtual TransportBuildSender TransportBuilder() = 0;
 
+  virtual std::optional<Endpoint> endpoint() const = 0;
   ChannelTransportProperties const& transport_properties() const;
   ChannelStatistics& channel_statistics();
 

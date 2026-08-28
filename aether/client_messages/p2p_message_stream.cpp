@@ -24,6 +24,7 @@
 #include "aether/cloud.h"
 
 #include "aether/cloud_connections/cloud_request.h"
+#include "aether/cloud_connections/cloud_server_connection.h"
 #include "aether/cloud_connections/cloud_subscription.h"
 
 #include "aether/client_messages/client_messages_tele.h"
@@ -48,6 +49,7 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
         }},
         request_policy_);
   }
+
   StreamInfo stream_info() const override { return stream_info_; }
   OutDataEvent::Subscriber out_data_event() override { return out_data_event_; }
   StreamUpdateEvent::Subscriber stream_update_event() override {
