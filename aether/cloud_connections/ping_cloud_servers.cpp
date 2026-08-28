@@ -802,18 +802,21 @@ std::optional<TimePoint> PingCloudServers::expected_ping_response_time()
   if (!auto_ping_enabled_) {
     return std::nullopt;
   }
-  std::optional<TimePoint> best;
-  for (auto const& [server_id, st] : cycle_states_) {
-    (void)server_id;
-    auto const expected = ExpectedPingResponseTimeForCycle(st);
-    if (!expected.has_value()) {
+  std::optional<TimePoint> latest_expected_response;
+  for (auto const& [server_id, server_ping] : server_pings_) {
+    if (server_ping == nullptr || server_ping->stopped() ||
+        server_ping->quarantined()) {
       continue;
     }
-    if (!best.has_value() || *expected < *best) {
-      best = expected;
+    auto const cycle_it = cycle_states_.find(server_id);
+    if (cycle_it == cycle_states_.end()) {
+      continue;
     }
+    AccumulateLatestExpectedPingResponse(
+        latest_expected_response,
+        ExpectedPingResponseTimeForCycle(cycle_it->second));
   }
-  return best;
+  return latest_expected_response;
 }
 
 PingCloudServers::AnnounceEvent::Subscriber

@@ -78,17 +78,48 @@ void test_EmptyStatsBootstrapMatchesHalfOf200ms() {
 }
 
 void test_MarkServerResponseReceivedUpdatesLastOnline() {
-  // Client default ctor is private (Obj factory); exercise the public mutator
-  // semantics with a stand-in optional updated the same way Client does.
   std::optional<TimePoint> last_online_time;
-  auto mark = [&](TimePoint when) { last_online_time = when; };
-  auto const t1 = Tp(1080);
-  mark(t1);
+  UpdateMonotonicLastOnlineTime(last_online_time, Tp(1080));
   TEST_ASSERT_TRUE(last_online_time.has_value());
-  TEST_ASSERT_TRUE(*last_online_time == t1);
-  auto const t2 = Tp(1090);
-  mark(t2);
-  TEST_ASSERT_TRUE(*last_online_time == t2);
+  TEST_ASSERT_TRUE(*last_online_time == Tp(1080));
+  UpdateMonotonicLastOnlineTime(last_online_time, Tp(1090));
+  TEST_ASSERT_TRUE(*last_online_time == Tp(1090));
+}
+
+void test_LastOnlineTimeIsMonotonic() {
+  std::optional<TimePoint> last_online_time;
+  UpdateMonotonicLastOnlineTime(last_online_time, Tp(1000));
+  UpdateMonotonicLastOnlineTime(last_online_time, Tp(900));
+  TEST_ASSERT_TRUE(last_online_time.has_value());
+  TEST_ASSERT_TRUE(*last_online_time == Tp(1000));
+  UpdateMonotonicLastOnlineTime(last_online_time, Tp(1100));
+  TEST_ASSERT_TRUE(*last_online_time == Tp(1100));
+}
+
+void test_MultiServerAggregationUsesLatestExpected() {
+  std::optional<TimePoint> latest_expected_response;
+  AccumulateLatestExpectedPingResponse(latest_expected_response, Tp(10100));
+  AccumulateLatestExpectedPingResponse(latest_expected_response, Tp(11100));
+  TEST_ASSERT_TRUE(latest_expected_response.has_value());
+  TEST_ASSERT_TRUE(*latest_expected_response == Tp(11100));
+}
+
+void test_InactiveServerExcludedFromAggregation() {
+  std::optional<TimePoint> latest_expected_response;
+  AccumulateLatestExpectedPingResponse(latest_expected_response, Tp(11100));
+  TEST_ASSERT_TRUE(latest_expected_response.has_value());
+  TEST_ASSERT_TRUE(*latest_expected_response == Tp(11100));
+
+  // Including a stale inactive server would wrongly raise the max.
+  std::optional<TimePoint> with_inactive;
+  AccumulateLatestExpectedPingResponse(with_inactive, Tp(11100));
+  AccumulateLatestExpectedPingResponse(with_inactive, Tp(50000));
+  TEST_ASSERT_TRUE(*with_inactive == Tp(50000));
+
+  // Production skips inactive servers before aggregation.
+  latest_expected_response = std::nullopt;
+  AccumulateLatestExpectedPingResponse(latest_expected_response, Tp(11100));
+  TEST_ASSERT_TRUE(*latest_expected_response == Tp(11100));
 }
 
 void test_InboundResultHookMarksOnlineAndEvictionDoesNot() {
@@ -250,6 +281,11 @@ int test_client_online_timing() {
                test_EmptyStatsBootstrapMatchesHalfOf200ms);
   RUN_TEST(ae::test_client_online_timing::
                test_MarkServerResponseReceivedUpdatesLastOnline);
+  RUN_TEST(ae::test_client_online_timing::test_LastOnlineTimeIsMonotonic);
+  RUN_TEST(ae::test_client_online_timing::
+               test_MultiServerAggregationUsesLatestExpected);
+  RUN_TEST(ae::test_client_online_timing::
+               test_InactiveServerExcludedFromAggregation);
   RUN_TEST(ae::test_client_online_timing::
                test_InboundResultHookMarksOnlineAndEvictionDoesNot);
   RUN_TEST(ae::test_client_online_timing::test_InboundErrorHookMarksOnline);

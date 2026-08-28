@@ -196,7 +196,7 @@ std::optional<TimePoint> Client::expected_ping_response_time() const noexcept {
 }
 
 void Client::MarkServerResponseReceived(TimePoint when) noexcept {
-  last_online_time_ = when;
+  UpdateMonotonicLastOnlineTime(last_online_time_, when);
 }
 
 void Client::SendTelemetry() {

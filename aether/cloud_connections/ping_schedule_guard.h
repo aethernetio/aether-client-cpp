@@ -648,6 +648,27 @@ inline std::optional<TimePoint> ExpectedPingResponseTimeForCycle(
   return ExpectedPingResponseTime(*tn, st.frozen_p99_rtt);
 }
 
+// Among active-server expected response times, keep the latest deadline.
+inline void AccumulateLatestExpectedPingResponse(
+    std::optional<TimePoint>& latest_expected_response,
+    std::optional<TimePoint> candidate) noexcept {
+  if (!candidate.has_value()) {
+    return;
+  }
+  if (!latest_expected_response.has_value() ||
+      *candidate > *latest_expected_response) {
+    latest_expected_response = candidate;
+  }
+}
+
+// Monotonic update for client last-online runtime timestamp.
+inline void UpdateMonotonicLastOnlineTime(
+    std::optional<TimePoint>& last_online_time, TimePoint when) noexcept {
+  if (!last_online_time.has_value() || when > *last_online_time) {
+    last_online_time = when;
+  }
+}
+
 struct LogicalPingAttemptRequest {
   TimePoint actual_send_at{};
   Duration interval{};

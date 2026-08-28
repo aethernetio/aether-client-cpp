@@ -98,15 +98,17 @@ class Client : public Obj {
   // no contract deadline exists yet.
   std::optional<TimePoint> expected_ping_response_time() const noexcept;
 
-  // Central inbound-response hook used by cloud ProtocolContext matching.
-  void MarkServerResponseReceived(TimePoint when) noexcept;
-
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, client_id_, parent_uid_, uid_,
                              ephemeral_uid_, master_key_, cloud_, server_keys_,
                              connectivity_policy_, client_cloud_manager_))
   void SendTelemetry();
 
  private:
+  friend class ClientServerConnection;
+
+  // Central inbound-response hook used by cloud ProtocolContext matching.
+  void MarkServerResponseReceived(TimePoint when) noexcept;
+
   ObjPtr<Aether> aether_;
   // configuration
   std::string client_id_;  // User-defined client id
