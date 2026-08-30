@@ -200,16 +200,19 @@ void test_AggregateFutureCases() {
   TEST_ASSERT_TRUE(one_future->state == PeerScheduleState::kExpected);
   TEST_ASSERT_TRUE(one_future->next_ping_deadline == Tp(2000));
 
-  auto const latest_future = AggregatePeerTimings(
+  // Presence Online uses the earliest Expected deadline.
+  auto const earliest_future = AggregatePeerTimings(
       {Sample(1, 1000, PeerScheduleState::kExpected, 1),
        Sample(2, 2500, PeerScheduleState::kExpected, 2)});
-  TEST_ASSERT_TRUE(latest_future->next_ping_deadline == Tp(2500));
+  TEST_ASSERT_TRUE(earliest_future->next_ping_deadline == Tp(1000));
 
+  // ANY MissedDeadline => Offline (mapped to MissedDeadline via alias).
   auto const future_plus_expired = AggregatePeerTimings(
       {Sample(1, 2000, PeerScheduleState::kExpected),
        Sample(2, -100, PeerScheduleState::kMissedDeadline)});
-  TEST_ASSERT_TRUE(future_plus_expired->state == PeerScheduleState::kExpected);
-  TEST_ASSERT_TRUE(future_plus_expired->next_ping_deadline == Tp(2000));
+  TEST_ASSERT_TRUE(future_plus_expired->state ==
+                   PeerScheduleState::kMissedDeadline);
+  TEST_ASSERT_TRUE(future_plus_expired->next_ping_deadline == Tp(-100));
 
   auto const future_plus_unknown = AggregatePeerTimings(
       {Sample(1, 1000, PeerScheduleState::kExpected),
@@ -222,13 +225,14 @@ void test_AggregateMissedUnknownAndErrors() {
       {Sample(1, -3000, PeerScheduleState::kMissedDeadline),
        Sample(2, -500, PeerScheduleState::kMissedDeadline)});
   TEST_ASSERT_TRUE(missed->state == PeerScheduleState::kMissedDeadline);
-  TEST_ASSERT_TRUE(missed->next_ping_deadline == Tp(-500));
+  TEST_ASSERT_TRUE(missed->next_ping_deadline == Tp(-3000));
 
+  // Missed + protocol Unknown still Offline (any Missed wins).
   auto const expired_unknown = AggregatePeerTimings(
       {Sample(1, -500, PeerScheduleState::kMissedDeadline),
        Sample(2, std::nullopt, PeerScheduleState::kUnknown)});
-  TEST_ASSERT_TRUE(expired_unknown->state == PeerScheduleState::kUnknown);
-  TEST_ASSERT_FALSE(expired_unknown->next_ping_deadline.has_value());
+  TEST_ASSERT_TRUE(expired_unknown->state == PeerScheduleState::kMissedDeadline);
+  TEST_ASSERT_TRUE(expired_unknown->next_ping_deadline == Tp(-500));
 
   auto const all_unknown = AggregatePeerTimings(
       {Sample(1, std::nullopt, PeerScheduleState::kUnknown),
@@ -250,9 +254,9 @@ void test_AggregateMissedUnknownAndErrors() {
       mixed.ApplyTiming(1, send_ok, ClientTiming{-1000, -20}));
   TEST_ASSERT_TRUE(mixed.ApplyError(2, send_err));
   auto const mixed_agg = mixed.TryAggregate();
+  // MissedDeadline alone is Offline even with a terminal error elsewhere.
   TEST_ASSERT_TRUE(mixed_agg.has_value());
-  TEST_ASSERT_TRUE(mixed_agg->state == PeerScheduleState::kUnknown);
-  TEST_ASSERT_FALSE(mixed_agg->next_ping_deadline.has_value());
+  TEST_ASSERT_TRUE(mixed_agg->state == PeerScheduleState::kMissedDeadline);
   TEST_ASSERT_TRUE(mixed.ReadyToComplete());
 
   PeerTimingQueryState all_err;
@@ -269,14 +273,16 @@ void test_AggregateFreshestLastOnlineIndependentOfDeadline() {
       {Sample(100, 5000, PeerScheduleState::kExpected, 1),
        Sample(900, -10, PeerScheduleState::kMissedDeadline, 2)});
   TEST_ASSERT_TRUE(mixed->last_online == Tp(900));
-  TEST_ASSERT_TRUE(mixed->state == PeerScheduleState::kExpected);
-  TEST_ASSERT_TRUE(mixed->next_ping_deadline == Tp(5000));
+  // last_online is diagnostic only; Missed still drives Offline.
+  TEST_ASSERT_TRUE(mixed->state == PeerScheduleState::kMissedDeadline);
+  TEST_ASSERT_TRUE(mixed->next_ping_deadline == Tp(-10));
 
   auto const reversed = AggregatePeerTimings(
       {Sample(900, -10, PeerScheduleState::kMissedDeadline, 2),
        Sample(100, 5000, PeerScheduleState::kExpected, 1)});
   TEST_ASSERT_TRUE(reversed->last_online == Tp(900));
-  TEST_ASSERT_TRUE(reversed->next_ping_deadline == Tp(5000));
+  TEST_ASSERT_TRUE(reversed->state == PeerScheduleState::kMissedDeadline);
+  TEST_ASSERT_TRUE(reversed->next_ping_deadline == Tp(-10));
 }
 
 void test_LifecycleOutOfOrderStaleCancelAndNoLeak() {
@@ -291,7 +297,8 @@ void test_LifecycleOutOfOrderStaleCancelAndNoLeak() {
   auto aggregated = state.TryAggregate();
   TEST_ASSERT_TRUE(aggregated.has_value());
   TEST_ASSERT_TRUE(aggregated->state == PeerScheduleState::kExpected);
-  TEST_ASSERT_TRUE(aggregated->next_ping_deadline == Tp(0 + 40 + 1500));
+  // Presence Online uses the earliest Expected deadline.
+  TEST_ASSERT_TRUE(aggregated->next_ping_deadline == Tp(0 + 40 + 500));
 
   TEST_ASSERT_FALSE(state.ApplyTiming(1, send_a - 1, ClientTiming{9, -1}));
   TEST_ASSERT_FALSE(state.ApplyTiming(99, send_a, ClientTiming{9, -1}));
@@ -319,8 +326,9 @@ void test_ConservativeMatrixAndExpectedSnapshot() {
   TEST_ASSERT_TRUE(future_err.ApplyError(2, f2));
   auto const fe = future_err.TryAggregate();
   TEST_ASSERT_TRUE(fe.has_value());
-  TEST_ASSERT_TRUE(fe->state == PeerScheduleState::kExpected);
-  TEST_ASSERT_TRUE(fe->next_ping_deadline.has_value());
+  // Expected + query failure => Unknown (not Online).
+  TEST_ASSERT_TRUE(fe->state == PeerScheduleState::kUnknown);
+  TEST_ASSERT_FALSE(fe->next_ping_deadline.has_value());
 
   PeerTimingQueryState unknown_err;
   unknown_err.Begin({1, 2});
@@ -339,14 +347,15 @@ void test_ConservativeMatrixAndExpectedSnapshot() {
   TEST_ASSERT_TRUE(snapshot.ApplyTiming(20, s20, ClientTiming{-1000, -5}));
   TEST_ASSERT_TRUE(snapshot.ApplyTiming(21, s21, ClientTiming{-800, -8}));
   TEST_ASSERT_FALSE(snapshot.ReadyToComplete());
+  // ANY MissedDeadline already decides Offline even while unresolved remains.
   auto const unresolved = snapshot.TryAggregate();
   TEST_ASSERT_TRUE(unresolved.has_value());
-  TEST_ASSERT_TRUE(unresolved->state == PeerScheduleState::kUnknown);
+  TEST_ASSERT_TRUE(unresolved->state == PeerScheduleState::kMissedDeadline);
   TEST_ASSERT_TRUE(snapshot.ApplyError(22, snapshot.RegisterSend(22, Tp(0), Ms(40))));
   TEST_ASSERT_TRUE(snapshot.ReadyToComplete());
   auto const snap_done = snapshot.TryAggregate();
   TEST_ASSERT_TRUE(snap_done.has_value());
-  TEST_ASSERT_TRUE(snap_done->state == PeerScheduleState::kUnknown);
+  TEST_ASSERT_TRUE(snap_done->state == PeerScheduleState::kMissedDeadline);
 
   PeerTimingQueryState incomplete;
   incomplete.Begin({20, 21}, true);
@@ -356,7 +365,7 @@ void test_ConservativeMatrixAndExpectedSnapshot() {
   TEST_ASSERT_TRUE(incomplete.ApplyTiming(21, i21, ClientTiming{-800, -8}));
   auto const inc = incomplete.TryAggregate();
   TEST_ASSERT_TRUE(inc.has_value());
-  TEST_ASSERT_TRUE(inc->state == PeerScheduleState::kUnknown);
+  TEST_ASSERT_TRUE(inc->state == PeerScheduleState::kMissedDeadline);
 
   PeerTimingQueryState all_neg;
   all_neg.Begin({1, 2});
@@ -367,7 +376,8 @@ void test_ConservativeMatrixAndExpectedSnapshot() {
   auto const missed = all_neg.TryAggregate();
   TEST_ASSERT_TRUE(missed.has_value());
   TEST_ASSERT_TRUE(missed->state == PeerScheduleState::kMissedDeadline);
-  TEST_ASSERT_TRUE(missed->next_ping_deadline == Tp(0 + 40 - 400));
+  // Earliest MissedDeadline among successes.
+  TEST_ASSERT_TRUE(missed->next_ping_deadline == Tp(0 + 40 - 1000));
   TEST_ASSERT_TRUE(missed->last_online == Tp(0 + 40 - 20));
 }
 
@@ -379,26 +389,18 @@ void test_RetryRaceAndPostSuccessNoRemake() {
   orch.OnTransient(2, b1);
   TEST_ASSERT_EQUAL_INT(0, orch.callback_count);
   TEST_ASSERT_FALSE(orch.state.ReadyToComplete());
+  // First MissedDeadline completes Offline early.
   orch.OnSuccess(1, a1, ClientTiming{-1000, -10});
-  TEST_ASSERT_EQUAL_INT(0, orch.callback_count);
-  auto const b2 = orch.Send(2, Tp(10), Ms(40));
-  orch.OnSuccess(2, b2, ClientTiming{2000, -15});
   TEST_ASSERT_EQUAL_INT(1, orch.callback_count);
-  TEST_ASSERT_TRUE(orch.last_schedule.has_value());
-  TEST_ASSERT_TRUE(orch.last_schedule->state == PeerScheduleState::kExpected);
+  TEST_ASSERT_TRUE(orch.last_presence.has_value());
+  TEST_ASSERT_TRUE(orch.last_presence->state == PeerPresenceState::kOffline);
 
   PeerTimingQueryOrchestrator reverse;
   reverse.Start({1, 2});
   auto const ra = reverse.Send(1, Tp(0), Ms(40));
   reverse.OnSuccess(1, ra, ClientTiming{-1000, -10});
-  TEST_ASSERT_EQUAL_INT(0, reverse.callback_count);
-  auto const rb = reverse.Send(2, Tp(0), Ms(40));
-  reverse.OnTransient(2, rb);
-  TEST_ASSERT_EQUAL_INT(0, reverse.callback_count);
-  auto const rb2 = reverse.Send(2, Tp(10), Ms(40));
-  reverse.OnSuccess(2, rb2, ClientTiming{2000, -15});
   TEST_ASSERT_EQUAL_INT(1, reverse.callback_count);
-  TEST_ASSERT_TRUE(reverse.last_schedule->state == PeerScheduleState::kExpected);
+  TEST_ASSERT_TRUE(reverse.last_presence->state == PeerPresenceState::kOffline);
 
   PeerTimingQueryState post;
   post.Begin({1, 2});
@@ -414,6 +416,8 @@ void test_RetryRaceAndPostSuccessNoRemake() {
   TEST_ASSERT_TRUE(post.ApplyTiming(2, p2, ClientTiming{800, -20}));
   auto const done = post.TryAggregate();
   TEST_ASSERT_TRUE(done->state == PeerScheduleState::kExpected);
+  // Earliest Expected deadline.
+  TEST_ASSERT_TRUE(done->next_ping_deadline == Tp(0 + 40 + 800));
 }
 
 void test_QuarantinedServerExcludedFromQuerySetAllowsMissedDeadline() {
@@ -452,8 +456,9 @@ void test_ActiveServerQueryErrorGivesUnknown() {
   auto const q20 = st.RegisterSend(20, Tp(0), Ms(40));
   auto const q21 = st.RegisterSend(21, Tp(0), Ms(40));
   auto const q22 = st.RegisterSend(22, Tp(0), Ms(40));
-  TEST_ASSERT_TRUE(st.ApplyTiming(20, q20, ClientTiming{-1000, -5}));
-  TEST_ASSERT_TRUE(st.ApplyTiming(21, q21, ClientTiming{-800, -8}));
+  // Expected + Expected + TerminalError => Unknown (no Missed, incomplete).
+  TEST_ASSERT_TRUE(st.ApplyTiming(20, q20, ClientTiming{1000, -5}));
+  TEST_ASSERT_TRUE(st.ApplyTiming(21, q21, ClientTiming{800, -8}));
   TEST_ASSERT_TRUE(st.ApplyTerminalError(22, q22));
   auto const unknown = st.TryAggregate();
   TEST_ASSERT_TRUE(unknown.has_value());
@@ -466,8 +471,8 @@ void test_ServerLeavingQuarantineFreshQueryCanBeExpected() {
   auto const q20 = st.RegisterSend(20, Tp(0), Ms(40));
   auto const q21 = st.RegisterSend(21, Tp(0), Ms(40));
   auto const q22 = st.RegisterSend(22, Tp(0), Ms(40));
-  TEST_ASSERT_TRUE(st.ApplyTiming(20, q20, ClientTiming{-1000, -5}));
-  TEST_ASSERT_TRUE(st.ApplyTiming(21, q21, ClientTiming{-800, -8}));
+  TEST_ASSERT_TRUE(st.ApplyTiming(20, q20, ClientTiming{1000, -5}));
+  TEST_ASSERT_TRUE(st.ApplyTiming(21, q21, ClientTiming{800, -8}));
   TEST_ASSERT_TRUE(st.ApplyTiming(22, q22, ClientTiming{2000, -7}));
   auto const expected = st.TryAggregate();
   TEST_ASSERT_TRUE(expected.has_value());
@@ -525,82 +530,114 @@ void test_SingleServerScheduleHasNoCrossServerAggregation() {
   TEST_ASSERT_TRUE(only_a.last_online != only_b.last_online);
 }
 
-void test_PresenceOrOnlineAndEarlyCompletion() {
-  auto const online = AggregatePeerPresence(
-      {Sample(100, 2000, PeerScheduleState::kExpected, 1),
-       Sample(50, -100, PeerScheduleState::kMissedDeadline, 2),
-       Sample(60, -200, PeerScheduleState::kMissedDeadline, 3)});
-  TEST_ASSERT_TRUE(online.has_value());
-  TEST_ASSERT_TRUE(online->state == PeerPresenceState::kOnline);
-  TEST_ASSERT_TRUE(online->next_ping_deadline == Tp(2000));
-  TEST_ASSERT_TRUE(online->last_online == Tp(100));
+void test_PresenceNoEarlyOnlineWaitsForAllServers() {
+  PeerPresenceQueryOrchestrator orch;
+  orch.Start({1, 2});
+  auto const a = orch.Send(1, Tp(0), Ms(40));
+  orch.OnSuccess(1, a, ClientTiming{1500, -10});
+  TEST_ASSERT_EQUAL_INT(0, orch.callback_count);
+  TEST_ASSERT_FALSE(orch.state.ReadyToCompletePresence());
 
+  auto const b = orch.Send(2, Tp(0), Ms(40));
+  orch.OnSuccess(2, b, ClientTiming{2000, -10});
+  TEST_ASSERT_EQUAL_INT(1, orch.callback_count);
+  TEST_ASSERT_TRUE(orch.last_presence.has_value());
+  TEST_ASSERT_TRUE(orch.last_presence->state == PeerPresenceState::kOnline);
+}
+
+void test_PresenceEarlyOfflineOnFirstMissed() {
   PeerPresenceQueryOrchestrator early;
   early.Start({1, 2, 3});
   auto const a = early.Send(1, Tp(0), Ms(40));
-  early.OnSuccess(1, a, ClientTiming{1500, -10});
+  early.OnSuccess(1, a, ClientTiming{-500, -10});
   TEST_ASSERT_EQUAL_INT(1, early.callback_count);
   TEST_ASSERT_TRUE(early.last_presence.has_value());
-  TEST_ASSERT_TRUE(early.last_presence->state == PeerPresenceState::kOnline);
+  TEST_ASSERT_TRUE(early.last_presence->state == PeerPresenceState::kOffline);
   TEST_ASSERT_FALSE(early.state.ReadyToComplete());  // B,C still pending
 
-  auto const online_with_error = AggregatePeerPresence(
-      PeerTimingAggregateContext{
-          .expected_server_count = 3,
-          .success_count = 2,
-          .terminal_error_count = 1,
-          .unresolved_count = 0,
-          .snapshot_incomplete = false,
-          .successes =
-              {
-                  Sample(1, -500, PeerScheduleState::kMissedDeadline, 1),
-                  Sample(2, 3000, PeerScheduleState::kExpected, 2),
-              },
-      });
-  TEST_ASSERT_TRUE(online_with_error->state == PeerPresenceState::kOnline);
+  // Mixed Expected + Missed => Offline.
+  auto const mixed = AggregatePeerPresence(
+      {Sample(100, 2000, PeerScheduleState::kExpected, 1),
+       Sample(50, -100, PeerScheduleState::kMissedDeadline, 2),
+       Sample(60, 3000, PeerScheduleState::kExpected, 3)});
+  TEST_ASSERT_TRUE(mixed.has_value());
+  TEST_ASSERT_TRUE(mixed->state == PeerPresenceState::kOffline);
+  TEST_ASSERT_TRUE(mixed->next_ping_deadline == Tp(-100));
+
+  // Key unequal-interval case: 1s Missed + 10s Expected => Offline.
+  auto const unequal = AggregatePeerPresence(
+      {Sample(1, -50, PeerScheduleState::kMissedDeadline, 1),
+       Sample(2, 9000, PeerScheduleState::kExpected, 2)});
+  TEST_ASSERT_TRUE(unequal->state == PeerPresenceState::kOffline);
 }
 
-void test_PresenceOfflineRequiresAllMissed() {
-  auto const offline = AggregatePeerPresence(
-      {Sample(1, -3000, PeerScheduleState::kMissedDeadline),
-       Sample(2, -500, PeerScheduleState::kMissedDeadline),
-       Sample(3, -100, PeerScheduleState::kMissedDeadline)});
-  TEST_ASSERT_TRUE(offline->state == PeerPresenceState::kOffline);
-  TEST_ASSERT_TRUE(offline->next_ping_deadline == Tp(-100));
+void test_PresenceOnlineConservativeAndUnknownRules() {
+  auto const all_expected = AggregatePeerPresence(
+      {Sample(1, 2000, PeerScheduleState::kExpected, 1),
+       Sample(2, 3000, PeerScheduleState::kExpected, 2)});
+  TEST_ASSERT_TRUE(all_expected->state == PeerPresenceState::kOnline);
+  // Earliest Expected deadline for presence.
+  TEST_ASSERT_TRUE(all_expected->next_ping_deadline == Tp(2000));
 
-  PeerTimingAggregateContext fail_blocks_offline;
-  fail_blocks_offline.expected_server_count = 3;
-  fail_blocks_offline.success_count = 2;
-  fail_blocks_offline.terminal_error_count = 1;
-  fail_blocks_offline.successes = {
-      Sample(1, -3000, PeerScheduleState::kMissedDeadline),
-      Sample(2, -500, PeerScheduleState::kMissedDeadline),
-  };
-  auto const unknown_fail = AggregatePeerPresence(fail_blocks_offline);
-  TEST_ASSERT_TRUE(unknown_fail->state == PeerPresenceState::kUnknown);
-
-  auto const unknown_sample = AggregatePeerPresence(
-      {Sample(1, -3000, PeerScheduleState::kMissedDeadline),
-       Sample(2, std::nullopt, PeerScheduleState::kUnknown),
-       Sample(3, -100, PeerScheduleState::kMissedDeadline)});
-  TEST_ASSERT_TRUE(unknown_sample->state == PeerPresenceState::kUnknown);
+  auto const expected_unknown = AggregatePeerPresence(
+      {Sample(1, 1000, PeerScheduleState::kExpected, 1),
+       Sample(2, std::nullopt, PeerScheduleState::kUnknown, 2)});
+  TEST_ASSERT_TRUE(expected_unknown->state == PeerPresenceState::kOnline);
 
   auto const all_unknown = AggregatePeerPresence(
       {Sample(1, std::nullopt, PeerScheduleState::kUnknown),
        Sample(2, std::nullopt, PeerScheduleState::kUnknown)});
   TEST_ASSERT_TRUE(all_unknown->state == PeerPresenceState::kUnknown);
 
+  auto const expected_plus_error = AggregatePeerPresence(
+      PeerTimingAggregateContext{
+          .expected_server_count = 2,
+          .success_count = 1,
+          .terminal_error_count = 1,
+          .unresolved_count = 0,
+          .snapshot_incomplete = false,
+          .successes = {Sample(2, 3000, PeerScheduleState::kExpected, 2)},
+      });
+  TEST_ASSERT_TRUE(expected_plus_error->state == PeerPresenceState::kUnknown);
+
+  auto const missed_plus_error = AggregatePeerPresence(
+      PeerTimingAggregateContext{
+          .expected_server_count = 2,
+          .success_count = 1,
+          .terminal_error_count = 1,
+          .unresolved_count = 0,
+          .snapshot_incomplete = false,
+          .successes =
+              {Sample(1, -500, PeerScheduleState::kMissedDeadline, 1)},
+      });
+  TEST_ASSERT_TRUE(missed_plus_error->state == PeerPresenceState::kOffline);
+
+  auto const all_missed = AggregatePeerPresence(
+      {Sample(1, -3000, PeerScheduleState::kMissedDeadline),
+       Sample(2, -500, PeerScheduleState::kMissedDeadline),
+       Sample(3, -100, PeerScheduleState::kMissedDeadline)});
+  TEST_ASSERT_TRUE(all_missed->state == PeerPresenceState::kOffline);
+  TEST_ASSERT_TRUE(all_missed->next_ping_deadline == Tp(-3000));
+
   TEST_ASSERT_FALSE(
       AggregatePeerPresence(std::vector<ConvertedServerTiming>{}).has_value());
 }
 
-void test_PresenceLatestLastOnline() {
+void test_PresenceLatestLastOnlineDoesNotOverrideMissed() {
   auto const mixed = AggregatePeerPresence(
       {Sample(100, 5000, PeerScheduleState::kExpected, 1),
        Sample(150, -10, PeerScheduleState::kMissedDeadline, 2),
-       Sample(120, -20, PeerScheduleState::kMissedDeadline, 3)});
+       Sample(120, 7000, PeerScheduleState::kExpected, 3)});
   TEST_ASSERT_TRUE(mixed->last_online == Tp(150));
-  TEST_ASSERT_TRUE(mixed->state == PeerPresenceState::kOnline);
+  TEST_ASSERT_TRUE(mixed->state == PeerPresenceState::kOffline);
+}
+
+void test_PresenceEarliestExpectedDeadline() {
+  auto const presence = AggregatePeerPresence(
+      {Sample(1, 10400, PeerScheduleState::kExpected, 1),
+       Sample(2, 17000, PeerScheduleState::kExpected, 2)});
+  TEST_ASSERT_TRUE(presence->state == PeerPresenceState::kOnline);
+  TEST_ASSERT_TRUE(presence->next_ping_deadline == Tp(10400));
 }
 
 void test_ObserverReceiveScheduleDoesNotAffectPeerClassification() {
@@ -697,9 +734,14 @@ int test_uap_peer_timing() {
   RUN_TEST(ae::test_uap_peer_timing::test_SingleServerScheduleConversionStates);
   RUN_TEST(ae::test_uap_peer_timing::
                test_SingleServerScheduleHasNoCrossServerAggregation);
-  RUN_TEST(ae::test_uap_peer_timing::test_PresenceOrOnlineAndEarlyCompletion);
-  RUN_TEST(ae::test_uap_peer_timing::test_PresenceOfflineRequiresAllMissed);
-  RUN_TEST(ae::test_uap_peer_timing::test_PresenceLatestLastOnline);
+  RUN_TEST(ae::test_uap_peer_timing::
+               test_PresenceNoEarlyOnlineWaitsForAllServers);
+  RUN_TEST(ae::test_uap_peer_timing::test_PresenceEarlyOfflineOnFirstMissed);
+  RUN_TEST(ae::test_uap_peer_timing::
+               test_PresenceOnlineConservativeAndUnknownRules);
+  RUN_TEST(ae::test_uap_peer_timing::
+               test_PresenceLatestLastOnlineDoesNotOverrideMissed);
+  RUN_TEST(ae::test_uap_peer_timing::test_PresenceEarliestExpectedDeadline);
   RUN_TEST(ae::test_uap_peer_timing::
                test_ObserverReceiveScheduleDoesNotAffectPeerClassification);
   return UNITY_END();

@@ -37,9 +37,9 @@ enum class QueryPeerPresenceError : int {
   kGetClientTimingFailed = 3,
 };
 // CLOUD-SCOPED presence aggregation over the peer's relevant servers.
-// Online as soon as ANY server reports Expected (early completion).
-// Offline only when ALL relevant servers successfully report MissedDeadline.
-// Otherwise Unknown. Does not use observer receive_window / ping_interval.
+// Offline: ANY server MissedDeadline (early completion).
+// Online: all relevant observations complete, no MissedDeadline, >=1 Expected.
+// Unknown: otherwise. Does not use observer receive_window / ping_interval.
 class QueryPeerPresence final : public Action {
  public:
   using ResultEvent = Event<void(Result<PeerPresence, int>)>;
@@ -53,6 +53,15 @@ class QueryPeerPresence final : public Action {
   // Library Now() when the first Expected server response was applied, if any.
   std::optional<TimePoint> first_expected_time() const noexcept {
     return first_expected_time_;
+  }
+  // Library Now() when the first MissedDeadline server response was applied.
+  std::optional<TimePoint> first_missed_time() const noexcept {
+    return first_missed_time_;
+  }
+  // Library Now() when the last relevant server observation completed
+  // (Success or TerminalError) before / at presence completion.
+  std::optional<TimePoint> last_server_completion_time() const noexcept {
+    return last_server_completion_time_;
   }
   // Library Now() when the user presence callback was emitted.
   std::optional<TimePoint> completed_at() const noexcept {
@@ -82,6 +91,8 @@ class QueryPeerPresence final : public Action {
   PeerTimingQueryState query_state_{};
   std::vector<ServerTimingDiagnostic> diagnostics_;
   std::optional<TimePoint> first_expected_time_;
+  std::optional<TimePoint> first_missed_time_;
+  std::optional<TimePoint> last_server_completion_time_;
   std::optional<TimePoint> completed_at_;
   bool finished_{false};
 };

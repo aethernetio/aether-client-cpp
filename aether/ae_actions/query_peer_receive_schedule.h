@@ -146,12 +146,14 @@ inline PeerTimingQueryCoverage BuildPeerTimingQuerySet(
   return cov;
 }
 // Cloud-scoped presence aggregation.
-// Online  = ANY Expected (OR). Completes as soon as one Expected is observed.
-// Offline = ALL relevant servers successful MissedDeadline (AND).
-// Unknown = otherwise (partial failure, Unknown sample, incomplete set).
-// next_ping_deadline on early Online is taken from Expected servers observed
-// so far (prefer max among them); presence latency beats full-cloud schedule
-// metadata completeness.
+// Offline = ANY MissedDeadline (OR). May complete as soon as one is observed.
+// Online  = all relevant servers completed successfully, no MissedDeadline,
+//           and at least one Expected. Protocol Unknown is allowed; query
+//           failures / unresolved servers are not.
+// Unknown = otherwise (incomplete set, query failure, or only protocol Unknown).
+// Presence next_ping_deadline for Online is the EARLIEST Expected deadline
+// (next obligation that can invalidate Online). This differs from APIs that
+// seek the latest usable receive opportunity.
 struct PeerTimingAggregateContext {
   std::size_t expected_server_count{0};
   std::size_t success_count{0};
@@ -170,48 +172,66 @@ inline std::optional<PeerPresence> AggregatePeerPresence(
   bool any_expected = false;
   bool any_unknown = false;
   bool any_missed = false;
-  TimePoint latest_expected{};
-  TimePoint latest_missed{};
+  bool has_earliest_expected = false;
+  bool has_earliest_missed = false;
+  TimePoint earliest_expected{};
+  TimePoint earliest_missed{};
   for (auto const& sample : ctx.successes) {
     if (sample.last_online > *out.last_online) {
       out.last_online = sample.last_online;
     }
     if (sample.state == PeerScheduleState::kExpected &&
         sample.next_ping_deadline.has_value()) {
-      if (!any_expected || *sample.next_ping_deadline > latest_expected) {
-        latest_expected = *sample.next_ping_deadline;
+      if (!has_earliest_expected ||
+          *sample.next_ping_deadline < earliest_expected) {
+        earliest_expected = *sample.next_ping_deadline;
+        has_earliest_expected = true;
       }
       any_expected = true;
     } else if (sample.state == PeerScheduleState::kUnknown) {
       any_unknown = true;
     } else if (sample.state == PeerScheduleState::kMissedDeadline &&
                sample.next_ping_deadline.has_value()) {
-      if (!any_missed || *sample.next_ping_deadline > latest_missed) {
-        latest_missed = *sample.next_ping_deadline;
+      if (!has_earliest_missed ||
+          *sample.next_ping_deadline < earliest_missed) {
+        earliest_missed = *sample.next_ping_deadline;
+        has_earliest_missed = true;
       }
       any_missed = true;
     } else if (sample.state == PeerScheduleState::kMissedDeadline) {
       any_missed = true;
     }
   }
-  if (any_expected) {
-    out.state = PeerPresenceState::kOnline;
-    out.next_ping_deadline = latest_expected;
+  // 1. ANY MissedDeadline => Offline (even with Expected / Unknown / errors).
+  if (any_missed) {
+    out.state = PeerPresenceState::kOffline;
+    if (has_earliest_missed) {
+      out.next_ping_deadline = earliest_missed;
+    }
     return out;
   }
+  // 2. Incomplete / query failure => Unknown (not Online).
   bool const incomplete =
       ctx.snapshot_incomplete || ctx.unresolved_count > 0 ||
       ctx.terminal_error_count > 0 || ctx.expected_server_count == 0 ||
       ctx.success_count < ctx.expected_server_count;
-  if (any_unknown || incomplete) {
+  if (incomplete) {
     out.state = PeerPresenceState::kUnknown;
     out.next_ping_deadline = std::nullopt;
     return out;
   }
-  out.state = PeerPresenceState::kOffline;
-  if (any_missed) {
-    out.next_ping_deadline = latest_missed;
+  // 3. All complete successfully with at least one Expected => Online.
+  if (any_expected) {
+    out.state = PeerPresenceState::kOnline;
+    if (has_earliest_expected) {
+      out.next_ping_deadline = earliest_expected;
+    }
+    return out;
   }
+  // 4. All protocol Unknown (or no Expected) => Unknown.
+  (void)any_unknown;
+  out.state = PeerPresenceState::kUnknown;
+  out.next_ping_deadline = std::nullopt;
   return out;
 }
 inline std::optional<PeerPresence> AggregatePeerPresence(
@@ -416,14 +436,15 @@ struct PeerTimingQueryState {
     }
     return true;
   }
-  // Presence completes early on the first Expected success.
+  // Presence completes early on the first MissedDeadline success.
+  // Online waits until every relevant server is Success or TerminalError.
   bool ReadyToCompletePresence() const {
     if (cancelled || completed) {
       return false;
     }
     for (auto const& [_, attempt] : attempts) {
       if (attempt.status == ServerTimingAttemptStatus::kSuccess &&
-          attempt.converted.state == PeerScheduleState::kExpected) {
+          attempt.converted.state == PeerScheduleState::kMissedDeadline) {
         return true;
       }
     }

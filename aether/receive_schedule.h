@@ -56,8 +56,11 @@ struct PeerReceiveSchedule {
   PeerScheduleState state{PeerScheduleState::kUnknown};
 };
 
-// Cloud-scoped presence (OR Online / AND Offline). Distinct from
-// PeerReceiveSchedule, which answers one server's schedule view.
+// Cloud-scoped presence. Distinct from PeerReceiveSchedule (one server).
+// Offline: ANY relevant server reports MissedDeadline (OR; may complete early).
+// Online: all relevant observations complete successfully, no MissedDeadline,
+//         and at least one Expected (conservative; no early Online).
+// Unknown: otherwise (incomplete set, query failure, or only protocol Unknown).
 enum class PeerPresenceState : std::uint8_t {
   kOnline,
   kOffline,

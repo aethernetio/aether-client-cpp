@@ -164,6 +164,7 @@ void QueryPeerPresence::StartQuery() {
           return;
         }
         query_state_.MarkTerminalError(sc->server_id());
+        last_server_completion_time_ = Now();
         MaybeComplete();
       });
   cloud_request_sub_ =
@@ -181,6 +182,7 @@ void QueryPeerPresence::StartQuery() {
                it->second.status !=
                    ServerTimingAttemptStatus::kTerminalError)) {
             query_state_.MarkTerminalError(id);
+            last_server_completion_time_ = Now();
           }
         }
         MaybeComplete();
@@ -207,6 +209,7 @@ void QueryPeerPresence::OnServerTiming(
     }
     if (exhausted) {
       query_state_.ApplyTerminalError(server_id, send_generation);
+      last_server_completion_time_ = Now();
     }
     MaybeComplete();
     return;
@@ -214,16 +217,22 @@ void QueryPeerPresence::OnServerTiming(
   if (!query_state_.ApplyTiming(server_id, send_generation, res.value())) {
     return;
   }
+  last_server_completion_time_ = Now();
   auto const& timing = res.value();
   AE_TELED_DEBUG(
       "presence get_client_timing server {} next_delta_ms {} "
       "last_connect_delta_ms {}",
       server_id, timing.next_ping_delta_ms, timing.last_connect_delta_ms);
   auto it = query_state_.attempts.find(server_id);
-  if (it != query_state_.attempts.end() &&
-      it->second.converted.state == PeerScheduleState::kExpected &&
-      !first_expected_time_.has_value()) {
-    first_expected_time_ = Now();
+  if (it != query_state_.attempts.end()) {
+    if (it->second.converted.state == PeerScheduleState::kExpected &&
+        !first_expected_time_.has_value()) {
+      first_expected_time_ = Now();
+    }
+    if (it->second.converted.state == PeerScheduleState::kMissedDeadline &&
+        !first_missed_time_.has_value()) {
+      first_missed_time_ = Now();
+    }
   }
   if (cloud_request_.has_value()) {
     cloud_request_->SucceedAttempt(sc);

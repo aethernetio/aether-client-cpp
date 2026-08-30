@@ -1,4 +1,6 @@
 // Aether-only two-process presence probe for QueryPeerPresence validation.
+// Offline follows the first MissedDeadline quickly; Online waits until all
+// relevant server observations complete with no Missed and >=1 Expected.
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
@@ -183,7 +185,10 @@ struct QuerySample {
   std::size_t quarantined_skipped{0};
   std::size_t unresolved_servers{0};
   std::int64_t first_expected_delta_ms{-1};
-  std::int64_t early_online_delay_ms{-1};
+  std::int64_t first_missed_delta_ms{-1};
+  std::int64_t early_offline_delay_ms{-1};
+  std::int64_t presence_online_after_last_server_ms{-1};
+  std::int64_t early_online_delay_ms{-1};  // retained for CSV compatibility
 };
 
 }  // namespace
@@ -537,6 +542,13 @@ int main(int argc, char** argv) {
       sample.first_expected_delta_ms =
           sample.query_latency_ms - sample.early_online_delay_ms;
     }
+    if (action.first_missed_time().has_value() &&
+        action.completed_at().has_value()) {
+      sample.early_offline_delay_ms =
+          MsBetween(*action.completed_at(), *action.first_missed_time());
+      sample.first_missed_delta_ms =
+          sample.query_latency_ms - sample.early_offline_delay_ms;
+    }
 
     if (!res) {
       sample.success = false;
@@ -556,6 +568,12 @@ int main(int argc, char** argv) {
       auto const& sch = res.value();
       sample.state = sch.state;
       sample.online = OnlineFromPresence(sch.state);
+      if (action.last_server_completion_time().has_value() &&
+          action.completed_at().has_value() &&
+          sample.state == ae::PeerPresenceState::kOnline) {
+        sample.presence_online_after_last_server_ms = MsBetween(
+            *action.completed_at(), *action.last_server_completion_time());
+      }
       auto const now_tp = ae::Now();
       if (sch.last_online.has_value()) {
         sample.last_online_age_ms = MsBetween(now_tp, *sch.last_online);
@@ -616,11 +634,14 @@ int main(int argc, char** argv) {
       servers_json << ']';
 
       if ((sample.query_id % 25) == 0 || !sample.online ||
-          sample.early_online_delay_ms > 50) {
+          sample.early_offline_delay_ms > 50) {
         std::cout << "Q#" << sample.query_id << " t=" << sample.t_ms
                   << "ms presence=" << PresenceName(sch.state)
                   << " latency=" << sample.query_latency_ms
-                  << "ms early_online_delay_ms=" << sample.early_online_delay_ms
+                  << "ms early_offline_delay_ms="
+                  << sample.early_offline_delay_ms
+                  << " presence_online_after_last_server_ms="
+                  << sample.presence_online_after_last_server_ms
                   << " coverage=" << sample.successful_servers << "/"
                   << sample.queried_servers
                   << " failed=" << sample.failed_servers
@@ -634,6 +655,10 @@ int main(int argc, char** argv) {
             << ",\"success\":true,\"presence\":\"" << PresenceName(sch.state)
             << "\",\"online\":" << (sample.online ? "true" : "false")
             << ",\"first_expected_delta_ms\":" << sample.first_expected_delta_ms
+            << ",\"first_missed_delta_ms\":" << sample.first_missed_delta_ms
+            << ",\"early_offline_delay_ms\":" << sample.early_offline_delay_ms
+            << ",\"presence_online_after_last_server_ms\":"
+            << sample.presence_online_after_last_server_ms
             << ",\"early_online_delay_ms\":" << sample.early_online_delay_ms
             << ",\"last_online_age_ms\":" << sample.last_online_age_ms
             << ",\"ms_to_deadline\":" << sample.ms_to_deadline
@@ -716,6 +741,8 @@ int main(int argc, char** argv) {
     std::ofstream csv{csv_path, std::ios::out | std::ios::trunc};
     csv << "query_id,t_ms,utc_ms,query_start_utc_ms,query_latency_ms,success,"
            "error,presence,online,last_online_age_ms,ms_to_deadline,"
+           "early_offline_delay_ms,first_missed_delta_ms,"
+           "presence_online_after_last_server_ms,"
            "early_online_delay_ms,first_expected_delta_ms,selected,queried,"
            "successful,failed,quarantined_skipped,unresolved\n";
     for (auto const& s : samples) {
@@ -724,6 +751,8 @@ int main(int argc, char** argv) {
           << (s.success ? 1 : 0) << ',' << s.error << ','
           << PresenceName(s.state) << ',' << (s.online ? 1 : 0) << ','
           << s.last_online_age_ms << ',' << s.ms_to_deadline << ','
+          << s.early_offline_delay_ms << ',' << s.first_missed_delta_ms << ','
+          << s.presence_online_after_last_server_ms << ','
           << s.early_online_delay_ms << ',' << s.first_expected_delta_ms << ','
           << s.selected_servers << ',' << s.queried_servers << ','
           << s.successful_servers << ',' << s.failed_servers << ','
@@ -732,13 +761,17 @@ int main(int argc, char** argv) {
   }
 
   std::vector<std::int64_t> lats;
-  std::vector<std::int64_t> early_delays;
+  std::vector<std::int64_t> early_offline_delays;
+  std::vector<std::int64_t> online_after_last;
   for (auto const& s : samples) {
     if (s.success) {
       lats.push_back(s.query_latency_ms);
     }
-    if (s.success && s.online && s.early_online_delay_ms >= 0) {
-      early_delays.push_back(s.early_online_delay_ms);
+    if (s.success && !s.online && s.early_offline_delay_ms >= 0) {
+      early_offline_delays.push_back(s.early_offline_delay_ms);
+    }
+    if (s.success && s.online && s.presence_online_after_last_server_ms >= 0) {
+      online_after_last.push_back(s.presence_online_after_last_server_ms);
     }
   }
   auto const ok = static_cast<std::uint32_t>(lats.size());
@@ -763,12 +796,23 @@ int main(int argc, char** argv) {
     std::cout << " max=" << *std::max_element(lats.begin(), lats.end());
   }
   std::cout << '\n';
-  if (!early_delays.empty()) {
-    std::cout << "early_online_delay_ms p50=" << Percentile(early_delays, 0.50)
-              << " p90=" << Percentile(early_delays, 0.90)
+  if (!early_offline_delays.empty()) {
+    std::cout << "early_offline_delay_ms p50="
+              << Percentile(early_offline_delays, 0.50)
+              << " p90=" << Percentile(early_offline_delays, 0.90)
               << " max="
-              << *std::max_element(early_delays.begin(), early_delays.end())
-              << " n=" << early_delays.size() << '\n';
+              << *std::max_element(early_offline_delays.begin(),
+                                   early_offline_delays.end())
+              << " n=" << early_offline_delays.size() << '\n';
+  }
+  if (!online_after_last.empty()) {
+    std::cout << "presence_online_after_last_server_ms p50="
+              << Percentile(online_after_last, 0.50)
+              << " p90=" << Percentile(online_after_last, 0.90)
+              << " max="
+              << *std::max_element(online_after_last.begin(),
+                                   online_after_last.end())
+              << " n=" << online_after_last.size() << '\n';
   }
   std::cout << "csv=" << csv_path << '\n';
   std::cout << "jsonl=" << jsonl_path << '\n';
