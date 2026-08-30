@@ -36,20 +36,6 @@ class AuthorizedApi : public ApiClass {
   Method<4, ApiPromise<void>(std::uint64_t next_connect_ms_duration,
                              std::uint64_t rx_window_ms)>
       ping;
-  // PingV2 / probe: current_rx_window_ms > 0 for immediate RTT (ChannelStatistics).
-  // Deferred: current_rx_window_ms = 0; next_* describe the following RX window.
-  Method<43, ApiPromise<void>(std::uint64_t probe_id,
-                              std::uint64_t current_rx_window_ms,
-                              std::uint64_t next_rx_delay_ms,
-                              std::uint64_t next_rx_window_ms)>
-      probe_ping;
-  Method<44, void(std::uint64_t probe_id, std::uint64_t current_rx_window_ms,
-                  std::uint64_t next_rx_delay_ms,
-                  std::uint64_t next_rx_window_ms)>
-      deferred_probe;
-  // 0=unknown/expired, 1=received, 2=not_received (reserved).
-  Method<45, ApiPromise<std::uint8_t>(std::uint64_t probe_id)>
-      query_probe_result;
   Method<6, void(AeMessage message)> send_message;
   Method<7, void(std::vector<AeMessage> messages)> send_messages;
   Method<11, ApiPromise<void>(Uid uid)> check_access_for_send_message;
