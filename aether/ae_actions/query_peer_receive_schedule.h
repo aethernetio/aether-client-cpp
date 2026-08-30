@@ -164,11 +164,11 @@ struct PeerTimingAggregateContext {
 };
 inline std::optional<PeerPresence> AggregatePeerPresence(
     PeerTimingAggregateContext const& ctx) noexcept {
-  if (ctx.success_count == 0 || ctx.successes.empty()) {
+  // No relevant server set => caller/action decides (cannot form presence).
+  if (ctx.expected_server_count == 0) {
     return std::nullopt;
   }
   PeerPresence out{};
-  out.last_online = ctx.successes.front().last_online;
   bool any_expected = false;
   bool any_unknown = false;
   bool any_missed = false;
@@ -177,7 +177,7 @@ inline std::optional<PeerPresence> AggregatePeerPresence(
   TimePoint earliest_expected{};
   TimePoint earliest_missed{};
   for (auto const& sample : ctx.successes) {
-    if (sample.last_online > *out.last_online) {
+    if (!out.last_online.has_value() || sample.last_online > *out.last_online) {
       out.last_online = sample.last_online;
     }
     if (sample.state == PeerScheduleState::kExpected &&
@@ -210,11 +210,13 @@ inline std::optional<PeerPresence> AggregatePeerPresence(
     }
     return out;
   }
-  // 2. Incomplete / query failure => Unknown (not Online).
+  // 2. Incomplete / unresolved / terminal query failure => Unknown.
+  // Zero successes with a known relevant set is incomplete knowledge, not an
+  // action error (e.g. A/B/C all TerminalError => Ok(Unknown)).
   bool const incomplete =
       ctx.snapshot_incomplete || ctx.unresolved_count > 0 ||
-      ctx.terminal_error_count > 0 || ctx.expected_server_count == 0 ||
-      ctx.success_count < ctx.expected_server_count;
+      ctx.terminal_error_count > 0 ||
+      ctx.success_count < ctx.expected_server_count || ctx.successes.empty();
   if (incomplete) {
     out.state = PeerPresenceState::kUnknown;
     out.next_ping_deadline = std::nullopt;
@@ -587,7 +589,8 @@ enum class QueryPeerReceiveScheduleError : int {
   kServerNotInCloud = 4,
 };
 // SERVER-SCOPED: one peer + one server -> that server's PeerReceiveSchedule.
-// MissedDeadline is server-local and must NOT be read as global Offline.
+// MissedDeadline is server-local here (raw schedule only). Cloud Offline is
+// decided by QueryPeerPresence (ANY relevant MissedDeadline).
 // Does not use observer receive_window / ping_interval for classification.
 class QueryPeerReceiveSchedule final : public Action {
  public:

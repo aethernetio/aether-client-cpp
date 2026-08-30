@@ -265,7 +265,10 @@ void test_AggregateMissedUnknownAndErrors() {
   auto const e2 = all_err.RegisterSend(2, Tp(0), Ms(40));
   TEST_ASSERT_TRUE(all_err.ApplyError(1, e1));
   TEST_ASSERT_TRUE(all_err.ApplyError(2, e2));
-  TEST_ASSERT_FALSE(all_err.TryAggregate().has_value());
+  // Known relevant set with only terminal errors => Unknown (not action Error).
+  auto const all_err_agg = all_err.TryAggregate();
+  TEST_ASSERT_TRUE(all_err_agg.has_value());
+  TEST_ASSERT_TRUE(all_err_agg->state == PeerScheduleState::kUnknown);
 }
 
 void test_AggregateFreshestLastOnlineIndependentOfDeadline() {
@@ -623,6 +626,40 @@ void test_PresenceOnlineConservativeAndUnknownRules() {
       AggregatePeerPresence(std::vector<ConvertedServerTiming>{}).has_value());
 }
 
+void test_PresenceAllTerminalErrorsYieldUnknown() {
+  PeerTimingQueryState st;
+  st.Begin({1, 2, 3});
+  auto const a = st.RegisterSend(1, Tp(0), Ms(40));
+  auto const b = st.RegisterSend(2, Tp(0), Ms(40));
+  auto const c = st.RegisterSend(3, Tp(0), Ms(40));
+  TEST_ASSERT_TRUE(st.ApplyTerminalError(1, a));
+  TEST_ASSERT_TRUE(st.ApplyTerminalError(2, b));
+  TEST_ASSERT_TRUE(st.ApplyTerminalError(3, c));
+  TEST_ASSERT_TRUE(st.ReadyToCompletePresence());
+  auto const presence = st.TryAggregatePresence();
+  TEST_ASSERT_TRUE(presence.has_value());
+  TEST_ASSERT_TRUE(presence->state == PeerPresenceState::kUnknown);
+  TEST_ASSERT_FALSE(presence->last_online.has_value());
+  TEST_ASSERT_FALSE(presence->next_ping_deadline.has_value());
+
+  // Orchestrator mirrors QueryPeerPresence::MaybeComplete: Ok(Unknown), not
+  // kGetClientTimingFailed.
+  PeerPresenceQueryOrchestrator orch;
+  orch.Start({1, 2, 3});
+  auto const oa = orch.Send(1, Tp(0), Ms(40));
+  auto const ob = orch.Send(2, Tp(0), Ms(40));
+  auto const oc = orch.Send(3, Tp(0), Ms(40));
+  orch.OnTerminal(1, oa);
+  orch.OnTerminal(2, ob);
+  orch.OnTerminal(3, oc);
+  TEST_ASSERT_EQUAL_INT(1, orch.callback_count);
+  TEST_ASSERT_TRUE(orch.last_presence.has_value());
+  TEST_ASSERT_FALSE(orch.last_error.has_value());
+  TEST_ASSERT_TRUE(orch.last_presence->state == PeerPresenceState::kUnknown);
+  TEST_ASSERT_FALSE(orch.last_presence->last_online.has_value());
+  TEST_ASSERT_FALSE(orch.last_presence->next_ping_deadline.has_value());
+}
+
 void test_PresenceLatestLastOnlineDoesNotOverrideMissed() {
   auto const mixed = AggregatePeerPresence(
       {Sample(100, 5000, PeerScheduleState::kExpected, 1),
@@ -739,6 +776,8 @@ int test_uap_peer_timing() {
   RUN_TEST(ae::test_uap_peer_timing::test_PresenceEarlyOfflineOnFirstMissed);
   RUN_TEST(ae::test_uap_peer_timing::
                test_PresenceOnlineConservativeAndUnknownRules);
+  RUN_TEST(ae::test_uap_peer_timing::
+               test_PresenceAllTerminalErrorsYieldUnknown);
   RUN_TEST(ae::test_uap_peer_timing::
                test_PresenceLatestLastOnlineDoesNotOverrideMissed);
   RUN_TEST(ae::test_uap_peer_timing::test_PresenceEarliestExpectedDeadline);

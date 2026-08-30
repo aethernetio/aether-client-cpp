@@ -39,7 +39,9 @@ enum class QueryPeerPresenceError : int {
 // CLOUD-SCOPED presence aggregation over the peer's relevant servers.
 // Offline: ANY server MissedDeadline (early completion).
 // Online: all relevant observations complete, no MissedDeadline, >=1 Expected.
-// Unknown: otherwise. Does not use observer receive_window / ping_interval.
+// Unknown: otherwise (incl. all timing queries failed for a known server set).
+// Action errors remain for unusable/empty server set or missing cloud context.
+// Does not use observer receive_window / ping_interval.
 class QueryPeerPresence final : public Action {
  public:
   using ResultEvent = Event<void(Result<PeerPresence, int>)>;

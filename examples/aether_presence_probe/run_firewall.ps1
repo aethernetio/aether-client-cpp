@@ -20,7 +20,7 @@ $AetherRoot = "C:\Users\nickc\Projects\aether-client-cpp-peer-uap"
 $BaseExe = Join-Path $AetherRoot "build-win64\Debug\aether_presence_probe.exe"
 if (-not (Test-Path $BaseExe)) { throw "Missing $BaseExe" }
 
-$ArtifactRoot = Join-Path $AetherRoot "artifacts\presence-runtime-ce69b9cc\firewall"
+$ArtifactRoot = Join-Path $AetherRoot "artifacts\presence-runtime-5705c6df\firewall"
 $run = Join-Path $ArtifactRoot ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds().ToString())
 $exch = Join-Path $run "exchange"
 $obsState = Join-Path $run "observer"
@@ -101,14 +101,20 @@ function Wait-NonOnline([int64]$AfterUtcMs, [int]$TimeoutSec) {
   $jsonl = Join-Path $exch "observer_queries.jsonl"
   while ([DateTime]::UtcNow -lt $deadline) {
     if (Test-Path $jsonl) {
-      $hit = Get-Content $jsonl | ForEach-Object {
-        if ($_ -match '"callback_utc_ms":(\d+)' -and [int64]$Matches[1] -ge $AfterUtcMs) {
-          if ($_ -match '"presence":"(Offline|Unknown)"' -or $_ -match '"success":false') {
-            [pscustomobject]@{ Line = $_; Utc = [int64]$Matches[1]; State = if ($_ -match '"presence":"(\w+)"') { $Matches[1] } else { "Fail" } }
-          }
+      foreach ($line in (Get-Content $jsonl)) {
+        if ($line -notmatch '"callback_utc_ms":(\d+)') { continue }
+        $utc = [int64]$Matches[1]
+        if ($utc -lt $AfterUtcMs) { continue }
+        $state = $null
+        if ($line -match '"presence":"(Offline|Unknown)"') {
+          $state = $Matches[1]
+        } elseif ($line -match '"success":false') {
+          $state = "Fail"
         }
-      } | Select-Object -First 1
-      if ($hit) { return $hit }
+        if ($null -ne $state) {
+          return [pscustomobject]@{ Line = $line; Utc = $utc; State = $state }
+        }
+      }
     }
     Start-Sleep -Milliseconds 100
   }
@@ -120,19 +126,31 @@ function Wait-OnlineAfter([int64]$AfterUtcMs, [int]$TimeoutSec) {
   $jsonl = Join-Path $exch "observer_queries.jsonl"
   while ([DateTime]::UtcNow -lt $deadline) {
     if (Test-Path $jsonl) {
-      $hit = Get-Content $jsonl | ForEach-Object {
-        if ($_ -match '"callback_utc_ms":(\d+).*\"presence\":\"Online\"' -or ($_ -match '"callback_utc_ms":(\d+)' -and $_ -match '"presence":"Online"')) {
-          $u = [int64]$Matches[1]
-          if ($u -ge $AfterUtcMs) {
-            $early = -1
-            if ($_ -match '"early_online_delay_ms":(-?\d+)') { $early = [int64]$Matches[1] }
-            $first = -1
-            if ($_ -match '"first_expected_delta_ms":(-?\d+)') { $first = [int64]$Matches[1] }
-            [pscustomobject]@{ Utc = $u; EarlyDelay = $early; FirstExpectedDelta = $first; Line = $_ }
-          }
+      foreach ($line in (Get-Content $jsonl)) {
+        if ($line -notmatch '"presence":"Online"') { continue }
+        if ($line -notmatch '"callback_utc_ms":(\d+)') { continue }
+        $utc = [int64]$Matches[1]
+        if ($utc -lt $AfterUtcMs) { continue }
+        $early = -1
+        if ($line -match '"early_online_delay_ms":(-?\d+)') {
+          $early = [int64]$Matches[1]
         }
-      } | Select-Object -First 1
-      if ($hit) { return $hit }
+        $afterLast = -1
+        if ($line -match '"presence_online_after_last_server_ms":(-?\d+)') {
+          $afterLast = [int64]$Matches[1]
+        }
+        $first = -1
+        if ($line -match '"first_expected_delta_ms":(-?\d+)') {
+          $first = [int64]$Matches[1]
+        }
+        return [pscustomobject]@{
+          Utc = $utc
+          EarlyDelay = $early
+          AfterLastServer = $afterLast
+          FirstExpectedDelta = $first
+          Line = $line
+        }
+      }
     }
     Start-Sleep -Milliseconds 100
   }
@@ -198,7 +216,7 @@ try {
     $on = Wait-OnlineAfter -AfterUtcMs $unblockUtc -TimeoutSec ($UnblockedSec + 40)
     if ($on) {
       $ms = $on.Utc - $unblockUtc
-      "cycle=$i unblock_to_online_ms=$ms early_online_delay_ms=$($on.EarlyDelay) first_expected_delta_ms=$($on.FirstExpectedDelta)" |
+      "cycle=$i unblock_to_online_ms=$ms presence_online_after_last_server_ms=$($on.AfterLastServer) early_online_delay_ms=$($on.EarlyDelay) first_expected_delta_ms=$($on.FirstExpectedDelta)" |
         Tee-Object -FilePath $summaryPath -Append
     } else {
       "cycle=$i unblock_to_online_ms=TIMEOUT" | Tee-Object -FilePath $summaryPath -Append

@@ -47,9 +47,13 @@ enum class PeerScheduleState {
 // last_online is converted from lastConnectDeltaMs (online/activity, not
 // necessarily a ping).
 //
-// Server-scoped only: PeerScheduleState::kMissedDeadline means THIS server has
-// not seen a newer scheduled ping yet. It is NOT a global Offline signal —
-// another cloud server may still report kExpected.
+// PeerReceiveSchedule is server-scoped.
+// MissedDeadline means THIS server has not observed the peer by its promised
+// deadline. QueryPeerReceiveSchedule reports that raw server-local state only
+// and does not perform cloud presence aggregation.
+// QueryPeerPresence intentionally treats ANY relevant server's MissedDeadline
+// as global Offline, because the peer has violated at least one promised
+// server-presence deadline.
 struct PeerReceiveSchedule {
   TimePoint last_online{};
   std::optional<TimePoint> next_ping_deadline{};
@@ -57,10 +61,11 @@ struct PeerReceiveSchedule {
 };
 
 // Cloud-scoped presence. Distinct from PeerReceiveSchedule (one server).
-// Offline: ANY relevant server reports MissedDeadline (OR; may complete early).
+// Offline: ANY relevant server reports MissedDeadline (may complete early).
 // Online: all relevant observations complete successfully, no MissedDeadline,
 //         and at least one Expected (conservative; no early Online).
-// Unknown: otherwise (incomplete set, query failure, or only protocol Unknown).
+// Unknown: otherwise (incomplete set, timing query failure, or only protocol
+//          Unknown). Timing query failures yield Ok(Unknown), not action Error.
 enum class PeerPresenceState : std::uint8_t {
   kOnline,
   kOffline,
