@@ -50,6 +50,14 @@ class QueryPeerPresence final : public Action {
   std::vector<ServerTimingDiagnostic> const& server_diagnostics() const noexcept;
   PeerTimingQueryCoverage coverage() const noexcept;
   Uid peer_uid() const noexcept { return peer_uid_; }
+  // Library Now() when the first Expected server response was applied, if any.
+  std::optional<TimePoint> first_expected_time() const noexcept {
+    return first_expected_time_;
+  }
+  // Library Now() when the user presence callback was emitted.
+  std::optional<TimePoint> completed_at() const noexcept {
+    return completed_at_;
+  }
  private:
   Duration OneWayEstimateFor(CloudServerConnection* sc) const;
   void OnCloud(Result<Cloud::ptr, int> result);
@@ -68,10 +76,13 @@ class QueryPeerPresence final : public Action {
   Subscription cloud_request_sub_;
   Subscription exhausted_sub_;
   std::unique_ptr<CloudServerConnections> dest_cloud_;
+  CloudServerConnections* work_cloud_{nullptr};
   std::optional<CloudRequest> cloud_request_;
   std::map<ServerId, Subscription> timing_subs_;
   PeerTimingQueryState query_state_{};
   std::vector<ServerTimingDiagnostic> diagnostics_;
+  std::optional<TimePoint> first_expected_time_;
+  std::optional<TimePoint> completed_at_;
   bool finished_{false};
 };
 }  // namespace ae

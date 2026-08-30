@@ -598,6 +598,7 @@ class QueryPeerReceiveSchedule final : public Action {
   Subscription cloud_request_sub_;
   Subscription exhausted_sub_;
   std::unique_ptr<CloudServerConnections> dest_cloud_;
+  CloudServerConnections* work_cloud_{nullptr};
   std::optional<CloudRequest> cloud_request_;
   std::map<ServerId, Subscription> timing_subs_;
   PeerTimingQueryState query_state_{};

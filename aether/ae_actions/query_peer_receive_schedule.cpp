@@ -32,6 +32,15 @@ QueryPeerReceiveSchedule::QueryPeerReceiveSchedule(AeContext const& ae_context,
       client_{&client},
       peer_uid_{peer_uid},
       server_id_{server_id} {
+  auto& own = client_->cloud_connection();
+  for (auto* sc : own.selected_servers()) {
+    if (sc != nullptr && sc->server() && sc->server_id() == server_id_ &&
+        !sc->quarantine()) {
+      work_cloud_ = &own;
+      StartQuery();
+      return;
+    }
+  }
   auto& get_cloud = client_->cloud_manager()->GetCloud(peer_uid_);
   get_cloud_sub_ = get_cloud.result_event().Subscribe(
       [this](Result<Cloud::ptr, int> result) { OnCloud(std::move(result)); });
@@ -80,6 +89,7 @@ void QueryPeerReceiveSchedule::OnCloud(Result<Cloud::ptr, int> result) {
       ae_context_, cloud.Load(),
       client_->server_connection_manager().GetServerConnectionFactory(),
       AE_CLOUD_MAX_SERVER_CONNECTIONS);
+  work_cloud_ = dest_cloud_.get();
   StartQuery();
 }
 void QueryPeerReceiveSchedule::StartQuery() {
@@ -87,8 +97,8 @@ void QueryPeerReceiveSchedule::StartQuery() {
   diagnostics_.clear();
   bool found = false;
   bool quarantined = false;
-  if (dest_cloud_ != nullptr) {
-    for (auto* sc : dest_cloud_->selected_servers()) {
+  if (work_cloud_ != nullptr) {
+    for (auto* sc : work_cloud_->selected_servers()) {
       if (sc == nullptr || !sc->server()) {
         continue;
       }
@@ -143,7 +153,7 @@ void QueryPeerReceiveSchedule::StartQuery() {
                 });
         static_cast<void>(request);
       }},
-      *dest_cloud_, RequestPolicy::Server{server_id_});
+      *work_cloud_, RequestPolicy::Server{server_id_});
   exhausted_sub_ = cloud_request_->attempt_exhausted_event().Subscribe(
       [this](CloudServerConnection* sc) {
         if (finished_ || sc == nullptr) {

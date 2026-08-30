@@ -395,6 +395,7 @@ if(AE_BUILD_EXAMPLES)
   add_subdirectory(examples/aether_uap_peer_deadline_test)
   add_subdirectory(examples/aether_uap_ping_retry_window_test)
   add_subdirectory(examples/aether_uap_1s_timing_characterization)
+  add_subdirectory(examples/aether_presence_probe)
 endif()
 
 if(AE_BUILD_TESTS)

@@ -27,6 +27,23 @@ namespace ae {
 QueryPeerPresence::QueryPeerPresence(AeContext const& ae_context,
                                      Client& client, Uid peer_uid)
     : ae_context_{ae_context}, client_{&client}, peer_uid_{peer_uid} {
+  // Prefer the observer's already-linked cloud for get_client_timing. Peer
+  // GetCloud (report_applied_config → CloudUpdate) can hang indefinitely when
+  // CloudUpdate never arrives; timing itself works on live observer links.
+  // Fall back to GetCloud only when the observer cloud has no usable servers.
+  auto& own = client_->cloud_connection();
+  bool any_usable = false;
+  for (auto* sc : own.selected_servers()) {
+    if (sc != nullptr && sc->server() && !sc->quarantine()) {
+      any_usable = true;
+      break;
+    }
+  }
+  if (any_usable) {
+    work_cloud_ = &own;
+    StartQuery();
+    return;
+  }
   auto& get_cloud = client_->cloud_manager()->GetCloud(peer_uid_);
   get_cloud_sub_ = get_cloud.result_event().Subscribe(
       [this](Result<Cloud::ptr, int> result) { OnCloud(std::move(result)); });
@@ -75,13 +92,14 @@ void QueryPeerPresence::OnCloud(Result<Cloud::ptr, int> result) {
       ae_context_, cloud.Load(),
       client_->server_connection_manager().GetServerConnectionFactory(),
       AE_CLOUD_MAX_SERVER_CONNECTIONS);
+  work_cloud_ = dest_cloud_.get();
   StartQuery();
 }
 void QueryPeerPresence::SnapshotExpectedServers() {
   std::vector<ServerId> expected;
   PeerTimingQueryCoverage cov;
-  if (dest_cloud_ != nullptr) {
-    auto const& selected = dest_cloud_->selected_servers();
+  if (work_cloud_ != nullptr) {
+    auto const& selected = work_cloud_->selected_servers();
     cov.selected_server_count = selected.size();
     expected.reserve(selected.size());
     for (auto* sc : selected) {
@@ -105,7 +123,7 @@ void QueryPeerPresence::StartQuery() {
   SnapshotExpectedServers();
   timing_subs_.clear();
   diagnostics_.clear();
-  if (query_state_.expected_server_ids.empty()) {
+  if (query_state_.expected_server_ids.empty() || work_cloud_ == nullptr) {
     Fail(static_cast<int>(QueryPeerPresenceError::kNoWorkServerAvailable));
     return;
   }
@@ -139,7 +157,7 @@ void QueryPeerPresence::StartQuery() {
                 });
         static_cast<void>(request);
       }},
-      *dest_cloud_, RequestPolicy::All{});
+      *work_cloud_, RequestPolicy::All{});
   exhausted_sub_ = cloud_request_->attempt_exhausted_event().Subscribe(
       [this](CloudServerConnection* sc) {
         if (finished_ || sc == nullptr) {
@@ -201,6 +219,12 @@ void QueryPeerPresence::OnServerTiming(
       "presence get_client_timing server {} next_delta_ms {} "
       "last_connect_delta_ms {}",
       server_id, timing.next_ping_delta_ms, timing.last_connect_delta_ms);
+  auto it = query_state_.attempts.find(server_id);
+  if (it != query_state_.attempts.end() &&
+      it->second.converted.state == PeerScheduleState::kExpected &&
+      !first_expected_time_.has_value()) {
+    first_expected_time_ = Now();
+  }
   if (cloud_request_.has_value()) {
     cloud_request_->SucceedAttempt(sc);
   }
@@ -227,6 +251,7 @@ void QueryPeerPresence::Complete(PeerPresence const& presence) {
   finished_ = true;
   query_state_.completed = true;
   ++query_state_.user_callback_count;
+  completed_at_ = Now();
   diagnostics_ = query_state_.Diagnostics();
   timing_subs_.clear();
   exhausted_sub_.Reset();
