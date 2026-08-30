@@ -69,6 +69,7 @@ list(APPEND aether_srcs
 list(APPEND aether_srcs
             "ae_actions/get_servers.cpp"
             "ae_actions/ping.cpp"
+            "ae_actions/probe_ping.cpp"
             "ae_actions/check_access_for_send_message.cpp"
             "ae_actions/telemetry.cpp"
             "ae_actions/select_client.cpp")
@@ -120,6 +121,8 @@ list(APPEND aether_srcs
 list(APPEND aether_srcs
             "wifi/wifi_driver_factory.cpp"
             "wifi/esp_wifi_driver.cpp"
+            "wifi/wifi_probe_state.cpp"
+            "wifi/wifi_gateway_probe.cpp"
             )
 
 list(APPEND aether_srcs

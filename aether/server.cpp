@@ -64,4 +64,11 @@ void Server::AddChannels(AccessPoint::ptr const& access_point) {
   channels_changed_.Emit();
 }
 
+void Server::RebuildChannelsFromAdapters() {
+  channels.clear();
+  access_point_added_.Reset();
+  subscribed_ = false;
+  Register();
+}
+
 }  // namespace ae

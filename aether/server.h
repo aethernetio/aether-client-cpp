@@ -54,6 +54,10 @@ class Server : public Obj {
 
   ChannelsChanged::Subscriber channels_changed();
 
+  // Drop persisted channels and rebuild from the live AdapterRegistry.
+  // Needed when host-baked EthernetChannels are loaded on a Wi‑Fi device.
+  void RebuildChannelsFromAdapters();
+
   ServerId server_id{};
   std::vector<Endpoint> endpoints;
   std::vector<Channel::ptr> channels;

@@ -20,6 +20,9 @@ namespace ae {
 AuthorizedApi::AuthorizedApi(ProtocolContext& protocol_context)
     : ApiClass{protocol_context},
       ping{protocol_context},
+      probe_ping{protocol_context},
+      deferred_probe{protocol_context},
+      query_probe_result{protocol_context},
       send_message{protocol_context},
       send_messages{protocol_context},
       check_access_for_send_message{protocol_context},

@@ -277,7 +277,12 @@ esp_err_t StartWifiConnection(
 
   esp_wifi_driver_internal::SetupCredentials(wifi_config, wifi_ap.creds);
 
-  // Setting up a static IP, if required
+  // Prefer a previously learned channel without locking to a BSSID.
+  if (wifi_ap.preferred_channel != 0) {
+    wifi_config.sta.channel = wifi_ap.preferred_channel;
+  }
+
+  // Setting up a cached DHCP lease ("static" IP config), if required
   if (wifi_ap.static_ip.has_value()) {
     err = esp_wifi_driver_internal::SetStaticIp(espt_init_sta,
                                                 wifi_ap.static_ip.value());

@@ -25,6 +25,8 @@ void AdapterRegistry::Add(Adapter::ptr adapter) {
   adapters_.emplace_back(std::move(adapter));
 }
 
+void AdapterRegistry::Clear() { adapters_.clear(); }
+
 std::vector<Adapter::ptr> const& AdapterRegistry::adapters() const {
   return adapters_;
 }

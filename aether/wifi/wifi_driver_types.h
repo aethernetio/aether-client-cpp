@@ -49,10 +49,13 @@ struct WifiCreds {
 };
 
 struct WiFiAp {
-  AE_REFLECT_MEMBERS(creds, static_ip)
+  AE_REFLECT_MEMBERS(creds, static_ip, preferred_channel)
   WifiCreds creds;
   std::optional<WiFiIP>
-      static_ip;  // use static ip settings, otherwise use dynamic settings
+      static_ip;  // cached DHCP lease when set; otherwise DHCP
+  // 0 = any channel (canonical scan). Non-zero prefers that channel.
+  // Never use BSSID for association.
+  std::uint8_t preferred_channel{0};
 };
 
 struct WiFiPowerSaveParam {

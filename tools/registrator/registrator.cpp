@@ -18,6 +18,9 @@
 #include <string>
 
 #include "aether/all.h"
+#include "aether/client_connectivity_policy.h"
+#include "aether/connection_manager/client_cloud_manager.h"
+#include "aether/obj/registry.h"
 #include "aether/crypto.h"
 #include "aether/domain_storage/registrar_domain_storage.h"
 #include "aether/wifi/wifi_driver_types.h"
@@ -147,7 +150,7 @@ int AetherRegistrator(const std::string& ini_file,
     construct_context =
         std::move(construct_context)
             .AddAdapterFactory([](ae::AetherAppContext const& context) {
-              AE_TELED_DEBUG("ae::EthernetAdapter");
+              AE_TELED_DEBUG("ae::EthernetAdapter (host registration only)");
               return ae::EthernetAdapter::ptr::Create(
                   ae::CreateWith{context.domain()}.with_id(
                       ae::GlobalId::kEthernetAdapter),
@@ -169,8 +172,22 @@ int AetherRegistrator(const std::string& ini_file,
     constexpr auto format_client = ae::FormatScheme{"\nclient={},\n{}\n"};
     for (auto const& c_conf : clients) {
       ae::Format(std::cout, format_client, c_conf.client_id, c_conf.config);
-      aether_app->aether()->CreateClient(c_conf.config, c_conf.client_id);
+      auto client =
+          aether_app->aether()->CreateClient(c_conf.config, c_conf.client_id);
+      if (auto loaded = client.Load()) {
+        loaded->connectivity_policy().Save();
+        loaded->cloud_manager().Save();
+        client.Save();
+      }
     }
+    // Strip host-only adapters before static FS is written. Targets (ESP)
+    // install their own platform adapter at runtime.
+    if (auto registry = aether_app->aether()->adapter_registry.Load()) {
+      AE_TELED_DEBUG("Clearing {} host adapters before FS save",
+                     registry->adapters().size());
+      registry->Clear();
+    }
+    aether_app->aether().Save();
     aether_app->Exit(0);
   });
   registrator_action.failed_event().Subscribe([&]() { aether_app->Exit(1); });

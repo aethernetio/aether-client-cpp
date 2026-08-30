@@ -39,6 +39,11 @@ class AdapterRegistry final : public Obj {
    */
   void Add(Adapter::ptr adapter);
 
+  /**
+   * \brief Remove all adapters (e.g. before installing a platform-local one).
+   */
+  void Clear();
+
   std::vector<Adapter::ptr> const& adapters() const;
 
  private:

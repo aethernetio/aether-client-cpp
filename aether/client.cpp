@@ -116,10 +116,14 @@ void Client::SetConfig(std::string client_id, Uid parent_uid, Uid uid,
 
   connectivity_policy_ = ClientConnectivityPolicy::ptr::Create(
       CreateWith{domain}.with_flags(ObjFlags::kUnloadedByDefault));
+  // Persist immediately: DomainGraph Save of parents is shallow for some paths,
+  // and UnloadedByDefault children must still exist in domain storage for FS_INIT.
+  connectivity_policy_.Save();
 
   client_cloud_manager_ = ClientCloudManager::ptr::Create(
       CreateWith{domain}.with_flags(ObjFlags::kUnloadedByDefault),
       Aether::ptr{aether_}, Client::ptr::MakeFromThis(this));
+  client_cloud_manager_.Save();
 }
 
 void Client::SendTelemetry() {
