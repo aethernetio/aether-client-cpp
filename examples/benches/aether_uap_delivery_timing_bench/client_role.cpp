@@ -38,6 +38,7 @@
 
 #define AE_EXAMPLE_ETHERNET 1
 #include "aether/all.h"
+#include "aether/ae_actions/query_peer_presence.h"
 #include "aether/ae_actions/query_peer_receive_schedule.h"
 #include "aether/channels/channel.h"
 #include "aether/client_messages/p2p_message_stream.h"
@@ -463,9 +464,9 @@ struct RoleState {
   void BeginQuery() {
     // Reset subscription before replacing Client-owned action.
     query_sub.Reset();
-    auto& action = client->QueryPeerReceiveSchedule(peer_uid);
+    auto& action = client->QueryPeerPresence(peer_uid);
     query_sub = action.result_event().Subscribe(
-        [this, &action](Result<PeerReceiveSchedule, int> const& res) {
+        [this, &action](Result<PeerPresence, int> const& res) {
           last_diagnostics_ = action.server_diagnostics();
           OnSchedule(res);
         });
@@ -482,7 +483,7 @@ struct RoleState {
     return nullptr;
   }
 
-  void OnSchedule(Result<PeerReceiveSchedule, int> const& res) {
+  void OnSchedule(Result<PeerPresence, int> const& res) {
     if (!res) {
       sample_in_flight = false;
       send_at_.reset();

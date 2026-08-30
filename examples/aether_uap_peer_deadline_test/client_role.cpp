@@ -36,6 +36,7 @@
 
 #define AE_EXAMPLE_ETHERNET 1
 #include "aether/all.h"
+#include "aether/ae_actions/query_peer_presence.h"
 #include "aether/ae_actions/query_peer_receive_schedule.h"
 #include "aether/receive_schedule.h"
 
@@ -245,9 +246,9 @@ struct RoleState {
     auto const begin = Now();
     ++query_index_;
     query_sub.Reset();
-    auto& action = client->QueryPeerReceiveSchedule(peer_uid);
+    auto& action = client->QueryPeerPresence(peer_uid);
     query_sub = action.result_event().Subscribe(
-        [this, begin, &action](Result<PeerReceiveSchedule, int> const& res) {
+        [this, begin, &action](Result<PeerPresence, int> const& res) {
           QueryOutcome out;
           out.begin = begin;
           out.end = Now();
@@ -257,7 +258,22 @@ struct RoleState {
             out.error = res.error();
           } else {
             out.success = true;
-            out.schedule = res.value();
+            auto const& presence = res.value();
+            if (presence.last_online.has_value()) {
+              out.schedule.last_online = *presence.last_online;
+            }
+            out.schedule.next_ping_deadline = presence.next_ping_deadline;
+            switch (presence.state) {
+              case PeerPresenceState::kOnline:
+                out.schedule.state = PeerScheduleState::kExpected;
+                break;
+              case PeerPresenceState::kOffline:
+                out.schedule.state = PeerScheduleState::kMissedDeadline;
+                break;
+              case PeerPresenceState::kUnknown:
+                out.schedule.state = PeerScheduleState::kUnknown;
+                break;
+            }
           }
           std::cerr << "timing_diag query=" << query_index_;
           for (auto const& d : action.server_diagnostics()) {

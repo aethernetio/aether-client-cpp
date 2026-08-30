@@ -147,6 +147,16 @@ class CloudServerConnections {
     }
   }
 
+  template <typename TFunc>
+  void ForServersImpl(TFunc&& func, RequestPolicy::Server server) {
+    for (auto* sc : selected_servers_) {
+      if (sc != nullptr && sc->server_id() == server.server_id) {
+        std::invoke(std::forward<TFunc>(func), sc);
+        return;
+      }
+    }
+  }
+
   WriteAction& EmptyWriteAction();
   WriteAction& ReplicaWriteAction(std::vector<WriteAction*>&& swas);
 

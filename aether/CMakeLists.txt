@@ -73,6 +73,7 @@ list(APPEND aether_srcs
             "ae_actions/telemetry.cpp"
             "ae_actions/select_client.cpp"
             "ae_actions/query_peer_receive_schedule.cpp"
+            "ae_actions/query_peer_presence.cpp"
             "ae_actions/announce_next_ping_unknown.cpp")
 
 list(APPEND aether_srcs

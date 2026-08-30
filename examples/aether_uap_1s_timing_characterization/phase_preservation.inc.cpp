@@ -610,7 +610,7 @@
         auto q1 = query_ckpt(1, false);
         if (!q1) {
           ++query_failures;
-          fail_inv(rec, "observer checkpoint 1: QueryPeerReceiveSchedule did not complete");
+          fail_inv(rec, "observer checkpoint 1: QueryPeerPresence did not complete");
         } else {
           ObserverHit h{};
           h.checkpoint = 1;
@@ -1482,7 +1482,7 @@
     report << "See window-corrections.csv. Next nominal phase delta is "
               "next_scheduled_nominal - (expected + 1000ms).\n\n";
     report << "## Observer results\n\n";
-    report << "Alice calls Client::QueryPeerReceiveSchedule(peer_uid) through "
+    report << "Alice calls Client::QueryPeerPresence(peer_uid) through "
               "RoleState::QueryNow at:\n";
     report << "1. immediately after the first-attempt trace is captured for the "
               "armed ping (Bob has already advertised Tn; QueryNow is not "

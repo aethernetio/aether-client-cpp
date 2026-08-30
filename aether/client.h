@@ -47,6 +47,7 @@ namespace ae {
 class Aether;
 class Telemetry;
 class QueryPeerReceiveSchedule;
+class QueryPeerPresence;
 class AnnounceNextPingUnknown;
 
 class Client : public Obj {
@@ -80,8 +81,14 @@ class Client : public Obj {
   // Must run after SetConfig and before first cloud_connection()/ping start.
   Result<std::monostate, int> SetReceiveSchedule(ReceiveSchedule schedule);
 
-  // Stores action on Client (replaced each call); returns a live reference.
-  ::ae::QueryPeerReceiveSchedule& QueryPeerReceiveSchedule(Uid peer_uid);
+  // SERVER-SCOPED schedule for one peer on one server. Replaced each call
+  // unless an identical unfinished query is already stored.
+  ::ae::QueryPeerReceiveSchedule& QueryPeerReceiveSchedule(Uid peer_uid,
+                                                           ServerId server_id);
+  // CLOUD-SCOPED presence aggregation (OR Online / AND Offline). Owned
+  // separately from QueryPeerReceiveSchedule so presence fan-out cannot
+  // destroy an in-flight single-server schedule query.
+  ::ae::QueryPeerPresence& QueryPeerPresence(Uid peer_uid);
   ::ae::AnnounceNextPingUnknown& AnnounceNextPingUnknown();
 
 #if AE_ENABLE_PING
@@ -133,6 +140,7 @@ class Client : public Obj {
   std::unique_ptr<PingCloudServers> ping_cloud_servers_;
 #endif
   std::unique_ptr<::ae::QueryPeerReceiveSchedule> query_peer_receive_schedule_;
+  std::unique_ptr<::ae::QueryPeerPresence> query_peer_presence_;
   std::unique_ptr<::ae::AnnounceNextPingUnknown> announce_next_ping_unknown_;
 #if AE_TELE_ENABLED && AE_TELE_LOG_TO_STATISTICS
   std::unique_ptr<Telemetry> telemetry_;

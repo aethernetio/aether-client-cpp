@@ -488,6 +488,144 @@ void test_AllSelectedServersQuarantinedYieldsEmptyQuerySet() {
   TEST_ASSERT_TRUE(query_set.empty());
 }
 
+void test_SingleServerScheduleConversionStates() {
+  auto const qsend = Tp(10'000);
+  auto const one_way = Ms(40);
+
+  auto const expected =
+      ToPeerReceiveSchedule(ConvertClientTiming(
+          qsend, one_way, ClientTiming{1'000, -200}, /*server_id=*/7));
+  TEST_ASSERT_TRUE(expected.state == PeerScheduleState::kExpected);
+  TEST_ASSERT_TRUE(expected.next_ping_deadline.has_value());
+  TEST_ASSERT_TRUE(*expected.next_ping_deadline == Tp(10'000 + 40 + 1'000));
+  TEST_ASSERT_TRUE(expected.last_online == Tp(10'000 + 40 - 200));
+
+  auto const missed = ToPeerReceiveSchedule(
+      ConvertClientTiming(qsend, one_way, ClientTiming{-300, -50}, 8));
+  TEST_ASSERT_TRUE(missed.state == PeerScheduleState::kMissedDeadline);
+  TEST_ASSERT_TRUE(missed.next_ping_deadline.has_value());
+  TEST_ASSERT_TRUE(*missed.next_ping_deadline == Tp(10'000 + 40 - 300));
+  TEST_ASSERT_TRUE(missed.last_online == Tp(10'000 + 40 - 50));
+
+  auto const unknown = ToPeerReceiveSchedule(
+      ConvertClientTiming(qsend, one_way, ClientTiming{0, -10}, 9));
+  TEST_ASSERT_TRUE(unknown.state == PeerScheduleState::kUnknown);
+  TEST_ASSERT_FALSE(unknown.next_ping_deadline.has_value());
+  TEST_ASSERT_TRUE(unknown.last_online == Tp(10'000 + 40 - 10));
+}
+
+void test_SingleServerScheduleHasNoCrossServerAggregation() {
+  // Server-scoped conversion ignores other servers entirely.
+  auto const only_a = ToPeerReceiveSchedule(ConvertClientTiming(
+      Tp(0), Ms(40), ClientTiming{-1000, -20}, /*server_id=*/1));
+  auto const only_b = ToPeerReceiveSchedule(ConvertClientTiming(
+      Tp(0), Ms(40), ClientTiming{2000, -5}, /*server_id=*/2));
+  TEST_ASSERT_TRUE(only_a.state == PeerScheduleState::kMissedDeadline);
+  TEST_ASSERT_TRUE(only_b.state == PeerScheduleState::kExpected);
+  TEST_ASSERT_TRUE(only_a.last_online != only_b.last_online);
+}
+
+void test_PresenceOrOnlineAndEarlyCompletion() {
+  auto const online = AggregatePeerPresence(
+      {Sample(100, 2000, PeerScheduleState::kExpected, 1),
+       Sample(50, -100, PeerScheduleState::kMissedDeadline, 2),
+       Sample(60, -200, PeerScheduleState::kMissedDeadline, 3)});
+  TEST_ASSERT_TRUE(online.has_value());
+  TEST_ASSERT_TRUE(online->state == PeerPresenceState::kOnline);
+  TEST_ASSERT_TRUE(online->next_ping_deadline == Tp(2000));
+  TEST_ASSERT_TRUE(online->last_online == Tp(100));
+
+  PeerPresenceQueryOrchestrator early;
+  early.Start({1, 2, 3});
+  auto const a = early.Send(1, Tp(0), Ms(40));
+  early.OnSuccess(1, a, ClientTiming{1500, -10});
+  TEST_ASSERT_EQUAL_INT(1, early.callback_count);
+  TEST_ASSERT_TRUE(early.last_presence.has_value());
+  TEST_ASSERT_TRUE(early.last_presence->state == PeerPresenceState::kOnline);
+  TEST_ASSERT_FALSE(early.state.ReadyToComplete());  // B,C still pending
+
+  auto const online_with_error = AggregatePeerPresence(
+      PeerTimingAggregateContext{
+          .expected_server_count = 3,
+          .success_count = 2,
+          .terminal_error_count = 1,
+          .unresolved_count = 0,
+          .snapshot_incomplete = false,
+          .successes =
+              {
+                  Sample(1, -500, PeerScheduleState::kMissedDeadline, 1),
+                  Sample(2, 3000, PeerScheduleState::kExpected, 2),
+              },
+      });
+  TEST_ASSERT_TRUE(online_with_error->state == PeerPresenceState::kOnline);
+}
+
+void test_PresenceOfflineRequiresAllMissed() {
+  auto const offline = AggregatePeerPresence(
+      {Sample(1, -3000, PeerScheduleState::kMissedDeadline),
+       Sample(2, -500, PeerScheduleState::kMissedDeadline),
+       Sample(3, -100, PeerScheduleState::kMissedDeadline)});
+  TEST_ASSERT_TRUE(offline->state == PeerPresenceState::kOffline);
+  TEST_ASSERT_TRUE(offline->next_ping_deadline == Tp(-100));
+
+  PeerTimingAggregateContext fail_blocks_offline;
+  fail_blocks_offline.expected_server_count = 3;
+  fail_blocks_offline.success_count = 2;
+  fail_blocks_offline.terminal_error_count = 1;
+  fail_blocks_offline.successes = {
+      Sample(1, -3000, PeerScheduleState::kMissedDeadline),
+      Sample(2, -500, PeerScheduleState::kMissedDeadline),
+  };
+  auto const unknown_fail = AggregatePeerPresence(fail_blocks_offline);
+  TEST_ASSERT_TRUE(unknown_fail->state == PeerPresenceState::kUnknown);
+
+  auto const unknown_sample = AggregatePeerPresence(
+      {Sample(1, -3000, PeerScheduleState::kMissedDeadline),
+       Sample(2, std::nullopt, PeerScheduleState::kUnknown),
+       Sample(3, -100, PeerScheduleState::kMissedDeadline)});
+  TEST_ASSERT_TRUE(unknown_sample->state == PeerPresenceState::kUnknown);
+
+  auto const all_unknown = AggregatePeerPresence(
+      {Sample(1, std::nullopt, PeerScheduleState::kUnknown),
+       Sample(2, std::nullopt, PeerScheduleState::kUnknown)});
+  TEST_ASSERT_TRUE(all_unknown->state == PeerPresenceState::kUnknown);
+
+  TEST_ASSERT_FALSE(
+      AggregatePeerPresence(std::vector<ConvertedServerTiming>{}).has_value());
+}
+
+void test_PresenceLatestLastOnline() {
+  auto const mixed = AggregatePeerPresence(
+      {Sample(100, 5000, PeerScheduleState::kExpected, 1),
+       Sample(150, -10, PeerScheduleState::kMissedDeadline, 2),
+       Sample(120, -20, PeerScheduleState::kMissedDeadline, 3)});
+  TEST_ASSERT_TRUE(mixed->last_online == Tp(150));
+  TEST_ASSERT_TRUE(mixed->state == PeerPresenceState::kOnline);
+}
+
+void test_ObserverReceiveScheduleDoesNotAffectPeerClassification() {
+  // ConvertClientTiming takes only qsend/one_way/ClientTiming — never
+  // observer ping_interval or receive_window. Changing observer schedule
+  // values must not change the classification of identical server timing.
+  ReceiveSchedule observer_fast{.ping_interval = Ms(1000),
+                                .receive_window = Ms(1000)};
+  ReceiveSchedule observer_slow{.ping_interval = Ms(60000),
+                                .receive_window = Ms(60000)};
+  static_cast<void>(observer_fast);
+  static_cast<void>(observer_slow);
+
+  ClientTiming const peer_timing{2'000, -100};
+  auto const a = ConvertClientTiming(Tp(5'000), Ms(40), peer_timing, 1);
+  auto const b = ConvertClientTiming(Tp(5'000), Ms(40), peer_timing, 1);
+  TEST_ASSERT_TRUE(a.state == b.state);
+  TEST_ASSERT_TRUE(a.state == PeerScheduleState::kExpected);
+  TEST_ASSERT_TRUE(a.next_ping_deadline == b.next_ping_deadline);
+  TEST_ASSERT_TRUE(a.last_online == b.last_online);
+
+  auto const presence = AggregatePeerPresence({a, b});
+  TEST_ASSERT_TRUE(presence->state == PeerPresenceState::kOnline);
+}
+
 void test_ThousandQueriesDestroyPendingAndCloudRequestFlags() {
   PeerTimingQueryOrchestrator orch;
   for (int i = 0; i < 1000; ++i) {
@@ -556,5 +694,13 @@ int test_uap_peer_timing() {
                test_ServerLeavingQuarantineFreshQueryCanBeExpected);
   RUN_TEST(ae::test_uap_peer_timing::
                test_AllSelectedServersQuarantinedYieldsEmptyQuerySet);
+  RUN_TEST(ae::test_uap_peer_timing::test_SingleServerScheduleConversionStates);
+  RUN_TEST(ae::test_uap_peer_timing::
+               test_SingleServerScheduleHasNoCrossServerAggregation);
+  RUN_TEST(ae::test_uap_peer_timing::test_PresenceOrOnlineAndEarlyCompletion);
+  RUN_TEST(ae::test_uap_peer_timing::test_PresenceOfflineRequiresAllMissed);
+  RUN_TEST(ae::test_uap_peer_timing::test_PresenceLatestLastOnline);
+  RUN_TEST(ae::test_uap_peer_timing::
+               test_ObserverReceiveScheduleDoesNotAffectPeerClassification);
   return UNITY_END();
 }

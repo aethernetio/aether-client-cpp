@@ -17,6 +17,7 @@
 #ifndef AETHER_RECEIVE_SCHEDULE_H_
 #define AETHER_RECEIVE_SCHEDULE_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 
@@ -45,10 +46,36 @@ enum class PeerScheduleState {
 // Unix-epoch wall remapping of server timestamps).
 // last_online is converted from lastConnectDeltaMs (online/activity, not
 // necessarily a ping).
+//
+// Server-scoped only: PeerScheduleState::kMissedDeadline means THIS server has
+// not seen a newer scheduled ping yet. It is NOT a global Offline signal —
+// another cloud server may still report kExpected.
 struct PeerReceiveSchedule {
   TimePoint last_online{};
   std::optional<TimePoint> next_ping_deadline{};
   PeerScheduleState state{PeerScheduleState::kUnknown};
+};
+
+// Cloud-scoped presence (OR Online / AND Offline). Distinct from
+// PeerReceiveSchedule, which answers one server's schedule view.
+enum class PeerPresenceState : std::uint8_t {
+  kOnline,
+  kOffline,
+  kUnknown,
+};
+
+struct PeerPresence {
+  PeerPresenceState state{PeerPresenceState::kUnknown};
+  std::optional<TimePoint> last_online;
+  std::optional<TimePoint> next_ping_deadline;
+};
+
+struct PeerTimingQueryCoverage {
+  std::size_t selected_server_count{0};
+  std::size_t queried_server_count{0};
+  std::size_t successful_server_count{0};
+  std::size_t failed_server_count{0};
+  std::size_t quarantined_skipped_count{0};
 };
 
 enum class SetReceiveScheduleError : int {

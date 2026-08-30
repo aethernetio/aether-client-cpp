@@ -19,6 +19,7 @@
 #include <utility>
 
 #include "aether/ae_actions/query_peer_receive_schedule.h"
+#include "aether/ae_actions/query_peer_presence.h"
 #include "aether/ae_actions/announce_next_ping_unknown.h"
 #include "aether/ae_actions/telemetry.h"
 
@@ -158,16 +159,28 @@ Result<std::monostate, int> Client::SetReceiveSchedule(ReceiveSchedule schedule)
   return Ok{std::monostate{}};
 }
 
-::ae::QueryPeerReceiveSchedule& Client::QueryPeerReceiveSchedule(Uid peer_uid) {
+::ae::QueryPeerReceiveSchedule& Client::QueryPeerReceiveSchedule(
+    Uid peer_uid, ServerId server_id) {
   if (query_peer_receive_schedule_ &&
       !query_peer_receive_schedule_->is_finished() &&
-      query_peer_receive_schedule_->peer_uid() == peer_uid) {
+      query_peer_receive_schedule_->peer_uid() == peer_uid &&
+      query_peer_receive_schedule_->server_id() == server_id) {
     return *query_peer_receive_schedule_;
   }
   query_peer_receive_schedule_ =
       std::make_unique<::ae::QueryPeerReceiveSchedule>(
-          AeContext{*aether_}, *this, peer_uid);
+          AeContext{*aether_}, *this, peer_uid, server_id);
   return *query_peer_receive_schedule_;
+}
+
+::ae::QueryPeerPresence& Client::QueryPeerPresence(Uid peer_uid) {
+  if (query_peer_presence_ && !query_peer_presence_->is_finished() &&
+      query_peer_presence_->peer_uid() == peer_uid) {
+    return *query_peer_presence_;
+  }
+  query_peer_presence_ = std::make_unique<::ae::QueryPeerPresence>(
+      AeContext{*aether_}, *this, peer_uid);
+  return *query_peer_presence_;
 }
 
 ::ae::AnnounceNextPingUnknown& Client::AnnounceNextPingUnknown() {

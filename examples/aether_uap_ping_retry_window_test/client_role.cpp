@@ -39,6 +39,7 @@
 
 #define AE_EXAMPLE_ETHERNET 1
 #include "aether/all.h"
+#include "aether/ae_actions/query_peer_presence.h"
 #include "aether/ae_actions/query_peer_receive_schedule.h"
 #include "aether/ae_actions/announce_next_ping_unknown.h"
 #include "aether/channels/channel.h"
@@ -715,9 +716,9 @@ struct RoleState {
     query_sub.Reset();
     query_in_flight_ = true;
     ++query_created_;
-    auto& action = client->QueryPeerReceiveSchedule(peer_uid);
+    auto& action = client->QueryPeerPresence(peer_uid);
     query_sub = action.result_event().Subscribe(
-        [this, &action](Result<PeerReceiveSchedule, int> const& res) {
+        [this, &action](Result<PeerPresence, int> const& res) {
           last_diagnostics_ = action.server_diagnostics();
           last_coverage_ = action.coverage();
           query_in_flight_ = false;
@@ -745,7 +746,7 @@ struct RoleState {
     return nullptr;
   }
 
-  void OnSchedule(Result<PeerReceiveSchedule, int> const& res) {
+  void OnSchedule(Result<PeerPresence, int> const& res) {
     if (!res) {
       sample_in_flight = false;
       send_at_.reset();
@@ -1046,7 +1047,7 @@ struct RoleState {
 #endif
   }
 
-  void EmitScheduleState(Result<PeerReceiveSchedule, int> const& res) {
+  void EmitScheduleState(Result<PeerPresence, int> const& res) {
     IpcFrame frame{};
     frame.type = kIpcScheduleState;
     frame.side = static_cast<std::uint8_t>(side);
@@ -1061,7 +1062,9 @@ struct RoleState {
       frame.b = res.value().next_ping_deadline.has_value()
                     ? TimePointUs(*res.value().next_ping_deadline)
                     : 0;
-      frame.c = TimePointUs(res.value().last_online);
+      frame.c = res.value().last_online.has_value()
+                    ? TimePointUs(*res.value().last_online)
+                    : 0;
     }
     frame.d = static_cast<std::int64_t>(last_coverage_.selected_server_count);
     frame.e = static_cast<std::int64_t>(last_coverage_.queried_server_count);
@@ -1110,7 +1113,7 @@ struct RoleState {
     pending_query_checkpoint_ = checkpoint;
     if (query_in_flight_) {
       ++query_skipped_inflight_;
-      auto& existing = client->QueryPeerReceiveSchedule(peer_uid);
+      auto& existing = client->QueryPeerPresence(peer_uid);
       if (existing.is_finished()) {
         query_in_flight_ = false;
       } else {
@@ -1119,7 +1122,7 @@ struct RoleState {
           ++query_extra_subscribers_;
           extra_query_sub_.Reset();
           extra_query_sub_ = existing.result_event().Subscribe(
-              [this](Result<PeerReceiveSchedule, int> const& res) {
+              [this](Result<PeerPresence, int> const& res) {
                 EmitScheduleState(res);
               });
         }

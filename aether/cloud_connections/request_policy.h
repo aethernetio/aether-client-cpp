@@ -22,6 +22,8 @@
 
 #include "aether-miscpp/reflect/reflect.h"
 
+#include "aether/types/server_id.h"
+
 namespace ae {
 struct RequestPolicy {
   // Make request only to the main server (the highest priority).
@@ -46,7 +48,13 @@ struct RequestPolicy {
     AE_REFLECT()
   };
 
-  using Variant = std::variant<MainServer, Priority, Replica, All>;
+  // Make request to exactly one server by id (no cross-server fan-out).
+  struct Server {
+    ServerId server_id{};
+    AE_REFLECT_MEMBERS(server_id)
+  };
+
+  using Variant = std::variant<MainServer, Priority, Replica, All, Server>;
 };
 }  // namespace ae
 
