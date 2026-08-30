@@ -20,7 +20,7 @@ $AetherRoot = "C:\Users\nickc\Projects\aether-client-cpp-peer-uap"
 $BaseExe = Join-Path $AetherRoot "build-win64\Debug\aether_presence_probe.exe"
 if (-not (Test-Path $BaseExe)) { throw "Missing $BaseExe" }
 
-$ArtifactRoot = Join-Path $AetherRoot "artifacts\presence-runtime-5705c6df\firewall"
+$ArtifactRoot = Join-Path $AetherRoot "artifacts\presence-runtime-ce69b9cc\firewall"
 $run = Join-Path $ArtifactRoot ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds().ToString())
 $exch = Join-Path $run "exchange"
 $obsState = Join-Path $run "observer"
