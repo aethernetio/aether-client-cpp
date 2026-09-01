@@ -77,7 +77,7 @@ void AetherAppContext::TelemetryInit() {
 }
 
 void AetherAppContext::TeleStatisticsInit(
-    TeleStatistics::ptr const& tele_statistics) const {
+    [[maybe_unused]] TeleStatistics::ptr const& tele_statistics) const {
 #if AE_TELE_ENABLED
 #  if AE_TELE_LOG_TO_STATISTICS
   if (!tele_statistics_trap_is_set) {
