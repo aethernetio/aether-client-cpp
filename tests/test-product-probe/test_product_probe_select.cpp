@@ -57,6 +57,7 @@ using probe::ProbeStageIsMeasured;
 using probe::ProbeStageName;
 using probe::ProductPostTableCount;
 using probe::ProductPostTableValue;
+using probe::ProductPreEscalate;
 using probe::ProductPreTable;
 using probe::ProductProbeAdvanceStage;
 using probe::ProductProbeBatchInvalidationsExhausted;
@@ -312,6 +313,22 @@ void test_PreSearchStopsOnFirstFailure() {
   TEST_ASSERT_TRUE(ParamSearchFinished(state));
   TEST_ASSERT_FALSE(ParamSearchFailed(state));
   TEST_ASSERT_EQUAL_UINT16(25, ParamSearchSelected(state));
+}
+
+// A failed POST search asks for the next larger PRE, in order, and says so when
+// the ladder is exhausted. The escalation is what makes the PRE choice
+// answerable by prepared sends instead of by ICMP alone.
+void test_PreEscalationClimbsTheWholeLadder() {
+  TEST_ASSERT_EQUAL_UINT16(10, ProductPreEscalate(0));
+  TEST_ASSERT_EQUAL_UINT16(25, ProductPreEscalate(10));
+  TEST_ASSERT_EQUAL_UINT16(50, ProductPreEscalate(25));
+  TEST_ASSERT_EQUAL_UINT16(100, ProductPreEscalate(50));
+  TEST_ASSERT_EQUAL_UINT16(200, ProductPreEscalate(100));
+  TEST_ASSERT_EQUAL_UINT16(300, ProductPreEscalate(200));
+  TEST_ASSERT_EQUAL_UINT16(0, ProductPreEscalate(300));
+  // A PRE that is not on the ladder still climbs to the next larger step.
+  TEST_ASSERT_EQUAL_UINT16(50, ProductPreEscalate(30));
+  TEST_ASSERT_EQUAL_UINT16(0, ProductPreEscalate(400));
 }
 
 // The ICMP-only PRE search may still extend upwards to 200, then 300.
@@ -808,6 +825,8 @@ int test_product_probe_select() {
   RUN_TEST(ae::test_product_probe_select::test_PreSearchSelectsLowestPassing);
   RUN_TEST(ae::test_product_probe_select::test_PreSearchStopsOnFirstFailure);
   RUN_TEST(ae::test_product_probe_select::test_PreSearchExtendsUpwards);
+  RUN_TEST(
+      ae::test_product_probe_select::test_PreEscalationClimbsTheWholeLadder);
   RUN_TEST(ae::test_product_probe_select::test_PostTableIsStrictlyDescending);
   RUN_TEST(ae::test_product_probe_select::test_PostFullBatchPassesAndDescends);
   RUN_TEST(ae::test_product_probe_select::test_PostAllPassSelectsZero);

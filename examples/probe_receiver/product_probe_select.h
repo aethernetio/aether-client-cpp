@@ -186,6 +186,25 @@ inline ParamSearchTable ProductPreTable() {
   return ParamSearchTable{kPrimary, 5, kExtended, 2};
 }
 
+// The whole PRE ladder, conservative last, as one ascending sequence.
+//
+// ICMP picks the profile and a first PRE, but an echo request is not what the
+// product sends: the ping stack resolves and retries, so it survives delays the
+// single prepared datagram after a fresh association does not. When the most
+// conservative POST already fails, the PRE the ICMP stage chose is the thing
+// under suspicion, and the next larger one is measured the same way every POST
+// candidate is. Nothing here turns a failed batch into a pass; it only decides
+// what is measured next.
+inline std::uint16_t ProductPreEscalate(std::uint16_t current) {
+  static constexpr std::uint16_t kLadder[] = {0, 10, 25, 50, 100, 200, 300};
+  for (auto const step : kLadder) {
+    if (step > current) {
+      return step;
+    }
+  }
+  return 0;
+}
+
 inline bool ParamSearchFinished(ParamSearchState const& state) {
   return state.finished != 0;
 }
