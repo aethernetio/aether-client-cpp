@@ -86,6 +86,12 @@ ex::sender auto TransportConnect(std::unique_ptr<ByteIStream>&& stream) {
                     ex::set_error_t(int)>(
       [s{std::move(stream)},
        link_sub{Subscription{}}](auto& ctx) mutable noexcept {
+        if (!s) {
+          // Protocol compiled out (AE_SUPPORT_* = 0) — factory returns null.
+          ex::set_error(std::move(ctx.receiver), 1);
+          return;
+        }
+
         auto handle_link_state = [&]() noexcept {
           link_sub.Reset();  // ensure subscribed only to one event
           auto link_state = s->stream_info().link_state;
