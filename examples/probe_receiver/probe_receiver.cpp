@@ -91,12 +91,19 @@ struct ReceiverState {
   std::map<std::uint64_t, BatchStat> batches;
   std::uint32_t probe_data_count{0};
   std::uint32_t hot_data_count{0};
+  std::uint32_t bench_data_count{0};
   std::uint32_t query_count{0};
   std::uint32_t summary_count{0};
+  std::uint32_t bench_arm_count{0};
+  std::uint32_t bench_summary_count{0};
   std::uint32_t unknown_count{0};
   bool tcp_up{false};
   bool link_down_logged{false};
   std::chrono::steady_clock::time_point last_health{};
+  probe::BatchSeqTracker bench_tracker{};
+  std::uint32_t bench_session{0};
+  std::uint16_t bench_variant{0};
+  std::uint16_t bench_expected{0};
 };
 
 ReceiverState g_state{};
@@ -237,6 +244,46 @@ void OnHotSummary(probe::HotSummary const& msg) {
   std::cout.flush();
 }
 
+void OnBenchArm(probe::BenchArm const& msg) {
+  ++g_state.bench_arm_count;
+  g_state.bench_session = msg.session;
+  g_state.bench_variant = msg.variant_id;
+  g_state.bench_expected = msg.expected;
+  g_state.bench_tracker.Reset(msg.expected);
+  std::cout << ae::Format(
+                   "BENCH_ARM session={} variant={} expected={}",
+                   msg.session, msg.variant_id, msg.expected)
+            << "\n";
+  std::cout.flush();
+}
+
+void OnBenchData(probe::BenchData const& msg) {
+  ++g_state.bench_data_count;
+  (void)g_state.bench_tracker.Observe(msg.seq);
+  std::cout << ae::Format(
+                   "BENCH_DATA session={} variant={} seq={} flags={} "
+                   "unique={} dup={} missing={}",
+                   msg.session, msg.variant_id, msg.seq, msg.flags,
+                   g_state.bench_tracker.unique(), g_state.bench_tracker.dup(),
+                   g_state.bench_tracker.missing())
+            << "\n";
+  std::cout.flush();
+}
+
+void OnBenchSummary(probe::BenchSummary const& msg) {
+  ++g_state.bench_summary_count;
+  std::cout << ae::Format(
+                   "BENCH_SUMMARY session={} variant={} attempts={} "
+                   "sendto_ok={} txdone_ok={} wifi_fail={} "
+                   "tx_unconfirmed={} bad_wakes={} rx_unique={}",
+                   msg.session, msg.variant_id, msg.hot_attempts,
+                   msg.sendto_ok, msg.txdone_ok, msg.wifi_fail,
+                   msg.tx_unconfirmed, msg.bad_wakes,
+                   g_state.bench_tracker.unique())
+            << "\n";
+  std::cout.flush();
+}
+
 void OnProbeQuery(ae::P2pStream& stream, probe::ProbeQuery const& msg) {
   ++g_state.query_count;
   auto& batch = FindBatch(msg.session, msg.batch_id);
@@ -317,6 +364,27 @@ void OnMessage(ae::P2pStream& stream, ae::DataBuffer const& data) {
       probe::HotSummary msg{};
       if (probe::Unpack(data.data(), data.size(), msg)) {
         OnHotSummary(msg);
+      }
+      return;
+    }
+    case probe::ProbeMsgType::kBenchArm: {
+      probe::BenchArm msg{};
+      if (probe::Unpack(data.data(), data.size(), msg)) {
+        OnBenchArm(msg);
+      }
+      return;
+    }
+    case probe::ProbeMsgType::kBenchData: {
+      probe::BenchData msg{};
+      if (probe::Unpack(data.data(), data.size(), msg)) {
+        OnBenchData(msg);
+      }
+      return;
+    }
+    case probe::ProbeMsgType::kBenchSummary: {
+      probe::BenchSummary msg{};
+      if (probe::Unpack(data.data(), data.size(), msg)) {
+        OnBenchSummary(msg);
       }
       return;
     }

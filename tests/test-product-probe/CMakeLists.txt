@@ -6,6 +6,7 @@ list(APPEND test_srcs
   main.cpp
   test_product_probe_select.cpp
   test_product_probe_protocol.cpp
+  test_power_factor_bench.cpp
 )
 
 if(NOT CM_PLATFORM)

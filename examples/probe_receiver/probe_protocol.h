@@ -36,6 +36,9 @@ enum class ProbeMsgType : std::uint8_t {
   kProbeResult = 0xB2,
   kHotData = 0xB3,
   kHotSummary = 0xB4,
+  kBenchArm = 0xB5,
+  kBenchData = 0xB6,
+  kBenchSummary = 0xB7,
 };
 
 // Longest encoded message (kHotData) plus headroom.
@@ -166,6 +169,105 @@ class ProbeReader {
   std::size_t pos_{0};
   bool ok_{true};
 };
+
+// Power-factor bench: minimal counters only (timing/energy from PPK).
+struct BenchArm {
+  std::uint32_t session{0};
+  std::uint16_t variant_id{0};
+  std::uint16_t expected{100};
+};
+
+struct BenchData {
+  std::uint32_t session{0};
+  std::uint16_t variant_id{0};
+  std::uint16_t seq{0};
+  std::uint8_t flags{0};  // bit0 sendto_ok bit1 txdone bit2 wifi_fail bit3 bad_wake
+};
+
+struct BenchSummary {
+  std::uint32_t session{0};
+  std::uint16_t variant_id{0};
+  std::uint16_t hot_attempts{0};
+  std::uint16_t sendto_ok{0};
+  std::uint16_t txdone_ok{0};
+  std::uint16_t wifi_fail{0};
+  std::uint16_t tx_unconfirmed{0};
+  std::uint16_t bad_wakes{0};
+};
+
+inline std::size_t Pack(BenchArm const& msg, std::uint8_t* out,
+                        std::size_t capacity) {
+  ProbeWriter w{out, capacity};
+  w.U8(static_cast<std::uint8_t>(ProbeMsgType::kBenchArm));
+  w.U32(msg.session);
+  w.U16(msg.variant_id);
+  w.U16(msg.expected);
+  return w.ok() ? w.size() : 0;
+}
+
+inline bool Unpack(std::uint8_t const* data, std::size_t size, BenchArm& msg) {
+  ProbeReader r{data, size};
+  std::uint8_t type = 0;
+  r.U8(type);
+  r.U32(msg.session);
+  r.U16(msg.variant_id);
+  r.U16(msg.expected);
+  return r.ok() && type == static_cast<std::uint8_t>(ProbeMsgType::kBenchArm);
+}
+
+inline std::size_t Pack(BenchData const& msg, std::uint8_t* out,
+                        std::size_t capacity) {
+  ProbeWriter w{out, capacity};
+  w.U8(static_cast<std::uint8_t>(ProbeMsgType::kBenchData));
+  w.U32(msg.session);
+  w.U16(msg.variant_id);
+  w.U16(msg.seq);
+  w.U8(msg.flags);
+  return w.ok() ? w.size() : 0;
+}
+
+inline bool Unpack(std::uint8_t const* data, std::size_t size, BenchData& msg) {
+  ProbeReader r{data, size};
+  std::uint8_t type = 0;
+  r.U8(type);
+  r.U32(msg.session);
+  r.U16(msg.variant_id);
+  r.U16(msg.seq);
+  r.U8(msg.flags);
+  return r.ok() && type == static_cast<std::uint8_t>(ProbeMsgType::kBenchData);
+}
+
+inline std::size_t Pack(BenchSummary const& msg, std::uint8_t* out,
+                        std::size_t capacity) {
+  ProbeWriter w{out, capacity};
+  w.U8(static_cast<std::uint8_t>(ProbeMsgType::kBenchSummary));
+  w.U32(msg.session);
+  w.U16(msg.variant_id);
+  w.U16(msg.hot_attempts);
+  w.U16(msg.sendto_ok);
+  w.U16(msg.txdone_ok);
+  w.U16(msg.wifi_fail);
+  w.U16(msg.tx_unconfirmed);
+  w.U16(msg.bad_wakes);
+  return w.ok() ? w.size() : 0;
+}
+
+inline bool Unpack(std::uint8_t const* data, std::size_t size,
+                   BenchSummary& msg) {
+  ProbeReader r{data, size};
+  std::uint8_t type = 0;
+  r.U8(type);
+  r.U32(msg.session);
+  r.U16(msg.variant_id);
+  r.U16(msg.hot_attempts);
+  r.U16(msg.sendto_ok);
+  r.U16(msg.txdone_ok);
+  r.U16(msg.wifi_fail);
+  r.U16(msg.tx_unconfirmed);
+  r.U16(msg.bad_wakes);
+  return r.ok() &&
+         type == static_cast<std::uint8_t>(ProbeMsgType::kBenchSummary);
+}
 
 // One probe packet of a parameter batch. Sent on the prepared UDP hot path
 // during a no-sleep or sleep-confirm batch.
@@ -517,6 +619,9 @@ inline bool PeekType(std::uint8_t const* data, std::size_t size,
     case static_cast<std::uint8_t>(ProbeMsgType::kProbeResult):
     case static_cast<std::uint8_t>(ProbeMsgType::kHotData):
     case static_cast<std::uint8_t>(ProbeMsgType::kHotSummary):
+    case static_cast<std::uint8_t>(ProbeMsgType::kBenchArm):
+    case static_cast<std::uint8_t>(ProbeMsgType::kBenchData):
+    case static_cast<std::uint8_t>(ProbeMsgType::kBenchSummary):
       out = static_cast<ProbeMsgType>(data[0]);
       return true;
     default:
