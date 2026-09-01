@@ -190,15 +190,20 @@ void OnHotData(probe::HotData const& msg) {
 
   // The previous send's timing travels with this packet; the current send's
   // own timing is only known after it completes.
+  // Format takes at most ten replacement fields, so one log line is built from
+  // two calls.
   std::cout << ae::Format(
                    "HOT_DATA session={} batch={} seq={} profile={} pre={} "
-                   "post={} sleep={} prev_seq={} prev_valid={} "
-                   "prev_status={} prev_connect_us={} prev_cycle_us={} "
-                   "prev_txdone_us={} prev_sleep_us={}",
+                   "post={} sleep={}",
                    msg.session, msg.batch_id, msg.seq, msg.profile, msg.pre_ms,
-                   msg.post_ms, msg.sleep_ms, msg.prev_seq, msg.prev_valid,
-                   msg.prev_status, msg.prev_connect_us, msg.prev_cycle_us,
-                   msg.prev_txdone_us, msg.prev_sleep_elapsed_us)
+                   msg.post_ms, msg.sleep_ms)
+            << ae::Format(
+                   " prev_seq={} prev_valid={} prev_status={} "
+                   "prev_connect_us={} prev_cycle_us={} prev_txdone_us={} "
+                   "prev_sleep_us={}",
+                   msg.prev_seq, msg.prev_valid, msg.prev_status,
+                   msg.prev_connect_us, msg.prev_cycle_us, msg.prev_txdone_us,
+                   msg.prev_sleep_elapsed_us)
             << "\n";
   std::cout.flush();
 }
@@ -235,14 +240,14 @@ void OnProbeQuery(ae::P2pStream& stream, probe::ProbeQuery const& msg) {
 
   std::cout << ae::Format(
                    "PROBE_RESULT session={} batch={} param={} stage={} "
-                   "profile={} pre={} post={} sleep={} expected={} unique={} "
-                   "dup={} missing={} oow={}",
+                   "profile={} pre={} post={} sleep={}",
                    msg.session, msg.batch_id, result.parameter_id,
                    probe::ProbeStageName(
                        static_cast<probe::ProbeStage>(batch.stage)),
-                   batch.profile, batch.pre_ms, batch.post_ms, batch.sleep_ms,
-                   result.expected, result.unique, result.dup, result.missing,
-                   batch.tracker.out_of_window())
+                   batch.profile, batch.pre_ms, batch.post_ms, batch.sleep_ms)
+            << ae::Format(" expected={} unique={} dup={} missing={} oow={}",
+                          result.expected, result.unique, result.dup,
+                          result.missing, batch.tracker.out_of_window())
             << "\n";
   std::cout.flush();
 
