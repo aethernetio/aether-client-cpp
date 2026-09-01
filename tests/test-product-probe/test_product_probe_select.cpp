@@ -19,12 +19,16 @@ using probe::IcmpTrialBorderline;
 using probe::IcmpTrialPasses;
 using probe::kProbeBatchSize;
 using probe::kProbeMaxBatchInvalidations;
+using probe::kProbeQueryRetryMs;
+using probe::kProbeQueryStableMs;
 using probe::kProbeQueryTimeoutMs;
 using probe::kProbeSleepMs;
 using probe::kProbeStageCount;
 using probe::LateQueryAction;
+using probe::LateQueryMarkSent;
 using probe::LateQueryOnResult;
 using probe::LateQueryOnTick;
+using probe::LateQueryRetryDue;
 using probe::LateQueryStart;
 using probe::LateQueryState;
 using probe::ParamSearchCurrent;
@@ -241,7 +245,8 @@ void test_IcmpBorderlineTriggersExtension() {
   TEST_ASSERT_FALSE(IcmpTrialBorderline(MakeTrial(5, 0, 0, 0, 0)));
 }
 
-// Reliability outranks connect time; connect time only breaks equal reliability.
+// Reliability outranks connect time; connect time only breaks equal
+// reliability.
 void test_IcmpSelectionIsReliabilityFirst() {
   IcmpCandidate candidates[3]{};
   candidates[0].profile = 0;
@@ -610,18 +615,22 @@ void test_LateQueryRetriesWhileCountMoves() {
 }
 
 // An unchanged count for the stability window ends the wait short of timeout.
+// Expressed in terms of the window itself, so retuning the budget for a slower
+// network does not silently change what this test checks.
 void test_LateQueryAcceptsStableCount() {
+  auto const first = std::uint32_t{100};
   LateQueryState q{};
   LateQueryStart(q, 0, 20);
   TEST_ASSERT_EQUAL_UINT8(
       static_cast<std::uint8_t>(LateQueryAction::kQueryAgain),
-      static_cast<std::uint8_t>(LateQueryOnResult(q, 100, 19)));
+      static_cast<std::uint8_t>(LateQueryOnResult(q, first, 19)));
   TEST_ASSERT_EQUAL_UINT8(
       static_cast<std::uint8_t>(LateQueryAction::kQueryAgain),
-      static_cast<std::uint8_t>(LateQueryOnResult(q, 400, 19)));
-  TEST_ASSERT_EQUAL_UINT8(
-      static_cast<std::uint8_t>(LateQueryAction::kAccept),
-      static_cast<std::uint8_t>(LateQueryOnResult(q, 620, 19)));
+      static_cast<std::uint8_t>(
+          LateQueryOnResult(q, first + kProbeQueryStableMs - 1, 19)));
+  TEST_ASSERT_EQUAL_UINT8(static_cast<std::uint8_t>(LateQueryAction::kAccept),
+                          static_cast<std::uint8_t>(LateQueryOnResult(
+                              q, first + kProbeQueryStableMs, 19)));
 }
 
 // No answer at all still terminates on the overall timeout.
@@ -634,6 +643,33 @@ void test_LateQueryTimesOut() {
   TEST_ASSERT_EQUAL_UINT8(
       static_cast<std::uint8_t>(LateQueryAction::kTimeout),
       static_cast<std::uint8_t>(LateQueryOnTick(q, kProbeQueryTimeoutMs)));
+}
+
+// The query budget has to cover a round trip through the cloud. A budget
+// shorter than that made every batch time out at nought delivered, which the
+// old search then papered over by assigning a POST delay anyway.
+void test_LateQueryBudgetCoversACloudRoundTrip() {
+  TEST_ASSERT_TRUE(kProbeQueryTimeoutMs >= 10000);
+  TEST_ASSERT_TRUE(kProbeQueryStableMs >= 1000);
+  TEST_ASSERT_TRUE(kProbeQueryRetryMs < kProbeQueryTimeoutMs);
+}
+
+// Nothing retransmits the query itself, so an unanswered one is asked again
+// instead of consuming the whole budget.
+void test_LateQueryAsksAgainWhenUnanswered() {
+  LateQueryState q{};
+  LateQueryStart(q, 1000, 20);
+  TEST_ASSERT_FALSE(LateQueryRetryDue(q, 1000 + kProbeQueryRetryMs - 1));
+  TEST_ASSERT_TRUE(LateQueryRetryDue(q, 1000 + kProbeQueryRetryMs));
+
+  LateQueryMarkSent(q, 1000 + kProbeQueryRetryMs);
+  TEST_ASSERT_FALSE(LateQueryRetryDue(q, 1000 + kProbeQueryRetryMs));
+  TEST_ASSERT_TRUE(LateQueryRetryDue(q, 1000 + 2 * kProbeQueryRetryMs));
+
+  // Re-asking must not extend the overall deadline.
+  TEST_ASSERT_EQUAL_UINT8(static_cast<std::uint8_t>(LateQueryAction::kTimeout),
+                          static_cast<std::uint8_t>(
+                              LateQueryOnTick(q, 1000 + kProbeQueryTimeoutMs)));
 }
 
 // Send N's timing must be reported by send N+1, never by send N itself.
@@ -760,12 +796,13 @@ int test_product_probe_select() {
   RUN_TEST(
       ae::test_product_probe_select::test_StageNamesMatchSleepingProbeFlow);
   RUN_TEST(ae::test_product_probe_select::test_OnlySleepingStagesAreMeasured);
-  RUN_TEST(ae::test_product_probe_select::test_InvalidStageByteReadsAsIcmpSelect);
+  RUN_TEST(
+      ae::test_product_probe_select::test_InvalidStageByteReadsAsIcmpSelect);
   RUN_TEST(ae::test_product_probe_select::test_IcmpTrialRequiresAllConnects);
   RUN_TEST(ae::test_product_probe_select::test_IcmpBorderlineTriggersExtension);
   RUN_TEST(ae::test_product_probe_select::test_IcmpSelectionIsReliabilityFirst);
-  RUN_TEST(
-      ae::test_product_probe_select::test_IcmpSelectionPrefersRicherProfileOnTie);
+  RUN_TEST(ae::test_product_probe_select::
+               test_IcmpSelectionPrefersRicherProfileOnTie);
   RUN_TEST(ae::test_product_probe_select::test_IcmpSelectionReportsNoWinner);
   RUN_TEST(ae::test_product_probe_select::test_PreSearchStartsAtHundred);
   RUN_TEST(ae::test_product_probe_select::test_PreSearchSelectsLowestPassing);
@@ -799,6 +836,10 @@ int test_product_probe_select() {
   RUN_TEST(ae::test_product_probe_select::test_LateQueryRetriesWhileCountMoves);
   RUN_TEST(ae::test_product_probe_select::test_LateQueryAcceptsStableCount);
   RUN_TEST(ae::test_product_probe_select::test_LateQueryTimesOut);
+  RUN_TEST(
+      ae::test_product_probe_select::test_LateQueryBudgetCoversACloudRoundTrip);
+  RUN_TEST(
+      ae::test_product_probe_select::test_LateQueryAsksAgainWhenUnanswered);
   RUN_TEST(ae::test_product_probe_select::test_PreviousTimingCarriesToNextSend);
   RUN_TEST(
       ae::test_product_probe_select::test_SendGenerationIsStrictlyIncreasing);

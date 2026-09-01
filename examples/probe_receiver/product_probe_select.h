@@ -55,12 +55,20 @@ namespace ae::probe {
 #  define AE_PRODUCT_PROBE_BATCH_TOLERANCE 1
 #endif
 // Late-arrival query: stop re-querying once the unique count has not moved for
-// this long, and give up entirely after the timeout.
+// this long, and give up entirely after the timeout. Both budgets have to cover
+// a full round trip through the cloud - query out, result back - which is far
+// slower than a local exchange, and the last packets of a batch may still be in
+// flight when the first query is asked.
 #ifndef AE_PRODUCT_PROBE_QUERY_STABLE_MS
-#  define AE_PRODUCT_PROBE_QUERY_STABLE_MS 500
+#  define AE_PRODUCT_PROBE_QUERY_STABLE_MS 3000
 #endif
 #ifndef AE_PRODUCT_PROBE_QUERY_TIMEOUT_MS
-#  define AE_PRODUCT_PROBE_QUERY_TIMEOUT_MS 1500
+#  define AE_PRODUCT_PROBE_QUERY_TIMEOUT_MS 20000
+#endif
+// A query that is never answered has to be asked again: the request is one
+// message and nothing retransmits it for us.
+#ifndef AE_PRODUCT_PROBE_QUERY_RETRY_MS
+#  define AE_PRODUCT_PROBE_QUERY_RETRY_MS 4000
 #endif
 // Production hot run length and the deep sleep between every measured send.
 #ifndef AE_PRODUCT_PROBE_HOT_COUNT
@@ -86,6 +94,8 @@ static constexpr std::uint32_t kProbeQueryStableMs =
     AE_PRODUCT_PROBE_QUERY_STABLE_MS;
 static constexpr std::uint32_t kProbeQueryTimeoutMs =
     AE_PRODUCT_PROBE_QUERY_TIMEOUT_MS;
+static constexpr std::uint32_t kProbeQueryRetryMs =
+    AE_PRODUCT_PROBE_QUERY_RETRY_MS;
 static constexpr std::uint16_t kProbeHotCount = AE_PRODUCT_PROBE_HOT_COUNT;
 static constexpr std::uint16_t kProbeSleepMs = AE_PRODUCT_PROBE_SLEEP_MS;
 static constexpr std::uint8_t kProbeMaxBatchInvalidations =
@@ -536,6 +546,7 @@ enum class LateQueryAction : std::uint8_t {
 struct LateQueryState {
   std::uint32_t start_ms{0};
   std::uint32_t last_change_ms{0};
+  std::uint32_t last_query_ms{0};
   std::uint16_t expected{0};
   std::uint16_t last_unique{0};
   std::uint8_t have_sample{0};
@@ -546,7 +557,13 @@ inline void LateQueryStart(LateQueryState& state, std::uint32_t now_ms,
   state = LateQueryState{};
   state.start_ms = now_ms;
   state.last_change_ms = now_ms;
+  state.last_query_ms = now_ms;
   state.expected = expected;
+}
+
+// The caller asked the receiver again; the retry clock restarts from here.
+inline void LateQueryMarkSent(LateQueryState& state, std::uint32_t now_ms) {
+  state.last_query_ms = now_ms;
 }
 
 inline LateQueryAction LateQueryOnResult(
@@ -570,6 +587,14 @@ inline LateQueryAction LateQueryOnResult(
     return LateQueryAction::kTimeout;
   }
   return LateQueryAction::kQueryAgain;
+}
+
+// Nothing has come back yet and the last request is older than the retry
+// interval, so it is worth asking again rather than waiting out the timeout on
+// a request that may never have arrived.
+inline bool LateQueryRetryDue(LateQueryState const& state, std::uint32_t now_ms,
+                              std::uint32_t retry_ms = kProbeQueryRetryMs) {
+  return (now_ms - state.last_query_ms) >= retry_ms;
 }
 
 // No answer arrived: only the overall timeout can end the wait.

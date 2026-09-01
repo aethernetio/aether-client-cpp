@@ -85,6 +85,9 @@ struct BatchStat {
 
 struct ReceiverState {
   std::vector<std::unique_ptr<ae::P2pStream>> streams;
+  // Reply writes outlive OnProbeQuery, so their status handlers have to be
+  // owned somewhere that lives as long as the receiver does.
+  ae::MultiSubscription write_subs;
   std::map<std::uint64_t, BatchStat> batches;
   std::uint32_t probe_data_count{0};
   std::uint32_t hot_data_count{0};
@@ -269,7 +272,17 @@ void OnProbeQuery(ae::P2pStream& stream, probe::ProbeQuery const& msg) {
   if (size == 0) {
     return;
   }
-  stream.Write(ae::DataBuffer{buffer, buffer + size});
+  // The reply is the only thing the device waits for, so a write that never
+  // completes has to be visible here rather than looking like a device that
+  // ignored a perfectly good answer.
+  auto& write = stream.Write(ae::DataBuffer{buffer, buffer + size});
+  g_state.write_subs.Push(
+      write.status_event().Subscribe([](ae::WriteAction::Status st) {
+        std::cout << ae::Format("PROBE_RESULT_WRITE status={}",
+                                static_cast<int>(st))
+                  << "\n";
+        std::cout.flush();
+      }));
 }
 
 void OnMessage(ae::P2pStream& stream, ae::DataBuffer const& data) {
