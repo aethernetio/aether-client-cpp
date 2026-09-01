@@ -47,7 +47,7 @@ namespace ae::probe {
 #  define AE_PRODUCT_PROBE_ICMP_ACCEPT_DEN 10
 #endif
 // Packets per parameter batch and the near-miss tolerance that buys one
-// additional batch instead of rejecting the parameter outright.
+// additional independent batch instead of rejecting the parameter outright.
 #ifndef AE_PRODUCT_PROBE_BATCH_SIZE
 #  define AE_PRODUCT_PROBE_BATCH_SIZE 20
 #endif
@@ -62,12 +62,17 @@ namespace ae::probe {
 #ifndef AE_PRODUCT_PROBE_QUERY_TIMEOUT_MS
 #  define AE_PRODUCT_PROBE_QUERY_TIMEOUT_MS 1500
 #endif
-// Production hot run length and the deep sleep between hot sends.
+// Production hot run length and the deep sleep between every measured send.
 #ifndef AE_PRODUCT_PROBE_HOT_COUNT
 #  define AE_PRODUCT_PROBE_HOT_COUNT 100
 #endif
 #ifndef AE_PRODUCT_PROBE_SLEEP_MS
 #  define AE_PRODUCT_PROBE_SLEEP_MS 250
+#endif
+// A batch whose deep sleep could not be confirmed is thrown away and measured
+// again. Repeating that indefinitely would hide a broken sleep path.
+#ifndef AE_PRODUCT_PROBE_MAX_BATCH_INVALIDATIONS
+#  define AE_PRODUCT_PROBE_MAX_BATCH_INVALIDATIONS 3
 #endif
 
 static constexpr std::uint16_t kProbeIcmpBatch = AE_PRODUCT_PROBE_ICMP_BATCH;
@@ -83,40 +88,43 @@ static constexpr std::uint32_t kProbeQueryTimeoutMs =
     AE_PRODUCT_PROBE_QUERY_TIMEOUT_MS;
 static constexpr std::uint16_t kProbeHotCount = AE_PRODUCT_PROBE_HOT_COUNT;
 static constexpr std::uint16_t kProbeSleepMs = AE_PRODUCT_PROBE_SLEEP_MS;
+static constexpr std::uint8_t kProbeMaxBatchInvalidations =
+    AE_PRODUCT_PROBE_MAX_BATCH_INVALIDATIONS;
 
 // Stages of one full self-configuration run. A cold boot always restarts at
 // kIcmpSelect; every other transition is a single step forward.
+//
+// The two measured stages send exactly one datagram per wake and then enter a
+// real timer deep sleep. There is no no-sleep probe stage: a POST delay is only
+// ever accepted from packets that were measured the way production sends them.
 enum class ProbeStage : std::uint8_t {
   kIcmpSelect = 0,
-  kFullPrepare = 1,
-  kPostProbe = 2,
+  kFullPreparePostBatch = 1,
+  kPostProbeSleep250 = 2,
   kPostQuery = 3,
-  kSleepConfirm = 4,
-  kSleepConfirmQuery = 5,
-  kProbeComplete = 6,
-  kHotRun = 7,
-  kHotSummary = 8,
-  kDone = 9,
+  kHotPrepare = 4,
+  kPpkArm = 5,
+  kHotRun = 6,
+  kHotSummary = 7,
+  kDone = 8,
 };
 
-static constexpr std::uint8_t kProbeStageCount = 10;
+static constexpr std::uint8_t kProbeStageCount = 9;
 
 inline char const* ProbeStageName(ProbeStage stage) {
   switch (stage) {
     case ProbeStage::kIcmpSelect:
       return "ICMP_SELECT";
-    case ProbeStage::kFullPrepare:
-      return "FULL_PREPARE";
-    case ProbeStage::kPostProbe:
-      return "POST_PROBE";
+    case ProbeStage::kFullPreparePostBatch:
+      return "FULL_PREPARE_POST_BATCH";
+    case ProbeStage::kPostProbeSleep250:
+      return "POST_PROBE_SLEEP250";
     case ProbeStage::kPostQuery:
       return "POST_QUERY";
-    case ProbeStage::kSleepConfirm:
-      return "SLEEP_CONFIRM";
-    case ProbeStage::kSleepConfirmQuery:
-      return "SLEEP_CONFIRM_QUERY";
-    case ProbeStage::kProbeComplete:
-      return "PROBE_COMPLETE";
+    case ProbeStage::kHotPrepare:
+      return "HOT_PREPARE";
+    case ProbeStage::kPpkArm:
+      return "PPK_ARM";
     case ProbeStage::kHotRun:
       return "HOT_RUN";
     case ProbeStage::kHotSummary:
@@ -128,15 +136,22 @@ inline char const* ProbeStageName(ProbeStage stage) {
   }
 }
 
+// Sends of these stages are measured and must stay silent, use the prepared hot
+// path and end in a real deep sleep.
+inline bool ProbeStageIsMeasured(ProbeStage stage) {
+  return stage == ProbeStage::kPostProbeSleep250 ||
+         stage == ProbeStage::kHotRun;
+}
+
 // ---------------------------------------------------------------------------
-// Descending parameter search
+// PRE search: descending with an upward extension
 // ---------------------------------------------------------------------------
 //
-// The primary table is walked from the most conservative value downwards and
-// the search keeps the lowest value that still passed. If even the first
-// primary value fails, the extended table is walked upwards and the first value
-// that passes wins. The whole cursor is a small POD so the firmware can hold it
-// in RTC memory across deep sleeps.
+// Only the ICMP stage uses this. The table is walked from the most conservative
+// primary value downwards and the search keeps the lowest value that still
+// passed. If even the first primary value fails, the extended table is walked
+// upwards and the first value that passes wins. The cursor is a small POD so
+// the firmware can hold it in RTC memory across deep sleeps.
 
 struct ParamSearchState {
   std::uint8_t index{0};
@@ -156,12 +171,6 @@ struct ParamSearchTable {
 // Product PRE search: 100 → 0, extended upwards to 200 then 300. This
 // deliberately differs from AE_WIFI_PROBE_PRE_DELAYS_MS, which starts at 300.
 inline ParamSearchTable ProductPreTable() {
-  static constexpr std::uint16_t kPrimary[] = {100, 50, 25, 10, 0};
-  static constexpr std::uint16_t kExtended[] = {200, 300};
-  return ParamSearchTable{kPrimary, 5, kExtended, 2};
-}
-
-inline ParamSearchTable ProductPostTable() {
   static constexpr std::uint16_t kPrimary[] = {100, 50, 25, 10, 0};
   static constexpr std::uint16_t kExtended[] = {200, 300};
   return ParamSearchTable{kPrimary, 5, kExtended, 2};
@@ -237,6 +246,163 @@ inline void ParamSearchRecord(ParamSearchTable const& table,
 }
 
 // ---------------------------------------------------------------------------
+// POST search: one strictly descending table, no invented pass
+// ---------------------------------------------------------------------------
+//
+// The POST delay is measured with production sends only: one datagram per wake,
+// a real deep sleep in between. The table is walked conservative → fast and the
+// search keeps the smallest value that actually delivered a full batch. There
+// is no upward extension: if the most conservative value already fails, the
+// whole path is declared invalid rather than assigning a value nothing
+// supports.
+
+inline std::uint16_t const* ProductPostTable(std::uint8_t& count) {
+  static constexpr std::uint16_t kTable[] = {300, 200, 100, 50, 25, 10, 0};
+  count = 7;
+  return kTable;
+}
+
+inline std::uint8_t ProductPostTableCount() {
+  std::uint8_t count = 0;
+  (void)ProductPostTable(count);
+  return count;
+}
+
+inline std::uint16_t ProductPostTableValue(std::uint8_t index) {
+  std::uint8_t count = 0;
+  auto const* table = ProductPostTable(count);
+  return index < count ? table[index] : table[count - 1];
+}
+
+// Everything one batch contributes to the verdict. `local_ok` counts the sends
+// that were locally clean: the socket accepted the whole datagram, the Wi-Fi
+// TX-done callback reported success for that datagram, and the deep sleep that
+// followed was confirmed by the next boot. `sleep_unconfirmed` means the batch
+// cannot be judged at all and has to be measured again.
+struct PostBatchStats {
+  std::uint16_t expected{0};
+  std::uint16_t unique{0};
+  std::uint16_t local_ok{0};
+  std::uint8_t sleep_unconfirmed{0};
+};
+
+// A packet only counts when the receiver saw it *and* the device considers its
+// own send clean, so the weaker of the two counts decides.
+inline std::uint16_t PostBatchEffective(PostBatchStats const& stats) {
+  return stats.unique < stats.local_ok ? stats.unique : stats.local_ok;
+}
+
+enum class PostSearchAction : std::uint8_t {
+  // Measure the current candidate with a fresh batch.
+  kMeasureCandidate = 0,
+  // Near miss: one more independent batch at the same candidate.
+  kSecondBatch = 1,
+  // The batch could not be judged; measure the same candidate again.
+  kRetryBatch = 2,
+  // Search over, PostSearchSelected() holds the answer.
+  kFinishedSelected = 3,
+  // Nothing passed, not even the most conservative candidate.
+  kFinishedInvalid = 4,
+};
+
+struct PostSearchState {
+  std::uint8_t index{0};
+  std::uint8_t have_last_passed{0};
+  std::uint8_t finished{0};
+  std::uint8_t invalid{0};
+  std::uint8_t second_batch{0};
+  std::uint16_t last_passed{0};
+  std::uint16_t first_unique{0};
+  std::uint16_t first_expected{0};
+};
+
+inline bool PostSearchFinished(PostSearchState const& state) {
+  return state.finished != 0;
+}
+
+// The path is invalid when even the most conservative POST delay failed. No hot
+// run and no PPK capture may follow.
+inline bool PostSearchInvalid(PostSearchState const& state) {
+  return state.invalid != 0;
+}
+
+inline std::uint16_t PostSearchSelected(PostSearchState const& state) {
+  return state.last_passed;
+}
+
+inline std::uint16_t PostSearchCurrent(PostSearchState const& state) {
+  if (state.finished != 0) {
+    return state.last_passed;
+  }
+  return ProductPostTableValue(state.index);
+}
+
+// Judges the batch that just finished and returns what to do next. The state
+// machine is deliberately closed: no branch here can turn a failure into a
+// selected value.
+inline PostSearchAction PostSearchRecordBatch(
+    PostSearchState& state, PostBatchStats const& stats,
+    std::uint16_t tolerance = kProbeBatchTolerance) {
+  if (state.finished != 0) {
+    return state.invalid != 0 ? PostSearchAction::kFinishedInvalid
+                              : PostSearchAction::kFinishedSelected;
+  }
+  if (stats.sleep_unconfirmed != 0 || stats.expected == 0) {
+    state.second_batch = 0;
+    state.first_unique = 0;
+    state.first_expected = 0;
+    return PostSearchAction::kRetryBatch;
+  }
+
+  auto const effective = PostBatchEffective(stats);
+  bool passed = false;
+  if (state.second_batch == 0) {
+    if (effective >= stats.expected) {
+      passed = true;
+    } else if (static_cast<std::uint16_t>(stats.expected - effective) <=
+               tolerance) {
+      state.second_batch = 1;
+      state.first_unique = effective;
+      state.first_expected = stats.expected;
+      return PostSearchAction::kSecondBatch;
+    }
+  } else {
+    auto const total = static_cast<std::uint32_t>(state.first_unique) +
+                       static_cast<std::uint32_t>(effective);
+    auto const total_expected =
+        static_cast<std::uint32_t>(state.first_expected) +
+        static_cast<std::uint32_t>(stats.expected);
+    // Two batches share one tolerance budget per batch: 38 of 40 at the default
+    // batch size and tolerance.
+    passed =
+        (total + static_cast<std::uint32_t>(tolerance) * 2u) >= total_expected;
+    state.second_batch = 0;
+    state.first_unique = 0;
+    state.first_expected = 0;
+  }
+
+  if (passed) {
+    state.last_passed = PostSearchCurrent(state);
+    state.have_last_passed = 1;
+    ++state.index;
+    if (state.index >= ProductPostTableCount()) {
+      state.finished = 1;
+      return PostSearchAction::kFinishedSelected;
+    }
+    return PostSearchAction::kMeasureCandidate;
+  }
+
+  state.finished = 1;
+  if (state.have_last_passed != 0) {
+    // A smaller value failed after a larger one passed: keep the larger one.
+    return PostSearchAction::kFinishedSelected;
+  }
+  // The most conservative value failed with nothing behind it.
+  state.invalid = 1;
+  return PostSearchAction::kFinishedInvalid;
+}
+
+// ---------------------------------------------------------------------------
 // ICMP profile trial and selection
 // ---------------------------------------------------------------------------
 
@@ -249,9 +415,9 @@ struct IcmpTrial {
 };
 
 inline void IcmpTrialAddConnect(IcmpTrial& trial, bool connected,
-                               std::uint32_t connect_ms,
-                               std::uint16_t icmp_sent,
-                               std::uint16_t icmp_recv) {
+                                std::uint32_t connect_ms,
+                                std::uint16_t icmp_sent,
+                                std::uint16_t icmp_recv) {
   ++trial.connects;
   if (!connected) {
     return;
@@ -358,34 +524,6 @@ inline int SelectIcmpProfile(IcmpCandidate const* candidates,
 }
 
 // ---------------------------------------------------------------------------
-// Batch verdict
-// ---------------------------------------------------------------------------
-
-enum class BatchVerdict : std::uint8_t {
-  kPass = 0,
-  kExtraBatch = 1,
-  kFail = 2,
-};
-
-// A full batch passes. A near miss within the tolerance buys exactly one
-// additional batch; a second near miss rejects the parameter.
-inline BatchVerdict JudgeBatch(std::uint16_t unique, std::uint16_t expected,
-                              bool extra_batch_already_used,
-                              std::uint16_t tolerance = kProbeBatchTolerance) {
-  if (expected == 0) {
-    return BatchVerdict::kFail;
-  }
-  if (unique >= expected) {
-    return BatchVerdict::kPass;
-  }
-  auto const missing = static_cast<std::uint16_t>(expected - unique);
-  if (missing <= tolerance && !extra_batch_already_used) {
-    return BatchVerdict::kExtraBatch;
-  }
-  return BatchVerdict::kFail;
-}
-
-// ---------------------------------------------------------------------------
 // Late-arrival query
 // ---------------------------------------------------------------------------
 
@@ -404,7 +542,7 @@ struct LateQueryState {
 };
 
 inline void LateQueryStart(LateQueryState& state, std::uint32_t now_ms,
-                          std::uint16_t expected) {
+                           std::uint16_t expected) {
   state = LateQueryState{};
   state.start_ms = now_ms;
   state.last_change_ms = now_ms;
@@ -445,6 +583,58 @@ inline LateQueryAction LateQueryOnTick(
 }
 
 // ---------------------------------------------------------------------------
+// One measured send
+// ---------------------------------------------------------------------------
+
+// Per-sample quality bits. A sample only counts towards a POST verdict when all
+// of kSendtoOk, kTxDoneConfirmed and kSleepConfirmed are set.
+enum class ProbeSampleFlag : std::uint8_t {
+  kValid = 1u << 0,
+  kSendtoOk = 1u << 1,
+  kTxDoneConfirmed = 1u << 2,
+  kSleepConfirmed = 1u << 3,
+};
+
+inline bool ProbeSampleHas(std::uint8_t flags, ProbeSampleFlag flag) {
+  return (flags & static_cast<std::uint8_t>(flag)) != 0;
+}
+
+inline std::uint8_t ProbeSampleSet(std::uint8_t flags, ProbeSampleFlag flag,
+                                   bool on) {
+  auto const bit = static_cast<std::uint8_t>(flag);
+  return on ? static_cast<std::uint8_t>(flags | bit)
+            : static_cast<std::uint8_t>(flags &
+                                        static_cast<std::uint8_t>(~bit));
+}
+
+inline bool ProbeSampleIsClean(std::uint8_t flags) {
+  return ProbeSampleHas(flags, ProbeSampleFlag::kValid) &&
+         ProbeSampleHas(flags, ProbeSampleFlag::kSendtoOk) &&
+         ProbeSampleHas(flags, ProbeSampleFlag::kTxDoneConfirmed) &&
+         ProbeSampleHas(flags, ProbeSampleFlag::kSleepConfirmed);
+}
+
+// Timing of one completed send. It travels in the *next* packet because a
+// send's own cost is only known after it is over, and the sleep that follows it
+// is only confirmed by the boot after that.
+struct ProbeSendTiming {
+  std::uint32_t connect_us{0};
+  std::uint32_t cycle_us{0};
+  std::uint32_t encode_us{0};
+  std::uint32_t sendto_call_us{0};
+  std::uint32_t send_to_txdone_us{0};
+  std::int32_t txdone_minus_sendto_return_us{0};
+  std::uint32_t actual_post_us{0};
+  std::uint32_t teardown_us{0};
+  std::uint32_t awake_us{0};
+  std::uint32_t sleep_elapsed_us{0};
+  std::uint32_t wake_overhead_us{0};
+  std::uint16_t seq{0};
+  std::uint8_t status{0};
+  std::uint8_t flags{0};
+};
+
+// ---------------------------------------------------------------------------
 // RTC state
 // ---------------------------------------------------------------------------
 //
@@ -456,35 +646,37 @@ struct ProbeRtcState {
   std::uint8_t stage{0};
   std::uint8_t profile{0};
   std::uint8_t reprobe_count{0};
-  std::uint8_t extra_batch_used{0};
+  std::uint8_t batch_armed{0};
+
+  std::uint8_t batch_invalidations{0};
+  std::uint8_t pending_flags{0};
+  std::uint16_t pending_seq{0};
 
   std::uint16_t pre_ms{0};
   std::uint16_t post_ms{0};
   std::uint16_t sleep_ms{0};
+  std::uint16_t batch_id{0};
 
   std::uint32_t session{0};
-  std::uint16_t batch_id{0};
+  std::uint32_t send_generation{0};
+
   std::uint16_t parameter_id{0};
   std::uint16_t seq{0};
   std::uint16_t batch_sent{0};
   std::uint16_t batch_expected{0};
+  std::uint16_t batch_local_ok{0};
   std::uint16_t hot_sent{0};
   std::uint16_t hot_fail{0};
+  std::uint16_t hot_unconfirmed{0};
 
   ParamSearchState pre_search{};
-  ParamSearchState post_search{};
+  PostSearchState post_search{};
 
-  std::uint16_t prev_seq{0};
-  std::uint32_t prev_connect_us{0};
-  std::uint32_t prev_cycle_us{0};
-  std::uint32_t prev_txdone_us{0};
-  std::uint32_t prev_sleep_elapsed_us{0};
-  std::uint8_t prev_status{0};
-  std::uint8_t prev_valid{0};
+  ProbeSendTiming prev{};
 };
 
 inline void ProductProbeColdBootReset(ProbeRtcState& state,
-                                     std::uint32_t session) {
+                                      std::uint32_t session) {
   state = ProbeRtcState{};
   state.stage = static_cast<std::uint8_t>(ProbeStage::kIcmpSelect);
   state.session = session;
@@ -517,17 +709,15 @@ inline void ProductProbeFailureResetStage(ProbeRtcState& state) {
     ++state.reprobe_count;
   }
   state.pre_search = ParamSearchState{};
-  state.post_search = ParamSearchState{};
-  state.extra_batch_used = 0;
+  state.post_search = PostSearchState{};
+  state.batch_armed = 0;
+  state.batch_invalidations = 0;
+  state.pending_flags = 0;
+  state.pending_seq = 0;
   state.batch_sent = 0;
+  state.batch_local_ok = 0;
   state.batch_expected = kProbeBatchSize;
-  state.prev_valid = 0;
-  state.prev_seq = 0;
-  state.prev_connect_us = 0;
-  state.prev_cycle_us = 0;
-  state.prev_txdone_us = 0;
-  state.prev_sleep_elapsed_us = 0;
-  state.prev_status = 0;
+  state.prev = ProbeSendTiming{};
 }
 
 inline std::uint16_t ProductProbeNextSeq(ProbeRtcState& state) {
@@ -535,36 +725,88 @@ inline std::uint16_t ProductProbeNextSeq(ProbeRtcState& state) {
   return state.seq;
 }
 
+// Every send gets its own generation so a TX-done callback belonging to an
+// earlier datagram can never be mistaken for this one's.
+inline std::uint32_t ProductProbeNextGeneration(ProbeRtcState& state) {
+  ++state.send_generation;
+  return state.send_generation;
+}
+
 inline void ProductProbeBeginBatch(ProbeRtcState& state,
-                                  std::uint16_t parameter_id,
-                                  std::uint16_t expected) {
+                                   std::uint16_t parameter_id,
+                                   std::uint16_t expected) {
   ++state.batch_id;
   state.parameter_id = parameter_id;
   state.batch_expected = expected;
   state.batch_sent = 0;
+  state.batch_local_ok = 0;
+  state.batch_armed = 0;
+  state.batch_invalidations = 0;
+  state.pending_flags = 0;
+  state.pending_seq = 0;
 }
 
-// Records the timing of the send that just completed. It travels in the *next*
-// message because the current send's timing is only known afterwards.
-inline void ProductProbeRecordHotSend(ProbeRtcState& state, std::uint16_t seq,
-                                     std::uint32_t connect_us,
-                                     std::uint32_t cycle_us,
-                                     std::uint32_t txdone_us,
-                                     std::uint32_t sleep_elapsed_us,
-                                     std::uint8_t status) {
-  state.prev_seq = seq;
-  state.prev_connect_us = connect_us;
-  state.prev_cycle_us = cycle_us;
-  state.prev_txdone_us = txdone_us;
-  state.prev_sleep_elapsed_us = sleep_elapsed_us;
-  state.prev_status = status;
-  state.prev_valid = 1;
-  if (state.hot_sent < 0xFFFFu) {
-    ++state.hot_sent;
+// The batch could not be measured the way production sends: throw it away and
+// start a new, independently identified one at the same parameter. The
+// invalidation count belongs to the parameter, not to the discarded batch.
+inline void ProductProbeInvalidateBatch(ProbeRtcState& state) {
+  auto const invalidations = state.batch_invalidations;
+  ProductProbeBeginBatch(state, state.parameter_id, state.batch_expected);
+  state.batch_invalidations = invalidations < 0xFFu
+                                  ? static_cast<std::uint8_t>(invalidations + 1)
+                                  : invalidations;
+}
+
+inline bool ProductProbeBatchInvalidationsExhausted(
+    ProbeRtcState const& state) {
+  return state.batch_invalidations >= kProbeMaxBatchInvalidations;
+}
+
+// Parks the send that just completed. It only becomes part of the batch once
+// the following boot proves that a real timer deep sleep happened.
+inline void ProductProbeParkSample(ProbeRtcState& state,
+                                   ProbeSendTiming const& timing) {
+  state.pending_seq = timing.seq;
+  state.pending_flags =
+      ProbeSampleSet(timing.flags, ProbeSampleFlag::kValid, true);
+  state.prev = timing;
+  state.prev.flags = state.pending_flags;
+}
+
+inline bool ProductProbeHasPendingSample(ProbeRtcState const& state) {
+  return ProbeSampleHas(state.pending_flags, ProbeSampleFlag::kValid);
+}
+
+// The boot after a parked sample either confirms its deep sleep or rejects it.
+// Returns true when the sample joined the batch.
+inline bool ProductProbeCommitPendingSample(ProbeRtcState& state,
+                                            bool sleep_confirmed) {
+  if (!ProductProbeHasPendingSample(state)) {
+    return false;
+  }
+  auto const flags = ProbeSampleSet(
+      state.pending_flags, ProbeSampleFlag::kSleepConfirmed, sleep_confirmed);
+  state.pending_flags = 0;
+  state.pending_seq = 0;
+  state.prev.flags = flags;
+  if (!sleep_confirmed) {
+    return false;
   }
   if (state.batch_sent < 0xFFFFu) {
     ++state.batch_sent;
   }
+  if (ProbeSampleIsClean(flags)) {
+    if (state.batch_local_ok < 0xFFFFu) {
+      ++state.batch_local_ok;
+    }
+  } else if (state.hot_unconfirmed < 0xFFFFu) {
+    ++state.hot_unconfirmed;
+  }
+  if (ProductProbeStage(state) == ProbeStage::kHotRun &&
+      state.hot_sent < 0xFFFFu) {
+    ++state.hot_sent;
+  }
+  return true;
 }
 
 // A batch is only worth querying once every packet of it has been sent.
@@ -576,6 +818,16 @@ inline void ProductProbeRecordHotFailure(ProbeRtcState& state) {
   if (state.hot_fail < 0xFFFFu) {
     ++state.hot_fail;
   }
+}
+
+// What the query stage feeds back into the POST search.
+inline PostBatchStats ProductProbeBatchStats(ProbeRtcState const& state,
+                                             std::uint16_t unique) {
+  PostBatchStats stats{};
+  stats.expected = state.batch_expected;
+  stats.unique = unique;
+  stats.local_ok = state.batch_local_ok;
+  return stats;
 }
 
 }  // namespace ae::probe

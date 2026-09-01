@@ -2,8 +2,9 @@
  * Copyright 2026 Aethernet Inc.
  *
  * Host unit tests for the product adaptive Wi-Fi probe selection algorithms:
- * stage machine, ICMP profile choice, PRE/POST search, batch verdicts, late
- * query handling and the previous-send timing carry.
+ * stage machine, ICMP profile choice, PRE search, the descending POST search
+ * and its refusal to invent a passing value, deep-sleep sample accounting,
+ * late query handling and the previous-send timing carry.
  */
 
 #include <unity.h>
@@ -12,13 +13,12 @@
 
 namespace ae::test_product_probe_select {
 
-using probe::BatchVerdict;
 using probe::IcmpCandidate;
 using probe::IcmpTrial;
 using probe::IcmpTrialBorderline;
 using probe::IcmpTrialPasses;
-using probe::JudgeBatch;
 using probe::kProbeBatchSize;
+using probe::kProbeMaxBatchInvalidations;
 using probe::kProbeQueryTimeoutMs;
 using probe::kProbeSleepMs;
 using probe::kProbeStageCount;
@@ -34,17 +34,38 @@ using probe::ParamSearchRecord;
 using probe::ParamSearchSelected;
 using probe::ParamSearchState;
 using probe::ParamSearchTable;
+using probe::PostBatchEffective;
+using probe::PostBatchStats;
+using probe::PostSearchAction;
+using probe::PostSearchCurrent;
+using probe::PostSearchFinished;
+using probe::PostSearchInvalid;
+using probe::PostSearchRecordBatch;
+using probe::PostSearchSelected;
+using probe::PostSearchState;
 using probe::ProbeRtcState;
+using probe::ProbeSampleFlag;
+using probe::ProbeSampleIsClean;
+using probe::ProbeSampleSet;
+using probe::ProbeSendTiming;
 using probe::ProbeStage;
+using probe::ProbeStageIsMeasured;
 using probe::ProbeStageName;
-using probe::ProductPostTable;
+using probe::ProductPostTableCount;
+using probe::ProductPostTableValue;
 using probe::ProductPreTable;
 using probe::ProductProbeAdvanceStage;
+using probe::ProductProbeBatchInvalidationsExhausted;
+using probe::ProductProbeBatchStats;
 using probe::ProductProbeBeginBatch;
 using probe::ProductProbeColdBootReset;
+using probe::ProductProbeCommitPendingSample;
 using probe::ProductProbeFailureResetStage;
+using probe::ProductProbeHasPendingSample;
+using probe::ProductProbeInvalidateBatch;
+using probe::ProductProbeNextGeneration;
 using probe::ProductProbeNextSeq;
-using probe::ProductProbeRecordHotSend;
+using probe::ProductProbeParkSample;
 using probe::ProductProbeSetStage;
 using probe::ProductProbeShouldQueryBatch;
 using probe::ProductProbeStage;
@@ -64,7 +85,7 @@ IcmpTrial MakeTrial(std::uint16_t connects, std::uint16_t connect_ok,
   return t;
 }
 
-// Walks a descending search, answering pass/fail from a caller-provided rule.
+// Walks a descending PRE search, answering pass/fail from a caller rule.
 template <typename Rule>
 ParamSearchState RunSearch(ParamSearchTable const& table, Rule rule) {
   ParamSearchState state{};
@@ -72,6 +93,52 @@ ParamSearchState RunSearch(ParamSearchTable const& table, Rule rule) {
     ParamSearchRecord(table, state, rule(ParamSearchCurrent(table, state)));
   }
   return state;
+}
+
+// A batch where every packet arrived and every send was locally clean.
+PostBatchStats FullBatch(std::uint16_t expected = kProbeBatchSize) {
+  PostBatchStats stats{};
+  stats.expected = expected;
+  stats.unique = expected;
+  stats.local_ok = expected;
+  return stats;
+}
+
+PostBatchStats DeliveredBatch(std::uint16_t unique,
+                              std::uint16_t expected = kProbeBatchSize) {
+  PostBatchStats stats{};
+  stats.expected = expected;
+  stats.unique = unique;
+  stats.local_ok = expected;
+  return stats;
+}
+
+// Drives a POST search to its end, answering each candidate from a rule.
+template <typename Rule>
+PostSearchState RunPostSearch(Rule rule) {
+  PostSearchState state{};
+  for (int guard = 0; guard < 64 && !PostSearchFinished(state); ++guard) {
+    auto const unique = rule(PostSearchCurrent(state));
+    PostSearchRecordBatch(state, DeliveredBatch(unique));
+  }
+  return state;
+}
+
+// One completed send, as the firmware parks it before its deep sleep.
+ProbeSendTiming CleanSample(std::uint16_t seq) {
+  ProbeSendTiming timing{};
+  timing.seq = seq;
+  timing.status = 1;
+  timing.flags = ProbeSampleSet(timing.flags, ProbeSampleFlag::kSendtoOk, true);
+  timing.flags =
+      ProbeSampleSet(timing.flags, ProbeSampleFlag::kTxDoneConfirmed, true);
+  return timing;
+}
+
+// Sends one packet and lets the following boot confirm its deep sleep.
+void SendAndConfirm(ProbeRtcState& state, bool sleep_confirmed = true) {
+  ProductProbeParkSample(state, CleanSample(ProductProbeNextSeq(state)));
+  ProductProbeCommitPendingSample(state, sleep_confirmed);
 }
 
 }  // namespace
@@ -83,7 +150,7 @@ void test_ColdBootStartsAtStageZero() {
   state.profile = 4;
   state.pre_ms = 25;
   state.seq = 77;
-  state.prev_valid = 1;
+  state.pending_flags = 0xFF;
 
   ProductProbeColdBootReset(state, 0xAABBCCDDu);
 
@@ -93,12 +160,12 @@ void test_ColdBootStartsAtStageZero() {
   TEST_ASSERT_EQUAL_UINT8(0, state.profile);
   TEST_ASSERT_EQUAL_UINT16(0, state.pre_ms);
   TEST_ASSERT_EQUAL_UINT16(0, state.seq);
-  TEST_ASSERT_EQUAL_UINT8(0, state.prev_valid);
+  TEST_ASSERT_EQUAL_UINT8(0, state.pending_flags);
   TEST_ASSERT_EQUAL_UINT16(kProbeSleepMs, state.sleep_ms);
   TEST_ASSERT_EQUAL_UINT16(kProbeBatchSize, state.batch_expected);
 }
 
-// Stage advance walks 0..9 once and then saturates at kDone.
+// Stage advance walks 0..8 once and then saturates at kDone.
 void test_StageAdvanceSaturatesAtDone() {
   ProbeRtcState state{};
   ProductProbeColdBootReset(state, 1);
@@ -110,6 +177,41 @@ void test_StageAdvanceSaturatesAtDone() {
   TEST_ASSERT_EQUAL_UINT8(static_cast<std::uint8_t>(ProbeStage::kDone),
                           state.stage);
   TEST_ASSERT_EQUAL_STRING("DONE", ProbeStageName(ProductProbeStage(state)));
+}
+
+// The stage list has exactly one POST probe stage and it is the sleeping one:
+// the old no-sleep probe and the separate sleep confirmation are gone.
+void test_StageNamesMatchSleepingProbeFlow() {
+  TEST_ASSERT_EQUAL_UINT8(9, kProbeStageCount);
+  TEST_ASSERT_EQUAL_STRING("ICMP_SELECT",
+                           ProbeStageName(ProbeStage::kIcmpSelect));
+  TEST_ASSERT_EQUAL_STRING("FULL_PREPARE_POST_BATCH",
+                           ProbeStageName(ProbeStage::kFullPreparePostBatch));
+  TEST_ASSERT_EQUAL_STRING("POST_PROBE_SLEEP250",
+                           ProbeStageName(ProbeStage::kPostProbeSleep250));
+  TEST_ASSERT_EQUAL_STRING("POST_QUERY",
+                           ProbeStageName(ProbeStage::kPostQuery));
+  TEST_ASSERT_EQUAL_STRING("HOT_PREPARE",
+                           ProbeStageName(ProbeStage::kHotPrepare));
+  TEST_ASSERT_EQUAL_STRING("PPK_ARM", ProbeStageName(ProbeStage::kPpkArm));
+  TEST_ASSERT_EQUAL_STRING("HOT_RUN", ProbeStageName(ProbeStage::kHotRun));
+  TEST_ASSERT_EQUAL_STRING("HOT_SUMMARY",
+                           ProbeStageName(ProbeStage::kHotSummary));
+}
+
+// Only the two one-packet-per-wake stages are measured, so only they are
+// silent and only they hand over with a real deep sleep.
+void test_OnlySleepingStagesAreMeasured() {
+  TEST_ASSERT_TRUE(ProbeStageIsMeasured(ProbeStage::kPostProbeSleep250));
+  TEST_ASSERT_TRUE(ProbeStageIsMeasured(ProbeStage::kHotRun));
+  TEST_ASSERT_FALSE(ProbeStageIsMeasured(ProbeStage::kIcmpSelect));
+  TEST_ASSERT_FALSE(ProbeStageIsMeasured(ProbeStage::kFullPreparePostBatch));
+  TEST_ASSERT_FALSE(ProbeStageIsMeasured(ProbeStage::kPostQuery));
+  TEST_ASSERT_FALSE(ProbeStageIsMeasured(ProbeStage::kHotPrepare));
+  // PPK_ARM has to print its marker, so it must not be a measured stage.
+  TEST_ASSERT_FALSE(ProbeStageIsMeasured(ProbeStage::kPpkArm));
+  TEST_ASSERT_FALSE(ProbeStageIsMeasured(ProbeStage::kHotSummary));
+  TEST_ASSERT_FALSE(ProbeStageIsMeasured(ProbeStage::kDone));
 }
 
 // Out-of-range stage bytes degrade to stage 0 rather than to garbage.
@@ -207,7 +309,7 @@ void test_PreSearchStopsOnFirstFailure() {
   TEST_ASSERT_EQUAL_UINT16(25, ParamSearchSelected(state));
 }
 
-// When 100 already fails the search extends upwards to 200, then 300.
+// The ICMP-only PRE search may still extend upwards to 200, then 300.
 void test_PreSearchExtendsUpwards() {
   auto const table = ProductPreTable();
   auto const at_200 =
@@ -225,56 +327,261 @@ void test_PreSearchExtendsUpwards() {
   TEST_ASSERT_TRUE(ParamSearchFailed(nothing));
 }
 
-// The POST search follows the same table and semantics as PRE.
-void test_PostSearchSelectsLowestPassing() {
-  auto const table = ProductPostTable();
+// The POST table is one strictly descending ladder from the most conservative
+// value to zero. There is no upward extension to fall back on.
+void test_PostTableIsStrictlyDescending() {
+  TEST_ASSERT_EQUAL_UINT(7, ProductPostTableCount());
+  std::uint16_t const expected[] = {300, 200, 100, 50, 25, 10, 0};
+  for (std::uint8_t i = 0; i < ProductPostTableCount(); ++i) {
+    TEST_ASSERT_EQUAL_UINT16(expected[i], ProductPostTableValue(i));
+  }
+  PostSearchState state{};
+  TEST_ASSERT_EQUAL_UINT16(300, PostSearchCurrent(state));
+}
+
+// A full batch of locally clean sends passes and moves on to a smaller value.
+void test_PostFullBatchPassesAndDescends() {
+  PostSearchState state{};
+  auto const action = PostSearchRecordBatch(state, FullBatch());
+  TEST_ASSERT_EQUAL_UINT8(
+      static_cast<std::uint8_t>(PostSearchAction::kMeasureCandidate),
+      static_cast<std::uint8_t>(action));
+  TEST_ASSERT_EQUAL_UINT16(300, PostSearchSelected(state));
+  TEST_ASSERT_EQUAL_UINT16(200, PostSearchCurrent(state));
+}
+
+// Everything delivers: the search bottoms out at POST 0.
+void test_PostAllPassSelectsZero() {
   auto const state =
-      RunSearch(table, [](std::uint16_t post) { return post >= 50; });
-  TEST_ASSERT_EQUAL_UINT16(50, ParamSearchSelected(state));
+      RunPostSearch([](std::uint16_t) { return kProbeBatchSize; });
+  TEST_ASSERT_TRUE(PostSearchFinished(state));
+  TEST_ASSERT_FALSE(PostSearchInvalid(state));
+  TEST_ASSERT_EQUAL_UINT16(0, PostSearchSelected(state));
 }
 
-// The search cursor is a POD, so it survives a copy through RTC memory.
-void test_ParamSearchCursorSurvivesRoundTrip() {
-  auto const table = ProductPreTable();
-  ParamSearchState state{};
-  ParamSearchRecord(table, state, true);  // 100 passed
-  ParamSearchState const saved = state;
-  ParamSearchState restored = saved;
-  TEST_ASSERT_EQUAL_UINT16(50, ParamSearchCurrent(table, restored));
-  ParamSearchRecord(table, restored, false);
-  TEST_ASSERT_TRUE(ParamSearchFinished(restored));
-  TEST_ASSERT_EQUAL_UINT16(100, ParamSearchSelected(restored));
+// A smaller value failing after a larger one passed keeps the larger one.
+void test_PostSmallerFailureKeepsLastPassed() {
+  auto const state = RunPostSearch([](std::uint16_t post) -> std::uint16_t {
+    return post >= 50 ? kProbeBatchSize : 10;
+  });
+  TEST_ASSERT_TRUE(PostSearchFinished(state));
+  TEST_ASSERT_FALSE(PostSearchInvalid(state));
+  TEST_ASSERT_EQUAL_UINT16(50, PostSearchSelected(state));
 }
 
-// 20/20 passes outright; 19/20 buys one extra batch; a second 19/20 fails.
-void test_BatchVerdictTwentyOfTwenty() {
-  TEST_ASSERT_EQUAL_UINT8(static_cast<std::uint8_t>(BatchVerdict::kPass),
-                          static_cast<std::uint8_t>(JudgeBatch(20, 20, false)));
-  TEST_ASSERT_EQUAL_UINT8(static_cast<std::uint8_t>(BatchVerdict::kExtraBatch),
-                          static_cast<std::uint8_t>(JudgeBatch(19, 20, false)));
-  TEST_ASSERT_EQUAL_UINT8(static_cast<std::uint8_t>(BatchVerdict::kFail),
-                          static_cast<std::uint8_t>(JudgeBatch(19, 20, true)));
-  TEST_ASSERT_EQUAL_UINT8(static_cast<std::uint8_t>(BatchVerdict::kFail),
-                          static_cast<std::uint8_t>(JudgeBatch(18, 20, false)));
-  // More than expected (a duplicate counted as unique elsewhere) still passes.
-  TEST_ASSERT_EQUAL_UINT8(static_cast<std::uint8_t>(BatchVerdict::kPass),
-                          static_cast<std::uint8_t>(JudgeBatch(21, 20, true)));
+// Nothing delivers, not even the most conservative value: the path is invalid.
+// It must never be resolved by assigning 300 anyway.
+void test_PostTotalFailureIsInvalidPath() {
+  auto const state =
+      RunPostSearch([](std::uint16_t) -> std::uint16_t { return 0; });
+  TEST_ASSERT_TRUE(PostSearchFinished(state));
+  TEST_ASSERT_TRUE(PostSearchInvalid(state));
+  TEST_ASSERT_EQUAL_UINT16(0, PostSearchSelected(state));
 }
 
-// A batch is only queried once all of its packets have been sent.
+// 18 of 20 is a plain failure: no extra batch, no second chance.
+void test_PostEighteenOfTwentyFails() {
+  PostSearchState state{};
+  auto const action = PostSearchRecordBatch(state, DeliveredBatch(18));
+  TEST_ASSERT_EQUAL_UINT8(
+      static_cast<std::uint8_t>(PostSearchAction::kFinishedInvalid),
+      static_cast<std::uint8_t>(action));
+  TEST_ASSERT_TRUE(PostSearchInvalid(state));
+}
+
+// 19 of 20 buys exactly one more independent batch, and 19+19 of 40 clears the
+// combined threshold.
+void test_PostNearMissPassesOnAggregate() {
+  PostSearchState state{};
+  TEST_ASSERT_EQUAL_UINT8(
+      static_cast<std::uint8_t>(PostSearchAction::kSecondBatch),
+      static_cast<std::uint8_t>(
+          PostSearchRecordBatch(state, DeliveredBatch(19))));
+  TEST_ASSERT_EQUAL_UINT16(300, PostSearchCurrent(state));
+
+  TEST_ASSERT_EQUAL_UINT8(
+      static_cast<std::uint8_t>(PostSearchAction::kMeasureCandidate),
+      static_cast<std::uint8_t>(
+          PostSearchRecordBatch(state, DeliveredBatch(19))));
+  TEST_ASSERT_EQUAL_UINT16(300, PostSearchSelected(state));
+  TEST_ASSERT_EQUAL_UINT16(200, PostSearchCurrent(state));
+}
+
+// 19 then 18 is 37 of 40, below the combined threshold, so the candidate fails.
+void test_PostNearMissFailsOnAggregate() {
+  PostSearchState state{};
+  PostSearchRecordBatch(state, DeliveredBatch(19));
+  auto const action = PostSearchRecordBatch(state, DeliveredBatch(18));
+  TEST_ASSERT_EQUAL_UINT8(
+      static_cast<std::uint8_t>(PostSearchAction::kFinishedInvalid),
+      static_cast<std::uint8_t>(action));
+  TEST_ASSERT_TRUE(PostSearchInvalid(state));
+}
+
+// The near-miss allowance belongs to the candidate, not to the search: a later
+// candidate gets its own second batch.
+void test_PostSecondBatchAllowanceIsPerCandidate() {
+  PostSearchState state{};
+  PostSearchRecordBatch(state, FullBatch());  // 300 passes outright
+  TEST_ASSERT_EQUAL_UINT8(
+      static_cast<std::uint8_t>(PostSearchAction::kSecondBatch),
+      static_cast<std::uint8_t>(
+          PostSearchRecordBatch(state, DeliveredBatch(19))));
+}
+
+// The receiver saw everything but the device did not: a send whose TX-done was
+// never confirmed cannot help a candidate pass.
+void test_PostUnconfirmedSendBlocksPass() {
+  PostBatchStats stats{};
+  stats.expected = kProbeBatchSize;
+  stats.unique = kProbeBatchSize;
+  stats.local_ok = kProbeBatchSize - 2;
+  TEST_ASSERT_EQUAL_UINT16(kProbeBatchSize - 2, PostBatchEffective(stats));
+
+  PostSearchState state{};
+  auto const action = PostSearchRecordBatch(state, stats);
+  TEST_ASSERT_EQUAL_UINT8(
+      static_cast<std::uint8_t>(PostSearchAction::kFinishedInvalid),
+      static_cast<std::uint8_t>(action));
+}
+
+// A batch whose deep sleep could not be confirmed is not a verdict at all: it
+// is measured again rather than counted for or against the candidate.
+void test_PostUnconfirmedSleepRetriesBatch() {
+  PostSearchState state{};
+  PostBatchStats stats = FullBatch();
+  stats.sleep_unconfirmed = 1;
+  auto const action = PostSearchRecordBatch(state, stats);
+  TEST_ASSERT_EQUAL_UINT8(
+      static_cast<std::uint8_t>(PostSearchAction::kRetryBatch),
+      static_cast<std::uint8_t>(action));
+  TEST_ASSERT_FALSE(PostSearchFinished(state));
+  TEST_ASSERT_EQUAL_UINT16(300, PostSearchCurrent(state));
+}
+
+// A retry after a near miss starts the candidate's evidence over, so the
+// discarded batch cannot contribute to the aggregate.
+void test_PostRetryClearsPendingAggregate() {
+  PostSearchState state{};
+  PostSearchRecordBatch(state, DeliveredBatch(19));
+  PostBatchStats unconfirmed = FullBatch();
+  unconfirmed.sleep_unconfirmed = 1;
+  PostSearchRecordBatch(state, unconfirmed);
+  TEST_ASSERT_EQUAL_UINT8(
+      static_cast<std::uint8_t>(PostSearchAction::kSecondBatch),
+      static_cast<std::uint8_t>(
+          PostSearchRecordBatch(state, DeliveredBatch(19))));
+}
+
+// A batch is only queried once every packet of it has been sent, and a packet
+// only counts once its deep sleep was confirmed.
 void test_QueryOnlyAfterWholeBatchSent() {
   ProbeRtcState state{};
   ProductProbeColdBootReset(state, 1);
-  ProductProbeBeginBatch(state, 7, 20);
+  ProductProbeBeginBatch(state, 300, 20);
   TEST_ASSERT_FALSE(ProductProbeShouldQueryBatch(state));
   for (int i = 0; i < 19; ++i) {
-    ProductProbeRecordHotSend(state, ProductProbeNextSeq(state), 0, 0, 0, 0, 0);
+    SendAndConfirm(state);
   }
   TEST_ASSERT_FALSE(ProductProbeShouldQueryBatch(state));
-  ProductProbeRecordHotSend(state, ProductProbeNextSeq(state), 0, 0, 0, 0, 0);
+  SendAndConfirm(state);
   TEST_ASSERT_TRUE(ProductProbeShouldQueryBatch(state));
   TEST_ASSERT_EQUAL_UINT16(1, state.batch_id);
-  TEST_ASSERT_EQUAL_UINT16(7, state.parameter_id);
+  TEST_ASSERT_EQUAL_UINT16(300, state.parameter_id);
+  TEST_ASSERT_EQUAL_UINT16(20, state.batch_local_ok);
+}
+
+// A parked sample joins the batch only when the next boot confirms the sleep.
+void test_PendingSampleNeedsConfirmedSleep() {
+  ProbeRtcState state{};
+  ProductProbeColdBootReset(state, 1);
+  ProductProbeBeginBatch(state, 300, 20);
+
+  ProductProbeParkSample(state, CleanSample(ProductProbeNextSeq(state)));
+  TEST_ASSERT_TRUE(ProductProbeHasPendingSample(state));
+  TEST_ASSERT_EQUAL_UINT16(0, state.batch_sent);
+
+  TEST_ASSERT_TRUE(ProductProbeCommitPendingSample(state, true));
+  TEST_ASSERT_FALSE(ProductProbeHasPendingSample(state));
+  TEST_ASSERT_EQUAL_UINT16(1, state.batch_sent);
+  TEST_ASSERT_EQUAL_UINT16(1, state.batch_local_ok);
+  TEST_ASSERT_TRUE(ProbeSampleIsClean(state.prev.flags));
+}
+
+// A software restart instead of the deep sleep rejects the sample outright.
+void test_UnconfirmedSleepRejectsSample() {
+  ProbeRtcState state{};
+  ProductProbeColdBootReset(state, 1);
+  ProductProbeBeginBatch(state, 300, 20);
+
+  ProductProbeParkSample(state, CleanSample(ProductProbeNextSeq(state)));
+  TEST_ASSERT_FALSE(ProductProbeCommitPendingSample(state, false));
+  TEST_ASSERT_EQUAL_UINT16(0, state.batch_sent);
+  TEST_ASSERT_EQUAL_UINT16(0, state.batch_local_ok);
+  TEST_ASSERT_FALSE(ProbeSampleIsClean(state.prev.flags));
+}
+
+// A send whose TX-done never succeeded still occupies its slot, because the
+// prepared nonce is spent, but it is not a clean sample.
+void test_UnconfirmedTxDoneOccupiesSlotWithoutCounting() {
+  ProbeRtcState state{};
+  ProductProbeColdBootReset(state, 1);
+  ProductProbeBeginBatch(state, 300, 20);
+
+  auto timing = CleanSample(ProductProbeNextSeq(state));
+  timing.status = 2;
+  timing.flags =
+      ProbeSampleSet(timing.flags, ProbeSampleFlag::kTxDoneConfirmed, false);
+  ProductProbeParkSample(state, timing);
+  TEST_ASSERT_TRUE(ProductProbeCommitPendingSample(state, true));
+
+  TEST_ASSERT_EQUAL_UINT16(1, state.batch_sent);
+  TEST_ASSERT_EQUAL_UINT16(0, state.batch_local_ok);
+  TEST_ASSERT_EQUAL_UINT16(1, state.hot_unconfirmed);
+
+  auto const stats = ProductProbeBatchStats(state, 1);
+  TEST_ASSERT_EQUAL_UINT16(0, PostBatchEffective(stats));
+}
+
+// Discarding a batch renumbers it so the receiver counts the retry separately,
+// and the invalidation budget is bounded.
+void test_InvalidatedBatchGetsNewIdAndIsBounded() {
+  ProbeRtcState state{};
+  ProductProbeColdBootReset(state, 1);
+  ProductProbeBeginBatch(state, 300, 20);
+  SendAndConfirm(state);
+  TEST_ASSERT_EQUAL_UINT16(1, state.batch_sent);
+
+  ProductProbeInvalidateBatch(state);
+  TEST_ASSERT_EQUAL_UINT16(2, state.batch_id);
+  TEST_ASSERT_EQUAL_UINT16(0, state.batch_sent);
+  TEST_ASSERT_EQUAL_UINT16(0, state.batch_local_ok);
+  TEST_ASSERT_EQUAL_UINT8(0, state.batch_armed);
+  TEST_ASSERT_EQUAL_UINT8(1, state.batch_invalidations);
+  TEST_ASSERT_FALSE(ProductProbeBatchInvalidationsExhausted(state));
+
+  for (std::uint8_t i = 1; i < kProbeMaxBatchInvalidations; ++i) {
+    ProductProbeInvalidateBatch(state);
+  }
+  TEST_ASSERT_TRUE(ProductProbeBatchInvalidationsExhausted(state));
+
+  // Starting a genuinely new batch clears the budget again.
+  ProductProbeBeginBatch(state, 200, 20);
+  TEST_ASSERT_EQUAL_UINT8(0, state.batch_invalidations);
+}
+
+// Only the production stage feeds the hot counters the summary reports.
+void test_HotCountersOnlyGrowDuringHotRun() {
+  ProbeRtcState state{};
+  ProductProbeColdBootReset(state, 1);
+  ProductProbeSetStage(state, ProbeStage::kPostProbeSleep250);
+  ProductProbeBeginBatch(state, 300, 20);
+  SendAndConfirm(state);
+  TEST_ASSERT_EQUAL_UINT16(0, state.hot_sent);
+
+  ProductProbeSetStage(state, ProbeStage::kHotRun);
+  SendAndConfirm(state);
+  TEST_ASSERT_EQUAL_UINT16(1, state.hot_sent);
 }
 
 // A complete count is accepted immediately without another round trip.
@@ -333,27 +640,51 @@ void test_LateQueryTimesOut() {
 void test_PreviousTimingCarriesToNextSend() {
   ProbeRtcState state{};
   ProductProbeColdBootReset(state, 1);
-  ProductProbeBeginBatch(state, 1, 20);
+  ProductProbeBeginBatch(state, 300, 20);
 
   auto const seq1 = ProductProbeNextSeq(state);
   TEST_ASSERT_EQUAL_UINT16(1, seq1);
   // Nothing to report on the very first send.
-  TEST_ASSERT_EQUAL_UINT8(0, state.prev_valid);
+  TEST_ASSERT_EQUAL_UINT8(0, state.prev.flags);
 
-  ProductProbeRecordHotSend(state, seq1, 1234, 5678, 90, 250123, 1);
-  TEST_ASSERT_EQUAL_UINT8(1, state.prev_valid);
-  TEST_ASSERT_EQUAL_UINT16(seq1, state.prev_seq);
-  TEST_ASSERT_EQUAL_UINT32(1234, state.prev_connect_us);
-  TEST_ASSERT_EQUAL_UINT32(5678, state.prev_cycle_us);
+  auto first = CleanSample(seq1);
+  first.connect_us = 1234;
+  first.cycle_us = 5678;
+  first.actual_post_us = 25100;
+  first.txdone_minus_sendto_return_us = -80;
+  ProductProbeParkSample(state, first);
+  ProductProbeCommitPendingSample(state, true);
+
+  TEST_ASSERT_EQUAL_UINT16(seq1, state.prev.seq);
+  TEST_ASSERT_EQUAL_UINT32(1234, state.prev.connect_us);
+  TEST_ASSERT_EQUAL_UINT32(5678, state.prev.cycle_us);
+  TEST_ASSERT_EQUAL_UINT32(25100, state.prev.actual_post_us);
+  TEST_ASSERT_EQUAL_INT32(-80, state.prev.txdone_minus_sendto_return_us);
 
   auto const seq2 = ProductProbeNextSeq(state);
   TEST_ASSERT_EQUAL_UINT16(2, seq2);
   // Send 2 still carries send 1's numbers until it completes.
-  TEST_ASSERT_EQUAL_UINT16(seq1, state.prev_seq);
-  ProductProbeRecordHotSend(state, seq2, 4321, 8765, 45, 250456, 1);
-  TEST_ASSERT_EQUAL_UINT16(seq2, state.prev_seq);
-  TEST_ASSERT_EQUAL_UINT32(4321, state.prev_connect_us);
-  TEST_ASSERT_EQUAL_UINT16(2, state.hot_sent);
+  TEST_ASSERT_EQUAL_UINT16(seq1, state.prev.seq);
+
+  auto second = CleanSample(seq2);
+  second.connect_us = 4321;
+  ProductProbeParkSample(state, second);
+  ProductProbeCommitPendingSample(state, true);
+  TEST_ASSERT_EQUAL_UINT16(seq2, state.prev.seq);
+  TEST_ASSERT_EQUAL_UINT32(4321, state.prev.connect_us);
+  TEST_ASSERT_EQUAL_UINT16(2, state.batch_sent);
+}
+
+// Every send gets its own generation, so a callback raised for an earlier
+// datagram can never be credited to the current one.
+void test_SendGenerationIsStrictlyIncreasing() {
+  ProbeRtcState state{};
+  ProductProbeColdBootReset(state, 1);
+  TEST_ASSERT_EQUAL_UINT32(1, ProductProbeNextGeneration(state));
+  TEST_ASSERT_EQUAL_UINT32(2, ProductProbeNextGeneration(state));
+  ProbeRtcState const after_sleep = state;
+  ProbeRtcState resumed = after_sleep;
+  TEST_ASSERT_EQUAL_UINT32(3, ProductProbeNextGeneration(resumed));
 }
 
 // The hot sequence lives in RTC, so a deep sleep must not restart numbering.
@@ -362,7 +693,7 @@ void test_HotSequenceSurvivesDeepSleep() {
   ProductProbeColdBootReset(state, 1);
   ProductProbeSetStage(state, ProbeStage::kHotRun);
   for (int i = 0; i < 5; ++i) {
-    ProductProbeRecordHotSend(state, ProductProbeNextSeq(state), 0, 0, 0, 0, 0);
+    SendAndConfirm(state);
   }
   // A deep-sleep wake is only a copy of RTC memory into the new boot.
   ProbeRtcState const after_sleep = state;
@@ -372,7 +703,7 @@ void test_HotSequenceSurvivesDeepSleep() {
 
   ProbeRtcState resumed = after_sleep;
   TEST_ASSERT_EQUAL_UINT16(6, ProductProbeNextSeq(resumed));
-  TEST_ASSERT_EQUAL_UINT16(5, resumed.prev_seq);
+  TEST_ASSERT_EQUAL_UINT16(5, resumed.prev.seq);
 }
 
 // A pre-Encode Wi-Fi failure reprobes: stage 0, cleared searches, kept session.
@@ -383,10 +714,9 @@ void test_FailureResetsStageAndSearches() {
   state.profile = 4;
   state.pre_ms = 25;
   state.post_ms = 50;
-  state.extra_batch_used = 1;
   ParamSearchRecord(ProductPreTable(), state.pre_search, true);
-  ProductProbeRecordHotSend(state, ProductProbeNextSeq(state), 10, 20, 30, 40,
-                            1);
+  PostSearchRecordBatch(state.post_search, FullBatch());
+  SendAndConfirm(state);
 
   ProductProbeFailureResetStage(state);
 
@@ -395,9 +725,9 @@ void test_FailureResetsStageAndSearches() {
   TEST_ASSERT_EQUAL_UINT8(1, state.reprobe_count);
   TEST_ASSERT_EQUAL_UINT32(0xDEADBEEFu, state.session);
   TEST_ASSERT_EQUAL_UINT8(0, state.pre_search.have_best);
-  TEST_ASSERT_EQUAL_UINT8(0, state.post_search.have_best);
-  TEST_ASSERT_EQUAL_UINT8(0, state.extra_batch_used);
-  TEST_ASSERT_EQUAL_UINT8(0, state.prev_valid);
+  TEST_ASSERT_EQUAL_UINT8(0, state.post_search.have_last_passed);
+  TEST_ASSERT_EQUAL_UINT16(300, PostSearchCurrent(state.post_search));
+  TEST_ASSERT_EQUAL_UINT8(0, state.pending_flags);
   TEST_ASSERT_EQUAL_UINT16(0, state.batch_sent);
   // The hot sequence is a delivery identifier, not selection progress.
   TEST_ASSERT_EQUAL_UINT16(1, state.seq);
@@ -413,12 +743,12 @@ void test_ReprobeCountAccumulates() {
   TEST_ASSERT_EQUAL_UINT8(3, state.reprobe_count);
 }
 
-// The product RTC state must stay small and free of integrity fields.
-// Pinned so the campaign report can quote the RTC cost without recompiling,
-// and so growth is a deliberate change. The largest member is 4 bytes wide, so
-// the layout is the same on the host and on the 32-bit target.
+// The product RTC state must stay small and free of integrity fields. Pinned so
+// the campaign report can quote the RTC cost without recompiling, and so growth
+// is a deliberate change. The largest member is 4 bytes wide, so the layout is
+// the same on the host and on the 32-bit target.
 void test_RtcStateIsCompact() {
-  TEST_ASSERT_EQUAL_UINT(64, sizeof(ProbeRtcState));
+  TEST_ASSERT_EQUAL_UINT(108, sizeof(ProbeRtcState));
 }
 
 }  // namespace ae::test_product_probe_select
@@ -427,6 +757,9 @@ int test_product_probe_select() {
   UNITY_BEGIN();
   RUN_TEST(ae::test_product_probe_select::test_ColdBootStartsAtStageZero);
   RUN_TEST(ae::test_product_probe_select::test_StageAdvanceSaturatesAtDone);
+  RUN_TEST(
+      ae::test_product_probe_select::test_StageNamesMatchSleepingProbeFlow);
+  RUN_TEST(ae::test_product_probe_select::test_OnlySleepingStagesAreMeasured);
   RUN_TEST(ae::test_product_probe_select::test_InvalidStageByteReadsAsIcmpSelect);
   RUN_TEST(ae::test_product_probe_select::test_IcmpTrialRequiresAllConnects);
   RUN_TEST(ae::test_product_probe_select::test_IcmpBorderlineTriggersExtension);
@@ -438,16 +771,37 @@ int test_product_probe_select() {
   RUN_TEST(ae::test_product_probe_select::test_PreSearchSelectsLowestPassing);
   RUN_TEST(ae::test_product_probe_select::test_PreSearchStopsOnFirstFailure);
   RUN_TEST(ae::test_product_probe_select::test_PreSearchExtendsUpwards);
-  RUN_TEST(ae::test_product_probe_select::test_PostSearchSelectsLowestPassing);
+  RUN_TEST(ae::test_product_probe_select::test_PostTableIsStrictlyDescending);
+  RUN_TEST(ae::test_product_probe_select::test_PostFullBatchPassesAndDescends);
+  RUN_TEST(ae::test_product_probe_select::test_PostAllPassSelectsZero);
   RUN_TEST(
-      ae::test_product_probe_select::test_ParamSearchCursorSurvivesRoundTrip);
-  RUN_TEST(ae::test_product_probe_select::test_BatchVerdictTwentyOfTwenty);
+      ae::test_product_probe_select::test_PostSmallerFailureKeepsLastPassed);
+  RUN_TEST(ae::test_product_probe_select::test_PostTotalFailureIsInvalidPath);
+  RUN_TEST(ae::test_product_probe_select::test_PostEighteenOfTwentyFails);
+  RUN_TEST(ae::test_product_probe_select::test_PostNearMissPassesOnAggregate);
+  RUN_TEST(ae::test_product_probe_select::test_PostNearMissFailsOnAggregate);
+  RUN_TEST(ae::test_product_probe_select::
+               test_PostSecondBatchAllowanceIsPerCandidate);
+  RUN_TEST(ae::test_product_probe_select::test_PostUnconfirmedSendBlocksPass);
+  RUN_TEST(
+      ae::test_product_probe_select::test_PostUnconfirmedSleepRetriesBatch);
+  RUN_TEST(ae::test_product_probe_select::test_PostRetryClearsPendingAggregate);
   RUN_TEST(ae::test_product_probe_select::test_QueryOnlyAfterWholeBatchSent);
+  RUN_TEST(
+      ae::test_product_probe_select::test_PendingSampleNeedsConfirmedSleep);
+  RUN_TEST(ae::test_product_probe_select::test_UnconfirmedSleepRejectsSample);
+  RUN_TEST(ae::test_product_probe_select::
+               test_UnconfirmedTxDoneOccupiesSlotWithoutCounting);
+  RUN_TEST(ae::test_product_probe_select::
+               test_InvalidatedBatchGetsNewIdAndIsBounded);
+  RUN_TEST(ae::test_product_probe_select::test_HotCountersOnlyGrowDuringHotRun);
   RUN_TEST(ae::test_product_probe_select::test_LateQueryAcceptsCompleteCount);
   RUN_TEST(ae::test_product_probe_select::test_LateQueryRetriesWhileCountMoves);
   RUN_TEST(ae::test_product_probe_select::test_LateQueryAcceptsStableCount);
   RUN_TEST(ae::test_product_probe_select::test_LateQueryTimesOut);
   RUN_TEST(ae::test_product_probe_select::test_PreviousTimingCarriesToNextSend);
+  RUN_TEST(
+      ae::test_product_probe_select::test_SendGenerationIsStrictlyIncreasing);
   RUN_TEST(ae::test_product_probe_select::test_HotSequenceSurvivesDeepSleep);
   RUN_TEST(ae::test_product_probe_select::test_FailureResetsStageAndSearches);
   RUN_TEST(ae::test_product_probe_select::test_ReprobeCountAccumulates);

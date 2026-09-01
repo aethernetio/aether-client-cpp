@@ -39,7 +39,7 @@ enum class ProbeMsgType : std::uint8_t {
 };
 
 // Longest encoded message (kHotData) plus headroom.
-static constexpr std::size_t kMaxProbeMessageSize = 64;
+static constexpr std::size_t kMaxProbeMessageSize = 96;
 
 // Sequential little-endian byte writer over caller-owned storage.
 class ProbeWriter {
@@ -72,6 +72,12 @@ class ProbeWriter {
       data_[size_++] = static_cast<std::uint8_t>((value >> shift) & 0xFFu);
     }
     return true;
+  }
+
+  // Two's complement, so the reader gets the sign back on any conforming
+  // platform without depending on a signed shift.
+  bool I32(std::int32_t value) {
+    return U32(static_cast<std::uint32_t>(value));
   }
 
   std::size_t size() const { return size_; }
@@ -134,6 +140,15 @@ class ProbeReader {
     return true;
   }
 
+  bool I32(std::int32_t& out) {
+    std::uint32_t raw = 0;
+    if (!U32(raw)) {
+      return false;
+    }
+    out = static_cast<std::int32_t>(raw);
+    return true;
+  }
+
   std::size_t consumed() const { return pos_; }
   bool ok() const { return ok_; }
 
@@ -185,24 +200,37 @@ struct ProbeResult {
   std::uint16_t missing{0};
 };
 
-// Production hot send. Carries the timing of the previous send because the
-// current send's own timing is only known after it completes.
+// One measured send. Used by both the POST probe batch and the production hot
+// run so the parameter is selected with exactly the packet production sends.
+//
+// Carries the timing of the *previous* send: a send's own cost is only known
+// after it is over, and the deep sleep that follows it is only confirmed by the
+// boot after that. `prev_flags` uses ProbeSampleFlag from product_probe_select.
 struct HotData {
   std::uint32_t session{0};
   std::uint16_t batch_id{0};
   std::uint16_t parameter_id{0};
   std::uint16_t seq{0};
+  std::uint8_t stage{0};
   std::uint8_t profile{0};
   std::uint16_t pre_ms{0};
   std::uint16_t post_ms{0};
   std::uint16_t sleep_ms{0};
   std::uint16_t prev_seq{0};
+  std::uint8_t prev_status{0};
+  std::uint8_t prev_flags{0};
   std::uint32_t prev_connect_us{0};
   std::uint32_t prev_cycle_us{0};
-  std::uint32_t prev_txdone_us{0};
+  std::uint32_t prev_encode_us{0};
+  std::uint32_t prev_sendto_call_us{0};
+  std::uint32_t prev_send_to_txdone_us{0};
+  // Signed: the TX-done callback can run before sendto() returns.
+  std::int32_t prev_txdone_minus_sendto_return_us{0};
+  std::uint32_t prev_actual_post_us{0};
+  std::uint32_t prev_teardown_us{0};
+  std::uint32_t prev_awake_us{0};
   std::uint32_t prev_sleep_elapsed_us{0};
-  std::uint8_t prev_status{0};
-  std::uint8_t prev_valid{0};
+  std::uint32_t prev_wake_overhead_us{0};
 };
 
 // Device-side totals for a completed hot run.
@@ -216,7 +244,11 @@ struct HotSummary {
   std::uint16_t sleep_ms{0};
   std::uint16_t hot_sent{0};
   std::uint16_t hot_fail{0};
+  // Sends whose datagram left the socket but whose TX-done success was never
+  // observed. The nonce is consumed, so they are neither retried nor clean.
+  std::uint16_t hot_unconfirmed{0};
   std::uint8_t reprobe_count{0};
+  std::uint8_t batch_invalidations{0};
 };
 
 inline std::size_t Pack(ProbeData const& msg, std::uint8_t* out,
@@ -312,17 +344,25 @@ inline std::size_t Pack(HotData const& msg, std::uint8_t* out,
   w.U16(msg.batch_id);
   w.U16(msg.parameter_id);
   w.U16(msg.seq);
+  w.U8(msg.stage);
   w.U8(msg.profile);
   w.U16(msg.pre_ms);
   w.U16(msg.post_ms);
   w.U16(msg.sleep_ms);
   w.U16(msg.prev_seq);
+  w.U8(msg.prev_status);
+  w.U8(msg.prev_flags);
   w.U32(msg.prev_connect_us);
   w.U32(msg.prev_cycle_us);
-  w.U32(msg.prev_txdone_us);
+  w.U32(msg.prev_encode_us);
+  w.U32(msg.prev_sendto_call_us);
+  w.U32(msg.prev_send_to_txdone_us);
+  w.I32(msg.prev_txdone_minus_sendto_return_us);
+  w.U32(msg.prev_actual_post_us);
+  w.U32(msg.prev_teardown_us);
+  w.U32(msg.prev_awake_us);
   w.U32(msg.prev_sleep_elapsed_us);
-  w.U8(msg.prev_status);
-  w.U8(msg.prev_valid);
+  w.U32(msg.prev_wake_overhead_us);
   return w.ok() ? w.size() : 0;
 }
 
@@ -334,17 +374,25 @@ inline bool Unpack(std::uint8_t const* data, std::size_t size, HotData& msg) {
   r.U16(msg.batch_id);
   r.U16(msg.parameter_id);
   r.U16(msg.seq);
+  r.U8(msg.stage);
   r.U8(msg.profile);
   r.U16(msg.pre_ms);
   r.U16(msg.post_ms);
   r.U16(msg.sleep_ms);
   r.U16(msg.prev_seq);
+  r.U8(msg.prev_status);
+  r.U8(msg.prev_flags);
   r.U32(msg.prev_connect_us);
   r.U32(msg.prev_cycle_us);
-  r.U32(msg.prev_txdone_us);
+  r.U32(msg.prev_encode_us);
+  r.U32(msg.prev_sendto_call_us);
+  r.U32(msg.prev_send_to_txdone_us);
+  r.I32(msg.prev_txdone_minus_sendto_return_us);
+  r.U32(msg.prev_actual_post_us);
+  r.U32(msg.prev_teardown_us);
+  r.U32(msg.prev_awake_us);
   r.U32(msg.prev_sleep_elapsed_us);
-  r.U8(msg.prev_status);
-  r.U8(msg.prev_valid);
+  r.U32(msg.prev_wake_overhead_us);
   return r.ok() && type == static_cast<std::uint8_t>(ProbeMsgType::kHotData);
 }
 
@@ -361,7 +409,9 @@ inline std::size_t Pack(HotSummary const& msg, std::uint8_t* out,
   w.U16(msg.sleep_ms);
   w.U16(msg.hot_sent);
   w.U16(msg.hot_fail);
+  w.U16(msg.hot_unconfirmed);
   w.U8(msg.reprobe_count);
+  w.U8(msg.batch_invalidations);
   return w.ok() ? w.size() : 0;
 }
 
@@ -379,7 +429,9 @@ inline bool Unpack(std::uint8_t const* data, std::size_t size,
   r.U16(msg.sleep_ms);
   r.U16(msg.hot_sent);
   r.U16(msg.hot_fail);
+  r.U16(msg.hot_unconfirmed);
   r.U8(msg.reprobe_count);
+  r.U8(msg.batch_invalidations);
   return r.ok() &&
          type == static_cast<std::uint8_t>(ProbeMsgType::kHotSummary);
 }

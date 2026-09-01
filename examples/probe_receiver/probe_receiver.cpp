@@ -182,28 +182,39 @@ void OnHotData(probe::HotData const& msg) {
   ++g_state.hot_data_count;
   auto& batch = FindBatch(msg.session, msg.batch_id);
   batch.parameter_id = msg.parameter_id;
+  batch.stage = msg.stage;
   batch.profile = msg.profile;
   batch.pre_ms = msg.pre_ms;
   batch.post_ms = msg.post_ms;
   batch.sleep_ms = msg.sleep_ms;
   batch.tracker.Observe(msg.seq);
 
-  // The previous send's timing travels with this packet; the current send's
-  // own timing is only known after it completes.
+  // The previous send's timing travels with this packet; the current send's own
+  // timing is only known after it completes and its deep sleep is only
+  // confirmed by the boot after that.
   // Format takes at most ten replacement fields, so one log line is built from
-  // two calls.
+  // three calls.
   std::cout << ae::Format(
-                   "HOT_DATA session={} batch={} seq={} profile={} pre={} "
-                   "post={} sleep={}",
-                   msg.session, msg.batch_id, msg.seq, msg.profile, msg.pre_ms,
-                   msg.post_ms, msg.sleep_ms)
+                   "HOT_DATA session={} batch={} stage={} seq={} profile={} "
+                   "pre={} post={} sleep={}",
+                   msg.session, msg.batch_id, msg.stage, msg.seq, msg.profile,
+                   msg.pre_ms, msg.post_ms, msg.sleep_ms)
             << ae::Format(
-                   " prev_seq={} prev_valid={} prev_status={} "
-                   "prev_connect_us={} prev_cycle_us={} prev_txdone_us={} "
-                   "prev_sleep_us={}",
-                   msg.prev_seq, msg.prev_valid, msg.prev_status,
-                   msg.prev_connect_us, msg.prev_cycle_us, msg.prev_txdone_us,
-                   msg.prev_sleep_elapsed_us)
+                   " prev_seq={} prev_flags={} prev_status={} "
+                   "prev_connect_us={} prev_cycle_us={} prev_encode_us={} "
+                   "prev_sendto_call_us={}",
+                   msg.prev_seq, msg.prev_flags, msg.prev_status,
+                   msg.prev_connect_us, msg.prev_cycle_us, msg.prev_encode_us,
+                   msg.prev_sendto_call_us)
+            << ae::Format(
+                   " prev_send_to_txdone_us={} prev_txdone_minus_ret_us={} "
+                   "prev_actual_post_us={} prev_teardown_us={} "
+                   "prev_awake_us={} prev_sleep_us={} prev_wake_overhead_us={}",
+                   msg.prev_send_to_txdone_us,
+                   msg.prev_txdone_minus_sendto_return_us,
+                   msg.prev_actual_post_us, msg.prev_teardown_us,
+                   msg.prev_awake_us, msg.prev_sleep_elapsed_us,
+                   msg.prev_wake_overhead_us)
             << "\n";
   std::cout.flush();
 }
@@ -212,11 +223,13 @@ void OnHotSummary(probe::HotSummary const& msg) {
   ++g_state.summary_count;
   std::cout << ae::Format(
                    "HOT_SUMMARY session={} batch={} param={} profile={} "
-                   "pre={} post={} sleep={} hot_sent={} hot_fail={} "
-                   "reprobe={}",
+                   "pre={} post={} sleep={} hot_sent={} hot_fail={}",
                    msg.session, msg.batch_id, msg.parameter_id, msg.profile,
                    msg.pre_ms, msg.post_ms, msg.sleep_ms, msg.hot_sent,
-                   msg.hot_fail, msg.reprobe_count)
+                   msg.hot_fail)
+            << ae::Format(" hot_unconfirmed={} reprobe={} invalidations={}",
+                          msg.hot_unconfirmed, msg.reprobe_count,
+                          msg.batch_invalidations)
             << "\n";
   std::cout.flush();
 }

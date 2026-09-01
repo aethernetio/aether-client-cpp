@@ -92,23 +92,33 @@ void test_QueryResultRoundTrip() {
   TEST_ASSERT_EQUAL_UINT16(1, got_result.missing);
 }
 
+// The whole previous-send timing block survives the round trip, including the
+// stage byte that lets the POST probe and the hot run share this message.
 void test_HotDataRoundTrip() {
   HotData sent{};
   sent.session = 0xFEEDFACEu;
   sent.batch_id = 3;
   sent.parameter_id = 2;
   sent.seq = 41;
+  sent.stage = 6;
   sent.profile = 4;
   sent.pre_ms = 10;
   sent.post_ms = 25;
   sent.sleep_ms = 250;
   sent.prev_seq = 40;
+  sent.prev_status = 1;
+  sent.prev_flags = 0x0F;
   sent.prev_connect_us = 123456u;
   sent.prev_cycle_us = 654321u;
-  sent.prev_txdone_us = 999u;
+  sent.prev_encode_us = 811u;
+  sent.prev_sendto_call_us = 233u;
+  sent.prev_send_to_txdone_us = 1904u;
+  sent.prev_txdone_minus_sendto_return_us = 1550;
+  sent.prev_actual_post_us = 25140u;
+  sent.prev_teardown_us = 42000u;
+  sent.prev_awake_us = 310000u;
   sent.prev_sleep_elapsed_us = 251000u;
-  sent.prev_status = 1;
-  sent.prev_valid = 1;
+  sent.prev_wake_overhead_us = 1000u;
 
   std::uint8_t buffer[kMaxProbeMessageSize]{};
   auto const size = Pack(sent, buffer, sizeof(buffer));
@@ -117,11 +127,35 @@ void test_HotDataRoundTrip() {
 
   HotData got{};
   TEST_ASSERT_TRUE(Unpack(buffer, size, got));
+  TEST_ASSERT_EQUAL_UINT8(6, got.stage);
   TEST_ASSERT_EQUAL_UINT16(40, got.prev_seq);
+  TEST_ASSERT_EQUAL_UINT8(0x0F, got.prev_flags);
   TEST_ASSERT_EQUAL_UINT32(123456u, got.prev_connect_us);
   TEST_ASSERT_EQUAL_UINT32(654321u, got.prev_cycle_us);
+  TEST_ASSERT_EQUAL_UINT32(811u, got.prev_encode_us);
+  TEST_ASSERT_EQUAL_UINT32(233u, got.prev_sendto_call_us);
+  TEST_ASSERT_EQUAL_UINT32(1904u, got.prev_send_to_txdone_us);
+  TEST_ASSERT_EQUAL_INT32(1550, got.prev_txdone_minus_sendto_return_us);
+  TEST_ASSERT_EQUAL_UINT32(25140u, got.prev_actual_post_us);
+  TEST_ASSERT_EQUAL_UINT32(42000u, got.prev_teardown_us);
+  TEST_ASSERT_EQUAL_UINT32(310000u, got.prev_awake_us);
   TEST_ASSERT_EQUAL_UINT32(251000u, got.prev_sleep_elapsed_us);
-  TEST_ASSERT_EQUAL_UINT8(1, got.prev_valid);
+  TEST_ASSERT_EQUAL_UINT32(1000u, got.prev_wake_overhead_us);
+}
+
+// The TX-done callback can precede the sendto() return, so that one field must
+// come back negative rather than as a huge unsigned number.
+void test_HotDataNegativeTxDoneDelta() {
+  HotData sent{};
+  sent.prev_txdone_minus_sendto_return_us = -1234;
+
+  std::uint8_t buffer[kMaxProbeMessageSize]{};
+  auto const size = Pack(sent, buffer, sizeof(buffer));
+  TEST_ASSERT_TRUE(size > 0);
+
+  HotData got{};
+  TEST_ASSERT_TRUE(Unpack(buffer, size, got));
+  TEST_ASSERT_EQUAL_INT32(-1234, got.prev_txdone_minus_sendto_return_us);
 }
 
 void test_HotSummaryRoundTrip() {
@@ -135,7 +169,9 @@ void test_HotSummaryRoundTrip() {
   sent.sleep_ms = 250;
   sent.hot_sent = 100;
   sent.hot_fail = 2;
+  sent.hot_unconfirmed = 3;
   sent.reprobe_count = 1;
+  sent.batch_invalidations = 2;
 
   std::uint8_t buffer[kMaxProbeMessageSize]{};
   auto const size = Pack(sent, buffer, sizeof(buffer));
@@ -144,7 +180,9 @@ void test_HotSummaryRoundTrip() {
   TEST_ASSERT_TRUE(Unpack(buffer, size, got));
   TEST_ASSERT_EQUAL_UINT16(100, got.hot_sent);
   TEST_ASSERT_EQUAL_UINT16(2, got.hot_fail);
+  TEST_ASSERT_EQUAL_UINT16(3, got.hot_unconfirmed);
   TEST_ASSERT_EQUAL_UINT8(1, got.reprobe_count);
+  TEST_ASSERT_EQUAL_UINT8(2, got.batch_invalidations);
 }
 
 // Integers really are little-endian on the wire, independent of host order.
@@ -266,6 +304,7 @@ int test_product_probe_protocol() {
   RUN_TEST(ae::test_product_probe_protocol::test_ProbeDataRoundTrip);
   RUN_TEST(ae::test_product_probe_protocol::test_QueryResultRoundTrip);
   RUN_TEST(ae::test_product_probe_protocol::test_HotDataRoundTrip);
+  RUN_TEST(ae::test_product_probe_protocol::test_HotDataNegativeTxDoneDelta);
   RUN_TEST(ae::test_product_probe_protocol::test_HotSummaryRoundTrip);
   RUN_TEST(ae::test_product_probe_protocol::test_PackingIsLittleEndian);
   RUN_TEST(ae::test_product_probe_protocol::test_TruncatedPayloadRejected);
