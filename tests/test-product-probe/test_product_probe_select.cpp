@@ -414,8 +414,11 @@ void test_ReprobeCountAccumulates() {
 }
 
 // The product RTC state must stay small and free of integrity fields.
+// Pinned so the campaign report can quote the RTC cost without recompiling,
+// and so growth is a deliberate change. The largest member is 4 bytes wide, so
+// the layout is the same on the host and on the 32-bit target.
 void test_RtcStateIsCompact() {
-  TEST_ASSERT_TRUE(sizeof(ProbeRtcState) <= 64);
+  TEST_ASSERT_EQUAL_UINT(64, sizeof(ProbeRtcState));
 }
 
 }  // namespace ae::test_product_probe_select
