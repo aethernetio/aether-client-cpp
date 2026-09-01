@@ -21,7 +21,9 @@
 
 #include "aether/aether.h"
 #include "aether/channels/channel.h"
+#include "aether/config.h"
 #include "aether/server.h"
+#include "aether/types/address.h"
 
 #include "aether/tele.h"
 
@@ -94,7 +96,25 @@ void ServerConnection::InitChannels() {
   for (auto c : server->channels) {
     // channel must be loaded before use
     assert(c.is_valid() && "Channel is not loaded");
-    channels.emplace_back(c.Load());
+    auto channel = c.Load();
+    // Skip channels whose transport was compiled out (e.g. UDP-only state
+    // loaded into a TCP-only build). Factory returns nullptr for those and
+    // the connection would never link.
+    if (auto endpoint = channel->endpoint()) {
+#if !AE_SUPPORT_TCP
+      if (endpoint->protocol == Protocol::kTcp) {
+        AE_TELED_DEBUG("Skip unsupported TCP channel {}", *endpoint);
+        continue;
+      }
+#endif
+#if !AE_SUPPORT_UDP
+      if (endpoint->protocol == Protocol::kUdp) {
+        AE_TELED_DEBUG("Skip unsupported UDP channel {}", *endpoint);
+        continue;
+      }
+#endif
+    }
+    channels.emplace_back(std::move(channel));
   }
   // sort channels by the fastest
   std::sort(std::begin(channels), std::end(channels),

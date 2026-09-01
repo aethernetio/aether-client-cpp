@@ -26,6 +26,11 @@ if(NOT CM_PLATFORM)
 else()
   idf_build_get_property(CM_PLATFORM CM_PLATFORM)
   if(CM_PLATFORM STREQUAL "ESP32")
+    # TCP-only ping-pong config unless the build already selected one.
+    if("${USER_CONFIG}" STREQUAL "")
+      set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/user_config.h"
+          CACHE PATH "Path to user provided configuration header file" FORCE)
+    endif()
     idf_component_register(
       SRCS main.cpp a_b_message_exchange.cpp
       INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR} ../common
