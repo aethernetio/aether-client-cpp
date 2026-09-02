@@ -740,7 +740,7 @@ void test_StatisticalRuntimePollingIsLocallyOnline() {
   LocalPresenceRuntime rt{Tp(0)};
   ServerId const sid{1};
   auto const interval = Dur(1000);
-  auto const window = Dur(400);
+  auto const window = Dur(1000);
   auto const rtt = Dur(100);
   rt.AddServer(sid, RxTimingConf::Every(interval).WithWindow(window), rtt, 99);
   rt.server(sid).pong_delay = Dur(20);
@@ -790,7 +790,7 @@ void test_StatisticalRuntimePollingIsLocallyOnline() {
 void test_FaultOfflineNotBeforeWindowCloseThenRecovery() {
   LocalPresenceRuntime rt{Tp(0)};
   ServerId const sid{1};
-  rt.AddServer(sid, RxTimingConf::Every(Dur(1000)).WithWindow(Dur(400)), Dur(100));
+  rt.AddServer(sid, RxTimingConf::Every(Dur(1000)).WithWindow(Dur(1000)), Dur(100));
   rt.server(sid).pong_delay = Dur(20);
   rt.AdvanceTo(Tp(20));
   rt.AdvancePolling(Dur(2000), Dur(10), true);
