@@ -27,9 +27,6 @@ constexpr auto kDefaultTiming = RxTiming{
     .recordet_at = {}};;
 
 Duration AgeSince(TimePoint now, TimePoint then) noexcept {
-  if (then == TimePoint{}) {
-    return Duration{};
-  }
   if (now <= then) {
     return Duration{};
   }
@@ -126,6 +123,7 @@ void ClientConnectivityPolicy::ClearPingFlight(
 }
 
 void ClientConnectivityPolicy::ClearAllLocalConnectivityState() noexcept {
+  has_successful_cloud_response_ = false;
   last_successful_cloud_response_ = {};
   last_success_ping_interval_ = {};
   ping_flights_.fill({});
@@ -142,6 +140,7 @@ void ClientConnectivityPolicy::ResetRxTimings() {
 void ClientConnectivityPolicy::ReportSuccessfulCloudResponse(
     TimePoint at, Duration ping_interval, std::size_t priority) {
   assert(priority < ping_flights_.size());
+  has_successful_cloud_response_ = true;
   last_successful_cloud_response_ = at;
   if (ping_interval > Duration{}) {
     last_success_ping_interval_ = ping_interval;
@@ -184,7 +183,7 @@ void ClientConnectivityPolicy::ReportPingCompletedWithoutSuccess(
 
 bool ClientConnectivityPolicy::HasRecentCloudResponse(
     TimePoint now) const noexcept {
-  if (last_successful_cloud_response_ == TimePoint{}) {
+  if (!has_successful_cloud_response_) {
     return false;
   }
   if (last_success_ping_interval_ <= Duration{}) {
@@ -211,7 +210,7 @@ bool ClientConnectivityPolicy::IsLocallyOnline(TimePoint now) const noexcept {
 std::optional<Duration>
 ClientConnectivityPolicy::TimeSinceLastSuccessfulCloudResponse(
     TimePoint now) const noexcept {
-  if (last_successful_cloud_response_ == TimePoint{}) {
+  if (!has_successful_cloud_response_) {
     return std::nullopt;
   }
   return AgeSince(now, last_successful_cloud_response_);
@@ -220,7 +219,7 @@ ClientConnectivityPolicy::TimeSinceLastSuccessfulCloudResponse(
 LocalConnectivitySnapshot ClientConnectivityPolicy::InspectLocalConnectivity(
     TimePoint now) const noexcept {
   auto const age = AgeSince(now, last_successful_cloud_response_);
-  bool const has_success = last_successful_cloud_response_ != TimePoint{};
+  bool const has_success = has_successful_cloud_response_;
   TimePoint recent_success_until{};
   if (has_success && last_success_ping_interval_ > Duration{}) {
     recent_success_until =
@@ -275,7 +274,8 @@ void ClientConnectivityPolicy::ResetRuntimeState() {
       t.recordet_at = {};
     }
   }
-  if (current_time < last_successful_cloud_response_) {
+  if (has_successful_cloud_response_ &&
+      current_time < last_successful_cloud_response_) {
     ClearAllLocalConnectivityState();
   }
 }

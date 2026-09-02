@@ -151,6 +151,7 @@ class ClientConnectivityPolicy : public Obj {
 
   ConnectivityStatus GetStatus() const noexcept;
   void ResetRxTimings();
+  void ResetRuntimeState();
 
   void ReportSuccessfulCloudResponse(TimePoint at, Duration ping_interval,
                                      std::size_t priority);
@@ -177,7 +178,6 @@ class ClientConnectivityPolicy : public Obj {
   bool HasActiveInFlightGrace(TimePoint now) const noexcept;
   void ClearPingFlight(std::size_t priority) noexcept;
   void ClearAllLocalConnectivityState() noexcept;
-  void ResetRuntimeState();
   void IncrementSuspendBlock();
   void DecrementSuspendBlock();
 
@@ -186,6 +186,7 @@ class ClientConnectivityPolicy : public Obj {
 
   bool can_suspend_{true};
   std::uint8_t suspend_block_count_{};
+  bool has_successful_cloud_response_{false};
   TimePoint last_successful_cloud_response_{};
   Duration last_success_ping_interval_{};
   std::array<PingFlightState, kMaxRxServerPriorities> ping_flights_{};

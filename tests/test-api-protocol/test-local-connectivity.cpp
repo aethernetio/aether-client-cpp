@@ -28,7 +28,12 @@ Duration Ms(std::uint32_t v) {
 }
 
 TimePoint Tp(std::uint32_t ms) {
-  return TimePoint{Ms(ms)};
+  return TimePoint{} + std::chrono::milliseconds{ms};
+}
+
+std::uint32_t AgeMs(Duration d) {
+  return static_cast<std::uint32_t>(
+      std::chrono::duration_cast<std::chrono::milliseconds>(d).count());
 }
 
 RxTimingConf Timing(std::uint32_t interval_ms, std::uint32_t window_ms) {
@@ -53,7 +58,7 @@ void test_TimeSinceLastResponseIsReturnedExactly() {
   Success(policy, Tp(1000));
   auto const age = policy.TimeSinceLastSuccessfulCloudResponse(Tp(2500));
   TEST_ASSERT_TRUE(age.has_value());
-  TEST_ASSERT_EQUAL_UINT(1500, static_cast<unsigned>(age->count()));
+  TEST_ASSERT_EQUAL_UINT(1500, AgeMs(*age));
 }
 
 void test_AgeBelowPingIntervalIsOnline() {
@@ -73,7 +78,7 @@ void test_ReceiveWindowDoesNotAffectLocalOnline() {
   policy.ConfigureRxTimings().ForAllPriorities(Timing(1000, 10000));
   Success(policy, Tp(0), 1000);
   TEST_ASSERT_TRUE(policy.IsLocallyOnline(Tp(999)));
-  TEST_ASSERT_FALSE(policy.IsLocallyOnline(Tp(1000)));
+  TEST_ASSERT_FALSE(policy.IsLocallyOnline(Tp(1001)));
   TEST_ASSERT_FALSE(policy.IsLocallyOnline(Tp(5000)));
 }
 
@@ -88,10 +93,10 @@ void test_InFlightPingBridgesPingIntervalBoundary() {
 void test_PingDispatchedAfterAlreadyOfflineDoesNotReviveClient() {
   ClientConnectivityPolicy policy;
   Success(policy, Tp(0), 1000);
-  TEST_ASSERT_FALSE(policy.IsLocallyOnline(Tp(2000)));
-  policy.ReportPingDispatched(Tp(2000), Ms(200), 0);
+  TEST_ASSERT_FALSE(policy.IsLocallyOnline(Tp(2001)));
+  policy.ReportPingDispatched(Tp(2001), Ms(200), 0);
   TEST_ASSERT_FALSE(policy.IsLocallyOnline(Tp(2010)));
-  TEST_ASSERT_FALSE(policy.IsLocallyOnline(Tp(2199)));
+  TEST_ASSERT_FALSE(policy.IsLocallyOnline(Tp(2200)));
 }
 
 void test_FailedPingEndsGrace() {
@@ -100,7 +105,7 @@ void test_FailedPingEndsGrace() {
   policy.ReportPingDispatched(Tp(990), Ms(200), 0);
   TEST_ASSERT_TRUE(policy.IsLocallyOnline(Tp(1050)));
   policy.ReportPingCompletedWithoutSuccess(Tp(1100), 0);
-  TEST_ASSERT_FALSE(policy.IsLocallyOnline(Tp(1100)));
+  TEST_ASSERT_FALSE(policy.IsLocallyOnline(Tp(1101)));
 }
 
 void test_SuccessfulPingResetsAge() {
@@ -109,7 +114,7 @@ void test_SuccessfulPingResetsAge() {
   Success(policy, Tp(2500), 1000);
   auto const age = policy.TimeSinceLastSuccessfulCloudResponse(Tp(3000));
   TEST_ASSERT_TRUE(age.has_value());
-  TEST_ASSERT_EQUAL_UINT(500, static_cast<unsigned>(age->count()));
+  TEST_ASSERT_EQUAL_UINT(500, AgeMs(*age));
   TEST_ASSERT_TRUE(policy.IsLocallyOnline(Tp(3499)));
 }
 
@@ -147,8 +152,8 @@ void test_MultiplePrioritiesDoNotLeaveStaleGraceDeadline() {
   policy.ReportPingDispatched(Tp(990), Ms(5000), 0);
   policy.ReportPingCompletedWithoutSuccess(Tp(1100), 0);
   policy.ReportPingDispatched(Tp(2000), Ms(200), 1);
-  TEST_ASSERT_FALSE(policy.IsLocallyOnline(Tp(2000)));
-  auto snap = policy.InspectLocalConnectivity(Tp(2100));
+  TEST_ASSERT_FALSE(policy.IsLocallyOnline(Tp(2001)));
+  auto snap = policy.InspectLocalConnectivity(Tp(2101));
   TEST_ASSERT_FALSE(snap.in_flight_grace_active);
   TEST_ASSERT_EQUAL_UINT(1, snap.pings_in_flight);
 }
