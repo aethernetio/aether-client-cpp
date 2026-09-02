@@ -1,0 +1,53 @@
+# Copyright 2026 Aethernet Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# User-editable CMake toolchain draft for AppleClang.
+#
+# Select it explicitly with:
+# cmake -S . -B <build-dir> -DCMAKE_TOOLCHAIN_FILE=<path-to-this-file>
+#
+# These directory-wide options affect every target created after this toolchain
+# is loaded, including dependencies. They apply only to Release builds.
+
+# AppleClang compile options.
+set(_appleclang_compile_options
+    -ffast-math
+    # These explicit math flags are intentionally selected for this toolchain.
+    -fno-math-errno
+    -funsafe-math-optimizations
+    -fassociative-math
+    -freciprocal-math
+    -ffinite-math-only
+    -fno-signed-zeros
+    -fno-trapping-math
+    -DNDEBUG
+    -fdata-sections
+    -ffunction-sections
+    -Os
+    -flto)
+set(_appleclang_cxx_compile_options -fno-exceptions -fno-rtti)
+
+add_compile_options(
+    "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:C,AppleClang>>:${_appleclang_compile_options}>"
+    "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:CXX,AppleClang>>:${_appleclang_compile_options};${_appleclang_cxx_compile_options}>")
+
+# AppleClang link options.
+set(_appleclang_link_options
+    -fdata-sections
+    -ffunction-sections
+    -flto
+    -Wl,-dead_strip
+    -Wl,-x)
+add_link_options(
+    "$<$<AND:$<CONFIG:Release>,$<CXX_COMPILER_ID:AppleClang>>:${_appleclang_link_options}>")
