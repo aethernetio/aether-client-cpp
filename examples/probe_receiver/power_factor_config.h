@@ -25,9 +25,22 @@
 
 namespace ae::power_bench {
 
-static constexpr std::uint16_t kHotAttempts = 100;
-static constexpr std::uint16_t kHotSleepMs = 2000;
-static constexpr std::uint16_t kMinRxUnique = 90;
+#ifndef AETHER_POWER_BENCH_HOT_ATTEMPTS
+#  define AETHER_POWER_BENCH_HOT_ATTEMPTS 100
+#endif
+#ifndef AETHER_POWER_BENCH_HOT_SLEEP_MS
+#  define AETHER_POWER_BENCH_HOT_SLEEP_MS 2000
+#endif
+#ifndef AETHER_POWER_BENCH_MIN_RX_UNIQUE
+#  define AETHER_POWER_BENCH_MIN_RX_UNIQUE 90
+#endif
+
+static constexpr std::uint16_t kHotAttempts =
+    static_cast<std::uint16_t>(AETHER_POWER_BENCH_HOT_ATTEMPTS);
+static constexpr std::uint16_t kHotSleepMs =
+    static_cast<std::uint16_t>(AETHER_POWER_BENCH_HOT_SLEEP_MS);
+static constexpr std::uint16_t kMinRxUnique =
+    static_cast<std::uint16_t>(AETHER_POWER_BENCH_MIN_RX_UNIQUE);
 
 enum class VariantId : std::uint16_t {
   kA0Clean = 0,
