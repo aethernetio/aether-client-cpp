@@ -30,38 +30,28 @@ jobs:
               name: "Windows MSVC x64",
               os: windows-latest,
               shell: "powershell",
-              generator: "Visual Studio 18 2026",
-              arch: "x64",
-              cc: "cl",
-              cxx: "cl",
+              cmake_args: '-G "Visual Studio 18 2026" -A x64 -DCMAKE_TOOLCHAIN_FILE=./toolchain/optmization-options-msvc.toolchain',
               initial_cache: ".github/workflows/windows_msvc_x64_initial_cache.txt",
             }
           - {
               name: "Windows MSVC x86",
               os: windows-latest,
               shell: "powershell",
-              generator: "Visual Studio 18 2026",
-              arch: "Win32",
-              cc: "cl",
-              cxx: "cl",
+              cmake_args: '-G "Visual Studio 18 2026" -A Win32 -DCMAKE_TOOLCHAIN_FILE=./toolchain/optmization-options-msvc.toolchain',
               initial_cache: ".github/workflows/windows_msvc_x86_initial_cache.txt",
             }
           - {
               name: "Windows MinGW",
               os: windows-latest,
               shell: "msys2",
-              generator: "Ninja",
-              cc: "gcc",
-              cxx: "g++",
+              cmake_args: "-GNinja -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DCMAKE_TOOLCHAIN_FILE=./toolchain/optmization-options-mingw.toolchain",
               initial_cache: ".github/workflows/windows_mingw_initial_cache.txt",
             }
           - {
               name: "Ubuntu GCC",
               os: ubuntu-latest,
               shell: "bash",
-              generator: "Unix Makefiles",
-              cc: "gcc",
-              cxx: "g++",
+              cmake_args: '-G "Unix Makefiles" -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DCMAKE_TOOLCHAIN_FILE=./toolchain/optmization-options-gnu-clang.toolchain',
               jobs_count: 4,
               initial_cache: ".github/workflows/linux_initial_cache.txt",
             }
@@ -69,9 +59,7 @@ jobs:
               name: "macOS Clang",
               os: macos-latest,
               shell: "bash",
-              generator: "Unix Makefiles",
-              cc: "clang",
-              cxx: "clang++",
+              cmake_args: '-G "Unix Makefiles" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_TOOLCHAIN_FILE=./toolchain/optmization-options-apple.toolchain',
               jobs_count: 4,
               initial_cache: ".github/workflows/macos_initial_cache.txt",
             }
@@ -81,12 +69,12 @@ jobs:
           - { name: "Sodium", user_config: "./config/user_config_sodium.h" }
 
     steps:
-      - name: Set Windows enviroment
-        if: ${{ (matrix.config.os == 'windows-latest' && matrix.config.cc == 'cl') }}
+      - name: Set Windows environment
+        if: ${{ (matrix.config.os == 'windows-latest' && matrix.config.shell == 'powershell') }}
         uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Set MinGW enviroment
-        if: ${{ (matrix.config.os == 'windows-latest' && matrix.config.cc == 'gcc') }}
+      - name: Set MinGW environment
+        if: ${{ (matrix.config.os == 'windows-latest' && matrix.config.shell == 'msys2') }}
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
@@ -108,10 +96,7 @@ jobs:
       - name: Configure CMake
         run: >
           cmake -B build
-          -G "${{ matrix.config.generator }}"
-          -A "${{ matrix.config.arch }}"
-          -DCMAKE_CXX_COMPILER=${{ matrix.config.cxx }}
-          -DCMAKE_C_COMPILER=${{ matrix.config.cc }}
+          ${{ matrix.config.cmake_args }}
           -DCMAKE_BUILD_TYPE=Release
           -DUSER_CONFIG="${{ matrix.platforms.user_config }}"
           -C "${{ matrix.config.initial_cache }}"
