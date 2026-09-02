@@ -19,6 +19,7 @@
 #include <chrono>
 
 #include "aether/client_connectivity_policy.h"
+#include "aether/config.h"
 
 namespace ae::test_local_connectivity {
 namespace {
@@ -227,6 +228,53 @@ void test_TimeSinceLastResponseIsReturnedExactly() {
   TEST_ASSERT_EQUAL_UINT(1500, AgeMs(*age));
 }
 
+void test_DefaultPolicyHasCanonicalPingInterval() {
+  ClientConnectivityPolicy policy;
+  auto const interval = policy.rx_timings()[0].conf.interval;
+  TEST_ASSERT_TRUE(interval > Duration{});
+  TEST_ASSERT_EQUAL_UINT(AE_PING_INTERVAL_MS, AgeMs(interval));
+  auto const snap = policy.InspectLocalConnectivity(Tp(0));
+  TEST_ASSERT_EQUAL_UINT(AE_PING_INTERVAL_MS, AgeMs(snap.ping_interval));
+}
+
+void test_ResetRxTimingsPreservesConfiguredInterval() {
+  ClientConnectivityPolicy policy;
+  policy.ConfigureRxTimings().ForAllPriorities(Timing(1000, 500));
+  AnyCloud(policy, Tp(1000));
+  policy.ResetRxTimings();
+  TEST_ASSERT_EQUAL_UINT(1000, AgeMs(policy.rx_timings()[0].conf.interval));
+  TEST_ASSERT_EQUAL_UINT(500, AgeMs(policy.rx_timings()[0].conf.rx_window));
+  TEST_ASSERT_TRUE(policy.rx_timings()[0].next_rx_point == TimePoint{});
+  auto const snap = policy.InspectLocalConnectivity(Tp(2000));
+  TEST_ASSERT_EQUAL_UINT(1000, AgeMs(snap.ping_interval));
+  TEST_ASSERT_TRUE(snap.state == LocalConnectivityState::kWaitingFirstResponse);
+}
+
+void test_ConfigureThenResetMatchesSetReceiveScheduleOrder() {
+  ClientConnectivityPolicy policy;
+  policy.ConfigureRxTimings().ForAllPriorities(Timing(1000, 1000));
+  policy.ResetRxTimings();
+  TEST_ASSERT_EQUAL_UINT(1000, AgeMs(policy.rx_timings()[0].conf.interval));
+  TEST_ASSERT_EQUAL_UINT(1000, AgeMs(policy.rx_timings()[0].conf.rx_window));
+  auto const snap = policy.InspectLocalConnectivity(Tp(0));
+  TEST_ASSERT_EQUAL_UINT(1000, AgeMs(snap.ping_interval));
+}
+
+void test_RealIntervalOnlineSuspectOfflineTransitions() {
+  ClientConnectivityPolicy policy;
+  policy.ConfigureRxTimings().ForAllPriorities(Timing(1000, 1000));
+  AnyCloud(policy, Tp(0));
+  TEST_ASSERT_TRUE(StateAt(policy, Tp(500)) ==
+                   LocalConnectivityState::kOnline);
+  TEST_ASSERT_TRUE(StateAt(policy, Tp(1500)) ==
+                   LocalConnectivityState::kSuspect);
+  TEST_ASSERT_TRUE(StateAt(policy, Tp(2500)) ==
+                   LocalConnectivityState::kOffline);
+  AnyCloud(policy, Tp(3000));
+  TEST_ASSERT_TRUE(StateAt(policy, Tp(3100)) ==
+                   LocalConnectivityState::kOnline);
+}
+
 }  // namespace ae::test_local_connectivity
 
 int test_local_connectivity() {
@@ -250,5 +298,9 @@ int test_local_connectivity() {
   RUN_TEST(ae::test_local_connectivity::test_ResetRxTimingsClearsAllLocalConnectivityState);
   RUN_TEST(ae::test_local_connectivity::test_ResetRuntimeStateClearsRuntimeOnly);
   RUN_TEST(ae::test_local_connectivity::test_TimeSinceLastResponseIsReturnedExactly);
+  RUN_TEST(ae::test_local_connectivity::test_DefaultPolicyHasCanonicalPingInterval);
+  RUN_TEST(ae::test_local_connectivity::test_ResetRxTimingsPreservesConfiguredInterval);
+  RUN_TEST(ae::test_local_connectivity::test_ConfigureThenResetMatchesSetReceiveScheduleOrder);
+  RUN_TEST(ae::test_local_connectivity::test_RealIntervalOnlineSuspectOfflineTransitions);
   return UNITY_END();
 }

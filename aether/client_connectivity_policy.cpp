@@ -17,28 +17,51 @@
 #include "aether/client_connectivity_policy.h"
 
 #include <algorithm>
+#include <chrono>
 #include <limits>
 
 namespace ae {
 
 namespace {
+
+constexpr RxTiming kDefaultRxTiming{
+    .conf = RxTimingConf::Every(
+        std::chrono::duration_cast<Duration>(
+            std::chrono::milliseconds{AE_PING_INTERVAL_MS})),
+    .next_rx_point = {},
+    .recordet_at = {},
+};
+
+std::array<RxTiming, kMaxRxServerPriorities> MakeDefaultRxTimings() {
+  std::array<RxTiming, kMaxRxServerPriorities> timings{};
+  timings.fill(kDefaultRxTiming);
+  return timings;
+}
+
 Duration AgeSince(TimePoint now, TimePoint then) noexcept {
   if (now <= then) {
     return Duration{};
   }
   return std::chrono::duration_cast<Duration>(now - then);
 }
+
+void ClearRxSchedulePoints(std::array<RxTiming, kMaxRxServerPriorities>& timings) {
+  for (auto& timing : timings) {
+    timing.next_rx_point = TimePoint{};
+    timing.recordet_at = TimePoint{};
+  }
+}
+
 }  // namespace
 
-ClientConnectivityPolicy::ClientConnectivityPolicy() {
-  ResetRxTimings();
+ClientConnectivityPolicy::ClientConnectivityPolicy()
+    : rx_timings_{MakeDefaultRxTimings()} {
   ResetRuntimeState();
 }
 
 #ifdef AE_DISTILLATION
 ClientConnectivityPolicy::ClientConnectivityPolicy(ObjProp prop)
-    : Obj{prop} {
-  ResetRxTimings();
+    : Obj{prop}, rx_timings_{MakeDefaultRxTimings()} {
   ResetRuntimeState();
 }
 #endif
@@ -102,9 +125,7 @@ ConnectivityStatus ClientConnectivityPolicy::GetStatus() const noexcept {
 }
 
 void ClientConnectivityPolicy::ResetRxTimings() {
-  for (auto& timing : rx_timings_) {
-    timing = RxTiming{};
-  }
+  ClearRxSchedulePoints(rx_timings_);
   ClearAllLocalConnectivityState();
 }
 
