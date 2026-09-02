@@ -65,6 +65,9 @@ class PingCloudServers {
     void ScheduleRxWindowClose(TimePoint close_time);
     void CloseRxWindowNow();
     void ScheduleRestream();
+    void BindConnectivityHook();
+    void PlanNextPing(TimePoint scheduled_at);
+    Duration PlanDispatchSlack() const noexcept;
 
     AeContext ae_context_;
     ClientConnectivityPolicy* policy_;
@@ -84,6 +87,8 @@ class PingCloudServers {
     ClientConnectivityPolicy::SuspendBlocker rx_window_blocker_;
     ClientConnectivityPolicy::SuspendBlocker restream_blocker_;
     TimePoint next_ping_time_;
+    std::uint64_t active_cycle_id_{0};
+    std::uint64_t scheduled_cycle_id_{0};
   };
 
  public:

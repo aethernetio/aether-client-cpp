@@ -20,16 +20,22 @@
 #include "aether/types/data_buffer.h"
 #include "aether/crypto/icrypto_provider.h"
 #include "aether/api_protocol/api_protocol.h"
+#include "aether/clock.h"
+
+#include <functional>
 
 #include "aether/work_cloud_api/client_api/client_api_safe.h"
 
 namespace ae {
 class ClientApiUnsafe : public ApiClassImpl<ClientApiUnsafe> {
  public:
+  using AuthenticatedResponseHandler = std::function<void(TimePoint)>;
+
   explicit ClientApiUnsafe(ProtocolContext& protocol_context,
                            IDecryptProvider& decrypt_provider);
 
   void SendSafeApiData(SubApiImpl<ClientApiSafe> sub_api);
+  void SetAuthenticatedResponseHandler(AuthenticatedResponseHandler handler);
 
   ReturnResultApi return_result;
 
@@ -43,6 +49,7 @@ class ClientApiUnsafe : public ApiClassImpl<ClientApiUnsafe> {
 
   IDecryptProvider* decrypt_provider_;
   ClientApiSafe client_safe_api_;
+  AuthenticatedResponseHandler authenticated_response_handler_;
 };
 }  // namespace ae
 #endif  // AETHER_WORK_CLOUD_API_CLIENT_API_CLIENT_API_UNSAFE_H_

@@ -19,6 +19,7 @@
 #include "aether/aether.h"
 #include "aether/api_protocol/api_protocol.h"
 #include "aether/client.h"
+#include "aether/client_connectivity_policy.h"
 #include "aether/crypto/ikey_provider.h"
 #include "aether/crypto/sync_crypto_provider.h"
 #include "aether/server.h"
@@ -192,6 +193,19 @@ WriteAction& ClientServerConnection::AuthorizedApiCall(
 
 ClientApiSafe& ClientServerConnection::client_safe_api() {
   return client_api_unsafe_.client_api_safe();
+}
+
+void ClientServerConnection::BindConnectivityPolicy(
+    ClientConnectivityPolicy& policy, std::size_t priority) {
+  connectivity_policy_ = &policy;
+  connectivity_priority_ = priority;
+  client_api_unsafe_.SetAuthenticatedResponseHandler(
+      [this](TimePoint at) {
+        if (connectivity_policy_ != nullptr) {
+          connectivity_policy_->ReportAuthenticatedCloudResponse(
+              connectivity_priority_, at);
+        }
+      });
 }
 
 ServerConnection& ClientServerConnection::server_connection() {

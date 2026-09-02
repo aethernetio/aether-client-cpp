@@ -64,23 +64,69 @@ struct ConnectivityStatus {
   TimePoint next_service_time;
 };
 
-struct PingFlightState {
-  bool in_flight{false};
-  bool bridges_online{false};
-  TimePoint deadline{};
+enum class LocalConnectivityState {
+  kWaitingFirstResponse,
+  kOnline,
+  kSuspect,
+  kOffline,
+};
+
+enum class LocalConnectivityReason {
+  kNoAuthenticatedResponse,
+  kRecentCloudResponse,
+  kSuspectAge,
+  kOfflineAge,
+  kPlannedPingGrace,
+  kInFlightPingGrace,
+};
+
+enum class PingPhase {
+  kNone,
+  kPlanned,
+  kInFlight,
+};
+
+struct PingCycleState {
+  std::uint64_t cycle_id{0};
+  PingPhase phase{PingPhase::kNone};
+  LocalConnectivityState holds_state{LocalConnectivityState::kWaitingFirstResponse};
+  TimePoint planned_at{};
+  TimePoint dispatch_deadline{};
+  TimePoint response_deadline{};
 };
 
 struct LocalConnectivitySnapshot {
   TimePoint now{};
+  LocalConnectivityState state{LocalConnectivityState::kWaitingFirstResponse};
+  LocalConnectivityReason reason{LocalConnectivityReason::kNoAuthenticatedResponse};
+
+  bool has_any_cloud_response{false};
+  TimePoint last_any_cloud_response{};
+  Duration age_since_last_any_cloud_response{};
+
+  bool has_ping_response{false};
+  TimePoint last_ping_response{};
+  Duration age_since_last_ping_response{};
+
+  Duration ping_interval{};
+  Duration offline_margin{};
+  TimePoint online_until{};
+  TimePoint suspect_until{};
+
+  std::uint32_t planned_ping_count{0};
+  std::uint32_t pings_in_flight{0};
+  TimePoint nearest_dispatch_deadline{};
+  TimePoint nearest_response_deadline{};
+  bool active_grace{false};
+  bool online{false};
+
+  // Compatibility aliases for older callers.
   bool has_success{false};
   Duration age_since_last_success{};
-  Duration ping_interval{};
   TimePoint last_success{};
   TimePoint recent_success_until{};
-  std::uint32_t pings_in_flight{};
   TimePoint pending_ping_deadline{};
   bool in_flight_grace_active{false};
-  bool online{false};
 };
 
 class ClientConnectivityPolicy : public Obj {
@@ -153,16 +199,23 @@ class ClientConnectivityPolicy : public Obj {
   void ResetRxTimings();
   void ResetRuntimeState();
 
-  void ReportSuccessfulCloudResponse(TimePoint at, Duration ping_interval,
-                                     std::size_t priority);
-  void ReportPingDispatched(TimePoint send_time, Duration response_timeout,
-                            std::size_t priority);
-  void ReportPingCompletedWithoutSuccess(TimePoint at, std::size_t priority);
+  void ReportAuthenticatedCloudResponse(std::size_t priority, TimePoint at);
+  void ReportPingPlanned(std::size_t priority, std::uint64_t cycle_id,
+                         TimePoint planned_at, TimePoint dispatch_deadline,
+                         LocalConnectivityState holds_state);
+  void ReportPingDispatched(std::size_t priority, std::uint64_t cycle_id,
+                            TimePoint send_time, Duration response_timeout);
+  void ReportSuccessfulPingResponse(std::size_t priority,
+                                    std::uint64_t cycle_id, TimePoint at);
+  void ReportPingCompletedWithoutSuccess(std::size_t priority,
+                                         std::uint64_t cycle_id, TimePoint at);
+  void ReportPingCancelled(std::size_t priority, std::uint64_t cycle_id);
+  std::uint64_t AllocatePingCycleId(std::size_t priority) noexcept;
 
-  TimePoint last_successful_cloud_response() const noexcept {
-    return last_successful_cloud_response_;
-  }
+  TimePoint last_successful_cloud_response() const noexcept;
   std::optional<Duration> TimeSinceLastSuccessfulCloudResponse(
+      TimePoint now = Now()) const noexcept;
+  std::optional<Duration> TimeSinceLastSuccessfulPingResponse(
       TimePoint now = Now()) const noexcept;
   bool IsLocallyOnline(TimePoint now = Now()) const noexcept;
   LocalConnectivitySnapshot InspectLocalConnectivity(
@@ -172,24 +225,44 @@ class ClientConnectivityPolicy : public Obj {
   void ReportNextServiceTime(std::size_t priority, TimePoint next_service_time);
 
  private:
-  bool WasBridgingOnlineAt(TimePoint when, std::size_t skip_priority) const
-      noexcept;
-  bool HasRecentCloudResponse(TimePoint now) const noexcept;
-  bool HasActiveInFlightGrace(TimePoint now) const noexcept;
-  void ClearPingFlight(std::size_t priority) noexcept;
+  struct PriorityConnectivityState {
+    bool has_any_cloud_response{false};
+    TimePoint last_any_cloud_response{};
+    bool has_ping_response{false};
+    TimePoint last_ping_response{};
+    Duration offline_margin{};
+    std::uint64_t next_cycle_id{1};
+    PingCycleState ping_cycle{};
+    PingCycleState scheduled_ping{};
+  };
+
+  static int StateRank(LocalConnectivityState state) noexcept;
+  static LocalConnectivityState BaseStateForPriority(
+      PriorityConnectivityState const& state, Duration interval,
+      Duration offline_margin, TimePoint now) noexcept;
+  static LocalConnectivityState ApplyPingGrace(
+      LocalConnectivityState base, PingCycleState const& active,
+      PingCycleState const& scheduled, TimePoint now) noexcept;
+  static LocalConnectivityReason ReasonForState(
+      LocalConnectivityState state, bool grace_active) noexcept;
+
+  LocalConnectivityState PriorityState(std::size_t priority,
+                                       TimePoint now) const noexcept;
+  void ClearPriorityRuntimeState(std::size_t priority) noexcept;
   void ClearAllLocalConnectivityState() noexcept;
+  void AdvanceAnyCloudResponse(std::size_t priority, TimePoint at) noexcept;
+  void ClearPingCycleIfMatch(std::size_t priority,
+                             std::uint64_t cycle_id) noexcept;
+  Duration PingIntervalFor(std::size_t priority) const noexcept;
   void IncrementSuspendBlock();
   void DecrementSuspendBlock();
 
   RequestPolicy::Variant rx_targets_;
   std::array<RxTiming, kMaxRxServerPriorities> rx_timings_;
+  std::array<PriorityConnectivityState, kMaxRxServerPriorities> priorities_{};
 
   bool can_suspend_{true};
   std::uint8_t suspend_block_count_{};
-  bool has_successful_cloud_response_{false};
-  TimePoint last_successful_cloud_response_{};
-  Duration last_success_ping_interval_{};
-  std::array<PingFlightState, kMaxRxServerPriorities> ping_flights_{};
 
   Event<void()> suspend_allowed_event_;
 };

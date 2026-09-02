@@ -44,17 +44,20 @@ PingCloudServers::ServerPing::ServerPing(AeContext const& ae_context,
 
   auto const& timings = policy_->rx_timings()[priority_];
   timing_conf_ = timings.conf;
+  BindConnectivityHook();
 
   // if it's to early for next rx wait a bit
   if ((timings.next_rx_point != TimePoint{}) &&
       (Now() < timings.next_rx_point)) {
     AE_TELED_DEBUG("Wait a bit for next rx point till {}",
                    timings.next_rx_point);
+    PlanNextPing(timings.next_rx_point);
     start_sub_ = ae_context_.scheduler().DelayedTask([&]() { Start(); },
                                                      timings.next_rx_point);
   } else {
     // acquire suspend for first ping
     ping_blocker_ = policy_->AcquireSuspendBlock();
+    PlanNextPing(Now());
     start_sub_ = ae_context_.scheduler().Task([&]() { Start(); });
   }
 }
@@ -63,6 +66,11 @@ PingCloudServers::ServerPing::~ServerPing() = default;
 
 void PingCloudServers::ServerPing::Stop() {
   stop_ = true;
+
+  if (active_cycle_id_ != 0) {
+    policy_->ReportPingCancelled(priority_, active_cycle_id_);
+    active_cycle_id_ = 0;
+  }
 
   waiter_.reset();
   start_sub_.Reset();
@@ -140,13 +148,30 @@ auto PingCloudServers::ServerPing::MakePing() {
 
           // run ping request and open rx capability at send
           auto const current_time = Now();
-          policy_->ReportPingDispatched(current_time, c->ResponseTimeout(),
-                                        priority_);
+          if (scheduled_cycle_id_ != 0) {
+            active_cycle_id_ = scheduled_cycle_id_;
+            scheduled_cycle_id_ = 0;
+          } else if (active_cycle_id_ == 0) {
+            active_cycle_id_ = policy_->AllocatePingCycleId(priority_);
+            auto const holds =
+                policy_->InspectLocalConnectivity(current_time).state;
+            policy_->ReportPingPlanned(priority_, active_cycle_id_, current_time,
+                                       current_time + PlanDispatchSlack(),
+                                       holds);
+          }
+          policy_->ReportPingDispatched(priority_, active_cycle_id_, current_time,
+                                        c->ResponseTimeout());
           ping_->Start(current_time);
           OpenRxWindow();
           if (timing_conf_.interval > Duration{}) {
             next_ping_time_ = current_time + timing_conf_.interval - guard;
             policy_->ReportNextServiceTime(priority_, next_ping_time_);
+            scheduled_cycle_id_ = policy_->AllocatePingCycleId(priority_);
+            auto const holds =
+                policy_->InspectLocalConnectivity(current_time).state;
+            policy_->ReportPingPlanned(
+                priority_, scheduled_cycle_id_, current_time,
+                next_ping_time_ + PlanDispatchSlack(), holds);
           } else {
             next_ping_time_ = TimePoint::max();
           }
@@ -220,20 +245,24 @@ void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
         using T = std::decay_t<decltype(value)>;
         if constexpr (std::is_same_v<T, Ok<Duration>>) {
           c->channel_statistics().AddResponseTime(value.value);
-          policy_->ReportSuccessfulCloudResponse(Now(), timing_conf_.interval,
-                                                 priority_);
+          policy_->ReportSuccessfulPingResponse(priority_, active_cycle_id_,
+                                                Now());
+          active_cycle_id_ = 0;
           ScheduleRxWindowClose(
               ComputeRxWindowCloseTime(Now(), timing_conf_.rx_window));
         } else if constexpr (std::is_same_v<T, Ping::LateDuration>) {
           AE_TELED_DEBUG("Got late ping duration");
           c->channel_statistics().AddResponseTime(value.duration);
-          policy_->ReportSuccessfulCloudResponse(Now(), timing_conf_.interval,
-                                                 priority_);
+          policy_->ReportSuccessfulPingResponse(priority_, active_cycle_id_,
+                                                Now());
+          active_cycle_id_ = 0;
           ScheduleRxWindowClose(
               ComputeRxWindowCloseTime(Now(), timing_conf_.rx_window));
         } else if constexpr (std::is_same_v<T, Error<int>>) {
           AE_TELED_ERROR("Ping error!");
-          policy_->ReportPingCompletedWithoutSuccess(Now(), priority_);
+          policy_->ReportPingCompletedWithoutSuccess(priority_, active_cycle_id_,
+                                                     Now());
+          active_cycle_id_ = 0;
           // Error 1 = write failure before/at send: close RX immediately.
           // Other errors (e.g. timeout after write): close at now + window.
           if (value.error == 1) {
@@ -245,7 +274,9 @@ void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
           ScheduleRestream();
         } else {
           AE_TELED_ERROR("Ping error!");
-          policy_->ReportPingCompletedWithoutSuccess(Now(), priority_);
+          policy_->ReportPingCompletedWithoutSuccess(priority_, active_cycle_id_,
+                                                     Now());
+          active_cycle_id_ = 0;
           ScheduleRxWindowClose(
               ComputeRxWindowCloseTime(Now(), timing_conf_.rx_window));
           ScheduleRestream();
@@ -284,6 +315,32 @@ void PingCloudServers::ServerPing::ScheduleRestream() {
     }
     restream_blocker_.Reset();
   });
+}
+
+void PingCloudServers::ServerPing::BindConnectivityHook() {
+  auto* cc = cloud_sc_->client_connection();
+  if (cc != nullptr) {
+    cc->BindConnectivityPolicy(*policy_, priority_);
+  }
+}
+
+Duration PingCloudServers::ServerPing::PlanDispatchSlack() const noexcept {
+  if (timing_conf_.interval <= Duration{}) {
+    return std::chrono::milliseconds{50};
+  }
+  auto const quarter = timing_conf_.interval / 4;
+  auto const cap = std::chrono::milliseconds{500};
+  return quarter < cap ? quarter : cap;
+}
+
+void PingCloudServers::ServerPing::PlanNextPing(TimePoint scheduled_at) {
+  if (stop_ || timing_conf_.interval <= Duration{}) {
+    return;
+  }
+  active_cycle_id_ = policy_->AllocatePingCycleId(priority_);
+  auto const holds = policy_->InspectLocalConnectivity(Now()).state;
+  policy_->ReportPingPlanned(priority_, active_cycle_id_, Now(),
+                             scheduled_at + PlanDispatchSlack(), holds);
 }
 
 PingCloudServers::PingCloudServers(

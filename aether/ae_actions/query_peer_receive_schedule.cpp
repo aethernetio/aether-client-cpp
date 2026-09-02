@@ -84,13 +84,6 @@ void QueryPeerReceiveSchedule::OnCloud(Result<Cloud::ptr, int> result) {
 void QueryPeerReceiveSchedule::StartQuery() {
   query_state_.Begin();
   timing_subs_.clear();
-  if (client_ != nullptr && client_->connectivity_policy().is_valid()) {
-    auto const& timings = client_->connectivity_policy()->rx_timings();
-    if (!timings.empty()) {
-      query_state_.receive_window = timings.front().conf.rx_window;
-      query_state_.ping_interval = timings.front().conf.interval;
-    }
-  }
 
   cloud_request_.emplace(
       ae_context_,

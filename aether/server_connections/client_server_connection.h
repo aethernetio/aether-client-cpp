@@ -72,6 +72,9 @@ class ClientServerConnection {
   WriteAction& AuthorizedApiCall(SubApi<AuthorizedApi> auth_api);
   ClientApiSafe& client_safe_api();
 
+  void BindConnectivityPolicy(class ClientConnectivityPolicy& policy,
+                              std::size_t priority);
+
   ServerConnection& server_connection();
 
  private:
@@ -89,6 +92,9 @@ class ClientServerConnection {
 
   client_server_connection_internal ::BufferedServerConnection
       server_connection_;
+
+  std::size_t connectivity_priority_{};
+  class ClientConnectivityPolicy* connectivity_policy_{nullptr};
 };
 }  // namespace ae
 
