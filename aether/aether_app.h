@@ -22,11 +22,11 @@
 #include <optional>
 #include <type_traits>
 
+#include "aether-objects/obj/domain.h"
+#include "aether-objects/ptr/ptr.h"
 #include "aether/common.h"
 #include "aether/config.h"
 #include "aether/memory.h"
-#include "aether/obj/domain.h"
-#include "aether/ptr/ptr.h"
 
 #include "aether/actions/action.h"  // IWYU pragma: keep
 #include "aether/events/events.h"   // IWYU pragma: keep

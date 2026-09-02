@@ -18,8 +18,8 @@
 
 #include <utility>
 
+#include "aether-objects/obj/obj_ptr.h"
 #include "aether/client.h"
-#include "aether/obj/obj_ptr.h"
 #include "aether/registration_cloud.h"
 #include "aether/server.h"
 

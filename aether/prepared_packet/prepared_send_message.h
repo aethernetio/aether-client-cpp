@@ -13,9 +13,9 @@
 #include "aether-miscpp/reflect/reflect.h"
 #include "aether-miscpp/types/result.h"
 
+#include "aether-objects/obj/obj_ptr.h"
 #include "aether/crypto/crypto_nonce.h"
 #include "aether/crypto/key.h"
-#include "aether/obj/obj_ptr.h"
 #include "aether/types/address.h"
 #include "aether/types/server_id.h"
 #include "aether/types/uid.h"

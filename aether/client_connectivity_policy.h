@@ -22,9 +22,11 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "aether-objects/obj/obj.h"
+
+#include "aether/clock.h"
 #include "aether/config.h"
 #include "aether/events/events.h"
-#include "aether/obj/obj.h"
 
 #include "aether/cloud_connections/request_policy.h"
 

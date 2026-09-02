@@ -16,8 +16,8 @@
 
 #include "aether/server_connections/channel_select_action.h"
 
+#include "aether-objects/ptr/ptr_view.h"
 #include "aether/channels/channel.h"
-#include "aether/ptr/ptr_view.h"
 #include "aether/server_connections/server_connection.h"
 
 #include "aether/tele.h"

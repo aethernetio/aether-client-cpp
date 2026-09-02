@@ -22,8 +22,8 @@
 #include "aether-miscpp/serialization/binary_archive.h"
 #include "aether-tele/traps/statistics_trap.h"
 
+#include "aether-objects/obj/obj.h"
 #include "aether/config.h"
-#include "aether/obj/obj.h"
 #include "aether/types/packed_size.h"
 
 namespace ae {

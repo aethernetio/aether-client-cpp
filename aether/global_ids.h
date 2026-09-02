@@ -17,7 +17,7 @@
 #ifndef AETHER_GLOBAL_IDS_H_
 #define AETHER_GLOBAL_IDS_H_
 
-#include "aether/obj/obj_id.h"
+#include "aether-objects/obj/obj_id.h"
 
 namespace ae {
 static constexpr ObjId kGlobalIdAdaptersOffset{1000};

@@ -19,11 +19,11 @@
 
 #include <optional>
 
+#include "aether-objects/obj/obj.h"
 #include "aether/channels/channel_statistics.h"
 #include "aether/channels/channels_types.h"
 #include "aether/executors/executors.h"
 #include "aether/memory.h"
-#include "aether/obj/obj.h"
 #include "aether/stream_api/istream.h"
 #include "aether/types/address.h"
 

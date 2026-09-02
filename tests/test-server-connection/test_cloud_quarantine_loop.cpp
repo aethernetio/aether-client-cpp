@@ -23,20 +23,20 @@
 
 #include <unity.h>
 
+#include "aether-objects/domain_storage/ram_domain_storage.h"
+#include "aether-objects/obj/domain.h"
+
 #include "aether/adapter_registry.h"
 #include "aether/ae_context.h"
 #include "aether/cloud.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
 #include "aether/config.h"
-#include "aether/obj/domain.h"
 #include "aether/server.h"
 #include "aether/server_connections/client_server_connection.h"
 #include "aether/server_connections/iserver_connection_factory.h"
 #include "aether/types/address.h"
 #include "aether/types/server_id.h"
 #include "aether/work_cloud.h"
-
-#include "tests/test-object-system/map_domain_storage.h"
 
 namespace ae {
 struct CloudServerConnectionsTestAccess {
@@ -112,7 +112,7 @@ struct CloudFixture {
                std::vector<ServerId> additional_server_ids = {},
                std::size_t max_connections = 1)
       : ae_ctx{ctx},
-        domain{Now(), storage},
+        domain{storage},
         registry{AdapterRegistry::ptr::Create(CreateWith{domain})},
         server{Server::ptr::Create(CreateWith{domain}, ServerId{7},
                                    std::vector<Endpoint>{}, registry)},
@@ -138,7 +138,7 @@ struct CloudFixture {
 
   TestContext ctx;
   AeContext ae_ctx;
-  MapDomainStorage storage;
+  RamDomainStorage storage;
   Domain domain;
   AdapterRegistry::ptr registry;
   Server::ptr server;

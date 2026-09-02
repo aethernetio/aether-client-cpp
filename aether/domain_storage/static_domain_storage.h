@@ -19,8 +19,8 @@
 
 #include <span>
 
+#include "aether-objects/obj/idomain_storage.h"
 #include "aether/domain_storage/static_object_types.h"
-#include "aether/obj/idomain_storage.h"
 
 #include "aether/tele.h"  // IWYU pragma: keep
 

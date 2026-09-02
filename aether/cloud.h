@@ -23,7 +23,7 @@
 
 #include "aether/events/events.h"
 
-#include "aether/obj/obj.h"
+#include "aether-objects/obj/obj.h"
 #include "aether/server.h"
 
 namespace ae {

@@ -17,19 +17,17 @@
 #ifndef AETHER_TYPES_ADDRESS_H_
 #define AETHER_TYPES_ADDRESS_H_
 
-#include <charconv>
-#include <cstddef>
+#include <charconv>  // IWYU pragma: keep
+#include <cstddef>   // IWYU pragma: keep
 #include <cstdint>
 #include <string>
-#include <string_view>
+#include <string_view>  // IWYU pragma: keep
 #include <type_traits>
 
 #include "aether-miscpp/reflect/reflect.h"
-#include "aether-miscpp/serialization/binary_archive.h"
 #include "aether-miscpp/serialization/serialization.h"
 
 #include "aether/config.h"
-#include "aether/obj/domain.h"
 #include "aether/types/variant_type.h"
 
 #include "aether-miscpp/format/format.h"

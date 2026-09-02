@@ -156,6 +156,14 @@ CPMAddPackage(
   EXCLUDE_FROM_ALL FALSE
 )
 CPMAddPackage(
+  NAME aether-objects
+  GIT_REPOSITORY "https://github.com/aethernetio/aether-objects.git"
+  GIT_TAG "main"
+  OPTIONS "AE_TELE_INSTALL ${AE_INSTALL}"
+          "AE_TELE_BUILD_TESTS ${AE_BUILD_TESTS}"
+  EXCLUDE_FROM_ALL FALSE
+)
+CPMAddPackage(
   NAME etl
   GIT_REPOSITORY "https://github.com/ETLCPP/etl.git"
   GIT_TAG "20.44.2"
@@ -189,7 +197,8 @@ target_link_libraries(${TARGET_NAME} PUBLIC
                                       etl
                                       stdexec
                                       ae-numeric
-                                      aether::miscpp)
+                                      aether::miscpp
+                                      aether::objects)
 
 message(STATUS "Aether build for CMAKE_SYSTEM_NAME: ${CMAKE_SYSTEM_NAME}")
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux"

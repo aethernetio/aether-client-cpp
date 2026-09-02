@@ -23,17 +23,17 @@
 
 #if AE_SUPPORT_REGISTRATION
 
+#  include "aether-objects/domain_storage/ram_domain_storage.h"
+#  include "aether-objects/obj/domain.h"
+
 #  include "aether/adapter_registry.h"
 #  include "aether/ae_context.h"
 #  include "aether/aether.h"
-#  include "aether/obj/domain.h"
 #  include "aether/registration/root_server_select_stream.h"
 #  include "aether/registration_cloud.h"
 #  include "aether/server.h"
 #  include "aether/types/address.h"
 #  include "aether/types/server_id.h"
-
-#  include "tests/test-object-system/map_domain_storage.h"
 
 namespace ae {
 
@@ -64,7 +64,7 @@ struct TestContext {
 struct Fixture {
   Fixture()
       : ae_context{context},
-        domain{Now(), storage},
+        domain{storage},
         aether{Aether::ptr::Create(CreateWith{domain})},
         registry{AdapterRegistry::ptr::Create(CreateWith{domain})},
         cloud{RegistrationCloud::ptr::Create(CreateWith{domain}, aether)} {}
@@ -79,7 +79,7 @@ struct Fixture {
 
   TestContext context;
   AeContext ae_context;
-  MapDomainStorage storage;
+  RamDomainStorage storage;
   Domain domain;
   Aether::ptr aether;
   AdapterRegistry::ptr registry;

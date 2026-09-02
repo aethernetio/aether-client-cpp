@@ -24,8 +24,8 @@
 #include "aether/tele.h"
 
 // IWYU pragma: begin_exports
-#include "aether/domain_storage/file_system_std_storage.h"
-#include "aether/domain_storage/ram_domain_storage.h"
+#include "aether-objects/domain_storage/file_system_std_storage.h"
+#include "aether-objects/domain_storage/ram_domain_storage.h"
 #include "aether/domain_storage/spifs_domain_storage.h"
 #include "aether/domain_storage/static_domain_storage.h"
 #include "aether/domain_storage/sync_domain_storage.h"
