@@ -18,8 +18,6 @@
 
 #include <chrono>
 
-#include "aether/cloud_connections/ping_schedule_guard.h"
-
 namespace ae {
 
 namespace {
@@ -121,86 +119,143 @@ ConnectivityStatus ClientConnectivityPolicy::GetStatus() const noexcept {
                             .next_service_time = next_service_time};
 }
 
+void ClientConnectivityPolicy::ClearPingFlight(
+    std::size_t priority) noexcept {
+  assert(priority < ping_flights_.size());
+  ping_flights_[priority] = {};
+}
+
+void ClientConnectivityPolicy::ClearAllLocalConnectivityState() noexcept {
+  last_successful_cloud_response_ = {};
+  last_success_ping_interval_ = {};
+  ping_flights_.fill({});
+}
+
 void ClientConnectivityPolicy::ResetRxTimings() {
   for (auto& t : rx_timings_) {
     t.next_rx_point = {};
     t.recordet_at = {};
   }
-  last_successful_cloud_response_ = {};
-  local_online_until_ = {};
-  pending_ping_deadline_ = {};
-  pings_in_flight_ = 0;
+  ClearAllLocalConnectivityState();
 }
 
-void ClientConnectivityPolicy::ReportSuccessfulCloudResponse(TimePoint at) {
+void ClientConnectivityPolicy::ReportSuccessfulCloudResponse(
+    TimePoint at, Duration ping_interval, std::size_t priority) {
+  assert(priority < ping_flights_.size());
   last_successful_cloud_response_ = at;
-  auto const window = MaxReceiveWindow();
-  local_online_until_ = ComputeRxWindowCloseTime(at, window);
-  if (pings_in_flight_ > 0) {
-    --pings_in_flight_;
+  if (ping_interval > Duration{}) {
+    last_success_ping_interval_ = ping_interval;
   }
-  if (pings_in_flight_ == 0) {
-    pending_ping_deadline_ = {};
-  }
+  ClearPingFlight(priority);
 }
 
-void ClientConnectivityPolicy::ReportPingDispatched(
-    TimePoint send_time, Duration response_timeout) {
-  ++pings_in_flight_;
-  auto const resolve_at = send_time + response_timeout;
-  if (pending_ping_deadline_ == TimePoint{} ||
-      resolve_at > pending_ping_deadline_) {
-    pending_ping_deadline_ = resolve_at;
+bool ClientConnectivityPolicy::WasBridgingOnlineAt(
+    TimePoint when, std::size_t skip_priority) const noexcept {
+  if (HasRecentCloudResponse(when)) {
+    return true;
   }
-}
-
-void ClientConnectivityPolicy::ReportPingCompletedWithoutSuccess(TimePoint at) {
-  if (pings_in_flight_ > 0) {
-    --pings_in_flight_;
-  }
-  if (pings_in_flight_ == 0) {
-    pending_ping_deadline_ = {};
-  }
-}
-
-Duration ClientConnectivityPolicy::MaxReceiveWindow() const noexcept {
-  Duration window{};
-  for (auto const& t : rx_timings_) {
-    if (t.conf.rx_window > window) {
-      window = t.conf.rx_window;
+  for (std::size_t i = 0; i < ping_flights_.size(); ++i) {
+    if (i == skip_priority) {
+      continue;
     }
-  }
-  return window;
-}
-
-bool ClientConnectivityPolicy::IsLocallyOnline(TimePoint now) const noexcept {
-  auto const window = MaxReceiveWindow();
-  if (local_online_until_ != TimePoint{} && now < local_online_until_) {
-    return true;
-  }
-  if (pings_in_flight_ > 0 && pending_ping_deadline_ != TimePoint{} &&
-      now < pending_ping_deadline_) {
-    return true;
+    auto const& flight = ping_flights_[i];
+    if (flight.in_flight && flight.bridges_online && when < flight.deadline) {
+      return true;
+    }
   }
   return false;
 }
 
+void ClientConnectivityPolicy::ReportPingDispatched(
+    TimePoint send_time, Duration response_timeout, std::size_t priority) {
+  assert(priority < ping_flights_.size());
+  auto& flight = ping_flights_[priority];
+  flight.in_flight = true;
+  flight.deadline = send_time + response_timeout;
+  flight.bridges_online = WasBridgingOnlineAt(send_time, priority);
+}
+
+void ClientConnectivityPolicy::ReportPingCompletedWithoutSuccess(
+    TimePoint at, std::size_t priority) {
+  (void)at;
+  assert(priority < ping_flights_.size());
+  ClearPingFlight(priority);
+}
+
+bool ClientConnectivityPolicy::HasRecentCloudResponse(
+    TimePoint now) const noexcept {
+  if (last_successful_cloud_response_ == TimePoint{}) {
+    return false;
+  }
+  if (last_success_ping_interval_ <= Duration{}) {
+    return false;
+  }
+  return AgeSince(now, last_successful_cloud_response_) <
+         last_success_ping_interval_;
+}
+
+bool ClientConnectivityPolicy::HasActiveInFlightGrace(
+    TimePoint now) const noexcept {
+  for (auto const& flight : ping_flights_) {
+    if (flight.in_flight && flight.bridges_online && now < flight.deadline) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool ClientConnectivityPolicy::IsLocallyOnline(TimePoint now) const noexcept {
+  return HasRecentCloudResponse(now) || HasActiveInFlightGrace(now);
+}
+
+std::optional<Duration>
+ClientConnectivityPolicy::TimeSinceLastSuccessfulCloudResponse(
+    TimePoint now) const noexcept {
+  if (last_successful_cloud_response_ == TimePoint{}) {
+    return std::nullopt;
+  }
+  return AgeSince(now, last_successful_cloud_response_);
+}
+
 LocalConnectivitySnapshot ClientConnectivityPolicy::InspectLocalConnectivity(
     TimePoint now) const noexcept {
-  auto const window = MaxReceiveWindow();
   auto const age = AgeSince(now, last_successful_cloud_response_);
-  bool const online = IsLocallyOnline(now);
-  LocalConnectivitySnapshot snapshot{
+  bool const has_success = last_successful_cloud_response_ != TimePoint{};
+  TimePoint recent_success_until{};
+  if (has_success && last_success_ping_interval_ > Duration{}) {
+    recent_success_until =
+        last_successful_cloud_response_ + last_success_ping_interval_;
+  }
+
+  std::uint32_t in_flight_count = 0;
+  TimePoint pending_deadline{};
+  bool grace_active = false;
+  for (auto const& flight : ping_flights_) {
+    if (!flight.in_flight) {
+      continue;
+    }
+    ++in_flight_count;
+    if (flight.bridges_online && now < flight.deadline) {
+      grace_active = true;
+      if (pending_deadline == TimePoint{} ||
+          flight.deadline > pending_deadline) {
+        pending_deadline = flight.deadline;
+      }
+    }
+  }
+
+  return LocalConnectivitySnapshot{
       .now = now,
+      .has_success = has_success,
+      .age_since_last_success = age,
+      .ping_interval = last_success_ping_interval_,
       .last_success = last_successful_cloud_response_,
-      .local_online_until = local_online_until_,
-      .pending_ping_deadline = pending_ping_deadline_,
-      .pings_in_flight = pings_in_flight_,
-      .receive_window = window,
-      .age = age,
-      .online = online,
+      .recent_success_until = recent_success_until,
+      .pings_in_flight = in_flight_count,
+      .pending_ping_deadline = pending_deadline,
+      .in_flight_grace_active = grace_active,
+      .online = IsLocallyOnline(now),
   };
-  return snapshot;
 }
 
 void ClientConnectivityPolicy::ReportNextServiceTime(
@@ -215,17 +270,13 @@ void ClientConnectivityPolicy::ReportNextServiceTime(
 void ClientConnectivityPolicy::ResetRuntimeState() {
   auto current_time = Now();
   for (auto& t : rx_timings_) {
-    // if clock was reset, also reset next rx points
     if (current_time < t.recordet_at) {
       t.next_rx_point = {};
       t.recordet_at = {};
     }
   }
   if (current_time < last_successful_cloud_response_) {
-    last_successful_cloud_response_ = {};
-    local_online_until_ = {};
-    pending_ping_deadline_ = {};
-    pings_in_flight_ = 0;
+    ClearAllLocalConnectivityState();
   }
 }
 

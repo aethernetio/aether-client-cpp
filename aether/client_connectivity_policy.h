@@ -21,6 +21,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 
 #include "aether/config.h"
 #include "aether/events/events.h"
@@ -63,15 +64,23 @@ struct ConnectivityStatus {
   TimePoint next_service_time;
 };
 
+struct PingFlightState {
+  bool in_flight{false};
+  bool bridges_online{false};
+  TimePoint deadline{};
+};
+
 struct LocalConnectivitySnapshot {
   TimePoint now{};
+  bool has_success{false};
+  Duration age_since_last_success{};
+  Duration ping_interval{};
   TimePoint last_success{};
-  TimePoint local_online_until{};
-  TimePoint pending_ping_deadline{};
+  TimePoint recent_success_until{};
   std::uint32_t pings_in_flight{};
-  Duration receive_window{};
-  Duration age{};
-  bool online{};
+  TimePoint pending_ping_deadline{};
+  bool in_flight_grace_active{false};
+  bool online{false};
 };
 
 class ClientConnectivityPolicy : public Obj {
@@ -143,26 +152,31 @@ class ClientConnectivityPolicy : public Obj {
   ConnectivityStatus GetStatus() const noexcept;
   void ResetRxTimings();
 
-  // Updated when a cloud ping receives a successful response locally.
-  void ReportSuccessfulCloudResponse(TimePoint at = Now());
-  // Called when a ping is sent; keeps local online through in-flight RTT.
-  void ReportPingDispatched(TimePoint send_time, Duration response_timeout);
-  // Called when a ping completes without a successful cloud response.
-  void ReportPingCompletedWithoutSuccess(TimePoint at = Now());
+  void ReportSuccessfulCloudResponse(TimePoint at, Duration ping_interval,
+                                     std::size_t priority);
+  void ReportPingDispatched(TimePoint send_time, Duration response_timeout,
+                            std::size_t priority);
+  void ReportPingCompletedWithoutSuccess(TimePoint at, std::size_t priority);
+
   TimePoint last_successful_cloud_response() const noexcept {
     return last_successful_cloud_response_;
   }
-  TimePoint local_online_until() const noexcept { return local_online_until_; }
-  // True while a recent successful cloud response is inside the configured
-  // receive window, or while an in-flight ping may still renew it.
+  std::optional<Duration> TimeSinceLastSuccessfulCloudResponse(
+      TimePoint now = Now()) const noexcept;
   bool IsLocallyOnline(TimePoint now = Now()) const noexcept;
-  LocalConnectivitySnapshot InspectLocalConnectivity(TimePoint now) const noexcept;
+  LocalConnectivitySnapshot InspectLocalConnectivity(
+      TimePoint now = Now()) const noexcept;
 
   SuspendBlocker AcquireSuspendBlock();
   void ReportNextServiceTime(std::size_t priority, TimePoint next_service_time);
 
  private:
-  Duration MaxReceiveWindow() const noexcept;
+  bool WasBridgingOnlineAt(TimePoint when, std::size_t skip_priority) const
+      noexcept;
+  bool HasRecentCloudResponse(TimePoint now) const noexcept;
+  bool HasActiveInFlightGrace(TimePoint now) const noexcept;
+  void ClearPingFlight(std::size_t priority) noexcept;
+  void ClearAllLocalConnectivityState() noexcept;
   void ResetRuntimeState();
   void IncrementSuspendBlock();
   void DecrementSuspendBlock();
@@ -173,9 +187,8 @@ class ClientConnectivityPolicy : public Obj {
   bool can_suspend_{true};
   std::uint8_t suspend_block_count_{};
   TimePoint last_successful_cloud_response_{};
-  TimePoint local_online_until_{};
-  TimePoint pending_ping_deadline_{};
-  std::uint32_t pings_in_flight_{};
+  Duration last_success_ping_interval_{};
+  std::array<PingFlightState, kMaxRxServerPriorities> ping_flights_{};
 
   Event<void()> suspend_allowed_event_;
 };
