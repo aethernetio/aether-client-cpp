@@ -17,6 +17,7 @@
 #include "aether/client_connectivity_policy.h"
 
 #include <chrono>
+#include <utility>
 
 namespace ae {
 
@@ -25,7 +26,6 @@ constexpr auto kDefaultTiming = RxTiming{
     .conf = RxTimingConf::Every(std::chrono::milliseconds{AE_PING_INTERVAL_MS}),
     .next_rx_point = {},
     .recordet_at = {}};
-;
 
 std::array<RxTiming, kMaxRxServerPriorities> MakeDefaultRxTimings() {
   std::array<RxTiming, kMaxRxServerPriorities> timings{};
@@ -45,6 +45,7 @@ ClientConnectivityPolicy::RxTimingConfig::ForAllPriorities(RxTimingConf conf) {
   for (auto& item : policy_->rx_timings_) {
     item.conf = conf;
   }
+  policy_->ApplyDesiredToBoundServers(conf);
   return *this;
 }
 
@@ -92,6 +93,32 @@ auto ClientConnectivityPolicy::ConfigureRxTimings(
   return RxTimingConfig{*this, std::move(targets)};
 }
 
+void ClientConnectivityPolicy::ConfigureServerRxTiming(
+    ServerId server_id, RxTimingConf conf,
+    std::uint8_t rtt_reliability_percentile) {
+  auto& state = EnsureServerPresence(server_id);
+  auto const timing_changed = (state.desired.interval != conf.interval) ||
+                              (state.desired.rx_window != conf.rx_window);
+  state.desired = conf;
+  state.has_user_rx_timing = true;
+  state.rtt_reliability_percentile =
+      rtt_reliability_percentile == 0 ? kDefaultRttReliabilityPercentile
+                                      : rtt_reliability_percentile;
+  if (state.rtt_reliability_percentile > 100) {
+    state.rtt_reliability_percentile = 100;
+  }
+  // Confirmed schedule stays old until a Pong for a Ping carrying the new conf.
+  if (timing_changed) {
+    state.config_change_pending = true;
+  }
+  server_rx_timing_changed_event_.Emit(server_id);
+}
+
+void ClientConnectivityPolicy::SetServerSelectedForAggregate(ServerId server_id,
+                                                             bool selected) {
+  EnsureServerPresence(server_id).selected_for_aggregate = selected;
+}
+
 ClientConnectivityPolicy::SuspendBlocker
 ClientConnectivityPolicy::AcquireSuspendBlock() {
   return SuspendBlocker{*this};
@@ -104,6 +131,14 @@ ConnectivityStatus ClientConnectivityPolicy::GetStatus() const noexcept {
     next_service_time = std::min(
         next_service_time,
         (t.recordet_at > current_time) ? current_time : t.next_rx_point);
+  }
+  for (auto const& [id, state] : server_presence_) {
+    static_cast<void>(id);
+    if (state.has_confirmed_schedule &&
+        state.confirmed_window_open_local != TimePoint{}) {
+      next_service_time =
+          std::min(next_service_time, state.confirmed_window_open_local);
+    }
   }
   return ConnectivityStatus{.can_suspend = can_suspend_,
                             .suspend_block_count = suspend_block_count_,
@@ -126,13 +161,139 @@ void ClientConnectivityPolicy::ReportNextServiceTime(
   t.recordet_at = Now();
 }
 
+ServerPresenceState& ClientConnectivityPolicy::EnsureServerPresence(
+    ServerId server_id) {
+  auto it = server_presence_.find(server_id);
+  if (it == server_presence_.end()) {
+    ServerPresenceState state{};
+    // Seed desired from priority-0 default / first priority slot.
+    state.desired = rx_timings_.front().conf;
+    it = server_presence_.emplace(server_id, state).first;
+  }
+  return it->second;
+}
+
+ServerPresenceState const* ClientConnectivityPolicy::FindServerPresence(
+    ServerId server_id) const noexcept {
+  auto it = server_presence_.find(server_id);
+  return it == server_presence_.end() ? nullptr : &it->second;
+}
+
+ServerPresenceState* ClientConnectivityPolicy::FindServerPresence(
+    ServerId server_id) noexcept {
+  auto it = server_presence_.find(server_id);
+  return it == server_presence_.end() ? nullptr : &it->second;
+}
+
+void ClientConnectivityPolicy::ConfirmServerPong(ServerId server_id,
+                                                 TimePoint send_time,
+                                                 TimePoint pong_time,
+                                                 Duration interval,
+                                                 Duration rx_window) {
+  auto& state = EnsureServerPresence(server_id);
+  auto const schedule =
+      MakeConfirmedSchedule(send_time, pong_time, interval, rx_window);
+  state.has_confirmed_schedule = true;
+  state.confirmed_interval = schedule.interval;
+  state.confirmed_rx_window = schedule.rx_window;
+  state.confirmed_ping_send_time = schedule.ping_send_time;
+  state.confirmed_pong_receive_time = schedule.pong_receive_time;
+  state.confirmed_window_open_local = schedule.window_open_local;
+  state.confirmed_window_close_local = schedule.window_close_local;
+  state.online = true;
+  state.config_change_pending = (state.desired.interval != interval) ||
+                                (state.desired.rx_window != rx_window);
+}
+
+void ClientConnectivityPolicy::MarkServerOffline(ServerId server_id,
+                                                 TimePoint now) {
+  auto* state = FindServerPresence(server_id);
+  if (state == nullptr) {
+    return;
+  }
+  if (state->has_confirmed_schedule && now > state->confirmed_window_close_local) {
+    state->online = false;
+  }
+}
+
+void ClientConnectivityPolicy::ClearServerPresence(ServerId server_id) {
+  server_presence_.erase(server_id);
+}
+
+void ClientConnectivityPolicy::InvalidateConfirmedSchedule(ServerId server_id) {
+  auto* state = FindServerPresence(server_id);
+  if (state == nullptr) {
+    return;
+  }
+  state->has_confirmed_schedule = false;
+  state->online = false;
+  state->confirmed_window_open_local = {};
+  state->confirmed_window_close_local = {};
+}
+
+bool ClientConnectivityPolicy::IsLocallyOnline() const noexcept {
+  return IsLocallyOnline(Now());
+}
+
+bool ClientConnectivityPolicy::IsLocallyOnline(TimePoint now) const noexcept {
+  for (auto const& [id, state] : server_presence_) {
+    static_cast<void>(id);
+    if (!state.selected_for_aggregate) {
+      continue;
+    }
+    if (IsConfirmedWindowOnline(state.has_confirmed_schedule, now,
+                                state.confirmed_window_close_local)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool ClientConnectivityPolicy::IsServerLocallyOnline(
+    ServerId server_id, TimePoint now) const noexcept {
+  auto const* state = FindServerPresence(server_id);
+  if (state == nullptr) {
+    return false;
+  }
+  return IsConfirmedWindowOnline(state->has_confirmed_schedule, now,
+                                 state->confirmed_window_close_local);
+}
+
+void ClientConnectivityPolicy::RefreshOnlineFlags(TimePoint now) {
+  for (auto& [id, state] : server_presence_) {
+    static_cast<void>(id);
+    state.online = IsConfirmedWindowOnline(state.has_confirmed_schedule, now,
+                                           state.confirmed_window_close_local);
+  }
+}
+
 void ClientConnectivityPolicy::ResetRuntimeState() {
   auto current_time = Now();
   for (auto& t : rx_timings_) {
-    // if clock was reset, also reset next rx points
     if (current_time < t.recordet_at) {
       t.next_rx_point = {};
       t.recordet_at = {};
+    }
+  }
+  for (auto& [id, state] : server_presence_) {
+    static_cast<void>(id);
+    if (current_time < state.confirmed_pong_receive_time) {
+      state.has_confirmed_schedule = false;
+      state.online = false;
+      state.confirmed_window_open_local = {};
+      state.confirmed_window_close_local = {};
+    }
+  }
+}
+
+void ClientConnectivityPolicy::ApplyDesiredToBoundServers(RxTimingConf conf) {
+  for (auto& [id, state] : server_presence_) {
+    static_cast<void>(id);
+    auto const timing_changed = (state.desired.interval != conf.interval) ||
+                                (state.desired.rx_window != conf.rx_window);
+    state.desired = conf;
+    if (timing_changed) {
+      state.config_change_pending = true;
     }
   }
 }

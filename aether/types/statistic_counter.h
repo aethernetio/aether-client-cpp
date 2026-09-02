@@ -81,21 +81,28 @@ class StatisticsCounter final {
   [[nodiscard]] TValue percentile() const {
     static_assert((Percentile >= 0) && (Percentile <= 100),
                   "Percentile must be in [0,100]% range");
+    return PercentileValue(Percentile);
+  }
 
-    if constexpr (Percentile == 0) {
+  /**
+   * \brief Runtime percentile accessor (0..100). Same semantics as the
+   * compile-time template overload.
+   */
+  [[nodiscard]] TValue PercentileValue(std::size_t percentile) const {
+    assert(percentile <= 100);
+    assert(!value_buffer_.empty());
+    if (percentile == 0) {
       return min();
-    } else if constexpr (Percentile == 100) {
-      return max();
-    } else {
-      assert(!value_buffer_.empty());
-      auto sorted_list = value_buffer_;
-      std::sort(std::begin(sorted_list), std::end(sorted_list), Comparator{});
-
-      auto index = static_cast<typename decltype(sorted_list)::size_type>(  //
-          std::ceil(static_cast<double>(sorted_list.size() - 1) * Percentile /
-                    100.0));
-      return sorted_list[index];
     }
+    if (percentile == 100) {
+      return max();
+    }
+    auto sorted_list = value_buffer_;
+    std::sort(std::begin(sorted_list), std::end(sorted_list), Comparator{});
+    auto index = static_cast<typename decltype(sorted_list)::size_type>(  //
+        std::ceil(static_cast<double>(sorted_list.size() - 1) * percentile /
+                  100.0));
+    return sorted_list[index];
   }
 
   std::size_t size() const { return value_buffer_.size(); }

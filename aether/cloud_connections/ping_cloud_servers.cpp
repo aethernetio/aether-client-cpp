@@ -17,17 +17,37 @@
 #include "aether/cloud_connections/ping_cloud_servers.h"
 
 #include <cassert>
+#include <chrono>
 #include <type_traits>
 #include <variant>
 
 #if AE_ENABLE_PING
 
 #  include "aether/channels/channel.h"
+#  include "aether/cloud_connections/cloud_connections_tele.h"
 #  include "aether/executors/executors.h"
 
-#  include "aether/cloud_connections/cloud_connections_tele.h"
-
 namespace ae {
+
+namespace {
+
+char const* AttemptKindName(PingAttemptKind kind) {
+  switch (kind) {
+    case PingAttemptKind::kInitial:
+      return "INITIAL";
+    case PingAttemptKind::kPrefix1:
+      return "PREFIX1";
+    case PingAttemptKind::kPrefix2:
+      return "PREFIX2";
+    case PingAttemptKind::kRetry:
+      return "RETRY";
+    case PingAttemptKind::kRecovery:
+      return "RECOVERY";
+  }
+  return "UNKNOWN";
+}
+
+}  // namespace
 
 PingCloudServers::ServerPing::ServerPing(AeContext const& ae_context,
                                          ClientConnectivityPolicy& policy,
@@ -36,41 +56,90 @@ PingCloudServers::ServerPing::ServerPing(AeContext const& ae_context,
     : ae_context_{ae_context},
       policy_{&policy},
       cloud_sc_{&cloud_sc},
+      server_id_{cloud_sc.server_id()},
       priority_{priority} {
   assert(priority < policy_->rx_timings().size() &&
          "Server ping priority should be in timings range");
 
-  auto const& timings = policy_->rx_timings()[priority_];
-  timing_conf_ = timings.conf;
-
-  // if it's to early for next rx wait a bit
-  if ((timings.next_rx_point != TimePoint{}) &&
-      (Now() < timings.next_rx_point)) {
-    AE_TELED_DEBUG("Wait a bit for next rx point till {}",
-                   timings.next_rx_point);
-    start_sub_ = ae_context_.scheduler().DelayedTask([&]() { Start(); },
-                                                     timings.next_rx_point);
-  } else {
-    // acquire suspend for first ping
-    ping_blocker_ = policy_->AcquireSuspendBlock();
-    start_sub_ = ae_context_.scheduler().Task([&]() { Start(); });
+  auto& presence = policy_->EnsureServerPresence(server_id_);
+  if (!presence.has_user_rx_timing) {
+    presence.desired = policy_->rx_timings()[priority_].conf;
   }
+  active_conf_ = presence.desired;
+  policy_->SetServerSelectedForAggregate(server_id_, true);
+
+  ping_blocker_ = policy_->AcquireSuspendBlock();
+  start_sub_ = ae_context_.scheduler().Task(
+      [this]() { StartAttempt(PingAttemptKind::kInitial); });
 }
 
 PingCloudServers::ServerPing::~ServerPing() = default;
 
 void PingCloudServers::ServerPing::Stop() {
   stop_ = true;
-
+  AbandonInFlight();
   waiter_.reset();
   start_sub_.Reset();
+  attempt_timeout_sub_.Reset();
   rx_window_sub_.Reset();
   restream_sub_.Reset();
   link_state_sub_.Reset();
-
   ping_blocker_.Reset();
   rx_window_blocker_.Reset();
   restream_blocker_.Reset();
+  policy_->SetServerSelectedForAggregate(server_id_, false);
+  policy_->InvalidateConfirmedSchedule(server_id_);
+  policy_->RefreshOnlineFlags(Now());
+}
+
+void PingCloudServers::ServerPing::NotifyConfigChanged() {
+  if (stop_) {
+    return;
+  }
+  auto* presence = policy_->FindServerPresence(server_id_);
+  if (presence == nullptr) {
+    return;
+  }
+  active_conf_ = presence->desired;
+  if (attempt_in_flight_) {
+    return;
+  }
+  if (presence->config_change_pending || !presence->has_confirmed_schedule) {
+    ScheduleNext(Now(), PingAttemptKind::kInitial);
+    return;
+  }
+  auto const rtt = SelectedRtt();
+  auto const prefix1 =
+      ComputePrefix1Time(presence->confirmed_window_open_local, rtt);
+  ScheduleNext(prefix1 > Now() ? prefix1 : Now(), PingAttemptKind::kPrefix1);
+}
+
+void PingCloudServers::ServerPing::ScheduleNext(TimePoint when,
+                                                PingAttemptKind kind) {
+  if (stop_) {
+    return;
+  }
+  next_ping_time_ = when;
+  policy_->ReportNextServiceTime(priority_, next_ping_time_);
+  auto* presence = policy_->FindServerPresence(server_id_);
+  if (presence != nullptr) {
+    presence->current_attempt_kind = kind;
+  }
+  start_sub_ = ae_context_.scheduler().DelayedTask(
+      [this, kind]() noexcept { StartAttempt(kind); }, when);
+}
+
+void PingCloudServers::ServerPing::StartAttempt(PingAttemptKind kind) {
+  if (stop_ || attempt_in_flight_) {
+    return;
+  }
+  auto& presence = policy_->EnsureServerPresence(server_id_);
+  active_conf_ = presence.desired;
+  presence.current_attempt_kind = kind;
+  ++presence.current_attempt_id;
+  active_attempt_id_ = presence.current_attempt_id;
+  active_attempt_kind_ = kind;
+  Start();
 }
 
 template <typename F>
@@ -102,45 +171,45 @@ auto PingCloudServers::ServerPing::EnsureLinked() {
       });
 }
 
-auto PingCloudServers::ServerPing::MakePing() {
-  return ex::let_value([&]() noexcept {
-    return ex::create<ex::set_value_t(), ex::set_error_t(int)>(
-        [&](auto& ctx) noexcept {
-          // make ping action with timeout based on response statistics
-          // and timing properties for current server RxTimings
-          // during the ping and rx window setup suspend blocker
-          // and save expected next_ping_time_
-          auto* cc = cloud_sc_->client_connection();
-          assert(cc != nullptr && "Client connection should exists");
+Duration PingCloudServers::ServerPing::SelectedRtt() const {
+  auto* cc = cloud_sc_->client_connection();
+  if (cc == nullptr) {
+    return std::chrono::milliseconds{AE_DEFAULT_RESPONSE_TIMEOUT_MS};
+  }
+  auto c = cc->server_connection().current_channel();
+  if (!c) {
+    return std::chrono::milliseconds{AE_DEFAULT_RESPONSE_TIMEOUT_MS};
+  }
+  auto const& stats = c->channel_statistics().response_time_statistics();
+  auto const* presence = policy_->FindServerPresence(server_id_);
+  auto const pct = presence == nullptr ? kDefaultRttReliabilityPercentile
+                                       : presence->rtt_reliability_percentile;
+  if (stats.empty()) {
+    return std::chrono::milliseconds{AE_DEFAULT_RESPONSE_TIMEOUT_MS};
+  }
+  return stats.PercentileValue(pct);
+}
 
-          auto c = cc->server_connection().current_channel();
-          if (c == nullptr) {
-            AE_TELED_ERROR("Current channel value invalid");
-            return ex::set_error(std::move(ctx.receiver), 2);
-          }
+Duration PingCloudServers::ServerPing::AttemptTimeout(Duration rtt) const {
+  // Scheduler treats selected RTT as the attempt window; floor with guard.
+  if (rtt <= Duration{}) {
+    return kLocalPresenceGuard;
+  }
+  return rtt;
+}
 
-          ping_.emplace(ae_context_, *cloud_sc_, timing_conf_.interval,
-                        timing_conf_.rx_window, c->ResponseTimeout());
-
-          ping_blocker_ = policy_->AcquireSuspendBlock();
-          ping_->result_event().Subscribe(
-              [this](Ping::PingResult const& res) noexcept {
-                OnPingResult(res);
-                ping_blocker_.Reset();
-              });
-
-          // run ping request and open rx window
-          auto const current_time = Now();
-          ping_->Start(current_time);
-          OpenRxWindow(current_time);
-          next_ping_time_ = current_time + timing_conf_.interval;
-          policy_->ReportNextServiceTime(priority_, next_ping_time_);
-          AE_TELED_DEBUG("Next ping time for priority {} at {} after {}",
-                         priority_, next_ping_time_, timing_conf_.interval);
-
-          return ex::set_value(std::move(ctx.receiver));
-        });
-  });
+void PingCloudServers::ServerPing::AbandonInFlight() {
+  attempt_timeout_sub_.Reset();
+  if (ping_) {
+    ping_.reset();
+  }
+  attempt_in_flight_ = false;
+  ping_blocker_.Reset();
+  ++active_attempt_id_;
+  auto* presence = policy_->FindServerPresence(server_id_);
+  if (presence != nullptr) {
+    presence->current_attempt_id = active_attempt_id_;
+  }
 }
 
 void PingCloudServers::ServerPing::Start() {
@@ -159,8 +228,64 @@ void PingCloudServers::ServerPing::Start() {
                 }
                 return ex::just();
               }) |
-          MakePing() |
-          // track Stop command
+          ex::let_value([&]() noexcept {
+            return ex::create<ex::set_value_t(), ex::set_error_t(int)>(
+                [&](auto& ctx) noexcept {
+                  auto* cc = cloud_sc_->client_connection();
+                  assert(cc != nullptr && "Client connection should exists");
+                  auto c = cc->server_connection().current_channel();
+                  if (c == nullptr) {
+                    AE_TELED_ERROR("Current channel value invalid");
+                    return ex::set_error(std::move(ctx.receiver), 2);
+                  }
+
+                  auto const rtt = SelectedRtt();
+                  auto const timeout = AttemptTimeout(rtt);
+                  auto& presence = policy_->EnsureServerPresence(server_id_);
+                  active_conf_ = presence.desired;
+                  auto const percentile = presence.rtt_reliability_percentile;
+
+                  active_sent_interval_ = active_conf_.interval;
+                  active_sent_window_ = active_conf_.rx_window;
+                  active_send_time_ = Now();
+                  attempt_in_flight_ = true;
+
+                  ping_.emplace(ae_context_, *cloud_sc_, active_sent_interval_,
+                                active_sent_window_, timeout);
+
+                  ping_blocker_ = policy_->AcquireSuspendBlock();
+                  auto const attempt_id = active_attempt_id_;
+                  auto const send_time = active_send_time_;
+                  auto const sent_interval = active_sent_interval_;
+                  auto const sent_window = active_sent_window_;
+                  ping_->result_event().Subscribe(
+                      [this, attempt_id, send_time, sent_interval,
+                       sent_window](Ping::PingResult const& res) noexcept {
+                        OnPingResult(attempt_id, send_time, sent_interval,
+                                     sent_window, res);
+                      });
+
+                  AE_TELED_DEBUG(
+                      "PING_ATTEMPT server {} id {} kind {} send {}",
+                      server_id_, attempt_id,
+                      AttemptKindName(active_attempt_kind_), send_time);
+                  AE_TELED_DEBUG(
+                      "RTT server {} percentile {} selected_rtt {}",
+                      server_id_, static_cast<unsigned>(percentile), rtt);
+
+                  ping_->Start(send_time);
+
+                  // Scheduler failure of this attempt at selected RTT — not
+                  // OFFLINE.
+                  attempt_timeout_sub_ = ae_context_.scheduler().DelayedTask(
+                      [this, attempt_id]() noexcept {
+                        OnAttemptTimeout(attempt_id);
+                      },
+                      send_time + timeout);
+
+                  return ex::set_value(std::move(ctx.receiver));
+                });
+          }) |
           ex::let_value(
               [&]() noexcept
                   -> ex::variant_sender<decltype(ex::just()),
@@ -171,26 +296,36 @@ void PingCloudServers::ServerPing::Start() {
                 return ex::just();
               }),
       [this]<typename R>(std::optional<R>&& res) noexcept {
-        if (res && res->IsOk()) {
-          // repeat start on next_ping_time_
-          start_sub_ = ae_context_.scheduler().DelayedTask(
-              [&]() noexcept { Start(); },  // ~['_']~
-              next_ping_time_);
-        } else if (res && res->IsErr()) {
+        if (res && res->IsErr()) {
           AE_TELED_ERROR("Ping start error {}", std::move(res)->error());
-        } else {
+          attempt_in_flight_ = false;
+          ScheduleRestream();
+          ScheduleNext(Now() + SelectedRtt(), PingAttemptKind::kRecovery);
+        } else if (!(res && res->IsOk())) {
           AE_TELED_DEBUG("Server ping stopped");
         }
       });
 }
 
-void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
+void PingCloudServers::ServerPing::OnPingResult(std::uint64_t attempt_id,
+                                                TimePoint send_time,
+                                                Duration sent_interval,
+                                                Duration sent_window,
+                                                Ping::PingResult const& res) {
+  if (stop_) {
+    return;
+  }
+  // Late / abandoned attempts must not roll confirmed schedule backwards.
+  if (!IsCurrentPingAttempt(active_attempt_id_, attempt_id)) {
+    AE_TELED_DEBUG("Ignoring stale ping result attempt {}", attempt_id);
+    return;
+  }
+
   auto* cc = cloud_sc_->client_connection();
   if (cc == nullptr) {
     AE_TELED_ERROR("Client connection is null");
     return;
   }
-
   auto c = cc->server_connection().current_channel();
   if (!c) {
     AE_TELED_ERROR("Connection channel is null");
@@ -198,35 +333,105 @@ void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
   }
 
   std::visit(
-      [this, c](auto const& value) {
+      [this, c, send_time, sent_interval, sent_window](auto const& value) {
         using T = std::decay_t<decltype(value)>;
         if constexpr (std::is_same_v<T, Ok<Duration>>) {
           c->channel_statistics().AddResponseTime(value.value);
+          ApplyConfirmedPong(send_time, Now(), sent_interval, sent_window);
         } else if constexpr (std::is_same_v<T, Ping::LateDuration>) {
-          AE_TELED_DEBUG("Got late ping duration");
+          AE_TELED_DEBUG("Got late ping duration for active attempt");
           c->channel_statistics().AddResponseTime(value.duration);
+          ApplyConfirmedPong(send_time, Now(), sent_interval, sent_window);
         } else {
           AE_TELED_ERROR("Ping error!");
+          AbandonInFlight();
           ScheduleRestream();
+          AfterFailedAttempt();
         }
       },
       res);
 }
 
-void PingCloudServers::ServerPing::OpenRxWindow(TimePoint sent_time) {
-  // keep rx window suspend block for timing_.rx_window time
+void PingCloudServers::ServerPing::ApplyConfirmedPong(TimePoint send_time,
+                                                     TimePoint pong_time,
+                                                     Duration sent_interval,
+                                                     Duration sent_window) {
+  attempt_timeout_sub_.Reset();
+  attempt_in_flight_ = false;
+  ping_blocker_.Reset();
+
+  policy_->ConfirmServerPong(server_id_, send_time, pong_time, sent_interval,
+                             sent_window);
+  auto* presence = policy_->FindServerPresence(server_id_);
+  assert(presence != nullptr);
+  AE_TELED_DEBUG(
+      "SCHEDULE confirmed server {} open {} close {} interval {} window {}",
+      server_id_, presence->confirmed_window_open_local,
+      presence->confirmed_window_close_local, sent_interval, sent_window);
+  AE_TELED_DEBUG("STATUS server {} ONLINE", server_id_);
+
+  // Contractual window is a minimum listen guarantee, not a transport close.
+  HoldRxUntil(presence->confirmed_window_close_local);
+
+  auto const now = Now();
+  auto const rtt = SelectedRtt();
+  auto const plan = PlanAfterSuccessfulPong(
+      presence->confirmed_window_open_local, now, rtt,
+      presence->config_change_pending);
+  ScheduleNext(plan.when, plan.kind);
+}
+
+void PingCloudServers::ServerPing::OnAttemptTimeout(std::uint64_t attempt_id) {
+  if (stop_ || !IsCurrentPingAttempt(active_attempt_id_, attempt_id) ||
+      !attempt_in_flight_) {
+    return;
+  }
+  AE_TELED_DEBUG("Ping attempt {} kind {} timed out for scheduler", attempt_id,
+                 AttemptKindName(active_attempt_kind_));
+  AbandonInFlight();
+  AfterFailedAttempt();
+}
+
+void PingCloudServers::ServerPing::AfterFailedAttempt() {
+  if (stop_) {
+    return;
+  }
+  auto now = Now();
+  policy_->RefreshOnlineFlags(now);
+  auto* presence = policy_->FindServerPresence(server_id_);
+  if (presence == nullptr) {
+    ScheduleNext(now + SelectedRtt(), PingAttemptKind::kRecovery);
+    return;
+  }
+
+  auto const rtt = SelectedRtt();
+  if (presence->config_change_pending && presence->has_confirmed_schedule) {
+    ScheduleNext(now, PingAttemptKind::kInitial);
+    return;
+  }
+
+  auto const plan = PlanAfterFailedAttempt(
+      presence->has_confirmed_schedule, presence->confirmed_window_open_local,
+      presence->confirmed_window_close_local, active_attempt_kind_, now, rtt);
+  if (plan.mark_offline) {
+    policy_->MarkServerOffline(server_id_, now);
+    AE_TELED_DEBUG("STATUS server {} OFFLINE after window close {}", server_id_,
+                   presence->confirmed_window_close_local);
+  }
+  ScheduleNext(plan.when, plan.kind);
+}
+
+void PingCloudServers::ServerPing::HoldRxUntil(TimePoint until) {
+  // rx_window is a minimum contractual guarantee. Do not close transport.
   rx_window_blocker_ = policy_->AcquireSuspendBlock();
   rx_window_sub_ = ae_context_.scheduler().DelayedTask(
-      [this]() { rx_window_blocker_.Reset(); },
-      sent_time + timing_conf_.rx_window);
+      [this]() { rx_window_blocker_.Reset(); }, until);
 }
 
 void PingCloudServers::ServerPing::ScheduleRestream() {
   if (stop_) {
     return;
   }
-
-  // TODO: should we block till restream?
   restream_blocker_ = policy_->AcquireSuspendBlock();
   restream_sub_ = ae_context_.scheduler().Task([this]() {
     auto* cc = cloud_sc_->client_connection();
@@ -254,6 +459,9 @@ PingCloudServers::PingCloudServers(
   server_quarantine_released_sub_ =
       cloud_server_connections_->server_quarantine_release_event().Subscribe(
           MethodPtr<&PingCloudServers::ServerQuarantineReleased>{this});
+  server_rx_timing_changed_sub_ =
+      policy_->server_rx_timing_changed_event().Subscribe(
+          MethodPtr<&PingCloudServers::OnServerRxTimingChanged>{this});
   ServersUpdate();
 }
 
@@ -301,6 +509,7 @@ void PingCloudServers::ReconcileServer(CloudServerConnection& cloud_sc) {
                                                 priority));
     return;
   }
+  it->second->NotifyConfigChanged();
 }
 
 void PingCloudServers::ServerQuarantined(CloudServerConnection* cloud_sc) {
@@ -321,6 +530,13 @@ void PingCloudServers::ServerQuarantineReleased(
   auto it = server_pings_.find(cloud_sc->server_id());
   if (it != server_pings_.end()) {
     server_pings_.erase(it);
+  }
+}
+
+void PingCloudServers::OnServerRxTimingChanged(ServerId server_id) {
+  auto it = server_pings_.find(server_id);
+  if (it != server_pings_.end() && !it->second->stopped()) {
+    it->second->NotifyConfigChanged();
   }
 }
 }  // namespace ae

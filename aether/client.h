@@ -63,6 +63,8 @@ class Client : public Obj {
   ServerConnectionManager& server_connection_manager();
   CloudServerConnections& cloud_connection();
   ClientConnectivityPolicy::ptr const& connectivity_policy();
+  // Read-only aggregate Local ONLINE (no side effects).
+  bool IsLocallyOnline() const;
   P2pMessageStreamManager& message_stream_manager();
 
   void SetConfig(std::string client_id, Uid parent_uid, Uid uid,

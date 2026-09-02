@@ -21,12 +21,17 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <map>
+#include <optional>
 
+#include "aether/cloud_connections/local_presence_schedule.h"
+#include "aether/cloud_connections/request_policy.h"
 #include "aether/config.h"
 #include "aether/events/events.h"
 #include "aether/obj/obj.h"
+#include "aether/types/server_id.h"
 
-#include "aether/cloud_connections/request_policy.h"
+#include <chrono>
 
 namespace ae {
 
@@ -63,6 +68,27 @@ struct ConnectivityStatus {
   TimePoint next_service_time;
 };
 
+struct ServerPresenceState {
+  RxTimingConf desired{
+      RxTimingConf::Every(std::chrono::milliseconds{AE_PING_INTERVAL_MS})};
+  std::uint8_t rtt_reliability_percentile{kDefaultRttReliabilityPercentile};
+
+  bool has_confirmed_schedule{false};
+  Duration confirmed_interval{};
+  Duration confirmed_rx_window{};
+  TimePoint confirmed_ping_send_time{};
+  TimePoint confirmed_pong_receive_time{};
+  TimePoint confirmed_window_open_local{};
+  TimePoint confirmed_window_close_local{};
+
+  bool online{false};
+  std::uint64_t current_attempt_id{0};
+  PingAttemptKind current_attempt_kind{PingAttemptKind::kInitial};
+  bool config_change_pending{false};
+  bool selected_for_aggregate{true};
+  bool has_user_rx_timing{false};
+};
+
 class ClientConnectivityPolicy : public Obj {
   AE_OBJECT(ClientConnectivityPolicy, Obj, 0)
 
@@ -77,6 +103,7 @@ class ClientConnectivityPolicy : public Obj {
     RxTimingConfig& ForPriority(RxTimingConf conf) {
       static_assert(Priority < kMaxRxServerPriorities);
       policy_->rx_timings_[Priority].conf = conf;
+      policy_->ApplyDesiredToBoundServers(conf);
       return *this;
     }
 
@@ -118,6 +145,13 @@ class ClientConnectivityPolicy : public Obj {
   RxTimingConfig ConfigureRxTimings(
       RequestPolicy::Variant targets = RequestPolicy::All{});
 
+  // Per-server runtime config. Does not invent ONLINE until a confirming Pong.
+  void ConfigureServerRxTiming(
+      ServerId server_id, RxTimingConf conf,
+      std::uint8_t rtt_reliability_percentile = kDefaultRttReliabilityPercentile);
+
+  void SetServerSelectedForAggregate(ServerId server_id, bool selected);
+
   RequestPolicy::Variant const& rx_targets() const noexcept {
     return rx_targets_;
   }
@@ -128,6 +162,9 @@ class ClientConnectivityPolicy : public Obj {
   Event<void()>::Subscriber suspend_allowed_event() noexcept {
     return EventSubscriber{suspend_allowed_event_};
   }
+  Event<void(ServerId)>::Subscriber server_rx_timing_changed_event() noexcept {
+    return EventSubscriber{server_rx_timing_changed_event_};
+  }
 
   ConnectivityStatus GetStatus() const noexcept;
   void ResetRxTimings();
@@ -135,18 +172,43 @@ class ClientConnectivityPolicy : public Obj {
   SuspendBlocker AcquireSuspendBlock();
   void ReportNextServiceTime(std::size_t priority, TimePoint next_service_time);
 
+  ServerPresenceState& EnsureServerPresence(ServerId server_id);
+  ServerPresenceState const* FindServerPresence(ServerId server_id) const noexcept;
+  ServerPresenceState* FindServerPresence(ServerId server_id) noexcept;
+
+  // Confirm schedule from a successful Pong (measured RTT).
+  void ConfirmServerPong(ServerId server_id, TimePoint send_time,
+                         TimePoint pong_time, Duration interval,
+                         Duration rx_window);
+
+  void MarkServerOffline(ServerId server_id, TimePoint now);
+  void ClearServerPresence(ServerId server_id);
+  // Drop confirmed schedule (quarantine / unusable) but keep desired timing.
+  void InvalidateConfirmedSchedule(ServerId server_id);
+
+  // Read-only. No side effects. Aggregate: ONLINE iff any selected usable
+  // server has a confirmed schedule that has not expired.
+  bool IsLocallyOnline() const noexcept;
+  bool IsLocallyOnline(TimePoint now) const noexcept;
+  bool IsServerLocallyOnline(ServerId server_id, TimePoint now) const noexcept;
+
+  void RefreshOnlineFlags(TimePoint now);
+
  private:
   void ResetRuntimeState();
   void IncrementSuspendBlock();
   void DecrementSuspendBlock();
+  void ApplyDesiredToBoundServers(RxTimingConf conf);
 
   RequestPolicy::Variant rx_targets_;
   std::array<RxTiming, kMaxRxServerPriorities> rx_timings_;
+  std::map<ServerId, ServerPresenceState> server_presence_;
 
   bool can_suspend_{true};
   std::uint8_t suspend_block_count_{};
 
   Event<void()> suspend_allowed_event_;
+  Event<void(ServerId)> server_rx_timing_changed_event_;
 };
 
 }  // namespace ae

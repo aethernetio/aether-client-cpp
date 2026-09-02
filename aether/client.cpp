@@ -92,6 +92,13 @@ ClientConnectivityPolicy::ptr const& Client::connectivity_policy() {
   return connectivity_policy_;
 }
 
+bool Client::IsLocallyOnline() const {
+  if (!connectivity_policy_.is_valid()) {
+    return false;
+  }
+  return connectivity_policy_.Load()->IsLocallyOnline();
+}
+
 P2pMessageStreamManager& Client::message_stream_manager() {
   if (!message_stream_manager_) {
     message_stream_manager_ = std::make_unique<P2pMessageStreamManager>(
