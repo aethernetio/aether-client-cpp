@@ -217,11 +217,22 @@ function makeApi(Module) {
     startPeriodic: cwrap('aether_bpp_start_periodic', null, ['number']),
     stop: cwrap('aether_bpp_stop', null, []),
     clearProfile: cwrap('aether_bpp_clear_profile', null, []),
+    flushStorage: cwrap('aether_bpp_flush_storage', null, []),
+    storagePersisted: cwrap('aether_bpp_storage_persisted', 'number', []),
     getUid: cwrap('aether_bpp_get_uid', 'number', []),
     getState: cwrap('aether_bpp_get_state', 'number', []),
     getStats: cwrap('aether_bpp_get_stats_json', 'number', []),
     getProfile: cwrap('aether_bpp_get_profile', 'number', []),
   };
+}
+
+function wantAutostart() {
+  const params = new URLSearchParams(window.location.search);
+  const v = params.get('autostart');
+  if (v === '0' || v === 'false') {
+    return false;
+  }
+  return true;
 }
 
 async function boot() {
@@ -238,7 +249,9 @@ async function boot() {
     const gateway = qs('gateway').value.trim();
     const profile = profileName();
     api.configure(profile, gateway, transport);
-    api.start();
+    if (wantAutostart()) {
+      api.start();
+    }
 
     window.__AETHER_TEST__ = {
       getUid: () => utf8FromPtr(Module, api.getUid()),
@@ -257,6 +270,8 @@ async function boot() {
       startPeriodic: (ms) => api.startPeriodic(ms),
       stop: () => api.stop(),
       clearProfile: () => api.clearProfile(),
+      flushStorage: () => api.flushStorage(),
+      storagePersisted: () => api.storagePersisted() === 1,
       configure: (p, g, t) => api.configure(p, g, t),
       start: () => api.start(),
     };

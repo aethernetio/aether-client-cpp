@@ -340,10 +340,15 @@ class BrowserPingPongApp {
     if (state_ != AppState::kIdle && state_ != AppState::kError) {
       return;
     }
+    storage_persisted_ = false;
+    auto const session = ++session_gen_;
     SetState(AppState::kLoadingStorage, "Acquiring profile lock");
 #if defined(__EMSCRIPTEN__)
     emscripten_storage::AcquireProfileLock(
-        profile_, [this](emscripten_storage::OpResult lock_result) {
+        profile_, [this, session](emscripten_storage::OpResult lock_result) {
+          if (session != session_gen_) {
+            return;
+          }
           if (!lock_result.ok) {
             SetState(AppState::kError,
                      std::string{"Profile lock failed: "} +
@@ -357,7 +362,10 @@ class BrowserPingPongApp {
             return;
           }
           emscripten_storage::SyncFromIdb(
-              [this](emscripten_storage::OpResult result) {
+              [this, session](emscripten_storage::OpResult result) {
+                if (session != session_gen_) {
+                  return;
+                }
                 if (!result.ok) {
                   SetState(AppState::kError,
                            std::string{"IDBFS sync failed: "} + result.message);
@@ -437,6 +445,8 @@ class BrowserPingPongApp {
   }
 
   void ClearProfile() {
+    ++session_gen_;
+    storage_persisted_ = false;
     Stop();
     stream_.reset();
     stream_subs_.Reset();
@@ -444,39 +454,47 @@ class BrowserPingPongApp {
     select_sub_.Reset();
     client_ = {};
     uid_str_.clear();
+    // Invalidate the cooperative loop before destroying AetherApp.
+    if (loop_alive_) {
+      *loop_alive_ = false;
+      loop_alive_.reset();
+    }
+    loop_started_ = false;
     if (app_) {
       app_->Exit(0);
       app_.reset();
     }
-    loop_started_ = false;
 #if defined(__EMSCRIPTEN__)
-    EM_ASM(
-        {
-          try {
-            var path = UTF8ToString($0);
-            function rmrf(p) {
-              if (!FS.analyzePath(p).exists) {
-                return;
+    auto const mount = emscripten_storage::ProfileMountPath();
+    if (!mount.empty()) {
+      EM_ASM(
+          {
+            try {
+              var path = UTF8ToString($0);
+              function rmrf(p) {
+                if (!FS.analyzePath(p).exists) {
+                  return;
+                }
+                var st = FS.stat(p);
+                if (FS.isDir(st.mode)) {
+                  (FS.readdir(p) || []).forEach(function(name) {
+                    if (name === '.' || name === '..') {
+                      return;
+                    }
+                    rmrf(p + '/' + name);
+                  });
+                  FS.rmdir(p);
+                } else {
+                  FS.unlink(p);
+                }
               }
-              var st = FS.stat(p);
-              if (FS.isDir(st.mode)) {
-                (FS.readdir(p) || []).forEach(function(name) {
-                  if (name === '.' || name === '..') {
-                    return;
-                  }
-                  rmrf(p + '/' + name);
-                });
-                FS.rmdir(p);
-              } else {
-                FS.unlink(p);
-              }
+              rmrf(path + '/state');
+            } catch (e) {
             }
-            rmrf(path + '/state');
-          } catch (e) {
-          }
-        },
-        emscripten_storage::ProfileMountPath().c_str());
-    emscripten_storage::SyncToIdb([](emscripten_storage::OpResult) {});
+          },
+          mount.c_str());
+      emscripten_storage::SyncToIdb([](emscripten_storage::OpResult) {});
+    }
     emscripten_storage::ReleaseProfileLock();
 #endif
     stats_ = {};
@@ -484,6 +502,33 @@ class BrowserPingPongApp {
     expected_pong_sequence_ = 1;
     SetState(AppState::kIdle, "Profile cleared");
     RefreshStatsJson();
+  }
+
+  void FlushStorage() {
+#if defined(__EMSCRIPTEN__)
+    if (!app_) {
+      return;
+    }
+    auto const session = session_gen_;
+    app_->aether().Save();
+    emscripten_storage::SyncToIdb(
+        [this, session](emscripten_storage::OpResult result) {
+          if (session != session_gen_) {
+            return;
+          }
+          storage_persisted_ = result.ok;
+          if (!result.ok) {
+            SetState(AppState::kError,
+                     std::string{"IDBFS persist failed: "} + result.message);
+          } else if (state_ == AppState::kReady ||
+                     state_ == AppState::kConnected) {
+            SetState(state_, state_detail_);
+          }
+          RefreshStatsJson();
+        });
+#else
+    storage_persisted_ = true;
+#endif
   }
 
   void OnTick() {
@@ -498,7 +543,8 @@ class BrowserPingPongApp {
     }
 #if defined(__EMSCRIPTEN__)
     static int ticks = 0;
-    if (++ticks % 40 == 0) {
+    if (++ticks % 40 == 0 && app_ && storage_persisted_) {
+      app_->aether().Save();
       emscripten_storage::SyncToIdb([](emscripten_storage::OpResult) {});
     }
 #endif
@@ -508,6 +554,7 @@ class BrowserPingPongApp {
   char const* state() const { return state_str_.c_str(); }
   char const* stats_json() const { return stats_json_.c_str(); }
   char const* profile() const { return profile_.c_str(); }
+  bool IsStoragePersisted() const { return storage_persisted_; }
 
  private:
   void SetState(AppState state, std::string detail) {
@@ -572,16 +619,21 @@ class BrowserPingPongApp {
     if (!loop_started_) {
       loop_started_ = true;
 #if defined(__EMSCRIPTEN__)
-      RunAetherBrowserLoop(*app_, [this]() { OnTick(); });
+      loop_alive_ = std::make_shared<bool>(true);
+      RunAetherBrowserLoop(*app_, loop_alive_, [this]() { OnTick(); });
 #endif
     }
 
     SetState(AppState::kSelectClient, "SelectClient in progress");
     auto client_id = std::string{"browser-"} + profile_;
+    auto const session = session_gen_;
     auto& action =
         app_->aether()->SelectClient(kParentUid, std::move(client_id));
     select_sub_ = action.result_event().Subscribe(
-        [this](Result<ObjPtr<Client>, int> const& result) {
+        [this, session](Result<ObjPtr<Client>, int> const& result) {
+          if (session != session_gen_) {
+            return;
+          }
           if (!result) {
             SetState(AppState::kError,
                      Format("SelectClient failed code={}", result.error()));
@@ -592,9 +644,36 @@ class BrowserPingPongApp {
           MaybeWarnTcpUdpOnly();
           InjectBrowserEndpointIntoWorkCloud();
           ListenForIncomingPorts();
+          SetState(AppState::kReady, "Persisting registered client");
+          RefreshStatsJson();
+          PersistRegisteredClient(session);
+        });
+  }
+
+  void PersistRegisteredClient(std::uint64_t session) {
+#if defined(__EMSCRIPTEN__)
+    if (!app_ || session != session_gen_) {
+      return;
+    }
+    app_->aether().Save();
+    emscripten_storage::SyncToIdb(
+        [this, session](emscripten_storage::OpResult result) {
+          if (session != session_gen_) {
+            return;
+          }
+          if (!result.ok) {
+            SetState(AppState::kError,
+                     std::string{"IDBFS persist failed: "} + result.message);
+            return;
+          }
+          storage_persisted_ = true;
           SetState(AppState::kReady, "Set remote UID and Connect");
           RefreshStatsJson();
         });
+#else
+    storage_persisted_ = true;
+    SetState(AppState::kReady, "Set remote UID and Connect");
+#endif
   }
 
   void MaybeWarnTcpUdpOnly() {
@@ -619,27 +698,45 @@ class BrowserPingPongApp {
     if (!cloud.is_valid()) {
       return;
     }
+
+    // Keep only browser-capable endpoints. Production clouds advertise IPv4
+    // WSS alongside NamedAddr; browsers cannot open TLS to raw IPs (SAN
+    // mismatch) and BrowserAccessPoint already skips them — strip them so
+    // channel selection / peer GetCloud paths stay on NamedAddr/BrowserAddr.
     bool has_browser = false;
     for (auto const& [id, entry] : cloud->servers()) {
       auto server = entry.server.Load();
       if (!server) {
         continue;
       }
+      std::vector<Endpoint> kept;
+      kept.reserve(server->endpoints.size());
       for (auto const& ep : server->endpoints) {
-        if (EndpointIsBrowserCapable(ep)) {
-          has_browser = true;
-          break;
+        if (!EndpointIsBrowserCapable(ep)) {
+          continue;
+        }
+        if (ep.address.Index() == AddrVersion::kNamed) {
+          NamedAddr named = ep.address.Get<NamedAddr>();
+          BrowserAddr browser{};
+          browser.representation_version = 1;
+          browser.hostname = named.name;
+          browser.path = "/";
+          kept.push_back(
+              Endpoint{{Address{browser}, ep.port}, ep.protocol});
+        } else {
+          kept.push_back(ep);
         }
       }
-      if (has_browser) {
-        break;
+      if (!kept.empty()) {
+        has_browser = true;
+        server->endpoints = std::move(kept);
       }
     }
     if (has_browser) {
       return;
     }
 
-    // Map NamedAddr work hosts to production WSS :9023 path "/".
+    // Legacy: work cloud advertised only TCP/UDP NamedAddr — map to WSS:9023.
     std::vector<Endpoint> mapped;
     for (auto const& [id, entry] : cloud->servers()) {
       auto server = entry.server.Load();
@@ -685,7 +782,11 @@ class BrowserPingPongApp {
     new_port_sub_ =
         client_->message_stream_manager().new_port_event().Subscribe(
             [this](P2pPortHandle handle) {
-              if (stream_) {
+              // Prefer inbound acceptance when we do not yet have a linked
+              // stream. If Connect() already opened an outbound stream that is
+              // not linked, replace it with the inbound handle.
+              if (stream_ &&
+                  stream_->stream_info().link_state == LinkState::kLinked) {
                 return;
               }
               BindStream(std::make_shared<P2pStream>(
@@ -812,22 +913,27 @@ class BrowserPingPongApp {
   }
 
   void RefreshStatsJson() {
-    char rtt_buf[256];
+    char buf[768];
     std::snprintf(
-        rtt_buf, sizeof(rtt_buf),
+        buf, sizeof(buf),
+        "{\"sent\":%llu,\"pong_received\":%llu,\"timed_out\":%llu,"
+        "\"duplicate\":%llu,\"out_of_order\":%llu,\"malformed\":%llu,"
         "\"rtt_latest_ms\":%.3f,\"rtt_min_ms\":%.3f,\"rtt_avg_ms\":%.3f,"
         "\"rtt_p50_ms\":%.3f,\"rtt_p90_ms\":%.3f,\"rtt_p95_ms\":%.3f,"
-        "\"rtt_p99_ms\":%.3f,\"rtt_max_ms\":%.3f",
+        "\"rtt_p99_ms\":%.3f,\"rtt_max_ms\":%.3f,\"transport\":\"%s\","
+        "\"reconnect_count\":%llu,\"cloud_tcp_udp_only\":%s}",
+        static_cast<unsigned long long>(stats_.sent),
+        static_cast<unsigned long long>(stats_.pong_received),
+        static_cast<unsigned long long>(stats_.timed_out),
+        static_cast<unsigned long long>(stats_.duplicate),
+        static_cast<unsigned long long>(stats_.out_of_order),
+        static_cast<unsigned long long>(stats_.malformed),
         stats_.rtt_latest_ms, stats_.rtt_min_ms, stats_.rtt_avg_ms,
         stats_.rtt_p50_ms, stats_.rtt_p90_ms, stats_.rtt_p95_ms,
-        stats_.rtt_p99_ms, stats_.rtt_max_ms);
-    stats_json_ = Format(
-        R"({{"sent":{},"pong_received":{},"timed_out":{},"duplicate":{},)"
-        R"("out_of_order":{},"malformed":{},{},"transport":"{}",)"
-        R"("reconnect_count":{},"cloud_tcp_udp_only":{}}})",
-        stats_.sent, stats_.pong_received, stats_.timed_out, stats_.duplicate,
-        stats_.out_of_order, stats_.malformed, rtt_buf, stats_.transport,
-        stats_.reconnect_count, cloud_tcp_udp_only_ ? "true" : "false");
+        stats_.rtt_p99_ms, stats_.rtt_max_ms, stats_.transport.c_str(),
+        static_cast<unsigned long long>(stats_.reconnect_count),
+        cloud_tcp_udp_only_ ? "true" : "false");
+    stats_json_ = buf;
   }
 
   AppState state_{AppState::kIdle};
@@ -842,9 +948,12 @@ class BrowserPingPongApp {
   Endpoint gateway_endpoint_{};
   bool cloud_tcp_udp_only_{false};
   bool loop_started_{false};
+  bool storage_persisted_{false};
   bool periodic_enabled_{false};
   bool was_linked_{false};
   bool seen_unlink_{false};
+  std::uint64_t session_gen_{0};
+  std::shared_ptr<bool> loop_alive_;
   int periodic_interval_ms_{200};
   int ping_timeout_ms_{kDefaultPingTimeoutMs};
   int payload_bytes_{kDefaultPayloadBytes};
@@ -922,6 +1031,18 @@ void aether_bpp_stop(void) { App().Stop(); }
 EMSCRIPTEN_KEEPALIVE
 #endif
 void aether_bpp_clear_profile(void) { App().ClearProfile(); }
+
+#if defined(__EMSCRIPTEN__)
+EMSCRIPTEN_KEEPALIVE
+#endif
+void aether_bpp_flush_storage(void) { App().FlushStorage(); }
+
+#if defined(__EMSCRIPTEN__)
+EMSCRIPTEN_KEEPALIVE
+#endif
+int aether_bpp_storage_persisted(void) {
+  return App().IsStoragePersisted() ? 1 : 0;
+}
 
 #if defined(__EMSCRIPTEN__)
 EMSCRIPTEN_KEEPALIVE

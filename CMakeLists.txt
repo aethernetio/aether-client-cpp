@@ -71,6 +71,14 @@ option(AE_BUILD_BROWSER_EXAMPLE "Build Emscripten browser_ping_pong example" Off
 if(EMSCRIPTEN OR CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
   set(AE_EMSCRIPTEN ON)
   include(${CMAKE_CURRENT_LIST_DIR}/cmake/emscripten-browser.cmake)
+  # Distillation alone calls domain_storage.CleanUp() on every Construct and
+  # wipes IndexedDB-backed state/. Filtration loads saved Aether when present.
+  if(NOT AE_FILTRATION)
+    set(AE_FILTRATION ON CACHE BOOL
+      "Filtration required for Emscripten IndexedDB profile persistence" FORCE)
+    message(STATUS
+      "AE_EMSCRIPTEN: forcing AE_FILTRATION=ON for domain persistence")
+  endif()
 else()
   set(AE_EMSCRIPTEN OFF)
 endif()

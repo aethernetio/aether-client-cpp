@@ -36,6 +36,8 @@ void aether_bpp_send_ping(void);
 void aether_bpp_start_periodic(int interval_ms);
 void aether_bpp_stop(void);
 void aether_bpp_clear_profile(void);
+void aether_bpp_flush_storage(void);
+int aether_bpp_storage_persisted(void);
 void aether_bpp_set_ping_timeout_ms(int timeout_ms);
 void aether_bpp_set_payload_bytes(int payload_bytes);
 

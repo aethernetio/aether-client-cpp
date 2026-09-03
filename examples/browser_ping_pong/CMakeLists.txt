@@ -46,7 +46,7 @@ ae_emscripten_browser_link_options(${TARGET_NAME})
 
 target_link_options(${TARGET_NAME} PRIVATE
   "SHELL:-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','UTF8ToString','stringToUTF8','lengthBytesUTF8','FS']"
-  "SHELL:-sEXPORTED_FUNCTIONS=['_malloc','_free','_main','_aether_bpp_configure','_aether_bpp_start','_aether_bpp_set_remote_uid','_aether_bpp_connect','_aether_bpp_send_ping','_aether_bpp_start_periodic','_aether_bpp_stop','_aether_bpp_clear_profile','_aether_bpp_set_ping_timeout_ms','_aether_bpp_set_payload_bytes','_aether_bpp_get_uid','_aether_bpp_get_state','_aether_bpp_get_stats_json','_aether_bpp_get_profile']"
+  "SHELL:-sEXPORTED_FUNCTIONS=['_malloc','_free','_main','_aether_bpp_configure','_aether_bpp_start','_aether_bpp_set_remote_uid','_aether_bpp_connect','_aether_bpp_send_ping','_aether_bpp_start_periodic','_aether_bpp_stop','_aether_bpp_clear_profile','_aether_bpp_flush_storage','_aether_bpp_storage_persisted','_aether_bpp_set_ping_timeout_ms','_aether_bpp_set_payload_bytes','_aether_bpp_get_uid','_aether_bpp_get_state','_aether_bpp_get_stats_json','_aether_bpp_get_profile']"
 )
 
 set(WEB_OUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/web")

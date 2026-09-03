@@ -21,6 +21,7 @@
 
 #  include <chrono>
 #  include <functional>
+#  include <memory>
 #  include <utility>
 
 #  include <emscripten.h>
@@ -33,12 +34,17 @@ namespace emscripten_main_loop_internal {
 
 struct LoopState {
   AetherApp* app{nullptr};
+  std::shared_ptr<bool> alive;
   std::function<void()> tick_hook;
   std::chrono::milliseconds max_slice{50};
 };
 
 inline void ScheduleTick(void* user_data) {
   auto* st = static_cast<LoopState*>(user_data);
+  if (!st->alive || !*st->alive || st->app == nullptr) {
+    delete st;
+    return;
+  }
   if (st->app->IsExited()) {
     delete st;
     return;
@@ -48,6 +54,11 @@ inline void ScheduleTick(void* user_data) {
   auto const next = st->app->Update(now);
   if (st->tick_hook) {
     st->tick_hook();
+  }
+
+  if (!st->alive || !*st->alive || st->app == nullptr || st->app->IsExited()) {
+    delete st;
+    return;
   }
 
   auto delay_ms = 0;
@@ -76,16 +87,29 @@ inline void ScheduleTick(void* user_data) {
  *   delay = clamp(next - now, 0, max_slice)
  *   setTimeout / emscripten_async_call(schedule, delay)
  *
- * \param app Aether application (must outlive the loop until Exit()).
+ * \param app Aether application (must outlive the loop until Exit() or
+ *            alive is cleared).
+ * \param alive Shared cancel flag; clear/false before destroying app.
  * \param tick_hook Optional per-iteration hook (UI poll, IDBFS flush, …).
  * \param max_slice Upper bound on delay between updates (default 50ms).
  */
 inline void RunAetherBrowserLoop(
-    AetherApp& app, std::function<void()> tick_hook = {},
+    AetherApp& app, std::shared_ptr<bool> alive,
+    std::function<void()> tick_hook = {},
     std::chrono::milliseconds max_slice = std::chrono::milliseconds{50}) {
   auto* state = new emscripten_main_loop_internal::LoopState{
-      &app, std::move(tick_hook), max_slice};
+      &app, std::move(alive), std::move(tick_hook), max_slice};
   emscripten_main_loop_internal::ScheduleTick(state);
+}
+
+/**
+ * \brief Convenience overload that keeps the loop alive for process lifetime.
+ */
+inline void RunAetherBrowserLoop(
+    AetherApp& app, std::function<void()> tick_hook = {},
+    std::chrono::milliseconds max_slice = std::chrono::milliseconds{50}) {
+  RunAetherBrowserLoop(app, std::make_shared<bool>(true), std::move(tick_hook),
+                       max_slice);
 }
 
 }  // namespace ae
