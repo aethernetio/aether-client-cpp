@@ -40,6 +40,7 @@ struct GlobalId {
   static constexpr ObjId kLoraModuleAdapter = kGlobalIdAdaptersOffset + 7;
   static constexpr ObjId kRegisterLoraModuleAdapter =
       kGlobalIdAdaptersOffset + 8;
+  static constexpr ObjId kBrowserAdapter = kGlobalIdAdaptersOffset + 9;
 
   static constexpr ObjId kClientFactory = kGlobalIdClientsOffset;
 

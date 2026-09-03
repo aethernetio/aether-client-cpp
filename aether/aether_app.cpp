@@ -25,9 +25,13 @@
 
 #include "aether/adapters/ethernet.h"
 #include "aether/adapters/wifi_adapter.h"
+#if defined(__EMSCRIPTEN__)
+#  include "aether/adapters/browser_adapter.h"
+#endif
 #include "aether/crypto.h"
 #include "aether/crypto/key.h"
 #include "aether/global_ids.h"
+#include "aether/poller/browser_poller.h"
 #include "aether/poller/epoll_poller.h"
 #include "aether/poller/freertos_poller.h"
 #include "aether/poller/kqueue_poller.h"
@@ -166,11 +170,19 @@ static AdapterRegistry::ptr AdapterRegistryFactory(
 }
 
 static Adapter::ptr DefaultAdapterFactory(AetherAppContext const& context) {
+#if defined(__EMSCRIPTEN__)
+  return BrowserAdapter::ptr::Create(
+      CreateWith{context.domain()}
+          .with_id(GlobalId::kBrowserAdapter)
+          .with_flags(ObjFlags::kUnloadedByDefault),
+      context.aether());
+#else
   return EthernetAdapter::ptr::Create(
       CreateWith{context.domain()}
           .with_id(GlobalId::kEthernetAdapter)
           .with_flags(ObjFlags::kUnloadedByDefault),
       context.aether(), context.poller(), context.dns_resolver());
+#endif
 }
 
 #  if AE_SUPPORT_REGISTRATION
@@ -226,7 +238,12 @@ static IPoller::ptr PollerFactory(AetherAppContext const& context) {
     return poller;
   }
 
-#  if defined EPOLL_POLLER_ENABLED
+#  if defined(BROWSER_POLLER_ENABLED)
+  return BrowserPoller::ptr::Create(
+      CreateWith{context.domain()}
+          .with_id(GlobalId::kPoller)
+          .with_flags(ObjFlags::kUnloadedByDefault));
+#  elif defined EPOLL_POLLER_ENABLED
   return EpollPoller::ptr::Create(
       CreateWith{context.domain()}
           .with_id(GlobalId::kPoller)
