@@ -207,6 +207,17 @@ class ClientConnectivityPolicy : public Obj {
   bool IsLocallyOnline(TimePoint now) const noexcept;
   bool IsServerLocallyOnline(ServerId server_id, TimePoint now) const noexcept;
 
+  // Read-only diagnostics for live harness (expected_open / deadline / last pong).
+  struct LocalPresenceDiag {
+    bool any_online{false};
+    bool has_schedule{false};
+    ServerId server_id{};
+    TimePoint expected_open{};
+    TimePoint offline_deadline{};
+    TimePoint last_pong{};
+  };
+  LocalPresenceDiag DiagnoseLocalPresence(TimePoint now) const noexcept;
+
  private:
   void ResetRuntimeState();
   void IncrementSuspendBlock();

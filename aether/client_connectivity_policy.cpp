@@ -284,6 +284,38 @@ bool ClientConnectivityPolicy::IsServerLocallyOnline(
                                offline_detection_timeout_);
 }
 
+ClientConnectivityPolicy::LocalPresenceDiag
+ClientConnectivityPolicy::DiagnoseLocalPresence(TimePoint now) const noexcept {
+  LocalPresenceDiag best{};
+  for (auto const& [id, state] : server_presence_) {
+    if (!state.selected_for_aggregate || !state.has_confirmed_schedule ||
+        state.confirmed_interval <= Duration{}) {
+      continue;
+    }
+    auto const deadline = LocalOfflineDeadline(state.confirmed_window_open_local,
+                                               offline_detection_timeout_);
+    auto const online = IsLocalPresenceOnline(
+        state.has_confirmed_schedule, state.confirmed_interval,
+        state.confirmed_window_open_local, now, offline_detection_timeout_);
+    if (!best.has_schedule || deadline > best.offline_deadline) {
+      best.has_schedule = true;
+      best.server_id = id;
+      best.expected_open = state.confirmed_window_open_local;
+      best.offline_deadline = deadline;
+      best.last_pong = state.confirmed_pong_receive_time;
+      best.any_online = online;
+    } else if (online) {
+      best.any_online = true;
+    }
+  }
+  if (!best.has_schedule) {
+    best.any_online = false;
+  } else {
+    best.any_online = IsLocallyOnline(now);
+  }
+  return best;
+}
+
 void ClientConnectivityPolicy::ResetRuntimeState() {
   auto current_time = Now();
   for (auto& t : rx_timings_) {
