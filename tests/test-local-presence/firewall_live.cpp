@@ -28,6 +28,7 @@
 #include "aether/client.h"
 #include "aether/client_connectivity_policy.h"
 #include "aether/cloud_connections/cloud_server_connection.h"
+#include "aether/cloud_connections/local_presence_schedule.h"
 #include "aether/global_ids.h"
 #include "aether/types/uid.h"
 
@@ -173,7 +174,8 @@ TimePoint ServerConfirmedClose(ClientConnectivityPolicy& policy, ServerId id) {
   if (state == nullptr || !state->has_confirmed_schedule) {
     return TimePoint::max();
   }
-  return state->confirmed_window_close_local;
+  return LocalOfflineDeadline(state->confirmed_window_open_local,
+                              policy.offline_detection_timeout());
 }
 #endif
 
@@ -181,6 +183,7 @@ void ApplyOneSecondTimings(Client& client) {
   auto policy = client.connectivity_policy();
   TEST_ASSERT_TRUE(static_cast<bool>(policy));
   policy->ResetRxTimings();
+  policy->SetOfflineDetectionTimeout(1s);
   policy->ConfigureRxTimings(RequestPolicy::All{})
       .ForAllPriorities(RxTimingConf::Every(kInterval).WithWindow(kWindow));
   for (auto* server : client.cloud_connection().selected_servers()) {

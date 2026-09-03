@@ -104,8 +104,12 @@ class LocalPresenceMachine {
   LocalPresenceMachine();
 
   void SetDesired(TimePoint now, RxTimingConf conf, std::uint8_t percentile);
+  void SetOfflineDetectionTimeout(Duration timeout) noexcept;
   RxTimingConf const& desired() const noexcept { return desired_; }
   std::uint8_t percentile() const noexcept { return percentile_; }
+  Duration offline_detection_timeout() const noexcept {
+    return offline_detection_timeout_;
+  }
 
   void RestoreConfirmed(TimePoint open, TimePoint close, Duration interval,
                         Duration window, TimePoint now,
@@ -182,6 +186,8 @@ class LocalPresenceMachine {
   RxTimingConf desired_{RxTimingConf::Every(
       std::chrono::milliseconds{AE_PING_INTERVAL_MS})};
   std::uint8_t percentile_{kDefaultRttReliabilityPercentile};
+  Duration offline_detection_timeout_{std::chrono::milliseconds{
+      AE_OFFLINE_DETECTION_TIMEOUT_MS}};
 
   bool has_confirmed_{false};
   TimePoint confirmed_open_{};

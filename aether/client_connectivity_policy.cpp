@@ -207,6 +207,20 @@ void ClientConnectivityPolicy::ConfirmServerPong(ServerId server_id,
                                                  Duration rx_window,
                                                  Duration selected_rtt) {
   auto& state = EnsureServerPresence(server_id);
+  // interval == 0 clears the future Presence promise after the server
+  // accepted the reset Ping. rx_window is unrelated to Presence.
+  if (interval <= Duration{}) {
+    state.has_confirmed_schedule = false;
+    state.confirmed_interval = {};
+    state.confirmed_rx_window = rx_window;
+    state.confirmed_ping_send_time = send_time;
+    state.confirmed_pong_receive_time = pong_time;
+    state.confirmed_window_open_local = {};
+    state.confirmed_window_close_local = {};
+    state.config_change_pending = (state.desired.interval != interval) ||
+                                  (state.desired.rx_window != rx_window);
+    return;
+  }
   auto const schedule = MakeConfirmedSchedule(send_time, pong_time, interval,
                                               rx_window, selected_rtt);
   state.has_confirmed_schedule = true;
@@ -224,6 +238,14 @@ void ClientConnectivityPolicy::ClearServerPresence(ServerId server_id) {
   server_presence_.erase(server_id);
 }
 
+void ClientConnectivityPolicy::SetOfflineDetectionTimeout(
+    Duration timeout) noexcept {
+  if (timeout <= Duration{}) {
+    timeout = std::chrono::milliseconds{AE_OFFLINE_DETECTION_TIMEOUT_MS};
+  }
+  offline_detection_timeout_ = timeout;
+}
+
 bool ClientConnectivityPolicy::IsLocallyOnline() const noexcept {
   return IsLocallyOnline(Now());
 }
@@ -234,8 +256,10 @@ bool ClientConnectivityPolicy::IsLocallyOnline(TimePoint now) const noexcept {
     if (!state.selected_for_aggregate) {
       continue;
     }
-    if (IsConfirmedWindowOnline(state.has_confirmed_schedule, now,
-                                state.confirmed_window_close_local)) {
+    if (IsLocalPresenceOnline(state.has_confirmed_schedule,
+                              state.confirmed_interval,
+                              state.confirmed_window_open_local, now,
+                              offline_detection_timeout_)) {
       return true;
     }
   }
@@ -248,8 +272,10 @@ bool ClientConnectivityPolicy::IsServerLocallyOnline(
   if (state == nullptr) {
     return false;
   }
-  return IsConfirmedWindowOnline(state->has_confirmed_schedule, now,
-                                 state->confirmed_window_close_local);
+  return IsLocalPresenceOnline(state->has_confirmed_schedule,
+                               state->confirmed_interval,
+                               state->confirmed_window_open_local, now,
+                               offline_detection_timeout_);
 }
 
 void ClientConnectivityPolicy::ResetRuntimeState() {

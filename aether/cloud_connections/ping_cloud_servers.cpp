@@ -49,6 +49,7 @@ PingCloudServers::ServerPing::ServerPing(AeContext const& ae_context,
   policy_->SetServerSelectedForAggregate(server_id_, true);
   machine_.SetDesired(Now(), presence.desired,
                       presence.rtt_reliability_percentile);
+  machine_.SetOfflineDetectionTimeout(policy_->offline_detection_timeout());
   if (presence.has_confirmed_schedule) {
     machine_.RestoreConfirmed(
         presence.confirmed_window_open_local,
@@ -98,6 +99,7 @@ void PingCloudServers::ServerPing::NotifyConfigChanged() {
   }
   machine_.SetDesired(Now(), presence->desired,
                       presence->rtt_reliability_percentile);
+  machine_.SetOfflineDetectionTimeout(policy_->offline_detection_timeout());
   Pump();
 }
 
@@ -385,6 +387,13 @@ void PingCloudServers::ServerPing::ApplyConfirmed(
     LocalPresenceMachine::PongOutcome const& outcome) {
   if (outcome.disposition !=
       LocalPresenceMachine::PongDisposition::kConfirmedSchedule) {
+    return;
+  }
+  if (!machine_.has_confirmed_schedule()) {
+    policy_->ConfirmServerPong(server_id_, outcome.schedule.ping_send_time,
+                               outcome.schedule.pong_receive_time, Duration{},
+                               outcome.schedule.rx_window,
+                               outcome.schedule.selected_rtt);
     return;
   }
   policy_->ConfirmServerPong(

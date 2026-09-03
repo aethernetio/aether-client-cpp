@@ -130,6 +130,28 @@ inline TimePoint ComputePrefix2Time(
   return window_open - rtt / 2 - guard;
 }
 
+// Local Presence ONLINE when a confirmed future opening exists and now is
+// still within expected_open + offline_detection_timeout.
+// rx_window / confirmed_window_close are NOT used for Presence.
+inline bool IsLocalPresenceOnline(bool has_confirmed, Duration confirmed_interval,
+                                  TimePoint expected_open, TimePoint now,
+                                  Duration offline_detection_timeout) noexcept {
+  if (!has_confirmed) {
+    return false;
+  }
+  if (confirmed_interval <= Duration{}) {
+    return false;
+  }
+  return now <= (expected_open + offline_detection_timeout);
+}
+
+inline TimePoint LocalOfflineDeadline(
+    TimePoint expected_open, Duration offline_detection_timeout) noexcept {
+  return expected_open + offline_detection_timeout;
+}
+
+// Deprecated name kept for transitional call sites that still pass close.
+// Prefer IsLocalPresenceOnline.
 inline bool IsConfirmedWindowOnline(bool has_confirmed, TimePoint now,
                                     TimePoint window_close) noexcept {
   if (!has_confirmed) {

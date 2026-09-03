@@ -184,8 +184,15 @@ class ClientConnectivityPolicy : public Obj {
 
   void ClearServerPresence(ServerId server_id);
 
-  // Read-only. No side effects. Aggregate: ONLINE iff any selected server
-  // still in Personal Cloud has a confirmed schedule that has not expired.
+  // Application-level Local/Remote Presence classification timeout.
+  // Not part of Ping / rx_window. Applies immediately (no new Ping required).
+  void SetOfflineDetectionTimeout(Duration timeout) noexcept;
+  Duration offline_detection_timeout() const noexcept {
+    return offline_detection_timeout_;
+  }
+
+  // Read-only. No side effects. Aggregate OR: ONLINE iff any selected server
+  // has confirmed interval>0 and now <= expected_open + offline_detection_timeout.
   bool IsLocallyOnline() const noexcept;
   bool IsLocallyOnline(TimePoint now) const noexcept;
   bool IsServerLocallyOnline(ServerId server_id, TimePoint now) const noexcept;
@@ -205,6 +212,8 @@ class ClientConnectivityPolicy : public Obj {
 
   bool can_suspend_{true};
   std::uint8_t suspend_block_count_{};
+  Duration offline_detection_timeout_{std::chrono::milliseconds{
+      AE_OFFLINE_DETECTION_TIMEOUT_MS}};
 
   Event<void()> suspend_allowed_event_;
   Event<void(ServerId)> server_rx_timing_changed_event_;

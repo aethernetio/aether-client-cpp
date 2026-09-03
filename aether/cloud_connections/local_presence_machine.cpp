@@ -69,6 +69,13 @@ void LocalPresenceMachine::SetDesired(TimePoint now, RxTimingConf conf,
   }
 }
 
+void LocalPresenceMachine::SetOfflineDetectionTimeout(Duration timeout) noexcept {
+  if (timeout <= Duration{}) {
+    timeout = std::chrono::milliseconds{AE_OFFLINE_DETECTION_TIMEOUT_MS};
+  }
+  offline_detection_timeout_ = timeout;
+}
+
 void LocalPresenceMachine::ArmInitial(TimePoint now) {
   if (removed_ || quarantined_) {
     return;
@@ -210,6 +217,27 @@ LocalPresenceMachine::PongOutcome LocalPresenceMachine::OnPong(
   }
 
   auto const was_online = IsOnline(pong_time);
+  if (sent_desired_interval <= Duration{}) {
+    has_confirmed_ = false;
+    confirmed_open_ = {};
+    confirmed_close_ = {};
+    confirmed_interval_ = {};
+    confirmed_window_ = sent_window;
+    config_pending_ = desired_.interval > Duration{};
+    cycle_confirmed_ = true;
+    active_cycle_id_ = cycle_id;
+    last_following_target_ = following_open_target;
+    ++counters_.confirmed_pongs;
+    out.disposition = PongDisposition::kConfirmedSchedule;
+    current_window_blocker_held_ = false;
+    if (desired_.interval > Duration{}) {
+      ArmSend(PingAttemptKind::kInitial, pong_time);
+    } else {
+      send_armed_ = false;
+    }
+    return out;
+  }
+
   has_confirmed_ = true;
   confirmed_open_ = out.schedule.window_open_local;
   confirmed_close_ = out.schedule.window_close_local;
@@ -291,7 +319,8 @@ bool LocalPresenceMachine::IsOnline(TimePoint now) const noexcept {
   if (removed_) {
     return false;
   }
-  return IsConfirmedWindowOnline(has_confirmed_, now, confirmed_close_);
+  return IsLocalPresenceOnline(has_confirmed_, confirmed_interval_,
+                               confirmed_open_, now, offline_detection_timeout_);
 }
 
 LocalPresenceMachine::Attempt* LocalPresenceMachine::FindAttempt(

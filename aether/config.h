@@ -295,6 +295,13 @@
 #  define AE_PING_INTERVAL_MS AE_DEFAULT_RESPONSE_TIMEOUT_MS + 1000
 #endif
 
+// Initial default for Local/Remote Presence offline classification timeout.
+// Runtime value lives on ClientConnectivityPolicy and may change without
+// a new Ping.
+#ifndef AE_OFFLINE_DETECTION_TIMEOUT_MS
+#  define AE_OFFLINE_DETECTION_TIMEOUT_MS 1000
+#endif
+
 // window size for safe stream response time statistics
 #ifndef AE_STATISTICS_SAFE_STREAM_WINDOW_SIZE
 #  define AE_STATISTICS_SAFE_STREAM_WINDOW_SIZE 100

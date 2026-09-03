@@ -26,6 +26,7 @@
 #include "aether/work_cloud_api/ae_message.h"
 #include "aether/work_cloud_api/telemetric.h"
 #include "aether/work_cloud_api/cloud_configs.h"
+#include "aether/work_cloud_api/client_timing.h"
 
 namespace ae {
 
@@ -43,6 +44,9 @@ class AuthorizedApi : public ApiClass {
   Method<13, void(std::vector<Uid> uids)> resolver_clouds;
 
   Method<18, void(Telemetric telemetric)> send_telemetry;
+
+  // Existing server Method 35. Client binding only — wire DTO unchanged.
+  Method<35, ApiPromise<ClientTiming>(Uid uid)> get_client_timing;
 
   Method<38, void(std::vector<AppliedConfig> configs)> report_applied_config;
 };

@@ -27,7 +27,9 @@
 #include "aether/client_connectivity_policy.h"
 #include "aether/cloud_connections/local_presence_machine.h"
 #include "aether/cloud_connections/local_presence_schedule.h"
+#include "aether/remote_presence.h"
 #include "aether/types/statistic_counter.h"
+#include "aether/work_cloud_api/client_timing.h"
 
 namespace ae::test_local_presence {
 
@@ -76,9 +78,13 @@ void test_ConfirmOnlyAfterPong() {
   TEST_ASSERT_TRUE(state->has_confirmed_schedule);
   TEST_ASSERT_EQUAL(2050, ToMs(state->confirmed_window_open_local));
   TEST_ASSERT_EQUAL(2350, ToMs(state->confirmed_window_close_local));
+  auto const deadline =
+      LocalOfflineDeadline(state->confirmed_window_open_local,
+                           policy.offline_detection_timeout());
+  TEST_ASSERT_EQUAL(3050, ToMs(deadline));
   TEST_ASSERT_TRUE(policy.IsServerLocallyOnline(sid, Tp(2050)));
-  TEST_ASSERT_TRUE(policy.IsServerLocallyOnline(sid, Tp(2350)));
-  TEST_ASSERT_FALSE(policy.IsServerLocallyOnline(sid, Tp(2351)));
+  TEST_ASSERT_TRUE(policy.IsServerLocallyOnline(sid, deadline));
+  TEST_ASSERT_FALSE(policy.IsServerLocallyOnline(sid, deadline + Dur(1)));
 }
 
 void test_SelectedRttProjectionIgnoresMeasuredPong() {
@@ -108,12 +114,18 @@ void test_PerServerIndependence() {
   TEST_ASSERT_TRUE(policy.IsLocallyOnline(Tp(50)));
 }
 
-void test_OfflineOnlyAfterWindowClose() {
+void test_OfflineOnlyAfterOfflineDetectionTimeout() {
   ClientConnectivityPolicy policy;
   ServerId const sid{3};
-  policy.ConfirmServerPong(sid, Tp(0), Tp(40), Dur(1000), Dur(200), Dur(40));
-  TEST_ASSERT_TRUE(policy.IsLocallyOnline(Tp(1220)));
-  TEST_ASSERT_FALSE(policy.IsLocallyOnline(Tp(1221)));
+  policy.SetOfflineDetectionTimeout(Dur(1000));
+  policy.ConfirmServerPong(sid, Tp(0), Tp(40), Dur(1000), Dur(10000), Dur(40));
+  // open = 0 + 20 + 1000 = 1020; deadline = 2020 even with rx_window=10s.
+  TEST_ASSERT_EQUAL(1020, ToMs(policy.FindServerPresence(sid)
+                                    ->confirmed_window_open_local));
+  TEST_ASSERT_EQUAL(
+      11020, ToMs(policy.FindServerPresence(sid)->confirmed_window_close_local));
+  TEST_ASSERT_TRUE(policy.IsLocallyOnline(Tp(2020)));
+  TEST_ASSERT_FALSE(policy.IsLocallyOnline(Tp(2021)));
 }
 
 void test_RuntimeIntervalChangeKeepsOldConfirmed() {
@@ -271,6 +283,7 @@ class PresenceHarness {
       s.stats.Add(seed_rtt);
     }
     s.machine.SetDesired(now_, conf, percentile);
+    s.machine.SetOfflineDetectionTimeout(policy_.offline_detection_timeout());
     s.machine.ArmInitial(now_);
     servers_.emplace(id, std::move(s));
   }
@@ -668,13 +681,15 @@ void test_QuarantineKeepsConfirmedUntilClose() {
                Dur(100));
   rt.SetFixedDelay(sid, Dur(20));
   rt.AdvanceTo(Tp(20));
-  auto const close = rt.machine(sid).confirmed_window_close();
-  TEST_ASSERT_TRUE(ToMs(close) >= 2000);
+  auto const open = rt.machine(sid).confirmed_window_open();
+  auto const deadline =
+      LocalOfflineDeadline(open, rt.policy().offline_detection_timeout());
+  TEST_ASSERT_TRUE(ToMs(deadline) >= 2000);
   rt.machine(sid).OnQuarantine(Tp(1000));
   TEST_ASSERT_TRUE(rt.policy().IsServerLocallyOnline(sid, Tp(1500)));
   TEST_ASSERT_TRUE(rt.policy().IsLocallyOnline(Tp(1500)));
-  TEST_ASSERT_TRUE(rt.policy().IsLocallyOnline(close));
-  TEST_ASSERT_FALSE(rt.policy().IsLocallyOnline(close + Dur(1)));
+  TEST_ASSERT_TRUE(rt.policy().IsLocallyOnline(deadline));
+  TEST_ASSERT_FALSE(rt.policy().IsLocallyOnline(deadline + Dur(1)));
 }
 
 void test_HardRemovalDropsAggregateImmediately() {
@@ -738,7 +753,10 @@ void test_MultiServerIndependentSchedules() {
   TEST_ASSERT_EQUAL(1000, ToMs(rt.machine(a).confirmed_interval()));
   TEST_ASSERT_EQUAL(3000, ToMs(rt.machine(b).confirmed_interval()));
   rt.SetConnectivity(a, false);
-  rt.AdvanceTo(rt.machine(a).confirmed_window_close() + Dur(1));
+  auto const offline_deadline = LocalOfflineDeadline(
+      rt.machine(a).confirmed_window_open(),
+      rt.policy().offline_detection_timeout());
+  rt.AdvanceTo(offline_deadline + Dur(1));
   TEST_ASSERT_FALSE(rt.policy().IsServerLocallyOnline(a, rt.now()));
   TEST_ASSERT_TRUE(rt.policy().IsServerLocallyOnline(b, rt.now()));
   TEST_ASSERT_TRUE(rt.IsLocallyOnline());
@@ -780,15 +798,25 @@ void test_StatisticalRuntimePollingIsLocallyOnline() {
   rt.AdvanceTo(Tp(20));
   TEST_ASSERT_TRUE(rt.IsLocallyOnline());
   auto const measure_start = rt.now();
+  bool window_bumped = false;
   while (true) {
     rt.AdvancePolling(Dur(10), Dur(10), true);
     auto const elapsed_ms =
         std::chrono::duration_cast<Ms>(rt.now() - measure_start).count();
+    if (!window_bumped && elapsed_ms >= 60000) {
+      // Presence must ignore rx_window change without new confirming Pong.
+      rt.policy().ConfigureServerRxTiming(
+          sid, RxTimingConf::Every(interval).WithWindow(Dur(10000)));
+      rt.machine(sid).SetDesired(
+          rt.now(), RxTimingConf::Every(interval).WithWindow(Dur(10000)), 99);
+      window_bumped = true;
+    }
     if (elapsed_ms >= 300000) {
       break;
     }
     TEST_ASSERT_TRUE(elapsed_ms < 400000);
   }
+  TEST_ASSERT_TRUE(window_bumped);
 
   g_stat_report.confirmed_cycles = rt.counters(sid).confirmed_pongs;
   g_stat_report.duration =
@@ -829,18 +857,20 @@ void test_FaultOfflineNotBeforeWindowCloseThenRecovery() {
   rt.AdvanceTo(Tp(20));
   rt.AdvancePolling(Dur(2000), Dur(10), true);
   TEST_ASSERT_TRUE(rt.IsLocallyOnline());
-  auto const close = rt.machine(sid).confirmed_window_close();
+  auto const deadline = LocalOfflineDeadline(
+      rt.machine(sid).confirmed_window_open(),
+      rt.policy().offline_detection_timeout());
   rt.SetConnectivity(sid, false);
 
   auto detected = TimePoint{};
-  while (rt.now() < close + Dur(2000)) {
+  while (rt.now() < deadline + Dur(2000)) {
     rt.AdvancePolling(Dur(10), Dur(10), false);
     if (!rt.IsLocallyOnline()) {
       detected = rt.now();
       break;
     }
   }
-  TEST_ASSERT_TRUE(detected > close);
+  TEST_ASSERT_TRUE(detected > deadline);
   rt.SetConnectivity(sid, true);
   auto const recover_from = rt.now();
   while (rt.now() < recover_from + Dur(2000)) {
@@ -850,6 +880,154 @@ void test_FaultOfflineNotBeforeWindowCloseThenRecovery() {
     }
   }
   TEST_ASSERT_TRUE(rt.IsLocallyOnline());
+}
+
+void test_RxWindowDoesNotAffectLocalPresenceDeadline() {
+  ClientConnectivityPolicy policy;
+  ServerId const sid{21};
+  policy.SetOfflineDetectionTimeout(Dur(1000));
+  policy.ConfirmServerPong(sid, Tp(0), Tp(40), Dur(1000), Dur(100), Dur(40));
+  auto const open = policy.FindServerPresence(sid)->confirmed_window_open_local;
+  auto const deadline_before =
+      LocalOfflineDeadline(open, policy.offline_detection_timeout());
+  policy.ConfigureServerRxTiming(
+      sid, RxTimingConf::Every(Dur(1000)).WithWindow(Dur(10000)));
+  // Confirmed open unchanged; Presence deadline unchanged by rx_window.
+  TEST_ASSERT_EQUAL(ToMs(open), ToMs(policy.FindServerPresence(sid)
+                                         ->confirmed_window_open_local));
+  TEST_ASSERT_TRUE(policy.IsLocallyOnline(deadline_before));
+  TEST_ASSERT_FALSE(policy.IsLocallyOnline(deadline_before + Dur(1)));
+}
+
+void test_OfflineDetectionTimeoutRuntimeChangeAppliesImmediately() {
+  ClientConnectivityPolicy policy;
+  ServerId const sid{22};
+  policy.SetOfflineDetectionTimeout(Dur(1000));
+  policy.ConfirmServerPong(sid, Tp(0), Tp(40), Dur(1000), Dur(1000), Dur(40));
+  auto const open = policy.FindServerPresence(sid)->confirmed_window_open_local;
+  TEST_ASSERT_FALSE(policy.IsLocallyOnline(open + Dur(1001)));
+  policy.SetOfflineDetectionTimeout(Dur(2000));
+  TEST_ASSERT_TRUE(policy.IsLocallyOnline(open + Dur(1001)));
+  TEST_ASSERT_TRUE(policy.IsLocallyOnline(open + Dur(2000)));
+  TEST_ASSERT_FALSE(policy.IsLocallyOnline(open + Dur(2001)));
+}
+
+void test_RetriesContinueAfterLocalOffline() {
+  PresenceHarness rt{Tp(0)};
+  ServerId const sid{1};
+  rt.AddServer(sid, RxTimingConf::Every(Dur(1000)).WithWindow(Dur(1000)),
+               Dur(100));
+  rt.SetFixedDelay(sid, Dur(20));
+  rt.AdvanceTo(Tp(20));
+  rt.SetConnectivity(sid, false);
+  auto const deadline = LocalOfflineDeadline(
+      rt.machine(sid).confirmed_window_open(),
+      rt.policy().offline_detection_timeout());
+  rt.AdvanceTo(deadline + Dur(1));
+  TEST_ASSERT_FALSE(rt.IsLocallyOnline());
+  auto const retries_before = rt.counters(sid).retry + rt.counters(sid).prefix2 +
+                              rt.counters(sid).recovery;
+  rt.AdvanceTo(deadline + Dur(500));
+  auto const retries_after = rt.counters(sid).retry + rt.counters(sid).prefix2 +
+                             rt.counters(sid).recovery;
+  TEST_ASSERT_TRUE(retries_after > retries_before);
+  rt.SetConnectivity(sid, true);
+  rt.SetFixedDelay(sid, Dur(20));
+  rt.AdvanceTo(rt.now() + Dur(300));
+  TEST_ASSERT_TRUE(rt.IsLocallyOnline());
+}
+
+void test_IntervalZeroWithoutPongKeepsConfirmed() {
+  PresenceHarness rt{Tp(0)};
+  ServerId const sid{1};
+  rt.AddServer(sid, RxTimingConf::Every(Dur(1000)).WithWindow(Dur(1000)),
+               Dur(100));
+  rt.SetFixedDelay(sid, Dur(20));
+  rt.AdvanceTo(Tp(20));
+  TEST_ASSERT_TRUE(rt.machine(sid).has_confirmed_schedule());
+  rt.machine(sid).SetDesired(rt.now(),
+                             RxTimingConf::Every(Dur(0)).WithWindow(Dur(1000)),
+                             99);
+  TEST_ASSERT_TRUE(rt.machine(sid).has_confirmed_schedule());
+  TEST_ASSERT_TRUE(rt.IsLocallyOnline());
+}
+
+void test_IntervalZeroWithPongClearsFuturePresence() {
+  LocalPresenceMachine machine;
+  machine.SetDesired(Tp(0), RxTimingConf::Every(Dur(0)).WithWindow(Dur(1000)),
+                     99);
+  machine.ArmInitial(Tp(0));
+  auto tick = machine.TickNow(Tp(0), Dur(100));
+  TEST_ASSERT_TRUE(tick.want_send);
+  machine.OnSendStarting();
+  machine.OnAttemptSent(tick.send, Tp(0));
+  auto outcome = machine.OnPong(tick.send.attempt_id, tick.send.cycle_id, Tp(0),
+                                Tp(20), Dur(0), Dur(0), Dur(1000),
+                                tick.send.following_open_target, Dur(100));
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(LocalPresenceMachine::PongDisposition::kConfirmedSchedule),
+      static_cast<int>(outcome.disposition));
+  TEST_ASSERT_FALSE(machine.has_confirmed_schedule());
+  TEST_ASSERT_FALSE(machine.IsOnline(Tp(20)));
+}
+
+void test_RemoteTimingProjectionAndAggregation() {
+  ClientTiming timing{};
+  timing.next_ping_delta_ms = 500;
+  timing.last_connect_delta_ms = 0;
+  TimePoint expected{};
+  TimePoint deadline{};
+  auto status = ClassifyRemoteServerPresence(
+      Tp(2550), Tp(1000), Tp(1100), timing, Dur(1000), &expected, &deadline);
+  TEST_ASSERT_EQUAL(1550, ToMs(expected));
+  TEST_ASSERT_EQUAL(2550, ToMs(deadline));
+  TEST_ASSERT_EQUAL(static_cast<int>(RemoteServerPresence::kOnline),
+                    static_cast<int>(status));
+  status = ClassifyRemoteServerPresence(Tp(2551), Tp(1000), Tp(1100), timing,
+                                        Dur(1000), &expected, &deadline);
+  TEST_ASSERT_EQUAL(static_cast<int>(RemoteServerPresence::kOffline),
+                    static_cast<int>(status));
+
+  timing.next_ping_delta_ms = -200;
+  status = ClassifyRemoteServerPresence(Tp(1850), Tp(1000), Tp(1100), timing,
+                                        Dur(1000), &expected, &deadline);
+  TEST_ASSERT_EQUAL(850, ToMs(expected));
+  TEST_ASSERT_EQUAL(1850, ToMs(deadline));
+  TEST_ASSERT_EQUAL(static_cast<int>(RemoteServerPresence::kOnline),
+                    static_cast<int>(status));
+  status = ClassifyRemoteServerPresence(Tp(1851), Tp(1000), Tp(1100), timing,
+                                        Dur(1000), &expected, &deadline);
+  TEST_ASSERT_EQUAL(static_cast<int>(RemoteServerPresence::kOffline),
+                    static_cast<int>(status));
+
+  timing.next_ping_delta_ms = 0;
+  status = ClassifyRemoteServerPresence(Tp(0), Tp(1000), Tp(1100), timing,
+                                        Dur(1000));
+  TEST_ASSERT_EQUAL(static_cast<int>(RemoteServerPresence::kOffline),
+                    static_cast<int>(status));
+
+  std::vector<RemoteServerPresenceSample> samples(3);
+  samples[0] = {ServerId{1}, RemoteServerPresence::kOnline, {}, {}, 0, true};
+  samples[1] = {ServerId{2}, RemoteServerPresence::kOnline, {}, {}, 0, true};
+  samples[2] = {ServerId{3}, RemoteServerPresence::kOnline, {}, {}, 0, true};
+  TEST_ASSERT_EQUAL(static_cast<int>(PeerPresenceState::kOnline),
+                    static_cast<int>(AggregateRemotePresence(samples).state));
+  samples[1].status = RemoteServerPresence::kOffline;
+  TEST_ASSERT_EQUAL(static_cast<int>(PeerPresenceState::kOffline),
+                    static_cast<int>(AggregateRemotePresence(samples).state));
+  samples[1].status = RemoteServerPresence::kUnknown;
+  TEST_ASSERT_EQUAL(static_cast<int>(PeerPresenceState::kUnknown),
+                    static_cast<int>(AggregateRemotePresence(samples).state));
+  samples[1].status = RemoteServerPresence::kExcluded;
+  TEST_ASSERT_EQUAL(static_cast<int>(PeerPresenceState::kOnline),
+                    static_cast<int>(AggregateRemotePresence(samples).state));
+  samples[0].status = RemoteServerPresence::kExcluded;
+  samples[1].status = RemoteServerPresence::kExcluded;
+  samples[2].status = RemoteServerPresence::kExcluded;
+  TEST_ASSERT_EQUAL(static_cast<int>(PeerPresenceState::kUnknown),
+                    static_cast<int>(AggregateRemotePresence(samples).state));
+  TEST_ASSERT_TRUE(RemotePresenceCanEarlyCompleteOffline(
+      {{ServerId{1}, RemoteServerPresence::kOffline, {}, {}, 0, true}}));
 }
 
 }  // namespace ae::test_local_presence
@@ -863,7 +1041,7 @@ int main() {
   RUN_TEST(ae::test_local_presence::test_ConfirmOnlyAfterPong);
   RUN_TEST(ae::test_local_presence::test_SelectedRttProjectionIgnoresMeasuredPong);
   RUN_TEST(ae::test_local_presence::test_PerServerIndependence);
-  RUN_TEST(ae::test_local_presence::test_OfflineOnlyAfterWindowClose);
+  RUN_TEST(ae::test_local_presence::test_OfflineOnlyAfterOfflineDetectionTimeout);
   RUN_TEST(ae::test_local_presence::test_RuntimeIntervalChangeKeepsOldConfirmed);
   RUN_TEST(ae::test_local_presence::test_RuntimePercentile);
   RUN_TEST(ae::test_local_presence::test_ReliabilityP95VsP99PrefixTimes);
@@ -883,6 +1061,12 @@ int main() {
   RUN_TEST(ae::test_local_presence::test_RuntimeConfigChangeKeepsOldUntilPong);
   RUN_TEST(ae::test_local_presence::test_Prefix1SuccessNoPrefix2);
   RUN_TEST(ae::test_local_presence::test_MultiServerIndependentSchedules);
+  RUN_TEST(ae::test_local_presence::test_RxWindowDoesNotAffectLocalPresenceDeadline);
+  RUN_TEST(ae::test_local_presence::test_OfflineDetectionTimeoutRuntimeChangeAppliesImmediately);
+  RUN_TEST(ae::test_local_presence::test_RetriesContinueAfterLocalOffline);
+  RUN_TEST(ae::test_local_presence::test_IntervalZeroWithoutPongKeepsConfirmed);
+  RUN_TEST(ae::test_local_presence::test_IntervalZeroWithPongClearsFuturePresence);
+  RUN_TEST(ae::test_local_presence::test_RemoteTimingProjectionAndAggregation);
   RUN_TEST(ae::test_local_presence::test_StatisticalRuntimePollingIsLocallyOnline);
   RUN_TEST(ae::test_local_presence::test_FaultOfflineNotBeforeWindowCloseThenRecovery);
   return UNITY_END();
