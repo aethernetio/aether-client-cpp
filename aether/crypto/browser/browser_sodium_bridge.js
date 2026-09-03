@@ -53,9 +53,9 @@ mergeInto(LibraryManager.library, {
                                             n_ptr, k_ptr) {
     var s = Module.aeSodium;
     try {
-      var m = HEAPU8.subarray(m_ptr, m_ptr + mlen);
-      var n = HEAPU8.subarray(n_ptr, n_ptr + 8);
-      var k = HEAPU8.subarray(k_ptr, k_ptr + 32);
+      var m = new Uint8Array(HEAPU8.subarray(m_ptr, m_ptr + mlen));
+      var n = new Uint8Array(HEAPU8.subarray(n_ptr, n_ptr + 8));
+      var k = new Uint8Array(HEAPU8.subarray(k_ptr, k_ptr + 32));
       // libsodium.js: additional data optional; nsec unused for this construct.
       var c = s.crypto_aead_chacha20poly1305_encrypt(m, null, null, n, k);
       HEAPU8.set(c, c_ptr);
@@ -74,9 +74,9 @@ mergeInto(LibraryManager.library, {
                                             n_ptr, k_ptr) {
     var s = Module.aeSodium;
     try {
-      var c = HEAPU8.subarray(c_ptr, c_ptr + clen);
-      var n = HEAPU8.subarray(n_ptr, n_ptr + 8);
-      var k = HEAPU8.subarray(k_ptr, k_ptr + 32);
+      var c = new Uint8Array(HEAPU8.subarray(c_ptr, c_ptr + clen));
+      var n = new Uint8Array(HEAPU8.subarray(n_ptr, n_ptr + 8));
+      var k = new Uint8Array(HEAPU8.subarray(k_ptr, k_ptr + 32));
       var m = s.crypto_aead_chacha20poly1305_decrypt(null, c, null, n, k);
       HEAPU8.set(m, m_ptr);
       var lo = m.length >>> 0;
@@ -92,8 +92,8 @@ mergeInto(LibraryManager.library, {
   ae_browser_sodium_box_seal: function (c_ptr, m_ptr, mlen, pk_ptr) {
     var s = Module.aeSodium;
     try {
-      var m = HEAPU8.subarray(m_ptr, m_ptr + mlen);
-      var pk = HEAPU8.subarray(pk_ptr, pk_ptr + 32);
+      var m = new Uint8Array(HEAPU8.subarray(m_ptr, m_ptr + mlen));
+      var pk = new Uint8Array(HEAPU8.subarray(pk_ptr, pk_ptr + 32));
       var c = s.crypto_box_seal(m, pk);
       HEAPU8.set(c, c_ptr);
       return 0;
@@ -106,9 +106,9 @@ mergeInto(LibraryManager.library, {
                                              sk_ptr) {
     var s = Module.aeSodium;
     try {
-      var c = HEAPU8.subarray(c_ptr, c_ptr + clen);
-      var pk = HEAPU8.subarray(pk_ptr, pk_ptr + 32);
-      var sk = HEAPU8.subarray(sk_ptr, sk_ptr + 32);
+      var c = new Uint8Array(HEAPU8.subarray(c_ptr, c_ptr + clen));
+      var pk = new Uint8Array(HEAPU8.subarray(pk_ptr, pk_ptr + 32));
+      var sk = new Uint8Array(HEAPU8.subarray(sk_ptr, sk_ptr + 32));
       var m = s.crypto_box_seal_open(c, pk, sk);
       HEAPU8.set(m, m_ptr);
       return 0;
@@ -132,7 +132,7 @@ mergeInto(LibraryManager.library, {
       } else if (ctx.length > 8) {
         ctx = ctx.substring(0, 8);
       }
-      var key = HEAPU8.subarray(key_ptr, key_ptr + 32);
+      var key = new Uint8Array(HEAPU8.subarray(key_ptr, key_ptr + 32));
       var sub = s.crypto_kdf_derive_from_key(subkey_len, subkey_id, ctx, key);
       HEAPU8.set(sub, subkey_ptr);
       return 0;
@@ -144,13 +144,19 @@ mergeInto(LibraryManager.library, {
   ae_browser_sodium_sign_verify_detached: function (sig_ptr, m_ptr, mlen,
                                                     pk_ptr) {
     var s = Module.aeSodium;
+    if (!s) {
+      return -1;
+    }
     try {
-      var sig = HEAPU8.subarray(sig_ptr, sig_ptr + 64);
-      var m = HEAPU8.subarray(m_ptr, m_ptr + mlen);
-      var pk = HEAPU8.subarray(pk_ptr, pk_ptr + 32);
+      // Copy out of the Emscripten heap: libsodium.js WASM cannot consume
+      // TypedArray views backed by a foreign ArrayBuffer.
+      var sig = new Uint8Array(HEAPU8.subarray(sig_ptr, sig_ptr + 64));
+      var m = new Uint8Array(HEAPU8.subarray(m_ptr, m_ptr + mlen));
+      var pk = new Uint8Array(HEAPU8.subarray(pk_ptr, pk_ptr + 32));
       var ok = s.crypto_sign_verify_detached(sig, m, pk);
       return ok ? 0 : -1;
     } catch (e) {
+      console.error("ae_browser_sodium_sign_verify_detached", e);
       return -1;
     }
   },
