@@ -22,8 +22,10 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -252,6 +254,85 @@ inline FailedWriteAction& EmplaceFailedWrite(
     slot.emplace(ae_context);
   }
   return *slot;
+}
+
+
+/**
+ * Heap callback bridge so JS completions never touch a destroyed transport via raw this.
+ */
+struct AsyncCallbackBridge {
+  std::weak_ptr<void> lifetime;
+  std::shared_ptr<std::atomic<std::uint64_t>> generation;
+  void* transport{nullptr};
+};
+
+class AsyncCallbackBridgeRegistry {
+ public:
+  static void Register(AsyncCallbackBridge* bridge) {
+    if (bridge == nullptr) {
+      return;
+    }
+    auto lock = std::scoped_lock{Mutex()};
+    Alive().insert(bridge);
+  }
+  static void Unregister(AsyncCallbackBridge* bridge) {
+    if (bridge == nullptr) {
+      return;
+    }
+    auto lock = std::scoped_lock{Mutex()};
+    Alive().erase(bridge);
+  }
+  static bool IsAlive(AsyncCallbackBridge* bridge) {
+    if (bridge == nullptr) {
+      return false;
+    }
+    auto lock = std::scoped_lock{Mutex()};
+    return Alive().find(bridge) != Alive().end();
+  }
+ private:
+  static std::mutex& Mutex() {
+    static std::mutex mu;
+    return mu;
+  }
+  static std::unordered_set<AsyncCallbackBridge*>& Alive() {
+    static std::unordered_set<AsyncCallbackBridge*> alive;
+    return alive;
+  }
+};
+
+template <typename T>
+T* ResolveAsyncTransport(void* user_data, std::uint32_t generation) noexcept {
+  auto* bridge = static_cast<AsyncCallbackBridge*>(user_data);
+  if (!AsyncCallbackBridgeRegistry::IsAlive(bridge)) {
+    return nullptr;
+  }
+  if (!GenerationGuard::IsCurrent(bridge->generation, generation)) {
+    return nullptr;
+  }
+  if (!bridge->lifetime.lock()) {
+    return nullptr;
+  }
+  return static_cast<T*>(bridge->transport);
+}
+
+inline std::unique_ptr<AsyncCallbackBridge> MakeAsyncCallbackBridge(
+    std::shared_ptr<void> const& lifetime,
+    std::shared_ptr<std::atomic<std::uint64_t>> generation, void* transport) {
+  auto bridge = std::make_unique<AsyncCallbackBridge>();
+  bridge->lifetime = lifetime;
+  bridge->generation = std::move(generation);
+  bridge->transport = transport;
+  AsyncCallbackBridgeRegistry::Register(bridge.get());
+  return bridge;
+}
+
+inline void DestroyAsyncCallbackBridge(
+    std::unique_ptr<AsyncCallbackBridge>& bridge) {
+  if (!bridge) {
+    return;
+  }
+  AsyncCallbackBridgeRegistry::Unregister(bridge.get());
+  bridge.reset();
 }
 
 }  // namespace browser_transport_internal

@@ -26,10 +26,13 @@
 
 namespace ae {
 namespace {
+using browser_transport_internal::DestroyAsyncCallbackBridge;
 using browser_transport_internal::EmplaceFailedWrite;
 using browser_transport_internal::FrameLengthPrefixedPacket;
 using browser_transport_internal::GenerationGuard;
+using browser_transport_internal::MakeAsyncCallbackBridge;
 using browser_transport_internal::NativeBrowserNetHooks;
+using browser_transport_internal::ResolveAsyncTransport;
 }  // namespace
 
 BrowserHttpTransport::BrowserHttpTransport(AeContext const& ae_context,
@@ -37,7 +40,9 @@ BrowserHttpTransport::BrowserHttpTransport(AeContext const& ae_context,
     : ae_context_{ae_context},
       endpoint_{std::move(endpoint)},
       lifetime_token_{std::make_shared<int>(0)},
-      queue_manager_{ae_context_} {
+      queue_manager_{ae_context_},
+      callback_bridge_{MakeAsyncCallbackBridge(lifetime_token_,
+                                                 generation_.shared(), this)} {
   stream_info_.link_state = LinkState::kUnlinked;
   stream_info_.is_reliable = true;
   stream_info_.is_writable = false;
@@ -52,6 +57,7 @@ BrowserHttpTransport::~BrowserHttpTransport() {
   generation_.Bump();
   lifetime_token_.reset();
   CloseSession();
+  DestroyAsyncCallbackBridge(callback_bridge_);
   stream_info_.link_state = LinkState::kUnlinked;
   stream_info_.is_writable = false;
 }
@@ -113,8 +119,9 @@ void BrowserHttpTransport::Connect() {
 
 #ifdef __EMSCRIPTEN__
   http_handle_ = ae_browser_http_connect(
-      url.c_str(), body.data(), static_cast<int>(body.size()), this,
-      static_cast<std::uint32_t>(gen), &StaticOnConnectOk, &StaticOnConnectErr);
+      url.c_str(), body.data(), static_cast<int>(body.size()),
+      callback_bridge_.get(), static_cast<std::uint32_t>(gen),
+      &StaticOnConnectOk, &StaticOnConnectErr);
   if (http_handle_ <= 0) {
     SetLinkState(LinkState::kLinkError);
   }
@@ -169,7 +176,7 @@ void BrowserHttpTransport::StartReceiveLoop() {
     receive_active_ = false;
     return;
   }
-  ae_browser_http_receive(http_handle_, url.c_str(), this,
+  ae_browser_http_receive(http_handle_, url.c_str(), callback_bridge_.get(),
                           static_cast<std::uint32_t>(gen),
                           &StaticOnReceiveData, &StaticOnReceiveErr);
 #else
@@ -226,10 +233,15 @@ bool BrowserHttpTransport::TrySendFrame(DataBuffer const& frame, bool* wait,
   auto const url = BuildHttpSendUrl(endpoint_, session_id_);
 
 #ifdef __EMSCRIPTEN__
-  ae_browser_http_send(url.c_str(), frame.data(),
-                       static_cast<int>(frame.size()), this,
-                       static_cast<std::uint32_t>(gen), &StaticOnSendOk,
-                       &StaticOnSendErr);
+  if (http_handle_ <= 0) {
+    send_in_flight_ = false;
+    in_flight_action_ = nullptr;
+    return false;
+  }
+  ae_browser_http_send(http_handle_, url.c_str(), frame.data(),
+                     static_cast<int>(frame.size()), callback_bridge_.get(),
+                     static_cast<std::uint32_t>(gen), &StaticOnSendOk,
+                     &StaticOnSendErr);
   *async = true;
   return true;
 #else
@@ -375,31 +387,53 @@ void BrowserHttpTransport::OnReceiveErr(std::uint64_t generation) {
 
 void BrowserHttpTransport::StaticOnConnectOk(void* user_data, std::uint32_t generation,
                                              char const* session_id) {
-  static_cast<BrowserHttpTransport*>(user_data)->OnConnectOk(generation,
-                                                              session_id);
+  auto* self = ResolveAsyncTransport<BrowserHttpTransport>(user_data, generation);
+  if (self == nullptr) {
+    return;
+  }
+  self->OnConnectOk(generation, session_id);
 }
 
 void BrowserHttpTransport::StaticOnConnectErr(void* user_data, std::uint32_t generation) {
-  static_cast<BrowserHttpTransport*>(user_data)->OnConnectErr(generation);
+  auto* self = ResolveAsyncTransport<BrowserHttpTransport>(user_data, generation);
+  if (self == nullptr) {
+    return;
+  }
+  self->OnConnectErr(generation);
 }
 
 void BrowserHttpTransport::StaticOnSendOk(void* user_data, std::uint32_t generation) {
-  static_cast<BrowserHttpTransport*>(user_data)->OnSendOk(generation);
+  auto* self = ResolveAsyncTransport<BrowserHttpTransport>(user_data, generation);
+  if (self == nullptr) {
+    return;
+  }
+  self->OnSendOk(generation);
 }
 
 void BrowserHttpTransport::StaticOnSendErr(void* user_data, std::uint32_t generation) {
-  static_cast<BrowserHttpTransport*>(user_data)->OnSendErr(generation);
+  auto* self = ResolveAsyncTransport<BrowserHttpTransport>(user_data, generation);
+  if (self == nullptr) {
+    return;
+  }
+  self->OnSendErr(generation);
 }
 
 void BrowserHttpTransport::StaticOnReceiveData(void* user_data, std::uint32_t generation,
                                                std::uint8_t const* data,
                                                int size) {
-  static_cast<BrowserHttpTransport*>(user_data)->OnReceiveData(generation, data,
-                                                               size);
+  auto* self = ResolveAsyncTransport<BrowserHttpTransport>(user_data, generation);
+  if (self == nullptr) {
+    return;
+  }
+  self->OnReceiveData(generation, data, size);
 }
 
 void BrowserHttpTransport::StaticOnReceiveErr(void* user_data, std::uint32_t generation) {
-  static_cast<BrowserHttpTransport*>(user_data)->OnReceiveErr(generation);
+  auto* self = ResolveAsyncTransport<BrowserHttpTransport>(user_data, generation);
+  if (self == nullptr) {
+    return;
+  }
+  self->OnReceiveErr(generation);
 }
 
 }  // namespace ae

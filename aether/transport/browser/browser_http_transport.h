@@ -103,6 +103,8 @@ class BrowserHttpTransport final : public ByteIStream {
   TaskSubscription stream_update_sub_;
   bool read_event_pending_{false};
 
+  std::unique_ptr<browser_transport_internal::AsyncCallbackBridge>
+      callback_bridge_;
   int http_handle_{-1};
   std::string session_id_;
   bool send_in_flight_{false};

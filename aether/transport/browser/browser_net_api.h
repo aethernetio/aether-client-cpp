@@ -51,8 +51,8 @@ using AeBrowserHttpDataCb = void (*)(void* user_data, std::uint32_t generation,
 int ae_browser_http_connect(char const* url, void const* body, int body_size,
                             void* user_data, std::uint32_t generation,
                             AeBrowserHttpOkCb on_ok, AeBrowserHttpErrCb on_err);
-int ae_browser_http_send(char const* url, void const* data, int size,
-                         void* user_data, std::uint32_t generation,
+int ae_browser_http_send(int handle, char const* url, void const* data,
+                         int size, void* user_data, std::uint32_t generation,
                          AeBrowserHttpSendOkCb on_ok,
                          AeBrowserHttpErrCb on_err);
 int ae_browser_http_receive(int handle, char const* url, void* user_data,

@@ -121,7 +121,12 @@ mergeInto(LibraryManager.library, {
       ? HEAPU8.slice(bodyPtr, bodyPtr + bodySize)
       : null;
     var id = AeBrowserNet.nextId++;
-    AeBrowserNet.sessions[id] = { id: id, aborted: false, receiveCtrl: null };
+    AeBrowserNet.sessions[id] = {
+      id: id,
+      aborted: false,
+      receiveCtrl: null,
+      userData: userData
+    };
     fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -158,8 +163,12 @@ mergeInto(LibraryManager.library, {
   },
 
   ae_browser_http_send__deps: ['$AeBrowserNet'],
-  ae_browser_http_send: function(urlPtr, dataPtr, size, userData, generation,
-                                 onOk, onErr) {
+  ae_browser_http_send: function(handle, urlPtr, dataPtr, size, userData,
+                                 generation, onOk, onErr) {
+    var sess = AeBrowserNet.sessions[handle];
+    if (!sess || sess.aborted) {
+      return -1;
+    }
     var url = UTF8ToString(urlPtr);
     var gen = generation | 0;
     var body = HEAPU8.slice(dataPtr, dataPtr + size);
@@ -168,11 +177,17 @@ mergeInto(LibraryManager.library, {
       headers: { 'Content-Type': 'application/octet-stream' },
       body: body
     }).then(function(resp) {
+      if (!sess || sess.aborted) {
+        return;
+      }
       if (!resp.ok) {
         throw new Error('send http ' + resp.status);
       }
       {{{ makeDynCall('vii', 'onOk') }}}(userData, gen);
     }).catch(function() {
+      if (!sess || sess.aborted) {
+        return;
+      }
       {{{ makeDynCall('vii', 'onErr') }}}(userData, gen);
     });
     return 0;

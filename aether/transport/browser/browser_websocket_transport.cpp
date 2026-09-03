@@ -28,11 +28,14 @@
 
 namespace ae {
 namespace {
+using browser_transport_internal::DestroyAsyncCallbackBridge;
 using browser_transport_internal::EmplaceFailedWrite;
 using browser_transport_internal::FrameLengthPrefixedPacket;
 using browser_transport_internal::GenerationGuard;
 using browser_transport_internal::kBrowserWsBufferedAmountHighWater;
+using browser_transport_internal::MakeAsyncCallbackBridge;
 using browser_transport_internal::NativeBrowserNetHooks;
+using browser_transport_internal::ResolveAsyncTransport;
 }  // namespace
 
 BrowserWebSocketTransport::BrowserWebSocketTransport(
@@ -41,7 +44,9 @@ BrowserWebSocketTransport::BrowserWebSocketTransport(
       endpoint_{std::move(endpoint)},
       url_{BuildWebSocketUrl(endpoint_)},
       lifetime_token_{std::make_shared<int>(0)},
-      queue_manager_{ae_context_} {
+      queue_manager_{ae_context_},
+      callback_bridge_{MakeAsyncCallbackBridge(lifetime_token_,
+                                                 generation_.shared(), this)} {
   stream_info_.link_state = LinkState::kUnlinked;
   stream_info_.is_reliable = true;
   stream_info_.is_writable = false;
@@ -56,6 +61,7 @@ BrowserWebSocketTransport::~BrowserWebSocketTransport() {
   generation_.Bump();
   lifetime_token_.reset();
   CloseSocket();
+  DestroyAsyncCallbackBridge(callback_bridge_);
   stream_info_.link_state = LinkState::kUnlinked;
   stream_info_.is_writable = false;
 }
@@ -111,7 +117,7 @@ void BrowserWebSocketTransport::Restream() {
 void BrowserWebSocketTransport::Connect() {
   auto const gen = generation_.current();
 #ifdef __EMSCRIPTEN__
-  ws_handle_ = ae_browser_ws_open(url_.c_str(), this,
+  ws_handle_ = ae_browser_ws_open(url_.c_str(), callback_bridge_.get(),
                                   static_cast<std::uint32_t>(gen),
                                   &StaticOnOpen, &StaticOnMessage,
                                   &StaticOnClose, &StaticOnError);
@@ -347,24 +353,36 @@ void BrowserWebSocketTransport::OnError(std::uint64_t generation) {
 }
 
 void BrowserWebSocketTransport::StaticOnOpen(void* user_data, std::uint32_t generation) {
-  auto* self = static_cast<BrowserWebSocketTransport*>(user_data);
+  auto* self = ResolveAsyncTransport<BrowserWebSocketTransport>(user_data, generation);
+  if (self == nullptr) {
+    return;
+  }
   self->OnOpen(generation);
 }
 
 void BrowserWebSocketTransport::StaticOnMessage(void* user_data, std::uint32_t generation,
                                                 std::uint8_t const* data,
                                                 int size) {
-  auto* self = static_cast<BrowserWebSocketTransport*>(user_data);
+  auto* self = ResolveAsyncTransport<BrowserWebSocketTransport>(user_data, generation);
+  if (self == nullptr) {
+    return;
+  }
   self->OnMessage(generation, data, size);
 }
 
 void BrowserWebSocketTransport::StaticOnClose(void* user_data, std::uint32_t generation) {
-  auto* self = static_cast<BrowserWebSocketTransport*>(user_data);
+  auto* self = ResolveAsyncTransport<BrowserWebSocketTransport>(user_data, generation);
+  if (self == nullptr) {
+    return;
+  }
   self->OnClose(generation);
 }
 
 void BrowserWebSocketTransport::StaticOnError(void* user_data, std::uint32_t generation) {
-  auto* self = static_cast<BrowserWebSocketTransport*>(user_data);
+  auto* self = ResolveAsyncTransport<BrowserWebSocketTransport>(user_data, generation);
+  if (self == nullptr) {
+    return;
+  }
   self->OnError(generation);
 }
 

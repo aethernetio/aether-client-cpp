@@ -101,6 +101,8 @@ class BrowserWebSocketTransport final : public ByteIStream {
   TaskSubscription buffered_poll_sub_;
   bool read_event_pending_{false};
 
+  std::unique_ptr<browser_transport_internal::AsyncCallbackBridge>
+      callback_bridge_;
   int ws_handle_{-1};
   std::size_t buffered_before_send_{0};
   std::size_t last_send_size_{0};

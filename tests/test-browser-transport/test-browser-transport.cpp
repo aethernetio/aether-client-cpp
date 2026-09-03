@@ -19,6 +19,7 @@
  */
 
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 #include <unity.h>
@@ -32,8 +33,11 @@ namespace ae::test_browser_transport {
 namespace {
 
 using browser_transport_internal::BrowserQueueState;
+using browser_transport_internal::DestroyAsyncCallbackBridge;
 using browser_transport_internal::FrameLengthPrefixedPacket;
 using browser_transport_internal::GenerationGuard;
+using browser_transport_internal::MakeAsyncCallbackBridge;
+using browser_transport_internal::ResolveAsyncTransport;
 
 DataBuffer UnframeLengthPrefixedPacket(DataBuffer framed) {
   VectorBuffer<PacketSize> reader{framed};
@@ -91,6 +95,33 @@ void test_GenerationGuardInvalidatesPriorToken() {
   TEST_ASSERT_TRUE(GenerationGuard::IsCurrent(shared, gen1));
 }
 
+struct DummyTransport {
+  int value = 42;
+};
+
+void test_AsyncCallbackBridgeRejectsDestroyedTransport() {
+  DummyTransport transport;
+  auto lifetime = std::make_shared<int>(0);
+  GenerationGuard guard;
+  auto const gen = guard.current();
+
+  auto bridge = MakeAsyncCallbackBridge(lifetime, guard.shared(), &transport);
+  auto* bridge_ptr = bridge.get();
+
+  TEST_ASSERT_NOT_NULL(ResolveAsyncTransport<DummyTransport>(
+      bridge_ptr, static_cast<std::uint32_t>(gen)));
+
+  DestroyAsyncCallbackBridge(bridge);
+  TEST_ASSERT_NULL(ResolveAsyncTransport<DummyTransport>(
+      bridge_ptr, static_cast<std::uint32_t>(gen)));
+
+  auto bridge2 = MakeAsyncCallbackBridge(lifetime, guard.shared(), &transport);
+  lifetime.reset();
+  TEST_ASSERT_NULL(ResolveAsyncTransport<DummyTransport>(
+      bridge2.get(), static_cast<std::uint32_t>(gen)));
+  DestroyAsyncCallbackBridge(bridge2);
+}
+
 }  // namespace ae::test_browser_transport
 
 int test_browser_transport() {
@@ -100,5 +131,7 @@ int test_browser_transport() {
   RUN_TEST(ae::test_browser_transport::test_LengthPrefixFramingEmptyPayload);
   RUN_TEST(ae::test_browser_transport::test_QueueOverflowReturnsFail);
   RUN_TEST(ae::test_browser_transport::test_GenerationGuardInvalidatesPriorToken);
+  RUN_TEST(
+      ae::test_browser_transport::test_AsyncCallbackBridgeRejectsDestroyedTransport);
   return UNITY_END();
 }
