@@ -19,8 +19,10 @@
 
 #include <chrono>
 #include <cstdint>
+#include <limits>
 
 #include "aether/clock.h"
+#include "aether/config.h"
 #include "ae-numeric/percentile.h"
 
 namespace ae {
@@ -58,9 +60,40 @@ inline Duration MaxDuration(Duration a, Duration b) noexcept {
   return a > b ? a : b;
 }
 
+inline Duration SaturatingMul(Duration value, std::uint32_t factor) noexcept {
+  if (factor == 0 || value <= Duration{}) {
+    return Duration{};
+  }
+  auto const max_count = std::numeric_limits<std::uint32_t>::max();
+  auto const count = value.count();
+  if (count > max_count / factor) {
+    return Duration{max_count};
+  }
+  return Duration{static_cast<std::uint32_t>(count * factor)};
+}
+
+inline Duration SaturatingAdd(Duration a, Duration b) noexcept {
+  auto const max_count = std::numeric_limits<std::uint32_t>::max();
+  auto const ac = a.count();
+  auto const bc = b.count();
+  if (ac > max_count - bc) {
+    return Duration{max_count};
+  }
+  return Duration{static_cast<std::uint32_t>(ac + bc)};
+}
+
 inline Duration PresenceHardWait(Duration selected_rtt, Duration interval,
                                  Duration window) noexcept {
-  return MaxDuration(selected_rtt * 8, interval + window);
+  // selected_rtt*8 can wrap uint32 Duration to 0 on long RTTs; that makes Ping
+  // expire immediately and prevents reliable cloud queue drain.
+  auto hard = MaxDuration(SaturatingMul(selected_rtt, 8),
+                          SaturatingAdd(interval, window));
+  auto const floor =
+      std::chrono::milliseconds{AE_DEFAULT_RESPONSE_TIMEOUT_MS};
+  if (hard < floor) {
+    hard = floor;
+  }
+  return hard;
 }
 
 struct ConfirmedReceiveSchedule {

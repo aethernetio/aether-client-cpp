@@ -62,6 +62,7 @@ class PingCloudServers {
     };
 
     void Pump();
+    void ArmHeartbeat();
     void ScheduleWake(TimePoint when);
     void SyncBlockers();
     void DropFinishedPings();
@@ -92,6 +93,7 @@ class PingCloudServers {
     TaskSubscription wake_sub_;
     TaskSubscription current_window_sub_;
     TaskSubscription restream_sub_;
+    TaskSubscription heartbeat_sub_;
     ClientConnectivityPolicy::SuspendBlocker request_blocker_;
     ClientConnectivityPolicy::SuspendBlocker current_window_blocker_;
     ClientConnectivityPolicy::SuspendBlocker restream_blocker_;

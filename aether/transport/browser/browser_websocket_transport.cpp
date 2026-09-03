@@ -300,6 +300,7 @@ void BrowserWebSocketTransport::OnMessage(std::uint64_t generation,
   if (data == nullptr || size <= 0) {
     return;
   }
+  AE_TELED_DEBUG("Browser WS recv gen {} bytes {}", generation, size);
 
   // Copy into the collector immediately (JS buffer is transient). Schedule only
   // a small drain task so GenericTask fits the wasm32 pool (32 bytes).
@@ -321,6 +322,11 @@ void BrowserWebSocketTransport::OnMessage(std::uint64_t generation,
         out_data_event_.Emit(packet);
       }
     });
+    if (!read_event_sub_) {
+      // Task pool exhausted: do not leave pending stuck forever.
+      read_event_pending_ = false;
+      AE_TELED_ERROR("Browser WS drain task allocation failed");
+    }
   }
 }
 

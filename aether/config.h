@@ -35,7 +35,7 @@
 
 // task max size, this should be more than 16 bytes
 #ifndef AE_TASK_MAX_SIZE
-#  define AE_TASK_MAX_SIZE 8 * sizeof(void*)
+#  define AE_TASK_MAX_SIZE (8 * sizeof(void*))
 #endif
 // task alignment
 #ifndef AE_TASK_ALIGN
@@ -58,7 +58,7 @@
 
 // Maximum size in bytes for a single pending response pool element.
 #ifndef AE_API_PROTOCOL_PENDING_RESPONSE_MAX_SIZE
-#  define AE_API_PROTOCOL_PENDING_RESPONSE_MAX_SIZE 4 * sizeof(void*)
+#  define AE_API_PROTOCOL_PENDING_RESPONSE_MAX_SIZE (4 * sizeof(void*))
 #endif
 
 #ifndef AE_API_PROTOCOL_PENDING_RESPONSE_ALIGN
@@ -294,7 +294,7 @@
 
 // Send ping interval, ms
 #ifndef AE_PING_INTERVAL_MS
-#  define AE_PING_INTERVAL_MS AE_DEFAULT_RESPONSE_TIMEOUT_MS + 1000
+#  define AE_PING_INTERVAL_MS (AE_DEFAULT_RESPONSE_TIMEOUT_MS + 1000)
 #endif
 
 // Initial default for Local/Remote Presence offline classification timeout.

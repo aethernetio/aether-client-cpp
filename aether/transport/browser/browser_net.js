@@ -26,6 +26,7 @@ mergeInto(LibraryManager.library, {
       id: id,
       userData: userData,
       generation: gen,
+      url: url,
       ws: null,
       closed: false
     };
@@ -36,15 +37,24 @@ mergeInto(LibraryManager.library, {
       entry.ws = ws;
       ws.onopen = function() {
         if (entry.closed) return;
+        if (typeof console !== 'undefined') {
+          console.log('AeBrowserNet ws open', id, url);
+        }
         {{{ makeDynCall('vii', 'onOpen') }}}(userData, gen);
       };
       ws.onmessage = function(ev) {
         if (entry.closed) return;
         if (typeof ev.data === 'string') {
+          if (typeof console !== 'undefined') {
+            console.log('AeBrowserNet ws text frame (error)', id, url);
+          }
           {{{ makeDynCall('vii', 'onError') }}}(userData, gen);
           return;
         }
         var u8 = new Uint8Array(ev.data);
+        if (typeof console !== 'undefined') {
+          console.log('AeBrowserNet ws recv', id, url, u8.length);
+        }
         var ptr = _malloc(u8.length);
         if (!ptr) {
           {{{ makeDynCall('vii', 'onError') }}}(userData, gen);
@@ -54,14 +64,20 @@ mergeInto(LibraryManager.library, {
         {{{ makeDynCall('viiii', 'onMessage') }}}(userData, gen, ptr, u8.length);
         _free(ptr);
       };
-      ws.onclose = function() {
+      ws.onclose = function(ev) {
         if (entry.closed) return;
         entry.closed = true;
+        if (typeof console !== 'undefined') {
+          console.log('AeBrowserNet ws close', id, url, ev && ev.code, ev && ev.reason);
+        }
         {{{ makeDynCall('vii', 'onClose') }}}(userData, gen);
         delete AeBrowserNet.sockets[id];
       };
       ws.onerror = function() {
         if (entry.closed) return;
+        if (typeof console !== 'undefined') {
+          console.log('AeBrowserNet ws error', id, url);
+        }
         {{{ makeDynCall('vii', 'onError') }}}(userData, gen);
       };
     } catch (e) {
@@ -80,8 +96,13 @@ mergeInto(LibraryManager.library, {
       return -1;
     }
     try {
-      var slice = HEAPU8.buffer.slice(dataPtr, dataPtr + size);
-      entry.ws.send(slice);
+      // Prefer Uint8Array view copy — HEAPU8.buffer.slice can be wrong when
+      // wasm memory is a view with non-zero byteOffset or after growth.
+      var body = HEAPU8.slice(dataPtr, dataPtr + size);
+      entry.ws.send(body);
+      if (typeof console !== 'undefined') {
+        console.log('AeBrowserNet ws send', handle, entry.url, size);
+      }
       return size;
     } catch (e) {
       return -1;

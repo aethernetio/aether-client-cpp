@@ -58,7 +58,22 @@ PingCloudServers::ServerPing::ServerPing(AeContext const& ae_context,
   } else {
     machine_.ArmInitial(Now());
   }
+  // Browser cooperative loop: absolute/long DelayedTask wakes have been
+  // unreliable; keep a 1s heartbeat so pull_messages / presence still pump.
+  ArmHeartbeat();
   Pump();
+}
+
+void PingCloudServers::ServerPing::ArmHeartbeat() {
+  if (stop_) {
+    return;
+  }
+  heartbeat_sub_ = ae_context_.scheduler().DelayedTask(
+      [this]() noexcept {
+        ArmHeartbeat();
+        Pump();
+      },
+      std::chrono::milliseconds{1000});
 }
 
 PingCloudServers::ServerPing::~ServerPing() {
@@ -68,6 +83,7 @@ PingCloudServers::ServerPing::~ServerPing() {
   wake_sub_.Reset();
   current_window_sub_.Reset();
   restream_sub_.Reset();
+  heartbeat_sub_.Reset();
   link_state_sub_.Reset();
   request_blocker_.Reset();
   current_window_blocker_.Reset();
@@ -109,6 +125,15 @@ void PingCloudServers::ServerPing::Pump() {
   }
   auto const now = Now();
   auto const rtt = SelectedRtt();
+  // Keep draining even if Ping ApiPromise / hard-wait is stuck.
+  if (auto* cc = cloud_sc_->client_connection();
+      cc != nullptr &&
+      cc->stream_info().link_state == LinkState::kLinked) {
+    static_cast<void>(cc->AuthorizedApiCall(
+        SubApi{[](ApiContext<AuthorizedApi>& auth_api) {
+          auth_api->pull_messages();
+        }}));
+  }
   auto tick = machine_.TickNow(now, rtt);
   SyncBlockers();
   DropFinishedPings();
@@ -129,8 +154,16 @@ void PingCloudServers::ServerPing::ScheduleWake(TimePoint when) {
     wake_sub_.Reset();
     return;
   }
-  wake_sub_ = ae_context_.scheduler().DelayedTask([this]() noexcept { Pump(); },
-                                                  when);
+  auto const now = Now();
+  if (when <= now) {
+    wake_sub_ = ae_context_.scheduler().Task([this]() noexcept { Pump(); });
+    return;
+  }
+  // Duration-based delay — absolute TimePoint DelayedTask has been unreliable
+  // in the Emscripten cooperative loop (presence Pump never woke).
+  auto const delay = std::chrono::duration_cast<Duration>(when - now);
+  wake_sub_ = ae_context_.scheduler().DelayedTask(
+      [this]() noexcept { Pump(); }, delay);
 }
 
 void PingCloudServers::ServerPing::SyncBlockers() {
@@ -142,14 +175,25 @@ void PingCloudServers::ServerPing::SyncBlockers() {
     auto const close = machine_.current_promised_close();
     if (scheduled_current_close_ != close) {
       scheduled_current_close_ = close;
-      current_window_sub_ = ae_context_.scheduler().DelayedTask(
-          [this]() noexcept {
-            holding_current_ = false;
-            scheduled_current_close_ = {};
-            current_window_blocker_.Reset();
-            Pump();
-          },
-          close);
+      auto const now = Now();
+      if (close <= now) {
+        current_window_sub_ = ae_context_.scheduler().Task([this]() noexcept {
+          holding_current_ = false;
+          scheduled_current_close_ = {};
+          current_window_blocker_.Reset();
+          Pump();
+        });
+      } else {
+        auto const delay = std::chrono::duration_cast<Duration>(close - now);
+        current_window_sub_ = ae_context_.scheduler().DelayedTask(
+            [this]() noexcept {
+              holding_current_ = false;
+              scheduled_current_close_ = {};
+              current_window_blocker_.Reset();
+              Pump();
+            },
+            delay);
+      }
     }
   } else {
     current_window_sub_.Reset();
@@ -241,11 +285,14 @@ void PingCloudServers::ServerPing::StartSend(
   }
   machine_.OnSendStarting();
   SyncBlockers();
+  // Capture SendSpec by value: AsyncWaiter / let_value may run after this
+  // stack frame returns; [&] to the parameter was UAF (garbage attempt_id /
+  // kind / wire) and DropFinishedPings then destroyed the live Ping.
   waiter_.emplace(
       ae_context_,
       EnsureLinked() |
           ex::let_value(
-              [&]() noexcept
+              [this]() noexcept
                   -> ex::variant_sender<decltype(ex::just()),
                                         decltype(ex::just_stopped())> {
                 if (stop_) {
@@ -253,9 +300,9 @@ void PingCloudServers::ServerPing::StartSend(
                 }
                 return ex::just();
               }) |
-          ex::let_value([&]() noexcept {
+          ex::let_value([this, spec]() noexcept {
             return ex::create<ex::set_value_t(), ex::set_error_t(int)>(
-                [&](auto& ctx) noexcept {
+                [this, spec](auto& ctx) noexcept {
                   auto* cc = cloud_sc_->client_connection();
                   if (cc == nullptr) {
                     return ex::set_error(std::move(ctx.receiver), 1);
@@ -267,6 +314,12 @@ void PingCloudServers::ServerPing::StartSend(
                   }
 
                   auto const send_time = Now();
+                  // Separate void-only pull so queue drain cannot be blocked by
+                  // ping ApiPromise parse/result issues on browser WSS.
+                  static_cast<void>(cc->AuthorizedApiCall(
+                      SubApi{[](ApiContext<AuthorizedApi>& auth_api) {
+                        auth_api->pull_messages();
+                      }}));
                   auto ping = std::make_unique<Ping>(
                       ae_context_, *cloud_sc_, spec.wire_interval,
                       spec.rx_window, spec.hard_wait);
@@ -283,14 +336,16 @@ void PingCloudServers::ServerPing::StartSend(
                   live.ping = std::move(ping);
                   live_[attempt_id] = std::move(live);
                   AE_TELED_DEBUG(
-                      "PING_ATTEMPT server {} id {} kind {} send {} wire {}",
+                      "PING_ATTEMPT server {} id {} kind {} send {} "
+                      "wire_us {} hard_us {}",
                       server_id_, attempt_id, static_cast<int>(spec.kind),
-                      send_time, spec.wire_interval);
+                      send_time, spec.wire_interval.count(),
+                      spec.hard_wait.count());
                   return ex::set_value(std::move(ctx.receiver));
                 });
           }) |
           ex::let_value(
-              [&]() noexcept
+              [this]() noexcept
                   -> ex::variant_sender<decltype(ex::just()),
                                         decltype(ex::just_stopped())> {
                 if (stop_) {

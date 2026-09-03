@@ -79,6 +79,35 @@ if(EMSCRIPTEN OR CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
     message(STATUS
       "AE_EMSCRIPTEN: forcing AE_FILTRATION=ON for domain persistence")
   endif()
+  # Browser RTT to cloud WSS is higher; short response timeouts prevent
+  # successful cloud ping, and the server only drains the message queue on ping.
+  if(NOT DEFINED AE_EMSCRIPTEN_RESPONSE_TIMEOUT_MS)
+    set(AE_EMSCRIPTEN_RESPONSE_TIMEOUT_MS 30000)
+  endif()
+  # wasm32 sizeof(void*)==4 makes the default AE_TASK_MAX_SIZE only 32 bytes,
+  # which is too small for DelayedTask lambdas that capture (this, RequestId).
+  # Undersized pool slots silently corrupt expire_at and presence never wakes.
+  if(NOT DEFINED AE_EMSCRIPTEN_TASK_MAX_SIZE)
+    set(AE_EMSCRIPTEN_TASK_MAX_SIZE 128)
+  endif()
+  # Browser WS poll + presence heartbeats + cloud request timeouts exceed the
+  # default 128-slot task pool under multi-server WSS.
+  if(NOT DEFINED AE_EMSCRIPTEN_TASK_MAX_COUNT)
+    set(AE_EMSCRIPTEN_TASK_MAX_COUNT 512)
+  endif()
+  if(NOT DEFINED AE_EMSCRIPTEN_PENDING_RESPONSE_MAX_SIZE)
+    set(AE_EMSCRIPTEN_PENDING_RESPONSE_MAX_SIZE 64)
+  endif()
+  add_compile_definitions(
+    AE_DEFAULT_RESPONSE_TIMEOUT_MS=${AE_EMSCRIPTEN_RESPONSE_TIMEOUT_MS}
+    AE_TASK_MAX_SIZE=${AE_EMSCRIPTEN_TASK_MAX_SIZE}
+    AE_TASK_MAX_COUNT=${AE_EMSCRIPTEN_TASK_MAX_COUNT}
+    AE_API_PROTOCOL_PENDING_RESPONSE_MAX_SIZE=${AE_EMSCRIPTEN_PENDING_RESPONSE_MAX_SIZE})
+  message(STATUS
+    "AE_EMSCRIPTEN: AE_DEFAULT_RESPONSE_TIMEOUT_MS=${AE_EMSCRIPTEN_RESPONSE_TIMEOUT_MS} "
+    "AE_TASK_MAX_SIZE=${AE_EMSCRIPTEN_TASK_MAX_SIZE} "
+    "AE_TASK_MAX_COUNT=${AE_EMSCRIPTEN_TASK_MAX_COUNT} "
+    "AE_API_PROTOCOL_PENDING_RESPONSE_MAX_SIZE=${AE_EMSCRIPTEN_PENDING_RESPONSE_MAX_SIZE}")
 else()
   set(AE_EMSCRIPTEN OFF)
 endif()

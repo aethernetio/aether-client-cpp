@@ -50,6 +50,12 @@ LocalPresenceMachine::LocalPresenceMachine() = default;
 
 void LocalPresenceMachine::SetDesired(TimePoint now, RxTimingConf conf,
                                       Percentile percentile) {
+  if (conf.interval <= Duration{}) {
+    conf.interval = std::chrono::milliseconds{AE_PING_INTERVAL_MS};
+  }
+  if (conf.rx_window <= Duration{}) {
+    conf.rx_window = conf.interval;
+  }
   auto const changed = (desired_.interval != conf.interval) ||
                        (desired_.rx_window != conf.rx_window);
   desired_ = conf;
@@ -473,6 +479,12 @@ LocalPresenceMachine::SendSpec LocalPresenceMachine::BuildSendSpec(
   cycle_following_target_ = plan.following_open_target;
   spec.following_open_target = plan.following_open_target;
   spec.wire_interval = plan.wire_interval;
+  if (spec.wire_interval <= Duration{}) {
+    spec.wire_interval = desired_.interval;
+  }
+  if (spec.wire_interval <= Duration{}) {
+    spec.wire_interval = std::chrono::milliseconds{AE_PING_INTERVAL_MS};
+  }
   spec.desired_interval = desired_.interval;
   spec.hard_wait =
       PresenceHardWait(selected_rtt, desired_.interval, desired_.rx_window);

@@ -45,6 +45,8 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
   WriteAction& Write(AeMessage&& message) override {
     return cloud_connection_->CallApi(
         ApiCall{[&message](ApiContext<AuthorizedApi>& auth_api, auto*) {
+          // Keep void send_message: ApiPromise variants have been observed not
+          // to complete over browser WSS, while void methods still execute.
           auth_api->send_message(std::move(message));
         }},
         request_policy_);

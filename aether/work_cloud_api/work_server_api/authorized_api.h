@@ -48,7 +48,13 @@ class AuthorizedApi : public ApiClass {
   // Existing server Method 35. Client binding only — wire DTO unchanged.
   Method<35, ApiPromise<ClientTiming>(Uid uid)> get_client_timing;
 
+  // Server Method 36 — drains the message queue without an ApiPromise round-trip.
+  Method<36, void()> pull_messages;
+
   Method<38, void(std::vector<AppliedConfig> configs)> report_applied_config;
+
+  // Server Method 39 — enqueue ACK (void future) for send diagnostics/reliability.
+  Method<39, ApiPromise<void>(AeMessage message)> send_message_with_result;
 };
 }  // namespace ae
 

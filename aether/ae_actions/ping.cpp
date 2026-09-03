@@ -68,11 +68,29 @@ Ping::Ping(AeContext const& ae_context,
       rx_window_{rx_window},
       timeout_{timeout},
       server_id_{cloud_server_connection_->server_id()} {
+  // Hard floor and ceiling: zero hard_wait strands presence; multi-minute
+  // selected_rtt*8 hard_wait hides cloud ApiPromise failures on browser WSS.
+  constexpr auto kMinTimeout =
+      std::chrono::milliseconds{AE_DEFAULT_RESPONSE_TIMEOUT_MS};
+  constexpr auto kMaxTimeout = std::chrono::milliseconds{60000};
+  if (timeout_ < kMinTimeout) {
+    timeout_ = kMinTimeout;
+  }
+  if (timeout_ > kMaxTimeout) {
+    timeout_ = kMaxTimeout;
+  }
+  if (next_ping_hint_ <= Duration{}) {
+    next_ping_hint_ = kMinTimeout;
+  }
+  if (rx_window_ < std::chrono::milliseconds{1}) {
+    rx_window_ = next_ping_hint_;
+  }
   AE_TELE_INFO(
       kPing,
-      "Ping action created to server id: {}, interval: {:%S}s, rx_window: "
-      "{:%S}s, timeout: {:%S}s",
-      server_id_, next_ping_hint_, rx_window_, timeout_);
+      "Ping action created to server id: {}, interval_us: {}, rx_window_us: "
+      "{}, timeout_us: {}",
+      server_id_, next_ping_hint_.count(), rx_window_.count(),
+      timeout_.count());
 }
 
 Ping::ResultEvent::Subscriber Ping::result_event() { return result_event_; }
@@ -91,6 +109,10 @@ void Ping::Start(TimePoint current_time) {
 
   auto& write_action = cc->AuthorizedApiCall(
       SubApi{[this, current_time](ApiContext<AuthorizedApi>& auth_api) {
+        // Drain first via void pull_messages so delivery does not depend on the
+        // ping ApiPromise result path (observed stuck over browser WSS).
+        auth_api->pull_messages();
+
         auto next_ping_hint_ms = static_cast<std::uint64_t>(
             std::chrono::duration_cast<std::chrono::milliseconds>(
                 next_ping_hint_)
@@ -103,8 +125,8 @@ void Ping::Start(TimePoint current_time) {
         auto req_id = pong_promise.request_id();
 
         AE_TELE_DEBUG(kPingSend,
-                      "Ping server id {}, request {} expected time {}",
-                      server_id_, req_id, timeout_);
+                      "Ping server id {}, request {} expected time {} us",
+                      server_id_, req_id, timeout_.count());
 
         request_start_ = current_time;
 
@@ -118,9 +140,19 @@ void Ping::Start(TimePoint current_time) {
             });
         wait_result_sub_ = std::move(wait_result_sub);
 
+        // Use std::chrono::milliseconds explicitly for the browser scheduler.
+        auto const timeout_ms = std::chrono::milliseconds{
+            std::chrono::duration_cast<std::chrono::milliseconds>(timeout_)
+                .count()};
+        AE_TELED_DEBUG("Ping schedule timeout server {} req {} ms {}",
+                       server_id_, req_id, timeout_ms.count());
         timeout_sub_ = ae_context_.scheduler().DelayedTask(
-            [this, req_id]() { PingResponseTimeout(req_id); },
-            current_time + timeout_);
+            [this, req_id]() {
+              AE_TELED_DEBUG("Ping DelayedTask fired server {} req {}",
+                             server_id_, req_id);
+              PingResponseTimeout(req_id);
+            },
+            timeout_ms);
         if (state_ == RequestState::kPending && !timeout_sub_) {
           AE_TELE_ERROR(
               kPingTimeoutError,
@@ -133,6 +165,10 @@ void Ping::Start(TimePoint current_time) {
       }});
 
   write_sub_ = write_action.status_event().Subscribe([this](auto status) {
+    if (status == WriteAction::Status::kSuccess) {
+      AE_TELED_DEBUG("Ping write success server id {}", server_id_);
+      return;
+    }
     if (status == WriteAction::Status::kFail) {
       if (state_ != RequestState::kPending) {
         return;

@@ -38,6 +38,7 @@ void ProtocolContext::SetSendResultResponse(RequestId request_id) {
   if (entry.response == nullptr) {
     AE_TELED_DEBUG("No callback for request id {} cancel parse", request_id);
     parser()->Cancel();
+    return;
   }
 
   auto* p = parser();
