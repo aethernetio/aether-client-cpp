@@ -340,24 +340,28 @@ class BrowserPingPongApp {
     }
     SetState(AppState::kLoadingStorage, "Mounting IDBFS profile");
 #if defined(__EMSCRIPTEN__)
-    if (!emscripten_storage::TryAcquireProfileLock(profile_)) {
-      SetState(AppState::kError,
-               "Profile lock held by another tab; close it or use another "
-               "profile");
-      return;
-    }
-    if (!emscripten_storage::MountProfile(profile_)) {
-      SetState(AppState::kError, "Invalid profile name");
-      return;
-    }
-    emscripten_storage::SyncFromIdb(
-        [this](emscripten_storage::OpResult result) {
-          if (!result.ok) {
+    emscripten_storage::AcquireProfileLock(
+        profile_, [this](emscripten_storage::OpResult lock_result) {
+          if (!lock_result.ok) {
             SetState(AppState::kError,
-                     std::string{"IDBFS sync failed: "} + result.message);
+                     std::string{"Profile lock failed: "} +
+                         lock_result.message);
             return;
           }
-          OnStorageReady();
+          if (!emscripten_storage::MountProfile(profile_)) {
+            emscripten_storage::ReleaseProfileLock();
+            SetState(AppState::kError, "Invalid profile name");
+            return;
+          }
+          emscripten_storage::SyncFromIdb(
+              [this](emscripten_storage::OpResult result) {
+                if (!result.ok) {
+                  SetState(AppState::kError,
+                           std::string{"IDBFS sync failed: "} + result.message);
+                  return;
+                }
+                OnStorageReady();
+              });
         });
 #else
     OnStorageReady();
@@ -470,7 +474,7 @@ class BrowserPingPongApp {
         },
         emscripten_storage::ProfileMountPath().c_str());
     emscripten_storage::SyncToIdb([](emscripten_storage::OpResult) {});
-    emscripten_storage::ReleaseProfileLock(profile_);
+    emscripten_storage::ReleaseProfileLock();
 #endif
     stats_ = {};
     next_sequence_ = 1;

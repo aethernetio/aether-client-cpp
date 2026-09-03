@@ -145,80 +145,98 @@ void SyncToIdb(OpCallback callback) {
       heap_cb);
 }
 
-bool TryAcquireProfileLock(std::string_view profile_name) {
+void AcquireProfileLock(std::string_view profile_name, OpCallback callback) {
   if (!emscripten_storage_internal::IsSafeProfileName(profile_name)) {
-    return false;
-  }
-  std::string name{profile_name};
-  return EM_ASM_INT(
-             {
-               var profile = UTF8ToString($0);
-               var lockName = 'aether-profile:' + profile;
-               if (typeof navigator !== 'undefined' && navigator.locks) {
-                 if (!Module.__aetherProfileLockPromises) {
-                   Module.__aetherProfileLockPromises = {};
-                 }
-                 if (Module.__aetherProfileLockPromises[lockName]) {
-                   return 0;
-                 }
-                 var held = {released : false};
-                 Module.__aetherProfileLockPromises[lockName] = held;
-                 navigator.locks.request(
-                     lockName, {ifAvailable : true}, function(lock) {
-                       if (!lock) {
-                         held.released = true;
-                         delete Module.__aetherProfileLockPromises[lockName];
-                         return;
-                       }
-                       return new Promise(function(resolve) {
-                         held.release = resolve;
-                       });
-                     });
-                 return 1;
-               }
-               if (typeof BroadcastChannel === 'undefined') {
-                 return 1;
-               }
-               if (!Module.__aetherProfileLocks) {
-                 Module.__aetherProfileLocks = {};
-               }
-               if (Module.__aetherProfileLocks[lockName]) {
-                 return 0;
-               }
-               var ch = new BroadcastChannel(lockName);
-               Module.__aetherProfileLocks[lockName] = ch;
-               return 1;
-             },
-             name.c_str()) != 0;
-}
-
-void ReleaseProfileLock(std::string_view profile_name) {
-  if (!emscripten_storage_internal::IsSafeProfileName(profile_name)) {
+    callback(OpResult{false, "invalid profile name"});
     return;
   }
+  auto* heap_cb = new OpCallback(std::move(callback));
   std::string name{profile_name};
   EM_ASM(
       {
         var profile = UTF8ToString($0);
+        var userData = $1;
+        var complete = function(ok, message) {
+          var len = lengthBytesUTF8(message) + 1;
+          var ptr = _malloc(len);
+          stringToUTF8(message, ptr, len);
+          _ae_emscripten_storage_op_done(ok ? 1 : 0, ptr, userData);
+          _free(ptr);
+        };
+        if (typeof navigator === 'undefined' || !navigator.locks ||
+            typeof navigator.locks.request !== 'function') {
+          complete(false,
+                   'navigator.locks is required for safe profile access');
+          return;
+        }
         var lockName = 'aether-profile:' + profile;
-        if (Module.__aetherProfileLockPromises &&
-            Module.__aetherProfileLockPromises[lockName]) {
-          var held = Module.__aetherProfileLockPromises[lockName];
-          if (held.release) {
-            held.release();
-          }
-          delete Module.__aetherProfileLockPromises[lockName];
+        if (Module.__aetherProfileLock) {
+          complete(false, 'profile lock already requested by this tab');
+          return;
         }
-        if (Module.__aetherProfileLocks &&
-            Module.__aetherProfileLocks[lockName]) {
-          try {
-            Module.__aetherProfileLocks[lockName].close();
-          } catch (e) {
-          }
-          delete Module.__aetherProfileLocks[lockName];
-        }
+        var held = {
+          name : lockName,
+          acquired : false,
+          cancelled : false,
+          release : null
+        };
+        Module.__aetherProfileLock = held;
+        navigator.locks
+            .request(lockName, {ifAvailable : true}, function(lock) {
+              if (!lock) {
+                if (Module.__aetherProfileLock === held) {
+                  delete Module.__aetherProfileLock;
+                }
+                complete(false, 'profile lock held by another tab');
+                return;
+              }
+              if (held.cancelled) {
+                if (Module.__aetherProfileLock === held) {
+                  delete Module.__aetherProfileLock;
+                }
+                complete(false, 'profile lock acquisition cancelled');
+                return;
+              }
+              held.acquired = true;
+              complete(true, '');
+              return new Promise(function(resolve) {
+                held.release = resolve;
+                if (held.cancelled) {
+                  resolve();
+                }
+              });
+            })
+            .catch(function(err) {
+              if (Module.__aetherProfileLock === held) {
+                delete Module.__aetherProfileLock;
+              }
+              complete(false, String(err));
+            });
       },
-      name.c_str());
+      name.c_str(), heap_cb);
+}
+
+void ReleaseProfileLock() {
+  EM_ASM({
+    var held = Module.__aetherProfileLock;
+    if (!held) {
+      return;
+    }
+    held.cancelled = true;
+    if (held.release) {
+      held.release();
+    }
+    delete Module.__aetherProfileLock;
+  });
+}
+
+bool HasProfileLock() {
+  return EM_ASM_INT({
+           return Module.__aetherProfileLock &&
+                   Module.__aetherProfileLock.acquired
+               ? 1
+               : 0;
+         }) != 0;
 }
 
 }  // namespace ae::emscripten_storage

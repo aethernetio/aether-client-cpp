@@ -68,16 +68,22 @@ void SyncFromIdb(OpCallback callback);
 void SyncToIdb(OpCallback callback);
 
 /**
- * \brief Best-effort exclusive profile lock via navigator.locks / BroadcastChannel.
+ * \brief Asynchronously acquire an exclusive profile lock.
  *
- * \return true if this tab holds the lock; false if another tab owns the profile.
+ * The callback reports success only after navigator.locks supplies a non-null
+ * lock. The lock remains held until ReleaseProfileLock is called.
  */
-bool TryAcquireProfileLock(std::string_view profile_name);
+void AcquireProfileLock(std::string_view profile_name, OpCallback callback);
 
 /**
- * \brief Release a previously acquired profile lock (best-effort).
+ * \brief Release the profile lock held by this module instance.
  */
-void ReleaseProfileLock(std::string_view profile_name);
+void ReleaseProfileLock();
+
+/**
+ * \brief Whether this module instance currently holds a profile lock.
+ */
+bool HasProfileLock();
 
 }  // namespace ae::emscripten_storage
 
