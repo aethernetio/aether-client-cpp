@@ -21,6 +21,7 @@
 #include <cstdint>
 
 #include "aether/clock.h"
+#include "ae-numeric/percentile8.h"
 
 namespace ae {
 
@@ -28,7 +29,8 @@ namespace ae {
 inline constexpr Duration kLocalPresenceGuard =
     std::chrono::duration_cast<Duration>(std::chrono::milliseconds{30});
 
-inline constexpr std::uint8_t kDefaultRttReliabilityPercentile{99};
+inline constexpr Percentile8 kDefaultRttReliabilityPercentile =
+    Percentile8::FromPercent(99.0);
 
 inline constexpr std::size_t kMaxOutstandingPresenceAttempts{8};
 

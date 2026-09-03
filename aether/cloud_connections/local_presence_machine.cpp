@@ -49,13 +49,7 @@ void CountKind(LocalPresenceMachine::Counters& counters,
 LocalPresenceMachine::LocalPresenceMachine() = default;
 
 void LocalPresenceMachine::SetDesired(TimePoint now, RxTimingConf conf,
-                                      std::uint8_t percentile) {
-  if (percentile == 0) {
-    percentile = kDefaultRttReliabilityPercentile;
-  }
-  if (percentile > 100) {
-    percentile = 100;
-  }
+                                      Percentile8 percentile) {
   auto const changed = (desired_.interval != conf.interval) ||
                        (desired_.rx_window != conf.rx_window);
   desired_ = conf;

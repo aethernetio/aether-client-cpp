@@ -22,6 +22,8 @@
 
 #include <chrono>
 
+#include "ae-numeric/percentile8.h"
+
 #include "aether/clock.h"
 #include "aether/config.h"
 
@@ -35,9 +37,9 @@ inline constexpr std::uint8_t kMaxCloudRequestRetryCount{31};
 // Orthogonal to RequestPolicy (which servers are candidates).
 struct CloudRequestExecutionPolicy {
   // Soft response timeout uses channel response RTT percentile.
-  std::uint8_t response_percentile{99};
-  // Public semantic 1.2x stored as fixed-point permille (1200 => 1.2).
-  std::uint16_t timeout_factor_permille{1200};
+  Percentile8 response_percentile{Percentile8::FromPercent(99.0)};
+  // Soft-timeout multiplier (1-byte FixedPoint, typically Q2.6).
+  TimeoutFactor8 timeout_factor{TimeoutFactor8::FromDouble(1.2)};
   // Retries after the initial attempt. retry_count=0 => 1 attempt total.
   // Clamped to [0, kMaxCloudRequestRetryCount].
   std::uint8_t retry_count{1};
@@ -52,25 +54,12 @@ struct CloudRequestExecutionPolicy {
     return static_cast<std::size_t>(retry_count) + 1;
   }
 
-  [[nodiscard]] double TimeoutFactor() const noexcept {
-    return static_cast<double>(timeout_factor_permille) / 1000.0;
-  }
-
   static constexpr CloudRequestExecutionPolicy FromFactor(
-      std::uint8_t percentile, double factor, std::uint8_t retries,
+      Percentile8 percentile, TimeoutFactor8 factor, std::uint8_t retries,
       std::uint8_t hedge) noexcept {
     CloudRequestExecutionPolicy p{};
     p.response_percentile = percentile;
-    if (factor <= 0.0) {
-      p.timeout_factor_permille = 1000;
-    } else {
-      auto const scaled = factor * 1000.0 + 0.5;
-      if (scaled >= 65535.0) {
-        p.timeout_factor_permille = 65535;
-      } else {
-        p.timeout_factor_permille = static_cast<std::uint16_t>(scaled);
-      }
-    }
+    p.timeout_factor = factor;
     p.retry_count = retries > kMaxCloudRequestRetryCount
                         ? kMaxCloudRequestRetryCount
                         : retries;
@@ -81,30 +70,29 @@ struct CloudRequestExecutionPolicy {
 
 inline void NormalizeCloudRequestExecutionPolicy(
     CloudRequestExecutionPolicy& policy) noexcept {
-  if (policy.response_percentile > 100) {
-    policy.response_percentile = 100;
-  }
-  if (policy.timeout_factor_permille == 0) {
-    policy.timeout_factor_permille = 1000;
+  if (policy.timeout_factor.RawValue() == 0) {
+    policy.timeout_factor = TimeoutFactor8::FromDouble(1.0);
   }
   if (policy.retry_count > kMaxCloudRequestRetryCount) {
     policy.retry_count = kMaxCloudRequestRetryCount;
   }
 }
 
-// T = round_nearest(rtt_ms * timeout_factor_permille / 1000).
-inline Duration ScaleDurationByPermille(Duration base,
-                                        std::uint16_t factor_permille) noexcept {
+// T = round_nearest(rtt_ms * timeout_factor) with FixedPoint scale 2^kScaleExp.
+inline Duration ScaleDurationByTimeoutFactor(
+    Duration base, TimeoutFactor8 factor) noexcept {
   using Ms = std::chrono::milliseconds;
-  auto const base_ms =
-      std::chrono::duration_cast<Ms>(base).count();
+  auto const base_ms = std::chrono::duration_cast<Ms>(base).count();
   if (base_ms <= 0) {
     return std::chrono::duration_cast<Duration>(Ms{1});
   }
+  static_assert(TimeoutFactor8::kScaleExp < 0);
+  constexpr int frac_bits = -TimeoutFactor8::kScaleExp;
+  constexpr std::int64_t half = std::int64_t{1} << (frac_bits - 1);
   auto const product =
       static_cast<std::int64_t>(base_ms) *
-      static_cast<std::int64_t>(factor_permille);
-  auto const scaled = (product + 500) / 1000;
+      static_cast<std::int64_t>(factor.RawValue());
+  auto const scaled = (product + half) >> frac_bits;
   if (scaled <= 0) {
     return std::chrono::duration_cast<Duration>(Ms{1});
   }
@@ -114,7 +102,7 @@ inline Duration ScaleDurationByPermille(Duration base,
 inline Duration ComputeCloudRequestSoftTimeout(
     Duration rtt_percentile,
     CloudRequestExecutionPolicy const& policy) noexcept {
-  return ScaleDurationByPermille(rtt_percentile, policy.timeout_factor_permille);
+  return ScaleDurationByTimeoutFactor(rtt_percentile, policy.timeout_factor);
 }
 
 inline Duration FallbackCloudRequestRtt() noexcept {

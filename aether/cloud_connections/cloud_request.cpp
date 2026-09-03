@@ -57,10 +57,11 @@ CloudRequest::CloudRequest(AeContext const& ae_context,
           MethodPtr<&CloudRequest::ServersUpdated>{this})} {
   NormalizeCloudRequestExecutionPolicy(exec_policy_);
   AE_CLOUD_REQ_DEBUG(
-      "CLOUD_REQUEST_START percentile={} factor_permille={} retry_count={} "
+      "CLOUD_REQUEST_START percentile_code={} factor_raw={} retry_count={} "
       "hedge_next_servers={}",
-      exec_policy_.response_percentile, exec_policy_.timeout_factor_permille,
-      exec_policy_.retry_count, exec_policy_.hedge_next_servers);
+      exec_policy_.response_percentile.Code(),
+      exec_policy_.timeout_factor.RawValue(), exec_policy_.retry_count,
+      exec_policy_.hedge_next_servers);
   RebuildCandidates();
   ActivateInitial();
   EnqueuePump();
@@ -80,10 +81,11 @@ CloudRequest::CloudRequest(AeContext const& ae_context,
           MethodPtr<&CloudRequest::ServersUpdated>{this})} {
   NormalizeCloudRequestExecutionPolicy(exec_policy_);
   AE_CLOUD_REQ_DEBUG(
-      "CLOUD_REQUEST_START percentile={} factor_permille={} retry_count={} "
+      "CLOUD_REQUEST_START percentile_code={} factor_raw={} retry_count={} "
       "hedge_next_servers={}",
-      exec_policy_.response_percentile, exec_policy_.timeout_factor_permille,
-      exec_policy_.retry_count, exec_policy_.hedge_next_servers);
+      exec_policy_.response_percentile.Code(),
+      exec_policy_.timeout_factor.RawValue(), exec_policy_.retry_count,
+      exec_policy_.hedge_next_servers);
   RebuildCandidates();
   ActivateInitial();
   EnqueuePump();

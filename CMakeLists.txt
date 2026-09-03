@@ -135,7 +135,7 @@ CPMAddPackage(
 CPMAddPackage(
   NAME ae-numeric
   GIT_REPOSITORY "https://github.com/aethernetio/aethernet-numeric.git"
-  GIT_TAG "main"
+  GIT_TAG "1002f91fb2682f641ec4431c6c57e6c66e620744"
   OPTIONS "AE_NUMERIC_INSTALL ${AE_INSTALL}" "AE_BUILD_TESTS OFF"
   EXCLUDE_FROM_ALL FALSE
 )
@@ -321,6 +321,7 @@ target_compile_options(${TARGET_NAME} PRIVATE
       /w15262 #implisitfallthrough
       /wd4388 #Wno-sign-compare
       /wd4389 #Wno-sign-compare
+      /wd4702 # unreachable in ae-numeric FixedPoint/Exponential templates
       /Zc:preprocessor
       >
 )

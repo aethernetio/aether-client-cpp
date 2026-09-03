@@ -19,7 +19,6 @@
 
 #include <algorithm>
 #include <cassert>
-#include <cmath>
 #include <cstddef>
 #include <type_traits>
 
@@ -29,6 +28,8 @@ DISABLE_WARNING_PUSH()
 IGNORE_IMPLICIT_CONVERSION()
 #include <etl/circular_buffer.h>
 DISABLE_WARNING_POP()
+
+#include "ae-numeric/percentile8.h"
 
 #include "aether-miscpp/format/format.h"
 #include "aether-miscpp/serialization/binary_archive.h"
@@ -86,7 +87,7 @@ class StatisticsCounter final {
 
   /**
    * \brief Runtime percentile accessor (0..100). Same semantics as the
-   * compile-time template overload.
+   * compile-time template overload. Integer-only rank (no float/ceil).
    */
   [[nodiscard]] TValue PercentileValue(std::size_t percentile) const {
     assert(percentile <= 100);
@@ -99,9 +100,21 @@ class StatisticsCounter final {
     }
     auto sorted_list = value_buffer_;
     std::sort(std::begin(sorted_list), std::end(sorted_list), Comparator{});
-    auto index = static_cast<typename decltype(sorted_list)::size_type>(  //
-        std::ceil(static_cast<double>(sorted_list.size() - 1) * percentile /
-                  100.0));
+    auto const index = PercentileIndexInteger(sorted_list.size(), percentile);
+    return sorted_list[index];
+  }
+
+  /**
+   * \brief Percentile8 accessor. Rank uses integer/fixed tail math only.
+   */
+  [[nodiscard]] TValue PercentileValue(Percentile8 percentile) const {
+    assert(!value_buffer_.empty());
+    if (percentile.IsExactHundred()) {
+      return max();
+    }
+    auto sorted_list = value_buffer_;
+    std::sort(std::begin(sorted_list), std::end(sorted_list), Comparator{});
+    auto const index = PercentileIndex(sorted_list.size(), percentile);
     return sorted_list[index];
   }
 

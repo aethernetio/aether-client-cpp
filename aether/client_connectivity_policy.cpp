@@ -92,19 +92,15 @@ auto ClientConnectivityPolicy::ConfigureRxTimings(
 
 void ClientConnectivityPolicy::ConfigureServerRxTiming(
     ServerId server_id, RxTimingConf conf,
-    std::uint8_t rtt_reliability_percentile) {
+    Percentile8 rtt_reliability_percentile) {
   auto& state = EnsureServerPresence(server_id);
   auto const timing_changed = (state.desired.interval != conf.interval) ||
                               (state.desired.rx_window != conf.rx_window);
   state.desired = conf;
   state.has_user_rx_timing = true;
-  state.rtt_reliability_percentile =
-      rtt_reliability_percentile == 0 ? kDefaultRttReliabilityPercentile
-                                      : rtt_reliability_percentile;
-  if (state.rtt_reliability_percentile > 100) {
-    state.rtt_reliability_percentile = 100;
-  }
+  state.rtt_reliability_percentile = rtt_reliability_percentile;
   // Confirmed schedule stays old until a Pong for a Ping carrying the new conf.
+  // Percentile-only updates do not clear the schedule or set config_pending.
   if (timing_changed) {
     state.config_change_pending = true;
   }
