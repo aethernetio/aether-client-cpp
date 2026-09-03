@@ -26,6 +26,10 @@
 #  include "aether/crypto/crypto_nonce.h"
 #  include "aether/tele.h"
 
+#  if defined(__EMSCRIPTEN__)
+#    include "aether/crypto/browser/browser_sodium_bridge.h"
+#  endif
+
 namespace ae {
 
 namespace _internal {
@@ -38,9 +42,15 @@ inline DataBuffer EncryptWithSymmetric(
 
   unsigned long long ciphertext_len;
 
+#  if defined(__EMSCRIPTEN__)
+  [[maybe_unused]] auto r = browser_sodium::AeadEncrypt(
+      ciphertext.data(), &ciphertext_len, raw_data.data(), raw_data.size(),
+      nonce.value.data(), secret_key.key.data());
+#  else
   [[maybe_unused]] auto r = crypto_aead_chacha20poly1305_encrypt(
       ciphertext.data(), &ciphertext_len, raw_data.data(), raw_data.size(),
       nullptr, 0, nullptr, nonce.value.data(), secret_key.key.data());
+#  endif
 
   assert(r == 0);
 
@@ -75,10 +85,16 @@ inline DataBuffer DecryptWithSymmetric(
       encrypted_data_size - crypto_aead_chacha20poly1305_ABYTES);
   unsigned long long decrypted_len{0};
 
+#  if defined(__EMSCRIPTEN__)
+  auto r = browser_sodium::AeadDecrypt(
+      decrypted_data.data(), &decrypted_len, encrypted_data.data(),
+      encrypted_data_size, nonce.value.data(), secret_key.key.data());
+#  else
   auto r = crypto_aead_chacha20poly1305_decrypt(
       decrypted_data.data(), &decrypted_len, nullptr, encrypted_data.data(),
       encrypted_data_size, nullptr, 0, nonce.value.data(),
       secret_key.key.data());
+#  endif
 
   if (r != 0) {
     return {};

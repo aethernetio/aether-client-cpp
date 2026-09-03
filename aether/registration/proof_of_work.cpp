@@ -24,6 +24,7 @@
 #  include <bcrypt.h>
 
 #  include "aether-miscpp/crc.h"
+#  include "aether/crypto/browser/browser_bcrypt.h"
 
 namespace ae {
 
@@ -77,8 +78,10 @@ uint32_t ProofOfWork::ComputeHash(const std::string& pass,
   [[maybe_unused]] static constexpr size_t kMaxBcryptPasswordLength = 72;
   assert(pass.size() <= kMaxBcryptPasswordLength);
   std::array<char, BCRYPT_HASHSIZE> hash;
+  // Under Emscripten: optional Module.aeBcrypt, else WASM libbcrypt (see
+  // aether/crypto/browser/browser_bcrypt.h).
   [[maybe_unused]] auto r1 =
-      bcrypt_hashpw(pass.c_str(), salt.c_str(), hash.data());
+      browser_bcrypt::Hashpw(pass.c_str(), salt.c_str(), hash.data());
   assert(r1 == 0);
 
   // Don't use sodium::crypto_generichash etc because libhydrogen generic hash

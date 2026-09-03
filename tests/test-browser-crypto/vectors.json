@@ -1,0 +1,38 @@
+{
+  "description": "Known-answer vectors for Aether browser crypto KATs. Generated with native libsodium (original ChaCha20-Poly1305) + libbcrypt + aether-miscpp crc32.",
+  "aead_chacha20poly1305_original": {
+    "key_hex": "1111111111111111111111111111111111111111111111111111111111111111",
+    "nonce_hex": "2222222222222222",
+    "plaintext_hex": "6165746865722d6b61742d706c61696e",
+    "ciphertext_tag_hex": "6c86073ffa06528328a2c4224188b53a222097da16875e7a477e7d38c167f82e",
+    "wire_layout_ciphertext_tag_nonce_hex": "6c86073ffa06528328a2c4224188b53a222097da16875e7a477e7d38c167f82e2222222222222222",
+    "note": "Wire layout is ciphertext||tag||nonce (8-byte nonce). Not IETF."
+  },
+  "kdf": {
+    "master_hex": "3333333333333333333333333333333333333333333333333333333333333333",
+    "context": "_aether_",
+    "subkey_id": "4294967298",
+    "subkey_id_hex": "0000000100000002",
+    "derived_hex": "de1e738dc6355e0e429345158fc001108f9b343177da1908e6142b118c96cde61dc36f6fc753dcfae6e696e24a2f03f55daf22bbc6f71b3659a09aefe4eef38e"
+  },
+  "ed25519": {
+    "seed_hex": "4444444444444444444444444444444444444444444444444444444444444444",
+    "public_key_hex": "d759793bbc13a2819a827c76adb6fba8a49aee007f49f2d0992d99b825ad2c48",
+    "message_hex": "6165746865722d6b61742d706c61696e",
+    "signature_hex": "4fab21dbeebc0495ea3564b83fa73e982c765e54f69221119e92bf51471904869032aaec05a100139b97b6d9f8306740a2238364b333ee9b12b8a7e7d75cce0a"
+  },
+  "box_seal": {
+    "seed_hex": "5555555555555555555555555555555555555555555555555555555555555555",
+    "public_key_hex": "7730ca242a380d5603dfdfa2efb3357aa67001eaa95209db0cc144c20970747c",
+    "secret_key_hex": "f253eaf20a495f8d28dfe54ac2ce4e763f5b9c16b460c7490f65aee616cfdff0",
+    "plaintext_hex": "6165746865722d6b61742d706c61696e",
+    "sealed_sample_hex": "c4a07b76f3dc3fa3f750b18172d05551a83ac290eae2ec2f60d0244ae6c8791c79afe363a83708851837c66b7fe2c541da3638d547c709b53655587bf374a237",
+    "note": "crypto_box_seal is ephemeral; sealed_sample_hex is one committed ciphertext for open KATs. Round-trip seal/open is also tested."
+  },
+  "bcrypt_crc32": {
+    "password": "42suffix",
+    "salt": "$2a$04$abcdefghijklmnopqrstuu",
+    "hash": "$2a$04$abcdefghijklmnopqrstuu4WuvYkajxJ0bgYhTT74lUWe8BnV0c4e",
+    "crc32_aether_miscpp": 2788529577
+  }
+}

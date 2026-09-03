@@ -1,0 +1,12 @@
+{
+  "name": "aether-browser-ping-pong-vendor",
+  "private": true,
+  "description": "Pinned browser crypto for aether_browser_ping_pong (no CDN)",
+  "dependencies": {
+    "libsodium": "0.8.4",
+    "libsodium-wrappers": "0.8.4"
+  },
+  "scripts": {
+    "vendor": "node scripts/vendor-libsodium.js"
+  }
+}

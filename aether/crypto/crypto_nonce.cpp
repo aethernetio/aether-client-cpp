@@ -17,7 +17,11 @@
 #include "aether/crypto/crypto_nonce.h"
 
 #if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
-#  include <sodium/randombytes.h>
+#  if defined(__EMSCRIPTEN__)
+#    include "aether/crypto/browser/browser_sodium_bridge.h"
+#  else
+#    include <sodium/randombytes.h>
+#  endif
 #endif
 #if AE_CRYPTO_SYNC == AE_HYDRO_CRYPTO_SK
 #  include <hydrogen.h>
@@ -31,7 +35,11 @@ void CryptoNonceChacha20Poly1305::Next() {
   v += 1;
 }
 void CryptoNonceChacha20Poly1305::Init() {
+#  if defined(__EMSCRIPTEN__)
+  browser_sodium::RandomBytes(value.data(), value.size());
+#  else
   randombytes_buf(value.data(), value.size());
+#  endif
 }
 #endif
 

@@ -20,6 +20,9 @@
 
 #if AE_SIGNATURE == AE_ED25519
 #  include <sodium/crypto_sign.h>
+#  if defined(__EMSCRIPTEN__)
+#    include "aether/crypto/browser/browser_sodium_bridge.h"
+#  endif
 #endif
 
 #if AE_SIGNATURE == AE_HYDRO_SIGNATURE
@@ -36,8 +39,13 @@ bool CryptoSignVerify(Sign const& signature, Key const& pk,
   assert(pk.Index() == CryptoKeyType::kSodiumCurvePublic);
   assert(sign_pk.Index() == CryptoKeyType::kSodiumSignPublic);
 
+#    if defined(__EMSCRIPTEN__)
+  return browser_sodium::SignVerifyDetached(signature.Data(), pk.Data(),
+                                            pk.Size(), sign_pk.Data()) == 0;
+#    else
   return crypto_sign_verify_detached(signature.Data(), pk.Data(), pk.Size(),
                                      sign_pk.Data()) == 0;
+#    endif
 #  elif AE_SIGNATURE == AE_HYDRO_SIGNATURE
   assert(signature.Index() == SignatureMethod::kHydroSignature);
   assert(pk.Index() == CryptoKeyType::kHydrogenCurvePublic);

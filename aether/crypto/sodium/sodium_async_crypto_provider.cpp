@@ -23,6 +23,10 @@
 #  include <cassert>
 #  include <utility>
 
+#  if defined(__EMSCRIPTEN__)
+#    include "aether/crypto/browser/browser_sodium_bridge.h"
+#  endif
+
 namespace ae {
 namespace _internal {
 inline std::vector<std::uint8_t> EncryptWithAsymmetric(
@@ -30,8 +34,13 @@ inline std::vector<std::uint8_t> EncryptWithAsymmetric(
   auto ciphertext =
       std::vector<uint8_t>(raw_data.size() + crypto_box_SEALBYTES);
 
+#  if defined(__EMSCRIPTEN__)
+  [[maybe_unused]] auto r = browser_sodium::BoxSeal(
+      ciphertext.data(), raw_data.data(), raw_data.size(), pk.key.data());
+#  else
   [[maybe_unused]] auto r = crypto_box_seal(ciphertext.data(), raw_data.data(),
                                             raw_data.size(), pk.key.data());
+#  endif
   assert(r == 0);
 
   return ciphertext;
@@ -43,9 +52,15 @@ std::vector<std::uint8_t> DecryptWithAsymmetric(
   auto decrypted_data =
       std::vector<std::uint8_t>(encrypted_data.size() - crypto_box_SEALBYTES);
 
+#  if defined(__EMSCRIPTEN__)
+  [[maybe_unused]] auto r = browser_sodium::BoxSealOpen(
+      decrypted_data.data(), encrypted_data.data(), encrypted_data.size(),
+      pk.key.data(), secret_key.key.data());
+#  else
   [[maybe_unused]] auto r = crypto_box_seal_open(
       decrypted_data.data(), encrypted_data.data(), encrypted_data.size(),
       pk.key.data(), secret_key.key.data());
+#  endif
   assert(r == 0);
 
   return decrypted_data;

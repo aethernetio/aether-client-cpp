@@ -46,5 +46,8 @@ add_subdirectory(test-server-connection)
 
 add_subdirectory(test-local-presence)
 add_subdirectory(test-cloud-request)
+add_subdirectory(test-browser-crypto)
+add_subdirectory(test-browser-protocol)
+add_subdirectory(test-browser-transport)
 
 add_subdirectory(third_party_tests)

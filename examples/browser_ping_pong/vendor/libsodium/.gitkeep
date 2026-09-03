@@ -1,0 +1,2 @@
+# Populated by `npm install && npm run vendor` in the parent directory.
+# See ../README.md. Do not load crypto from a CDN.

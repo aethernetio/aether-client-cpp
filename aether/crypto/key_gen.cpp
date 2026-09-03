@@ -25,6 +25,9 @@
 
 #if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
 #  include <sodium/crypto_aead_chacha20poly1305.h>
+#  if defined(__EMSCRIPTEN__)
+#    include "aether/crypto/browser/browser_sodium_bridge.h"
+#  endif
 #endif
 
 #if AE_CRYPTO_ASYNC == AE_SODIUM_BOX_SEAL
@@ -33,6 +36,9 @@
 
 #if AE_KDF == AE_SODIUM_KDF
 #  include <sodium/crypto_kdf.h>
+#  if defined(__EMSCRIPTEN__)
+#    include "aether/crypto/browser/browser_sodium_bridge.h"
+#  endif
 #endif
 
 #if AE_SIGNATURE == AE_HYDRO_SIGNATURE ||   \
@@ -45,7 +51,11 @@ namespace ae {
 bool CryptoSyncKeygen(Key& secret_key) {
 #if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
   SodiumChacha20Poly1305Key key;
+#  if defined(__EMSCRIPTEN__)
+  browser_sodium::AeadKeygen(key.key.data());
+#  else
   crypto_aead_chacha20poly1305_keygen(key.key.data());
+#  endif
   secret_key = std::move(key);
 #elif AE_CRYPTO_SYNC == AE_HYDRO_CRYPTO_SK
   HydrogenSecretBoxKey key;
@@ -72,8 +82,14 @@ bool CryptoSyncKeyDerive(Key const& master_key, std::uint32_t server_id,
                                server_to_client_key_chacha.key.size()>
       derived_key;
 
+#  if defined(__EMSCRIPTEN__)
+  browser_sodium::KdfDeriveFromKey(derived_key.data(), derived_key.size(),
+                                   subkey_id, SODIUM_KDF_CONTEXT,
+                                   master_key.Data());
+#  else
   crypto_kdf_derive_from_key(derived_key.data(), derived_key.size(), subkey_id,
                              SODIUM_KDF_CONTEXT, master_key.Data());
+#  endif
   // 32b master key derived into 64b key: 32b for receiving and 32b for
   // translation
   std::copy(std::begin(derived_key),
