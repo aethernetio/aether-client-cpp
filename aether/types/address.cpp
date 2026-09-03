@@ -81,6 +81,27 @@ bool operator<(NamedAddr const& left, NamedAddr const& right) {
   return left.name < right.name;
 }
 
+bool operator==(BrowserAddr const& left, BrowserAddr const& right) {
+  return left.representation_version == right.representation_version &&
+         left.hostname == right.hostname && left.path == right.path &&
+         left.gateway_target == right.gateway_target;
+}
+bool operator!=(BrowserAddr const& left, BrowserAddr const& right) {
+  return !(left == right);
+}
+bool operator<(BrowserAddr const& left, BrowserAddr const& right) {
+  if (left.representation_version != right.representation_version) {
+    return left.representation_version < right.representation_version;
+  }
+  if (left.hostname != right.hostname) {
+    return left.hostname < right.hostname;
+  }
+  if (left.path != right.path) {
+    return left.path < right.path;
+  }
+  return left.gateway_target < right.gateway_target;
+}
+
 bool operator==(const Address& left, const Address& right) {
   if (left.Index() != right.Index()) {
     return false;
@@ -108,6 +129,8 @@ bool operator==(const Address& left, const Address& right) {
     }
 #endif
     break;
+    case AddrVersion::kBrowser:
+      return left.Get<BrowserAddr>() == right.Get<BrowserAddr>();
     default:
       break;
   }
@@ -148,6 +171,8 @@ bool operator<(const Address& left, const Address& right) {
     }
 #endif
     break;
+    case AddrVersion::kBrowser:
+      return left.Get<BrowserAddr>() < right.Get<BrowserAddr>();
     default:
       break;
   }

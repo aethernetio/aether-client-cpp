@@ -16,14 +16,14 @@
 
 #include "aether/socket_initializer.h"
 
-#if defined WIN32
+#if defined(WIN32) && !defined(__EMSCRIPTEN__)
 #  include <winsock2.h>
 
 #  include "aether/tele.h"
 #endif
 
 namespace ae {
-#if defined WIN32
+#if defined(WIN32) && !defined(__EMSCRIPTEN__)
 SocketInitializer::SocketInitializer() : initialized_{false} {
   // init winsockets
   static constexpr auto WIN_SOCK_VERSION = MAKEWORD(2, 2);

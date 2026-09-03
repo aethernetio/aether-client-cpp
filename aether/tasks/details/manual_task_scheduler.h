@@ -81,8 +81,18 @@ class ManualTaskScheduler {
    * \brief Wait until wake up time or while the new task is added.
    * The Update method should be called after WaitUntil returns.
    * \param wake_up_time - maximum time to wait.
+   *
+   * Under Emscripten this is a non-blocking no-op: condition_variable waits
+   * would freeze the browser main thread. Browser code must use cooperative
+   * Update scheduling (see RunAetherBrowserLoop) instead of WaitUntil /
+   * WaitActions.
    */
-  void WaitUntil(TimePointType wake_up_time) {
+  void WaitUntil([[maybe_unused]] TimePointType wake_up_time) {
+#if defined(__EMSCRIPTEN__)
+    // Non-blocking: return immediately so the cooperative browser loop can
+    // schedule the next Update via setTimeout / emscripten_async_call.
+    return;
+#else
     // fast check without mutex locking
     if (trigger_.load(std::memory_order::acquire)) {
       return;
@@ -92,6 +102,7 @@ class ManualTaskScheduler {
     cv_.wait_until(lock, wake_up_time, [this]() noexcept {
       return trigger_.load(std::memory_order::acquire);
     });
+#endif
   }
 
   std::size_t overflow_counter() const { return overflow_counter_; }

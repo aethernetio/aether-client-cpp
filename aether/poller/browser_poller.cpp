@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2026 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,27 +14,23 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_SOCKET_INITIALIZER_H_
-#define AETHER_SOCKET_INITIALIZER_H_
+#include "aether/poller/browser_poller.h"
+
+#if defined(BROWSER_POLLER_ENABLED)
 
 namespace ae {
-/**
- * \brief Initializes the socket library.
- *
- * On Windows this performs WSAStartup/WSACleanup. On all other platforms,
- * including Emscripten, this type is an empty no-op (browser transports do not
- * use POSIX sockets).
- */
-class SocketInitializer {
-#if defined(WIN32) && !defined(__EMSCRIPTEN__)
- public:
-  SocketInitializer();
-  ~SocketInitializer();
 
- private:
-  bool initialized_;
-#endif
-};
+BrowserPoller::BrowserPoller() = default;
+
+BrowserPoller::BrowserPoller(ObjProp prop) : IPoller{prop} {}
+
+std::shared_ptr<NativePoller> BrowserPoller::Native() {
+  if (!impl_) {
+    impl_ = std::make_shared<BrowserNativePoller>();
+  }
+  return impl_;
+}
+
 }  // namespace ae
 
-#endif  // AETHER_SOCKET_INITIALIZER_H_
+#endif  // defined(BROWSER_POLLER_ENABLED)

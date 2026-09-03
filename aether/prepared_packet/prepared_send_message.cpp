@@ -82,6 +82,9 @@ auto MakePreparedEndpoint(Endpoint const& endpoint)
           },
           [](NamedAddr const&) noexcept -> std::optional<PreparedAddr> {
             return std::nullopt;
+          },
+          [](BrowserAddr const&) noexcept -> std::optional<PreparedAddr> {
+            return std::nullopt;
           }},
       endpoint.address);
 

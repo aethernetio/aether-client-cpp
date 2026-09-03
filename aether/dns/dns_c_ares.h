@@ -21,8 +21,9 @@
 
 #if AE_SUPPORT_CLOUD_DNS
 
-#  if defined __linux__ || defined __ANDROID__ || defined __APPLE__ || \
-      defined __FreeBSD__ || defined _WIN32
+#  if (defined __linux__ || defined __ANDROID__ || defined __APPLE__ || \
+       defined __FreeBSD__ || defined _WIN32) && \
+      !defined(__EMSCRIPTEN__)
 
 #    define DNS_RESOLVE_ARES_ENABLED 1
 

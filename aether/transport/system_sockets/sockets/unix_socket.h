@@ -19,8 +19,12 @@
 
 #if defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
     defined(__FreeBSD__)
+#  if !defined(__EMSCRIPTEN__)
+#    define UNIX_SOCKET_ENABLED 1
+#  endif
+#endif
 
-#  define UNIX_SOCKET_ENABLED 1
+#if defined(UNIX_SOCKET_ENABLED)
 
 #  include <optional>
 

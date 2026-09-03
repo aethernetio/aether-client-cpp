@@ -72,6 +72,9 @@ std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildTcp(
 
   return std::make_unique<TcpTransport<SocketType, AE_TCP_PACKET_QUEUE_SIZE>>(
       ae_context, poller, std::move(address_port_protocol));
+#  elif defined(__EMSCRIPTEN__)
+  assert(false && "Use BrowserTransportFactory under Emscripten");
+  return nullptr;
 #  else
   static_assert(false, "No transport enabled");
 #  endif
@@ -102,6 +105,9 @@ std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildUdp(
 #    endif
   return std::make_unique<UdpTransport<SocketType, AE_UDP_PACKET_QUEUE_SIZE>>(
       ae_context, poller, std::move(address_port_protocol));
+#  elif defined(__EMSCRIPTEN__)
+  assert(false && "Use BrowserTransportFactory under Emscripten");
+  return nullptr;
 #  else
   static_assert(false, "No transport enabled");
 #  endif

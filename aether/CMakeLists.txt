@@ -14,6 +14,12 @@
 
 cmake_minimum_required(VERSION 3.16.0)
 
+if(EMSCRIPTEN OR CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+  set(AE_EMSCRIPTEN ON)
+else()
+  set(AE_EMSCRIPTEN OFF)
+endif()
+
 list(APPEND aether_srcs
             "aether_app.cpp"
             "aether.cpp"
@@ -41,16 +47,29 @@ list(APPEND aether_srcs
             "events/event_subscription.cpp"
             "events/multi_subscription.cpp")
 
-list(APPEND aether_srcs
-            "poller/epoll_poller.cpp"
-            "poller/kqueue_poller.cpp"
-            "poller/freertos_poller.cpp"
-            "poller/win_poller.cpp")
+# Platform pollers: browser stub under Emscripten; OS pollers elsewhere.
+if(AE_EMSCRIPTEN)
+  list(APPEND aether_srcs
+              "poller/browser_poller.cpp"
+              "platform/emscripten_storage.cpp")
+else()
+  list(APPEND aether_srcs
+              "poller/epoll_poller.cpp"
+              "poller/kqueue_poller.cpp"
+              "poller/freertos_poller.cpp"
+              "poller/win_poller.cpp")
+endif()
 
-list(APPEND aether_srcs
-            "dns/dns_resolve.cpp"
-            "dns/dns_c_ares.cpp"
-            "dns/esp32_dns_resolve.cpp")
+# DNS: no c-ares under Emscripten (browser owns name resolution / TLS).
+if(AE_EMSCRIPTEN)
+  list(APPEND aether_srcs
+              "dns/dns_resolve.cpp")
+else()
+  list(APPEND aether_srcs
+              "dns/dns_resolve.cpp"
+              "dns/dns_c_ares.cpp"
+              "dns/esp32_dns_resolve.cpp")
+endif()
 
 list(APPEND aether_srcs
             "ae_actions/get_servers.cpp"
@@ -120,27 +139,35 @@ list(APPEND aether_srcs
             "serial_ports/unix_serial_port.cpp"
             )
 
-list(APPEND aether_srcs
-            "transport/system_sockets/sockets/get_sock_addr.cpp"
-            "transport/system_sockets/sockets/lwip_cb_tcp_socket.cpp"
-            "transport/system_sockets/sockets/lwip_cb_udp_socket.cpp"
-            "transport/system_sockets/sockets/lwip_get_addr.cpp"
-            "transport/system_sockets/sockets/lwip_socket.cpp"
-            "transport/system_sockets/sockets/lwip_tcp_socket.cpp"
-            "transport/system_sockets/sockets/lwip_udp_socket.cpp"
-            "transport/system_sockets/sockets/unix_socket.cpp"
-            "transport/system_sockets/sockets/unix_tcp_socket.cpp"
-            "transport/system_sockets/sockets/unix_udp_socket.cpp"
-            "transport/system_sockets/sockets/win_socket.cpp"
-            "transport/system_sockets/sockets/win_tcp_socket.cpp"
-            "transport/system_sockets/sockets/win_udp_socket.cpp"
-            "transport/modems/modem_transport.cpp"
-            "transport/data_packet_collector.cpp"
-            "transport/system_sockets/tcp/tcp.cpp"
-            "transport/system_sockets/udp/udp.cpp"
-            "transport/modems/modem_transport.cpp"
-            "transport/gateway/gateway_transport.cpp"
-)
+# Native system sockets are not used in the browser; exclude sources that do
+# not compile (or must not link) under Emscripten.
+if(AE_EMSCRIPTEN)
+  list(APPEND aether_srcs
+              "transport/data_packet_collector.cpp"
+              "transport/modems/modem_transport.cpp"
+              "transport/gateway/gateway_transport.cpp")
+else()
+  list(APPEND aether_srcs
+              "transport/system_sockets/sockets/get_sock_addr.cpp"
+              "transport/system_sockets/sockets/lwip_cb_tcp_socket.cpp"
+              "transport/system_sockets/sockets/lwip_cb_udp_socket.cpp"
+              "transport/system_sockets/sockets/lwip_get_addr.cpp"
+              "transport/system_sockets/sockets/lwip_socket.cpp"
+              "transport/system_sockets/sockets/lwip_tcp_socket.cpp"
+              "transport/system_sockets/sockets/lwip_udp_socket.cpp"
+              "transport/system_sockets/sockets/unix_socket.cpp"
+              "transport/system_sockets/sockets/unix_tcp_socket.cpp"
+              "transport/system_sockets/sockets/unix_udp_socket.cpp"
+              "transport/system_sockets/sockets/win_socket.cpp"
+              "transport/system_sockets/sockets/win_tcp_socket.cpp"
+              "transport/system_sockets/sockets/win_udp_socket.cpp"
+              "transport/modems/modem_transport.cpp"
+              "transport/data_packet_collector.cpp"
+              "transport/system_sockets/tcp/tcp.cpp"
+              "transport/system_sockets/udp/udp.cpp"
+              "transport/modems/modem_transport.cpp"
+              "transport/gateway/gateway_transport.cpp")
+endif()
 
 list(APPEND aether_srcs
             "stream_api/sized_packet_gate.cpp"
@@ -157,17 +184,37 @@ list(APPEND aether_srcs
             "api_protocol/return_result_api.cpp"
             )
 
-list(APPEND aether_srcs
-            "crypto/crypto_nonce.cpp"
-            "crypto/signed_key.cpp"
-            "crypto/key_gen.cpp"
-            "crypto/sync_crypto_provider.cpp"
-            "crypto/async_crypto_provider.cpp"
-            "crypto/sodium/sodium_async_crypto_provider.cpp"
-            "crypto/sodium/sodium_sync_crypto_provider.cpp"
-            "crypto/hydrogen/hydro_async_crypto_provider.cpp"
-            "crypto/hydrogen/hydro_sync_crypto_provider.cpp"
-            )
+# Hydrogen providers are compile-time no-ops under default sodium config;
+# still skip compiling them under Emscripten (hydrogen is not linked).
+# Under Emscripten, sodium ops go through browser_sodium_bridge (JS); bcrypt
+# uses browser_bcrypt (WASM libbcrypt default, optional Module.aeBcrypt).
+if(AE_EMSCRIPTEN)
+  list(APPEND aether_srcs
+              "crypto/crypto_nonce.cpp"
+              "crypto/signed_key.cpp"
+              "crypto/key_gen.cpp"
+              "crypto/sync_crypto_provider.cpp"
+              "crypto/async_crypto_provider.cpp"
+              "crypto/sodium/sodium_async_crypto_provider.cpp"
+              "crypto/sodium/sodium_sync_crypto_provider.cpp")
+  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/crypto/browser/browser_sodium_bridge.cpp")
+    list(APPEND aether_srcs
+                "crypto/browser/browser_sodium_bridge.cpp"
+                "crypto/browser/browser_bcrypt.cpp")
+  endif()
+else()
+  list(APPEND aether_srcs
+              "crypto/crypto_nonce.cpp"
+              "crypto/signed_key.cpp"
+              "crypto/key_gen.cpp"
+              "crypto/sync_crypto_provider.cpp"
+              "crypto/async_crypto_provider.cpp"
+              "crypto/sodium/sodium_async_crypto_provider.cpp"
+              "crypto/sodium/sodium_sync_crypto_provider.cpp"
+              "crypto/hydrogen/hydro_async_crypto_provider.cpp"
+              "crypto/hydrogen/hydro_sync_crypto_provider.cpp"
+              "crypto/browser/browser_bcrypt.cpp")
+endif()
 
 list(APPEND aether_srcs
             "work_cloud_api/work_server_api/login_api.cpp"
@@ -218,4 +265,32 @@ list(APPEND aether_srcs
             "channels/lora_module_channel.cpp"
             "channels/modem_channel.cpp")
 
+if(AE_EMSCRIPTEN AND EXISTS
+   "${CMAKE_CURRENT_SOURCE_DIR}/adapters/browser_adapter.cpp")
+  list(APPEND aether_srcs
+              "adapters/browser_adapter.cpp"
+              "access_points/browser_access_point.cpp"
+              "channels/browser_channel.cpp"
+              "channels/browser_transport_factory.cpp"
+              "transport/browser/browser_websocket_transport.cpp"
+              "transport/browser/browser_http_transport.cpp")
+endif()
+
 target_sources(${TARGET_NAME} PRIVATE ${aether_srcs})
+
+if(AE_EMSCRIPTEN)
+  # Propagate browser JS libraries to final WASM link lines when present.
+  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/transport/browser/browser_net.js")
+    target_link_options(
+      ${TARGET_NAME}
+      INTERFACE
+      "SHELL:--js-library ${CMAKE_CURRENT_SOURCE_DIR}/transport/browser/browser_net.js")
+  endif()
+  if(EXISTS
+     "${CMAKE_CURRENT_SOURCE_DIR}/crypto/browser/browser_sodium_bridge.js")
+    target_link_options(
+      ${TARGET_NAME}
+      INTERFACE
+      "SHELL:--js-library ${CMAKE_CURRENT_SOURCE_DIR}/crypto/browser/browser_sodium_bridge.js")
+  endif()
+endif()

@@ -17,7 +17,7 @@
 #ifndef AETHER_POLLER_EPOLL_POLLER_H_
 #define AETHER_POLLER_EPOLL_POLLER_H_
 
-#if defined __linux__
+#if defined(__linux__) && !defined(__EMSCRIPTEN__)
 #  define EPOLL_POLLER_ENABLED 1
 
 #  include <mutex>

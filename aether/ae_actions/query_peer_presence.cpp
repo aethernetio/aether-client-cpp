@@ -17,6 +17,7 @@
 #include "aether/ae_actions/query_peer_presence.h"
 
 #include <algorithm>
+#include <memory>
 #include <utility>
 
 #include "aether/api_protocol/sub_api.h"
@@ -262,12 +263,22 @@ void QueryPeerPresence::RequestTiming(CloudServerConnection* sc) {
 
   // AuthorizedApiCall requires an active ApiContext path via CloudRequest's
   // handler; for recovered servers we re-enter through a one-server request.
-  conn->AuthorizedApiCall(SubApi{[&, sc, generation](
-                                     ApiContext<AuthorizedApi>& auth_api) {
-    timing_subs_[server_id] +=
-        auth_api->get_client_timing(peer_uid_).Subscribe(
-            [this, sc, generation](auto const& res) {
-              OnServerTiming(sc, generation, res);
+  // Heap context keeps the SubApi SmallFunction within sizeof(void*)*4 on
+  // wasm32 (default capture would be 24 bytes > 16-byte storage).
+  struct TimingCallCtx {
+    QueryPeerPresence* self;
+    CloudServerConnection* sc;
+    std::uint64_t generation;
+    ServerId server_id;
+  };
+  auto ctx = std::make_shared<TimingCallCtx>(
+      TimingCallCtx{this, sc, generation, server_id});
+  conn->AuthorizedApiCall(SubApi{[ctx](ApiContext<AuthorizedApi>& auth_api) {
+    ctx->self->timing_subs_[ctx->server_id] +=
+        auth_api->get_client_timing(ctx->self->peer_uid_)
+            .Subscribe([self = ctx->self, sc = ctx->sc,
+                        generation = ctx->generation](auto const& res) {
+              self->OnServerTiming(sc, generation, res);
             });
   }});
 }

@@ -39,6 +39,7 @@ enum class AddrVersion : std::uint8_t {
   kIpV4 = 1,
   kIpV6 = 2,
   kNamed = 3,
+  kBrowser = 4,
 };
 
 struct IpV4Addr {
@@ -93,10 +94,24 @@ bool operator==(NamedAddr const& left, NamedAddr const& right);
 bool operator!=(NamedAddr const& left, NamedAddr const& right);
 bool operator<(NamedAddr const& left, NamedAddr const& right);
 
+struct BrowserAddr {
+  AE_REFLECT_MEMBERS(representation_version, hostname, path, gateway_target)
+
+  std::uint8_t representation_version{1};
+  std::string hostname;
+  std::string path;
+  std::string gateway_target;
+};
+
+bool operator==(BrowserAddr const& left, BrowserAddr const& right);
+bool operator!=(BrowserAddr const& left, BrowserAddr const& right);
+bool operator<(BrowserAddr const& left, BrowserAddr const& right);
+
 struct Address
     : public VariantType<AddrVersion, VPair<AddrVersion::kIpV4, IpV4Addr>,
                          VPair<AddrVersion::kIpV6, IpV6Addr>,
-                         VPair<AddrVersion::kNamed, NamedAddr>> {
+                         VPair<AddrVersion::kNamed, NamedAddr>,
+                         VPair<AddrVersion::kBrowser, BrowserAddr>> {
   using VariantType::VariantType;
   using VariantType::operator=;
 };
@@ -113,14 +128,12 @@ struct AddressPort {
 };
 
 enum class Protocol : std::uint8_t {
-  kTcp,
-  kUdp,
-  kWebSocket,  // does not supported really
-  // TODO: rest does not supported yet
-  /*
-  kAny,
-  kHttp,
-  kHttps, */
+  kTcp = 0,
+  kUdp = 1,
+  kWebSocket = 2,         // insecure ws://
+  kHttp = 3,              // insecure HTTP tunnel
+  kHttps = 4,             // secure HTTP tunnel
+  kWebSocketSecure = 5,   // secure wss://
 };
 
 struct Endpoint : public AddressPort {
@@ -179,6 +192,19 @@ struct Formatter<NamedAddr> {
 #if AE_SUPPORT_CLOUD_DNS == 1
     Formatter<std::string>{}.Format(value.name, ctx);
 #endif
+  }
+};
+
+template <>
+struct Formatter<BrowserAddr> {
+  template <typename TStream>
+  void Format(BrowserAddr const& value, FormatContext<TStream>& ctx) const {
+    Formatter<std::string>{}.Format(value.hostname, ctx);
+    ctx.out().write(value.path);
+    if (!value.gateway_target.empty()) {
+      ctx.out().write("?target=");
+      Formatter<std::string>{}.Format(value.gateway_target, ctx);
+    }
   }
 };
 

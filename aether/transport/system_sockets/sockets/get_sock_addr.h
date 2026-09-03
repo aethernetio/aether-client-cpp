@@ -17,8 +17,9 @@
 #ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_GET_SOCK_ADDR_H_
 #define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_GET_SOCK_ADDR_H_
 
-#if defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
-    defined(__FreeBSD__) || defined(ESP_PLATFORM) || defined(_WIN32)
+#if (defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
+     defined(__FreeBSD__) || defined(ESP_PLATFORM) || defined(_WIN32)) && \
+    !defined(__EMSCRIPTEN__)
 
 #  define GET_SOCK_ADDR_ENABLED 1
 

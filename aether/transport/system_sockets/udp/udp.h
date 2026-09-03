@@ -20,8 +20,9 @@
 
 #if AE_SUPPORT_UDP
 
-#  if defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
-      defined(__FreeBSD__) || defined(ESP_PLATFORM) || defined(_WIN32)
+#  if (defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
+       defined(__FreeBSD__) || defined(ESP_PLATFORM) || defined(_WIN32)) && \
+      !defined(__EMSCRIPTEN__)
 
 #    define SYSTEM_SOCKET_UDP_TRANSPORT_ENABLED 1
 

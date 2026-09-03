@@ -64,6 +64,16 @@ option(AE_BUILD_TESTS "Build tests" ${AE_ROOT_PORJECT})
 option(AE_BUILD_ANDROID_SMOKE "Build Android NDK smoke shared library and runner" Off)
 option(AE_ENABLE_PRIVILEGED_NETWORK_TESTS "Enable Administrator/network live tests" Off)
 option(AE_ADDRESS_SANITIZE "Enable address sanitizer" Off)
+# Browser example is off by default; enable with emcmake + AE_BUILD_BROWSER_EXAMPLE=ON.
+option(AE_BUILD_BROWSER_EXAMPLE "Build Emscripten browser_ping_pong example" Off)
+
+# Detect Emscripten early (emcmake sets EMSCRIPTEN and CMAKE_SYSTEM_NAME).
+if(EMSCRIPTEN OR CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+  set(AE_EMSCRIPTEN ON)
+  include(${CMAKE_CURRENT_LIST_DIR}/cmake/emscripten-browser.cmake)
+else()
+  set(AE_EMSCRIPTEN OFF)
+endif()
 
 set(UTM_ID "0" CACHE STRING "User Tracking Measurement ID, must be a uint32 value")
 set(USER_CONFIG "" CACHE PATH "Path to user provided configuration header file")
@@ -79,6 +89,8 @@ message(STATUS "Aether build options:
    AE_BUILD_EXAMPLES=${AE_BUILD_EXAMPLES}
    AE_BUILD_TESTS=${AE_BUILD_TESTS}
    AE_BUILD_ANDROID_SMOKE=${AE_BUILD_ANDROID_SMOKE}
+   AE_BUILD_BROWSER_EXAMPLE=${AE_BUILD_BROWSER_EXAMPLE}
+   AE_EMSCRIPTEN=${AE_EMSCRIPTEN}
    AE_ADDRESS_SANITIZE=${AE_ADDRESS_SANITIZE}
    UTM_ID=${UTM_ID}
    USER_CONFIG=${USER_CONFIG}
@@ -110,14 +122,18 @@ CPMAddPackage(
   EXCLUDE_FROM_ALL FALSE
 )
 # TODO: libhydrogen newer than bbca575 is not compatible with used in aether server
-CPMAddPackage(
-  NAME libhydrogen
-  GIT_REPOSITORY "https://github.com/jedisct1/libhydrogen.git"
-  GIT_TAG "bbca575"
-  PATCHES "${CMAKE_CURRENT_LIST_DIR}/third_party/libhydrogen.patch"
-  OPTIONS "ENABLE_INSTALL ${AE_INSTALL}"
-  EXCLUDE_FROM_ALL FALSE
-)
+# Hydrogen is not used in the default browser configuration and must not be
+# linked into the default browser binary.
+if(NOT AE_EMSCRIPTEN)
+  CPMAddPackage(
+    NAME libhydrogen
+    GIT_REPOSITORY "https://github.com/jedisct1/libhydrogen.git"
+    GIT_TAG "bbca575"
+    PATCHES "${CMAKE_CURRENT_LIST_DIR}/third_party/libhydrogen.patch"
+    OPTIONS "ENABLE_INSTALL ${AE_INSTALL}"
+    EXCLUDE_FROM_ALL FALSE
+  )
+endif()
 CPMAddPackage(
   NAME libsodium
   GIT_REPOSITORY "https://github.com/jedisct1/libsodium.git"
@@ -187,25 +203,37 @@ target_include_directories(${TARGET_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
-target_link_libraries(${TARGET_NAME} PUBLIC
-                                      aether-tele
-                                      bcrypt
-                                      sodium
-                                      hydrogen
-                                      gcem
-                                      etl
-                                      stdexec
-                                      ae-numeric
-                                      aether::miscpp
-                                      aether::objects)
+
+# Core deps. Under Emscripten: skip hydrogen. Keep CPM sodium for sodium.h
+# constants (ops use libsodium.js via browser_sodium_bridge). Keep bcrypt in
+# WASM for PoW; optional JS bcrypt is documented in crypto/browser/browser_bcrypt.h.
+set(AE_PUBLIC_LIBS
+  aether-tele
+  bcrypt
+  sodium
+  gcem
+  etl
+  stdexec
+  ae-numeric
+  aether::miscpp
+  aether::objects)
+if(NOT AE_EMSCRIPTEN)
+  list(APPEND AE_PUBLIC_LIBS hydrogen)
+endif()
+target_link_libraries(${TARGET_NAME} PUBLIC ${AE_PUBLIC_LIBS})
+
+if(AE_EMSCRIPTEN)
+  include(${CMAKE_CURRENT_LIST_DIR}/cmake/emscripten-browser.cmake)
+endif()
 
 message(STATUS "Aether build for CMAKE_SYSTEM_NAME: ${CMAKE_SYSTEM_NAME}")
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux"
-  OR CMAKE_SYSTEM_NAME STREQUAL "Darwin"
-  OR CMAKE_SYSTEM_NAME MATCHES ".*BSD.*"
-  OR CMAKE_SYSTEM_NAME STREQUAL "Windows"
-  OR CMAKE_SYSTEM_NAME STREQUAL "Android" )
-  # for desktop and Android projects add c-ares
+if(NOT AE_EMSCRIPTEN AND (
+    CMAKE_SYSTEM_NAME STREQUAL "Linux"
+    OR CMAKE_SYSTEM_NAME STREQUAL "Darwin"
+    OR CMAKE_SYSTEM_NAME MATCHES ".*BSD.*"
+    OR CMAKE_SYSTEM_NAME STREQUAL "Windows"
+    OR CMAKE_SYSTEM_NAME STREQUAL "Android"))
+  # for desktop and Android projects add c-ares (never for Emscripten)
   CPMAddPackage(
     NAME c-ares
     GIT_REPOSITORY "https://github.com/c-ares/c-ares.git"
@@ -247,7 +275,7 @@ endif()
 if (CMAKE_SYSTEM_NAME MATCHES ".*BSD.*" )
   target_link_libraries(${TARGET_NAME} PRIVATE pthread)
 endif()
-if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
+if (CMAKE_SYSTEM_NAME STREQUAL "Windows" AND NOT AE_EMSCRIPTEN)
   target_compile_definitions(${TARGET_NAME} PUBLIC
                 NOMINMAX # remove legacy max macro
                 WIN32_LEAN_AND_MEAN
@@ -333,27 +361,39 @@ target_compile_options(${TARGET_NAME} PUBLIC
       >
 )
 
-if(AE_BUILD_TOOLS)
+if(AE_BUILD_TOOLS AND NOT AE_EMSCRIPTEN)
   message(STATUS "Aether builds tools!")
   add_subdirectory(tools/registrator)
 endif()
 
 if(AE_BUILD_EXAMPLES)
-  message(STATUS "Aether builds examples!")
+  if(AE_EMSCRIPTEN)
+    message(STATUS "Aether Emscripten examples: AE_BUILD_BROWSER_EXAMPLE=${AE_BUILD_BROWSER_EXAMPLE}")
+    if(AE_BUILD_BROWSER_EXAMPLE)
+      if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/examples/browser_ping_pong/CMakeLists.txt")
+        add_subdirectory(examples/browser_ping_pong)
+      else()
+        message(FATAL_ERROR
+          "AE_BUILD_BROWSER_EXAMPLE=ON but examples/browser_ping_pong/CMakeLists.txt is missing")
+      endif()
+    endif()
+  else()
+    message(STATUS "Aether builds examples!")
 
-  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
-  add_subdirectory(examples/common)
-  add_subdirectory(examples/cloud)
-  add_subdirectory(examples/a_b_message_exchange)
-  add_subdirectory(examples/remote_presence_live)
-  add_subdirectory(examples/message_server)
-  add_subdirectory(examples/capi/oddity)
-  add_subdirectory(examples/benches/send_message_delays)
-  add_subdirectory(examples/benches/send_messages_bandwidth)
+    add_subdirectory(examples/common)
+    add_subdirectory(examples/cloud)
+    add_subdirectory(examples/a_b_message_exchange)
+    add_subdirectory(examples/remote_presence_live)
+    add_subdirectory(examples/message_server)
+    add_subdirectory(examples/capi/oddity)
+    add_subdirectory(examples/benches/send_message_delays)
+    add_subdirectory(examples/benches/send_messages_bandwidth)
+  endif()
 endif()
 
-if(AE_BUILD_TESTS)
+if(AE_BUILD_TESTS AND NOT AE_EMSCRIPTEN)
   message(STATUS "Aether builds tests!")
   enable_testing()
 

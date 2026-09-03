@@ -66,3 +66,4 @@ projects/intel_x86/linux/gcc/aether-client-cpp
 /build-windows*/
 *.log
 
+examples/browser_ping_pong/vendor/node_modules/

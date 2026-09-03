@@ -44,6 +44,11 @@ std::unique_ptr<IDomainStorage> DomainStorageFactory::Create() {
 }
 
 std::unique_ptr<IDomainStorage> DomainStorageFactory::CreateRwStorage() {
+  // Under Emscripten, AE_FILE_SYSTEM_STD_ENABLED is typically already set
+  // because aether-objects keys off __unix__/__linux__. Prefer FileSystemStdStorage
+  // over a custom IDBFS wrapper: mount IDBFS at /aether/<profile>/, chdir there,
+  // SyncFromIdb(), then construct AetherApp so relative "state/" lands on IDBFS.
+  // See aether/platform/emscripten_storage.h.
 #if AE_FILE_SYSTEM_STD_ENABLED
   return make_unique<FileSystemStdStorage>();
 #elif AE_SPIFS_DOMAIN_STORAGE_ENABLED
