@@ -9,6 +9,8 @@
     "test:https": "playwright test --grep @https",
     "test:ws": "playwright test --grep @ws",
     "test:wss": "playwright test --grep @wss",
+    "test:live": "playwright test live_cloud.spec.js",
+    "test:lock": "playwright test profile_lock.spec.js",
     "test:all-transports": "node scripts/run-all-transports.mjs"
   },
   "devDependencies": {

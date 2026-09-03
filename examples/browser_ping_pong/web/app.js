@@ -13,6 +13,7 @@ const STAT_KEYS = [
   'rtt_min_ms',
   'rtt_avg_ms',
   'rtt_p50_ms',
+  'rtt_p90_ms',
   'rtt_p95_ms',
   'rtt_p99_ms',
   'rtt_max_ms',

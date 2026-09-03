@@ -270,6 +270,7 @@ struct Stats {
   double rtt_avg_ms{0};
   double rtt_max_ms{0};
   double rtt_p50_ms{0};
+  double rtt_p90_ms{0};
   double rtt_p95_ms{0};
   double rtt_p99_ms{0};
   std::string transport{"none"};
@@ -296,6 +297,7 @@ struct Stats {
     auto sorted = rtt_samples_ms;
     std::sort(sorted.begin(), sorted.end());
     rtt_p50_ms = Percentile(sorted, 50);
+    rtt_p90_ms = Percentile(sorted, 90);
     rtt_p95_ms = Percentile(sorted, 95);
     rtt_p99_ms = Percentile(sorted, 99);
   }
@@ -338,7 +340,7 @@ class BrowserPingPongApp {
     if (state_ != AppState::kIdle && state_ != AppState::kError) {
       return;
     }
-    SetState(AppState::kLoadingStorage, "Mounting IDBFS profile");
+    SetState(AppState::kLoadingStorage, "Acquiring profile lock");
 #if defined(__EMSCRIPTEN__)
     emscripten_storage::AcquireProfileLock(
         profile_, [this](emscripten_storage::OpResult lock_result) {
@@ -348,6 +350,7 @@ class BrowserPingPongApp {
                          lock_result.message);
             return;
           }
+          SetState(AppState::kLoadingStorage, "Mounting IDBFS profile");
           if (!emscripten_storage::MountProfile(profile_)) {
             emscripten_storage::ReleaseProfileLock();
             SetState(AppState::kError, "Invalid profile name");
@@ -616,29 +619,56 @@ class BrowserPingPongApp {
     if (!cloud.is_valid()) {
       return;
     }
-    bool already = false;
+    bool has_browser = false;
     for (auto const& [id, entry] : cloud->servers()) {
-      if (id == kBrowserOverrideServerId) {
-        already = true;
-        break;
-      }
       auto server = entry.server.Load();
       if (!server) {
         continue;
       }
       for (auto const& ep : server->endpoints) {
         if (EndpointIsBrowserCapable(ep)) {
-          already = true;
+          has_browser = true;
           break;
         }
       }
-      if (already) {
+      if (has_browser) {
         break;
       }
     }
-    if (already) {
+    if (has_browser) {
       return;
     }
+
+    // Map NamedAddr work hosts to production WSS :9023 path "/".
+    std::vector<Endpoint> mapped;
+    for (auto const& [id, entry] : cloud->servers()) {
+      auto server = entry.server.Load();
+      if (!server) {
+        continue;
+      }
+      for (auto const& ep : server->endpoints) {
+        if (ep.address.Index() != AddrVersion::kNamed) {
+          continue;
+        }
+        NamedAddr named = ep.address.Get<NamedAddr>();
+        BrowserAddr browser{};
+        browser.representation_version = 1;
+        browser.hostname = named.name;
+        browser.path = "/";
+        mapped.push_back(
+            Endpoint{{Address{browser}, 9023}, Protocol::kWebSocketSecure});
+      }
+    }
+    if (!mapped.empty()) {
+      auto server = Server::ptr::Create(
+          app_->domain(), kBrowserOverrideServerId, std::move(mapped),
+          app_->aether()->adapter_registry);
+      if (server.is_valid()) {
+        cloud->AddServer(server);
+      }
+      return;
+    }
+
     auto server = Server::ptr::Create(
         app_->domain(), kBrowserOverrideServerId,
         std::vector<Endpoint>{gateway_endpoint_},
@@ -786,11 +816,11 @@ class BrowserPingPongApp {
     std::snprintf(
         rtt_buf, sizeof(rtt_buf),
         "\"rtt_latest_ms\":%.3f,\"rtt_min_ms\":%.3f,\"rtt_avg_ms\":%.3f,"
-        "\"rtt_p50_ms\":%.3f,\"rtt_p95_ms\":%.3f,\"rtt_p99_ms\":%.3f,"
-        "\"rtt_max_ms\":%.3f",
+        "\"rtt_p50_ms\":%.3f,\"rtt_p90_ms\":%.3f,\"rtt_p95_ms\":%.3f,"
+        "\"rtt_p99_ms\":%.3f,\"rtt_max_ms\":%.3f",
         stats_.rtt_latest_ms, stats_.rtt_min_ms, stats_.rtt_avg_ms,
-        stats_.rtt_p50_ms, stats_.rtt_p95_ms, stats_.rtt_p99_ms,
-        stats_.rtt_max_ms);
+        stats_.rtt_p50_ms, stats_.rtt_p90_ms, stats_.rtt_p95_ms,
+        stats_.rtt_p99_ms, stats_.rtt_max_ms);
     stats_json_ = Format(
         R"({{"sent":{},"pong_received":{},"timed_out":{},"duplicate":{},)"
         R"("out_of_order":{},"malformed":{},{},"transport":"{}",)"
@@ -804,8 +834,8 @@ class BrowserPingPongApp {
   std::string state_str_{"Idle"};
   std::string state_detail_;
   std::string profile_{"A"};
-  std::string gateway_url_{"ws://127.0.0.1:8080"};
-  std::string transport_{"WS"};
+  std::string gateway_url_{"wss://dbservice.aethernet.io:9013/"};
+  std::string transport_{"WSS"};
   std::string remote_uid_str_;
   std::string uid_str_;
   std::string stats_json_{"{}"};

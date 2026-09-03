@@ -27,12 +27,12 @@
       <div class="row">
         <label><input type="radio" name="transport" value="HTTP" /> HTTP</label>
         <label><input type="radio" name="transport" value="HTTPS" /> HTTPS</label>
-        <label><input type="radio" name="transport" value="WS" checked /> WS</label>
-        <label><input type="radio" name="transport" value="WSS" /> WSS</label>
+        <label><input type="radio" name="transport" value="WS" /> WS</label>
+        <label><input type="radio" name="transport" value="WSS" checked /> WSS</label>
       </div>
       <label class="block">
-        Browser gateway endpoint
-        <input id="gateway" type="text" value="ws://127.0.0.1:8080" />
+        Cloud / gateway endpoint
+        <input id="gateway" type="text" value="wss://dbservice.aethernet.io:9013/" />
       </label>
     </section>
 
@@ -85,6 +85,7 @@
         <div><dt>minimum RTT</dt><dd data-stat="rtt_min_ms">0</dd></div>
         <div><dt>average RTT</dt><dd data-stat="rtt_avg_ms">0</dd></div>
         <div><dt>p50</dt><dd data-stat="rtt_p50_ms">0</dd></div>
+        <div><dt>p90</dt><dd data-stat="rtt_p90_ms">0</dd></div>
         <div><dt>p95</dt><dd data-stat="rtt_p95_ms">0</dd></div>
         <div><dt>p99</dt><dd data-stat="rtt_p99_ms">0</dd></div>
         <div><dt>maximum RTT</dt><dd data-stat="rtt_max_ms">0</dd></div>

@@ -27,6 +27,7 @@
 #include "aether/adapters/wifi_adapter.h"
 #if defined(__EMSCRIPTEN__)
 #  include "aether/adapters/browser_adapter.h"
+#  include "aether/types/address.h"
 #endif
 #include "aether/crypto.h"
 #include "aether/crypto/key.h"
@@ -196,17 +197,29 @@ static Cloud::ptr RegistrationCloudFactory(AetherAppContext const& context) {
           .with_id(GlobalId::kRegistrationCloud)
           .with_flags(ObjFlags::kUnloadedByDefault),
       context.aether());
-#    if defined _AE_REG_CLOUD_IP
+#    if defined(__EMSCRIPTEN__)
+  // Production registration FastMeta over WSS (path "/"). Browsers cannot use
+  // raw TCP :9010. Hostname must match TLS SAN dbservice.aethernet.io.
+  {
+    BrowserAddr browser{};
+    browser.representation_version = 1;
+    browser.hostname = "dbservice.aethernet.io";
+    browser.path = "/";
+    reg_c->AddServerSettings(
+        Endpoint{{Address{browser}, 9013}, Protocol::kWebSocketSecure});
+  }
+#    else
+#      if defined _AE_REG_CLOUD_IP
   reg_c->AddServerSettings(
       Endpoint{{AddressParser::StringToAddress(_AE_REG_CLOUD_IP), 9010},
                Protocol::kTcp});
-#    endif
+#      endif
   reg_c->AddServerSettings(Endpoint{
       {AddressParser::StringToAddress("registration.aethernet.io"), 9010},
       Protocol::kTcp});
-  // hardcoded ip address in case named address is not supported
   reg_c->AddServerSettings(Endpoint{
       {AddressParser::StringToAddress("34.60.244.148"), 9010}, Protocol::kTcp});
+#    endif
   return reg_c;
 }
 #  endif  // AE_SUPPORT_REGISTRATION
