@@ -20,6 +20,7 @@
 #include <algorithm>
 
 #include "aether/config.h"
+#include "aether/tele.h"
 
 #include "aether/crypto/crypto_definitions.h"
 
@@ -83,9 +84,14 @@ bool CryptoSyncKeyDerive(Key const& master_key, std::uint32_t server_id,
       derived_key;
 
 #  if defined(__EMSCRIPTEN__)
-  browser_sodium::KdfDeriveFromKey(derived_key.data(), derived_key.size(),
-                                   subkey_id, SODIUM_KDF_CONTEXT,
-                                   master_key.Data());
+  auto const kdf_rc = browser_sodium::KdfDeriveFromKey(
+      derived_key.data(), derived_key.size(), subkey_id, SODIUM_KDF_CONTEXT,
+      master_key.Data());
+  if (kdf_rc != 0) {
+    AE_TELED_ERROR("CryptoSyncKeyDerive KDF failed server_id {} key_number {}",
+                   server_id, key_number);
+    return false;
+  }
 #  else
   crypto_kdf_derive_from_key(derived_key.data(), derived_key.size(), subkey_id,
                              SODIUM_KDF_CONTEXT, master_key.Data());

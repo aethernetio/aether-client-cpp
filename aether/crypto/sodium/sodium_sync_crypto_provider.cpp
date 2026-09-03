@@ -43,16 +43,19 @@ inline DataBuffer EncryptWithSymmetric(
   unsigned long long ciphertext_len;
 
 #  if defined(__EMSCRIPTEN__)
-  [[maybe_unused]] auto r = browser_sodium::AeadEncrypt(
+  auto r = browser_sodium::AeadEncrypt(
       ciphertext.data(), &ciphertext_len, raw_data.data(), raw_data.size(),
       nonce.value.data(), secret_key.key.data());
 #  else
-  [[maybe_unused]] auto r = crypto_aead_chacha20poly1305_encrypt(
+  auto r = crypto_aead_chacha20poly1305_encrypt(
       ciphertext.data(), &ciphertext_len, raw_data.data(), raw_data.size(),
       nullptr, 0, nullptr, nonce.value.data(), secret_key.key.data());
 #  endif
 
-  assert(r == 0);
+  if (r != 0) {
+    AE_TELED_ERROR("Sync AEAD encrypt failed");
+    return {};
+  }
 
   ciphertext.resize(
       static_cast<std::size_t>(ciphertext_len + nonce.value.size()));
