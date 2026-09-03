@@ -118,23 +118,34 @@ function refreshUi(api, Module) {
 }
 
 async function loadSodium() {
-  // Prefer vendored libsodium-wrappers; fall back when packaging has not run.
-  const candidates = [
-    './vendor/libsodium/libsodium-wrappers.js',
-    './vendor/libsodium/sodium.js',
-  ];
-  for (const path of candidates) {
-    try {
-      const mod = await import(path);
-      const sodium = mod.default || mod;
-      if (sodium && sodium.ready) {
-        await sodium.ready;
-      }
-      return sodium;
-    } catch (e) {
-      console.warn('sodium candidate failed', path, e);
-    }
+  // Script-tag UMD path: libsodium core then wrappers (sets window.sodium).
+  if (typeof window !== 'undefined' && window.sodium && window.sodium.ready) {
+    await window.sodium.ready;
+    return window.sodium;
   }
+
+  async function loadScript(src) {
+    await new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = src;
+      s.async = false;
+      s.onload = () => resolve();
+      s.onerror = () => reject(new Error('failed to load ' + src));
+      document.head.appendChild(s);
+    });
+  }
+
+  try {
+    await loadScript('./vendor/libsodium/dist/modules/libsodium.js');
+    await loadScript('./vendor/libsodium/libsodium-wrappers.js');
+    if (window.sodium && window.sodium.ready) {
+      await window.sodium.ready;
+      return window.sodium;
+    }
+  } catch (e) {
+    console.warn('UMD sodium load failed', e);
+  }
+
   console.warn('libsodium wrappers not found; Module.aeSodium unset');
   return null;
 }
