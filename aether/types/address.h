@@ -127,13 +127,16 @@ struct AddressPort {
   std::uint16_t port;
 };
 
+// Wire ordinals must match Java AetherCodec in common.adsl.yaml:
+// TCP=0, UDP=1, WS=2, WSS=3. HTTP/HTTPS are client-local tunnel codecs
+// appended after the shared wire values (not advertised by production cloud).
 enum class Protocol : std::uint8_t {
   kTcp = 0,
   kUdp = 1,
-  kWebSocket = 2,         // insecure ws://
-  kHttp = 3,              // insecure HTTP tunnel
-  kHttps = 4,             // secure HTTP tunnel
-  kWebSocketSecure = 5,   // secure wss://
+  kWebSocket = 2,         // insecure ws:// (Java WS)
+  kWebSocketSecure = 3,   // secure wss:// (Java WSS)
+  kHttp = 4,              // insecure HTTP tunnel (browser gateway)
+  kHttps = 5,             // secure HTTP tunnel (browser gateway)
 };
 
 struct Endpoint : public AddressPort {

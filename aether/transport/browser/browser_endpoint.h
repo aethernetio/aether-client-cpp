@@ -26,8 +26,11 @@
 namespace ae {
 namespace browser_endpoint_internal {
 
-inline constexpr std::string_view kDefaultWsPath = "/aether/v1/ws";
+// Production FastMeta WSS listens on path "/". Test-only gateway uses
+// "/aether/v1/ws" and must be passed explicitly in the endpoint URL.
+inline constexpr std::string_view kDefaultWsPath = "/";
 inline constexpr std::string_view kDefaultHttpApiRoot = "/aether/v1";
+inline constexpr std::string_view kGatewayWsPath = "/aether/v1/ws";
 
 inline bool IsWebSocketProtocol(Protocol protocol) noexcept {
   return protocol == Protocol::kWebSocket ||

@@ -76,13 +76,14 @@ void AssertBrowserEndpointEqual(Endpoint const& left, Endpoint const& right) {
 }  // namespace
 
 void test_ProtocolEnumValues() {
+  // Must match Java AetherCodec ordinals: TCP, UDP, WS, WSS.
   TEST_ASSERT_EQUAL_UINT8(0, static_cast<std::uint8_t>(Protocol::kTcp));
   TEST_ASSERT_EQUAL_UINT8(1, static_cast<std::uint8_t>(Protocol::kUdp));
   TEST_ASSERT_EQUAL_UINT8(2, static_cast<std::uint8_t>(Protocol::kWebSocket));
-  TEST_ASSERT_EQUAL_UINT8(3, static_cast<std::uint8_t>(Protocol::kHttp));
-  TEST_ASSERT_EQUAL_UINT8(4, static_cast<std::uint8_t>(Protocol::kHttps));
-  TEST_ASSERT_EQUAL_UINT8(5,
-                          static_cast<std::uint8_t>(Protocol::kWebSocketSecure));
+  TEST_ASSERT_EQUAL_UINT8(
+      3, static_cast<std::uint8_t>(Protocol::kWebSocketSecure));
+  TEST_ASSERT_EQUAL_UINT8(4, static_cast<std::uint8_t>(Protocol::kHttp));
+  TEST_ASSERT_EQUAL_UINT8(5, static_cast<std::uint8_t>(Protocol::kHttps));
 }
 
 void test_AddrVersionBrowserIsFour() {
