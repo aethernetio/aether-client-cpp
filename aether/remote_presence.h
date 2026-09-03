@@ -17,6 +17,7 @@
 #ifndef AETHER_REMOTE_PRESENCE_H_
 #define AETHER_REMOTE_PRESENCE_H_
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -201,6 +202,31 @@ inline bool RemotePresenceReadyForOnline(
 
 inline Duration DefaultOfflineDetectionTimeout() noexcept {
   return std::chrono::milliseconds{AE_OFFLINE_DETECTION_TIMEOUT_MS};
+}
+
+// Local Presence (PingCloudServers + RequestPolicy::All) only maintains
+// schedules on selected_servers(), which is bounded by
+// AE_CLOUD_MAX_SERVER_CONNECTIONS. Remote Presence must AND over that same
+// contract set — not an observer's own cloud, and not a silent subset smaller
+// than the peer Presence obligation when peer cloud size <= max_connections.
+inline std::vector<ServerId> AuthoritativePresenceServerIds(
+    std::vector<ServerId> const& peer_cloud_ids_priority_order,
+    std::size_t max_connections) noexcept {
+  std::vector<ServerId> out;
+  if (max_connections == 0) {
+    return out;
+  }
+  auto const n =
+      std::min(peer_cloud_ids_priority_order.size(), max_connections);
+  out.assign(peer_cloud_ids_priority_order.begin(),
+            peer_cloud_ids_priority_order.begin() +
+                static_cast<std::ptrdiff_t>(n));
+  return out;
+}
+
+// Never substitute the observer/requester cloud for the peer Personal Cloud.
+inline bool AllowObserverCloudFallbackForPeerPresence() noexcept {
+  return false;
 }
 
 }  // namespace ae

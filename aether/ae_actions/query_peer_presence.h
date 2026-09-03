@@ -44,9 +44,8 @@ enum class QueryPeerPresenceError : int {
   kGetClientTimingFailed = 3,
 };
 
-// Asynchronous Remote Presence over authoritative usable servers.
-// Aggregation: Offline = any Offline; Online = all usable Online;
-// Unknown = zero usable or incomplete Online set without Offline.
+// Asynchronous Remote Presence over peer Personal Cloud authoritative servers.
+// Never falls back to the observer/requester own cloud.
 class QueryPeerPresence final : public Action {
  public:
   using ResultEvent = Event<void(Result<PeerPresence, int>)>;
@@ -61,25 +60,38 @@ class QueryPeerPresence final : public Action {
   std::vector<RemoteServerPresenceSample> const& samples() const noexcept {
     return samples_;
   }
+  std::vector<ServerId> const& peer_cloud_server_ids() const noexcept {
+    return peer_cloud_server_ids_;
+  }
+  std::vector<ServerId> const& authoritative_server_ids() const noexcept {
+    return authoritative_server_ids_;
+  }
+  std::vector<ServerId> const& queried_server_ids() const noexcept {
+    return queried_server_ids_;
+  }
+  bool used_observer_cloud() const noexcept { return used_observer_cloud_; }
 
  private:
   struct AttemptMeta {
     TimePoint send_time{};
     std::uint64_t generation{0};
-    std::size_t retries_used{0};
   };
 
   void OnCloud(Result<Cloud::ptr, int> result);
+  void BindPeerCloud(Cloud::ptr cloud);
   void StartQuery();
   void RefreshUsableSet();
+  void RequestTiming(CloudServerConnection* sc);
   void OnServerTiming(CloudServerConnection* sc, std::uint64_t generation,
                       Result<ClientTiming, std::int32_t> const& res);
   void MarkUnknown(ServerId server_id);
   void MarkExcluded(ServerId server_id);
+  void OnServerRecovered(CloudServerConnection* sc);
   void MaybeComplete();
   void Complete(PeerPresence const& presence);
   void Fail(int code);
   Duration OfflineTimeout() const noexcept;
+  bool AllUsableTerminal() const noexcept;
 
   AeContext ae_context_;
   Client* client_{nullptr};
@@ -98,6 +110,10 @@ class QueryPeerPresence final : public Action {
   std::map<ServerId, Subscription> timing_subs_;
   std::map<ServerId, AttemptMeta> attempts_;
   std::vector<RemoteServerPresenceSample> samples_;
+  std::vector<ServerId> peer_cloud_server_ids_;
+  std::vector<ServerId> authoritative_server_ids_;
+  std::vector<ServerId> queried_server_ids_;
+  bool used_observer_cloud_{false};
   bool finished_{false};
 };
 

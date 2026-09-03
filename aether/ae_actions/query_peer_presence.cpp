@@ -16,6 +16,10 @@
 
 #include "aether/ae_actions/query_peer_presence.h"
 
+#include <algorithm>
+#include <utility>
+
+#include "aether/api_protocol/sub_api.h"
 #include "aether/client.h"
 #include "aether/cloud_connections/cloud_server_connection.h"
 #include "aether/config.h"
@@ -29,16 +33,11 @@ namespace ae {
 QueryPeerPresence::QueryPeerPresence(AeContext const& ae_context,
                                      Client& client, Uid peer_uid)
     : ae_context_{ae_context}, client_{&client}, peer_uid_{peer_uid} {
-  // Prefer peer Personal Cloud (cached or GetCloud). Fall back to the
-  // observer's linked cloud only when peer cloud is unavailable — each
-  // get_client_timing(uid) answer is still authoritative for that server.
+  static_cast<void>(AllowObserverCloudFallbackForPeerPresence());
+
   auto cached = client_->cloud_manager()->GetCachedCloud(peer_uid_);
   if (cached && cached.is_valid() && !cached->servers().empty()) {
-    dest_cloud_ = std::make_unique<CloudServerConnections>(
-        ae_context_, cached.Load(),
-        client_->server_connection_manager().GetServerConnectionFactory(),
-        AE_CLOUD_MAX_SERVER_CONNECTIONS);
-    work_cloud_ = dest_cloud_.get();
+    BindPeerCloud(cached);
     StartQuery();
     return;
   }
@@ -66,47 +65,58 @@ Duration QueryPeerPresence::OfflineTimeout() const noexcept {
   return policy.Load()->offline_detection_timeout();
 }
 
-void QueryPeerPresence::OnCloud(Result<Cloud::ptr, int> result) {
-  if (finished_) {
-    return;
+void QueryPeerPresence::BindPeerCloud(Cloud::ptr cloud) {
+  used_observer_cloud_ = false;
+
+  // Full peer Personal Cloud (priority order). Authoritative Presence set is
+  // later taken from selected_servers() — same contract as Local Presence.
+  peer_cloud_server_ids_.clear();
+  std::vector<std::pair<std::uint16_t, ServerId>> ordered;
+  ordered.reserve(cloud->servers().size());
+  for (auto const& [id, entry] : cloud->servers()) {
+    ordered.emplace_back(entry.priority, id);
   }
-  if (!result) {
-    // Peer cloud unavailable — fall back to observer cloud if it has usable
-    // servers. get_client_timing remains per-server authoritative.
-    auto& own = client_->cloud_connection();
-    bool any_usable = false;
-    for (auto* sc : own.selected_servers()) {
-      if (sc != nullptr && sc->server() && !sc->quarantine()) {
-        any_usable = true;
-        break;
-      }
-    }
-    if (!any_usable) {
-      Complete(PeerPresence{PeerPresenceState::kUnknown});
-      return;
-    }
-    work_cloud_ = &own;
-    StartQuery();
-    return;
+  std::sort(ordered.begin(), ordered.end());
+  for (auto const& item : ordered) {
+    peer_cloud_server_ids_.push_back(item.second);
   }
-  auto cloud = std::move(result).value();
+
+  // Same connection budget as Local Presence / peer PingCloudServers.
   dest_cloud_ = std::make_unique<CloudServerConnections>(
       ae_context_, cloud.Load(),
       client_->server_connection_manager().GetServerConnectionFactory(),
       AE_CLOUD_MAX_SERVER_CONNECTIONS);
   work_cloud_ = dest_cloud_.get();
+}
+
+void QueryPeerPresence::OnCloud(Result<Cloud::ptr, int> result) {
+  if (finished_) {
+    return;
+  }
+  if (!result) {
+    // Peer Personal Cloud unavailable — never fall back to observer cloud.
+    used_observer_cloud_ = false;
+    Complete(PeerPresence{PeerPresenceState::kUnknown});
+    return;
+  }
+  BindPeerCloud(std::move(result).value());
   StartQuery();
 }
 
 void QueryPeerPresence::RefreshUsableSet() {
   samples_.clear();
+  authoritative_server_ids_.clear();
   if (work_cloud_ == nullptr) {
     return;
   }
+
+  // Local Presence contract = selected_servers() under RequestPolicy::All
+  // (bounded by AE_CLOUD_MAX_SERVER_CONNECTIONS). Remote AND uses the same set.
   for (auto* sc : work_cloud_->selected_servers()) {
     if (sc == nullptr || !sc->server()) {
       continue;
     }
+    authoritative_server_ids_.push_back(sc->server_id());
     RemoteServerPresenceSample sample{};
     sample.server_id = sc->server_id();
     if (sc->quarantine()) {
@@ -116,6 +126,12 @@ void QueryPeerPresence::RefreshUsableSet() {
     }
     samples_.push_back(sample);
   }
+
+  AE_TELED_DEBUG(
+      "REMOTE_PRESENCE peer_cloud_count={} authoritative_count={} "
+      "selected_count={} max_connections={}",
+      peer_cloud_server_ids_.size(), authoritative_server_ids_.size(),
+      work_cloud_->selected_servers().size(), work_cloud_->max_connections());
 }
 
 void QueryPeerPresence::StartQuery() {
@@ -134,37 +150,21 @@ void QueryPeerPresence::StartQuery() {
     return;
   }
 
-  quarantine_sub_ =
-      work_cloud_->server_quarantined_event().Subscribe(
-          [this](CloudServerConnection* sc) {
-            if (finished_ || sc == nullptr) {
-              return;
-            }
-            MarkExcluded(sc->server_id());
-            MaybeComplete();
-          });
+  quarantine_sub_ = work_cloud_->server_quarantined_event().Subscribe(
+      [this](CloudServerConnection* sc) {
+        if (finished_ || sc == nullptr) {
+          return;
+        }
+        MarkExcluded(sc->server_id());
+        MaybeComplete();
+      });
   quarantine_release_sub_ =
       work_cloud_->server_quarantine_release_event().Subscribe(
           [this](CloudServerConnection* sc) {
             if (finished_ || sc == nullptr) {
               return;
             }
-            // Recovered server re-enters usable set only after a new response.
-            RemoteServerPresenceSample sample{};
-            sample.server_id = sc->server_id();
-            sample.status = RemoteServerPresence::kUnknown;
-            bool found = false;
-            for (auto& existing : samples_) {
-              if (existing.server_id == sample.server_id) {
-                existing = sample;
-                found = true;
-                break;
-              }
-            }
-            if (!found) {
-              samples_.push_back(sample);
-            }
-            MaybeComplete();
+            OnServerRecovered(sc);
           });
 
   cloud_request_.emplace(
@@ -172,6 +172,7 @@ void QueryPeerPresence::StartQuery() {
       ApiRequestHandler{[this](ApiContext<AuthorizedApi>& auth_api,
                                CloudServerConnection* sc,
                                CloudRequest* request) {
+        static_cast<void>(request);
         if (finished_ || sc == nullptr || !sc->server() || sc->quarantine()) {
           return;
         }
@@ -184,6 +185,10 @@ void QueryPeerPresence::StartQuery() {
             return;
           }
         }
+        if (std::find(queried_server_ids_.begin(), queried_server_ids_.end(),
+                      server_id) == queried_server_ids_.end()) {
+          queried_server_ids_.push_back(server_id);
+        }
         auto& meta = attempts_[server_id];
         ++meta.generation;
         meta.send_time = Now();
@@ -193,7 +198,6 @@ void QueryPeerPresence::StartQuery() {
                 [this, sc, generation](auto const& res) {
                   OnServerTiming(sc, generation, res);
                 });
-        static_cast<void>(request);
       }},
       *work_cloud_, RequestPolicy::All{},
       /*max_retries=*/kRemotePresenceQueryRetryCount + 1);
@@ -214,18 +218,71 @@ void QueryPeerPresence::StartQuery() {
     if (ok) {
       return;
     }
-    for (auto& sample : samples_) {
-      if (sample.status == RemoteServerPresence::kUnknown &&
-          !sample.has_timing) {
-        // leave as Unknown contribution
-      }
-    }
     MaybeComplete();
-    if (!finished_) {
-      // All servers exhausted without Offline/Online completion.
+    if (!finished_ && AllUsableTerminal()) {
       Complete(AggregateRemotePresence(samples_));
     }
   });
+}
+
+void QueryPeerPresence::RequestTiming(CloudServerConnection* sc) {
+  if (finished_ || sc == nullptr || !sc->server() || sc->quarantine()) {
+    return;
+  }
+  auto* conn = sc->client_connection();
+  if (conn == nullptr) {
+    return;
+  }
+  auto const server_id = sc->server_id();
+  for (auto const& sample : samples_) {
+    if (sample.server_id == server_id &&
+        (sample.status == RemoteServerPresence::kOnline ||
+         sample.status == RemoteServerPresence::kOffline ||
+         sample.status == RemoteServerPresence::kExcluded)) {
+      return;
+    }
+  }
+
+  if (std::find(queried_server_ids_.begin(), queried_server_ids_.end(),
+                server_id) == queried_server_ids_.end()) {
+    queried_server_ids_.push_back(server_id);
+  }
+
+  auto& meta = attempts_[server_id];
+  ++meta.generation;
+  meta.send_time = Now();
+  auto const generation = meta.generation;
+
+  // AuthorizedApiCall requires an active ApiContext path via CloudRequest's
+  // handler; for recovered servers we re-enter through a one-server request.
+  conn->AuthorizedApiCall(SubApi{[&, sc, generation](
+                                     ApiContext<AuthorizedApi>& auth_api) {
+    timing_subs_[server_id] = auth_api->get_client_timing(peer_uid_).Subscribe(
+        [this, sc, generation](auto const& res) {
+          OnServerTiming(sc, generation, res);
+        });
+  }});
+}
+
+void QueryPeerPresence::OnServerRecovered(CloudServerConnection* sc) {
+  RemoteServerPresenceSample sample{};
+  sample.server_id = sc->server_id();
+  sample.status = RemoteServerPresence::kUnknown;
+  bool found = false;
+  for (auto& existing : samples_) {
+    if (existing.server_id == sample.server_id) {
+      existing = sample;
+      found = true;
+      break;
+    }
+  }
+  if (!found) {
+    samples_.push_back(sample);
+    authoritative_server_ids_.push_back(sample.server_id);
+  }
+  // Fresh timing required — do not keep a stale ONLINE.
+  RequestTiming(sc);
+  MaybeComplete();
 }
 
 void QueryPeerPresence::OnServerTiming(
@@ -246,6 +303,9 @@ void QueryPeerPresence::OnServerTiming(
         MarkUnknown(server_id);
         MaybeComplete();
       }
+    } else {
+      MarkUnknown(server_id);
+      MaybeComplete();
     }
     return;
   }
@@ -270,8 +330,9 @@ void QueryPeerPresence::OnServerTiming(
   }
 
   AE_TELED_DEBUG(
-      "REMOTE_PRESENCE server {} next_delta {} status {}", server_id,
-      res.value().next_ping_delta_ms, static_cast<int>(status));
+      "REMOTE_PRESENCE server {} next_delta {} status {} expected {} deadline {}",
+      server_id, res.value().next_ping_delta_ms, static_cast<int>(status),
+      expected, deadline);
 
   if (cloud_request_.has_value()) {
     cloud_request_->SucceedAttempt(sc);
@@ -286,6 +347,8 @@ void QueryPeerPresence::MarkUnknown(ServerId server_id) {
         sample.status != RemoteServerPresence::kOnline &&
         sample.status != RemoteServerPresence::kOffline) {
       sample.status = RemoteServerPresence::kUnknown;
+      // Terminal unknown after retries — treat as observed for completion.
+      sample.has_timing = true;
       return;
     }
   }
@@ -300,6 +363,19 @@ void QueryPeerPresence::MarkExcluded(ServerId server_id) {
   }
 }
 
+bool QueryPeerPresence::AllUsableTerminal() const noexcept {
+  for (auto const& sample : samples_) {
+    if (sample.status == RemoteServerPresence::kExcluded) {
+      continue;
+    }
+    if (!sample.has_timing &&
+        sample.status == RemoteServerPresence::kUnknown) {
+      return false;
+    }
+  }
+  return true;
+}
+
 void QueryPeerPresence::MaybeComplete() {
   if (finished_) {
     return;
@@ -312,28 +388,19 @@ void QueryPeerPresence::MaybeComplete() {
     Complete(PeerPresence{PeerPresenceState::kOnline});
     return;
   }
-  // All remaining usable samples known (Online/Unknown) and no Offline —
-  // wait until every usable server has a terminal observation.
-  bool any_pending = false;
   std::size_t usable = 0;
   for (auto const& sample : samples_) {
-    if (sample.status == RemoteServerPresence::kExcluded) {
-      continue;
-    }
-    ++usable;
-    if (sample.status == RemoteServerPresence::kUnknown && !sample.has_timing) {
-      // Still waiting unless retries exhausted left it Unknown without timing.
-      auto it = attempts_.find(sample.server_id);
-      if (it == attempts_.end()) {
-        any_pending = true;
-      }
+    if (sample.status != RemoteServerPresence::kExcluded) {
+      ++usable;
     }
   }
   if (usable == 0) {
     Complete(PeerPresence{PeerPresenceState::kUnknown});
     return;
   }
-  static_cast<void>(any_pending);
+  if (AllUsableTerminal()) {
+    Complete(AggregateRemotePresence(samples_));
+  }
 }
 
 void QueryPeerPresence::Complete(PeerPresence const& presence) {

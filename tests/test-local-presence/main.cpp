@@ -1030,6 +1030,108 @@ void test_RemoteTimingProjectionAndAggregation() {
       {{ServerId{1}, RemoteServerPresence::kOffline, {}, {}, 0, true}}));
 }
 
+void test_NoObserverCloudFallbackAndAuthoritativeSet() {
+  TEST_ASSERT_FALSE(AllowObserverCloudFallbackForPeerPresence());
+
+  // Peer Personal Cloud with 4 servers; Local Presence contract is bounded by
+  // AE_CLOUD_MAX_SERVER_CONNECTIONS (default 3) via selected_servers().
+  std::vector<ServerId> peer_cloud{10, 11, 12, 13};
+  auto const contract = AuthoritativePresenceServerIds(
+      peer_cloud, AE_CLOUD_MAX_SERVER_CONNECTIONS);
+  TEST_ASSERT_EQUAL(4, peer_cloud.size());
+  TEST_ASSERT_EQUAL(AE_CLOUD_MAX_SERVER_CONNECTIONS, contract.size());
+  TEST_ASSERT_EQUAL(10, contract[0]);
+  TEST_ASSERT_EQUAL(11, contract[1]);
+  TEST_ASSERT_EQUAL(12, contract[2]);
+  // Server 13 is in peer cloud but outside the Local Presence contract when
+  // N > AE_CLOUD_MAX_SERVER_CONNECTIONS — Remote AND must not require it.
+  TEST_ASSERT_TRUE(std::find(contract.begin(), contract.end(),
+                             static_cast<ServerId>(13)) == contract.end());
+
+  // When N <= max, authoritative set equals the full peer cloud.
+  std::vector<ServerId> peer_small{21, 22};
+  auto const full = AuthoritativePresenceServerIds(
+      peer_small, AE_CLOUD_MAX_SERVER_CONNECTIONS);
+  TEST_ASSERT_EQUAL(2, full.size());
+  TEST_ASSERT_EQUAL(21, full[0]);
+  TEST_ASSERT_EQUAL(22, full[1]);
+
+  // Observer cloud IDs must never be treated as peer Presence substitutes.
+  std::vector<ServerId> observer{90, 91};
+  auto const observer_contract =
+      AuthoritativePresenceServerIds(observer, AE_CLOUD_MAX_SERVER_CONNECTIONS);
+  for (auto const id : observer_contract) {
+    TEST_ASSERT_TRUE(std::find(contract.begin(), contract.end(), id) ==
+                     contract.end());
+    TEST_ASSERT_TRUE(std::find(full.begin(), full.end(), id) == full.end());
+  }
+
+  // Peer cloud unavailable => aggregate UNKNOWN with zero usable samples.
+  // QueryPeerPresence::OnCloud(Error) completes with this result and never
+  // binds the observer cloud (used_observer_cloud remains false; queried
+  // server list stays empty — no observer servers contacted).
+  std::vector<RemoteServerPresenceSample> empty;
+  TEST_ASSERT_EQUAL(static_cast<int>(PeerPresenceState::kUnknown),
+                    static_cast<int>(AggregateRemotePresence(empty).state));
+  TEST_ASSERT_EQUAL(0, empty.size());
+}
+
+void test_PeerCloudNotObserverCloudAuthoritativeIds() {
+  // Deterministic peer vs observer cloud sets (integration contract).
+  std::vector<ServerId> peer{101, 102};
+  std::vector<ServerId> observer{201, 202};
+  auto const auth =
+      AuthoritativePresenceServerIds(peer, AE_CLOUD_MAX_SERVER_CONNECTIONS);
+  TEST_ASSERT_EQUAL(2, auth.size());
+  TEST_ASSERT_EQUAL(101, auth[0]);
+  TEST_ASSERT_EQUAL(102, auth[1]);
+  for (auto const oid : observer) {
+    TEST_ASSERT_TRUE(std::find(auth.begin(), auth.end(), oid) == auth.end());
+  }
+  // Unknown peer cloud: no authoritative servers => UNKNOWN, no fallback set.
+  auto const none =
+      AuthoritativePresenceServerIds({}, AE_CLOUD_MAX_SERVER_CONNECTIONS);
+  TEST_ASSERT_EQUAL(0, none.size());
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(PeerPresenceState::kUnknown),
+      static_cast<int>(
+          AggregateRemotePresence(std::vector<RemoteServerPresenceSample>{})
+              .state));
+}
+
+void test_RecoveredServerRequiresFreshOnline() {
+  std::vector<RemoteServerPresenceSample> samples{
+      {1, RemoteServerPresence::kOnline, {}, {}, 1, true},
+      {2, RemoteServerPresence::kExcluded, {}, {}, 0, false},
+  };
+  TEST_ASSERT_EQUAL(static_cast<int>(PeerPresenceState::kOnline),
+                    static_cast<int>(AggregateRemotePresence(samples).state));
+  // Recovered server re-enters as UNKNOWN — cannot keep stale ONLINE.
+  samples[1].status = RemoteServerPresence::kUnknown;
+  samples[1].has_timing = false;
+  TEST_ASSERT_EQUAL(static_cast<int>(PeerPresenceState::kUnknown),
+                    static_cast<int>(AggregateRemotePresence(samples).state));
+  samples[1].status = RemoteServerPresence::kOnline;
+  samples[1].has_timing = true;
+  TEST_ASSERT_EQUAL(static_cast<int>(PeerPresenceState::kOnline),
+                    static_cast<int>(AggregateRemotePresence(samples).state));
+}
+
+void test_QueryFailureIsUnknownNotOffline() {
+  // Usable server with failed timing (UNKNOWN after retries) must not force
+  // peer Offline; zero Offline contributions + incomplete ONLINE => UNKNOWN.
+  std::vector<RemoteServerPresenceSample> samples{
+      {1, RemoteServerPresence::kOnline, {}, {}, 1, true},
+      {2, RemoteServerPresence::kUnknown, {}, {}, 0, true},
+  };
+  TEST_ASSERT_EQUAL(static_cast<int>(PeerPresenceState::kUnknown),
+                    static_cast<int>(AggregateRemotePresence(samples).state));
+  // After quarantine/unselect, remaining ONLINE servers may aggregate ONLINE.
+  samples[1].status = RemoteServerPresence::kExcluded;
+  TEST_ASSERT_EQUAL(static_cast<int>(PeerPresenceState::kOnline),
+                    static_cast<int>(AggregateRemotePresence(samples).state));
+}
+
 }  // namespace ae::test_local_presence
 
 void setUp() {}
@@ -1067,6 +1169,10 @@ int main() {
   RUN_TEST(ae::test_local_presence::test_IntervalZeroWithoutPongKeepsConfirmed);
   RUN_TEST(ae::test_local_presence::test_IntervalZeroWithPongClearsFuturePresence);
   RUN_TEST(ae::test_local_presence::test_RemoteTimingProjectionAndAggregation);
+  RUN_TEST(ae::test_local_presence::test_NoObserverCloudFallbackAndAuthoritativeSet);
+  RUN_TEST(ae::test_local_presence::test_PeerCloudNotObserverCloudAuthoritativeIds);
+  RUN_TEST(ae::test_local_presence::test_RecoveredServerRequiresFreshOnline);
+  RUN_TEST(ae::test_local_presence::test_QueryFailureIsUnknownNotOffline);
   RUN_TEST(ae::test_local_presence::test_StatisticalRuntimePollingIsLocallyOnline);
   RUN_TEST(ae::test_local_presence::test_FaultOfflineNotBeforeWindowCloseThenRecovery);
   return UNITY_END();
