@@ -118,11 +118,16 @@ void SyncFromIdb(OpCallback callback) {
         var userData = $0;
         FS.syncfs(true, function(err) {
           var msg = err ? String(err) : "";
-          var len = lengthBytesUTF8(msg) + 1;
-          var ptr = _malloc(len);
-          stringToUTF8(msg, ptr, len);
+          var ptr = 0;
+          if (msg.length > 0) {
+            var len = lengthBytesUTF8(msg) + 1;
+            ptr = Module["_malloc"](len);
+            stringToUTF8(msg, ptr, len);
+          }
           _ae_emscripten_storage_op_done(err ? 0 : 1, ptr, userData);
-          _free(ptr);
+          if (ptr) {
+            Module["_free"](ptr);
+          }
         });
       },
       heap_cb);
@@ -135,11 +140,16 @@ void SyncToIdb(OpCallback callback) {
         var userData = $0;
         FS.syncfs(false, function(err) {
           var msg = err ? String(err) : "";
-          var len = lengthBytesUTF8(msg) + 1;
-          var ptr = _malloc(len);
-          stringToUTF8(msg, ptr, len);
+          var ptr = 0;
+          if (msg.length > 0) {
+            var len = lengthBytesUTF8(msg) + 1;
+            ptr = Module["_malloc"](len);
+            stringToUTF8(msg, ptr, len);
+          }
           _ae_emscripten_storage_op_done(err ? 0 : 1, ptr, userData);
-          _free(ptr);
+          if (ptr) {
+            Module["_free"](ptr);
+          }
         });
       },
       heap_cb);
@@ -159,11 +169,16 @@ void AcquireProfileLock(std::string_view profile_name, OpCallback callback) {
         var profile = UTF8ToString($0);
         var userData = $1;
         var complete = function(ok, message) {
-          var len = lengthBytesUTF8(message) + 1;
-          var ptr = _malloc(len);
-          stringToUTF8(message, ptr, len);
+          var ptr = 0;
+          if (message && message.length > 0) {
+            var len = lengthBytesUTF8(message) + 1;
+            ptr = Module["_malloc"](len);
+            stringToUTF8(message, ptr, len);
+          }
           _ae_emscripten_storage_op_done(ok ? 1 : 0, ptr, userData);
-          _free(ptr);
+          if (ptr) {
+            Module["_free"](ptr);
+          }
         };
         if (typeof navigator === "undefined" || !navigator.locks ||
             typeof navigator.locks.request !== "function") {
