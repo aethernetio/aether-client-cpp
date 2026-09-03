@@ -16,11 +16,11 @@
 #ifndef AETHER_REGISTRATION_CLOUD_H_
 #define AETHER_REGISTRATION_CLOUD_H_
 
+#include "aether-objects/obj/dummy_obj.h"  // IWYU pragma: keep
 #include "aether/config.h"
-#include "aether/obj/dummy_obj.h"  // IWYU pragma: keep
 
 #if AE_SUPPORT_REGISTRATION
-#  include "aether/obj/obj.h"
+#  include "aether-objects/obj/obj.h"
 
 #  include "aether/cloud.h"
 

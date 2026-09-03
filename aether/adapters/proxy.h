@@ -17,7 +17,7 @@
 #ifndef AETHER_ADAPTERS_PROXY_H_
 #define AETHER_ADAPTERS_PROXY_H_
 
-#include "aether/obj/obj.h"
+#include "aether-objects/obj/obj.h"
 #include "aether/types/address.h"
 
 namespace ae {

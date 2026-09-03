@@ -42,4 +42,7 @@ if(COMPILE_EXAMPLE)
   set(COMPONENTS ${COMPILE_EXAMPLE})
 endif()
 
+# add release optimization options
+include("../../../../toolchain/optmization-options-gnu-clang.toolchain")
+
 project(Aether LANGUAGES CXX C ASM)

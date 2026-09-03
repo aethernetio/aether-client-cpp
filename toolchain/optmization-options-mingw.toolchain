@@ -1,0 +1,32 @@
+# Copyright 2026 Aethernet Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# User-editable CMake toolchain draft for MinGW.
+#
+# Select it explicitly with:
+# cmake -S . -B <build-dir> -DCMAKE_TOOLCHAIN_FILE=<path-to-this-file>
+#
+# This profile uses conservative GCC/MinGW release compiler options. Do not add
+# Linux/GNU linker stripping, section garbage collection, LTO, or aggressive
+# math options here: MinGW uses a distinct Windows toolchain and linker
+# environment.
+
+set(_mingw_compile_options
+    -pipe
+    -fomit-frame-pointer
+    -DNDEBUG)
+
+add_compile_options(
+    "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:C,GNU>>:${_mingw_compile_options}>"
+    "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:CXX,GNU>>:${_mingw_compile_options}>")

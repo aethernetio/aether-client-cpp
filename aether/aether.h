@@ -20,9 +20,9 @@
 #include <map>
 #include <string>
 
+#include "aether-objects/obj/obj.h"
 #include "aether/clock.h"
 #include "aether/memory.h"
-#include "aether/obj/obj.h"
 #include "aether/types/client_config.h"
 
 #include "aether/ae_actions/select_client.h"

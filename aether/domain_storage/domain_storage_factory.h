@@ -17,8 +17,8 @@
 #ifndef AETHER_DOMAIN_STORAGE_DOMAIN_STORAGE_FACTORY_H_
 #define AETHER_DOMAIN_STORAGE_DOMAIN_STORAGE_FACTORY_H_
 
+#include "aether-objects/obj/idomain_storage.h"
 #include "aether/memory.h"
-#include "aether/obj/idomain_storage.h"
 
 namespace ae {
 class DomainStorageFactory {

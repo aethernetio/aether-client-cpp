@@ -21,8 +21,8 @@
 
 #include <filesystem>
 
-#include "aether/obj/idomain_storage.h"
-#include "aether/domain_storage/ram_domain_storage.h"
+#include "aether-objects/domain_storage/ram_domain_storage.h"
+#include "aether-objects/obj/idomain_storage.h"
 
 namespace ae {
 class RegistrarDomainStorage : public IDomainStorage {

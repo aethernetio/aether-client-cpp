@@ -17,7 +17,7 @@
 #ifndef AETHER_ADAPTER_REGISTRY_H_
 #define AETHER_ADAPTER_REGISTRY_H_
 
-#include "aether/obj/obj.h"
+#include "aether-objects/obj/obj.h"
 
 #include "aether/adapters/adapter.h"
 

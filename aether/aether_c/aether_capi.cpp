@@ -24,10 +24,10 @@
 #include "aether/aether_c/c_errors.h"
 #include "aether/aether_c/extern_c.h"
 
+#include "aether-objects/obj/obj_ptr.h"
+#include "aether-objects/ptr/ptr.h"
 #include "aether/actions/actions_queue.h"
 #include "aether/memory.h"
-#include "aether/obj/obj_ptr.h"
-#include "aether/ptr/ptr.h"
 #include "aether/types/data_buffer.h"
 
 #include "aether/aether_app.h"
@@ -36,9 +36,9 @@
 // IWYU pragma: begin_keeps
 #include "aether/wifi/wifi_driver_types.h"
 
+#include "aether-objects/domain_storage/file_system_std_storage.h"
+#include "aether-objects/domain_storage/ram_domain_storage.h"
 #include "aether/domain_storage/domain_storage_factory.h"
-#include "aether/domain_storage/file_system_std_storage.h"
-#include "aether/domain_storage/ram_domain_storage.h"
 #include "aether/domain_storage/spifs_domain_storage.h"
 
 #include "aether/adapter_registry.h"

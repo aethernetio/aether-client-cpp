@@ -24,8 +24,8 @@
 #  if (defined(ESP_PLATFORM))
 #    define ESP32_DNS_RESOLVER_ENABLED 1
 
+#    include "aether-objects/obj/obj.h"
 #    include "aether/dns/dns_resolve.h"
-#    include "aether/obj/obj.h"
 
 namespace ae {
 class Aether;

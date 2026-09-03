@@ -19,12 +19,12 @@
 
 #include "aether-miscpp/types/result.h"
 
+#include "aether-objects/obj/obj_ptr.h"
 #include "aether/actions/action.h"
 #include "aether/ae_context.h"
 #include "aether/config.h"
 #include "aether/events/event_subscription.h"
 #include "aether/events/events.h"
-#include "aether/obj/obj_ptr.h"
 
 namespace ae {
 class Aether;

@@ -19,7 +19,7 @@
 
 #include <memory>
 
-#include "aether/ptr/ptr.h"
+#include "aether-objects/ptr/ptr.h"
 #include "aether/server_connections/client_server_connection.h"
 
 namespace ae {

@@ -17,11 +17,12 @@
 #include "aether/domain_storage/domain_storage_factory.h"
 
 // IWYU pragma: begin_keeps
-#include "aether/domain_storage/ram_domain_storage.h"
-#include "aether/domain_storage/sync_domain_storage.h"
+#include "aether-objects/domain_storage/file_system_std_storage.h"
+#include "aether-objects/domain_storage/ram_domain_storage.h"
+
 #include "aether/domain_storage/spifs_domain_storage.h"
 #include "aether/domain_storage/static_domain_storage.h"
-#include "aether/domain_storage/file_system_std_storage.h"
+#include "aether/domain_storage/sync_domain_storage.h"
 
 #if defined FS_INIT
 #  define STATIC_DOMAIN_STORAGE_ENABLED 1
@@ -32,7 +33,7 @@
 
 namespace ae {
 std::unique_ptr<IDomainStorage> DomainStorageFactory::Create() {
-#if defined STATIC_DOMAIN_STORAGE_ENABLED
+#if STATIC_DOMAIN_STORAGE_ENABLED
   auto ro_storage = make_unique<StaticDomainStorage>(static_domain_data);
   auto rw_storage = CreateRwStorage();
   return make_unique<SyncDomainStorage>(std::move(ro_storage),
@@ -43,11 +44,11 @@ std::unique_ptr<IDomainStorage> DomainStorageFactory::Create() {
 }
 
 std::unique_ptr<IDomainStorage> DomainStorageFactory::CreateRwStorage() {
-#if defined AE_FILE_SYSTEM_STD_ENABLED
+#if AE_FILE_SYSTEM_STD_ENABLED
   return make_unique<FileSystemStdStorage>();
-#elif defined AE_SPIFS_DOMAIN_STORAGE_ENABLED
+#elif AE_SPIFS_DOMAIN_STORAGE_ENABLED
   return make_unique<SpiFsDomainStorage>();
-#elif defined AE_FILE_SYSTEM_RAM_ENABLED
+#else
   return make_unique<RamDomainStorage>();
 #endif
 }

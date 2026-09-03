@@ -20,19 +20,19 @@
 
 #include <unity.h>
 
+#include "aether-objects/domain_storage/ram_domain_storage.h"
+#include "aether-objects/obj/domain.h"
+
 #include "aether/adapter_registry.h"
 #include "aether/ae_context.h"
 #include "aether/cloud.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
-#include "aether/obj/domain.h"
 #include "aether/server.h"
 #include "aether/server_connections/client_server_connection.h"
 #include "aether/server_connections/iserver_connection_factory.h"
 #include "aether/types/address.h"
 #include "aether/types/server_id.h"
 #include "aether/work_cloud.h"
-
-#include "tests/test-object-system/map_domain_storage.h"
 
 namespace ae {
 namespace test_cloud_persistence {
@@ -62,7 +62,7 @@ struct CloudFixture {
   CloudFixture(std::unique_ptr<IServerConnectionFactory> factory,
                IServerConnectionFactory* raw)
       : ae_ctx{ctx},
-        domain{Now(), storage},
+        domain{storage},
         registry{AdapterRegistry::ptr::Create(CreateWith{domain})},
         server{Server::ptr::Create(CreateWith{domain}, ServerId{7},
                                    std::vector<Endpoint>{}, registry)},
@@ -75,7 +75,7 @@ struct CloudFixture {
 
   TestContext ctx;
   AeContext ae_ctx;
-  MapDomainStorage storage;
+  RamDomainStorage storage;
   Domain domain;
   AdapterRegistry::ptr registry;
   Server::ptr server;
@@ -85,8 +85,8 @@ struct CloudFixture {
 };
 
 void test_CloudSetServersReplacesEntries() {
-  MapDomainStorage storage;
-  Domain domain{Now(), storage};
+  RamDomainStorage storage;
+  Domain domain{storage};
   auto registry = AdapterRegistry::ptr::Create(CreateWith{domain});
   auto first = Server::ptr::Create(CreateWith{domain}, ServerId{7},
                                    std::vector<Endpoint>{}, registry);
@@ -181,8 +181,8 @@ void test_CloudServerConnectionServerReferencesCloudMapEntry() {
 }
 
 void test_CloudServerConnectionPriorityRoundTripsAndRestoresSelectionOrder() {
-  MapDomainStorage storage;
-  Domain domain{Now(), storage};
+  RamDomainStorage storage;
+  Domain domain{storage};
   auto registry = AdapterRegistry::ptr::Create(CreateWith{domain});
   auto first = Server::ptr::Create(CreateWith{domain}, ServerId{10},
                                    std::vector<Endpoint>{}, registry);
@@ -215,7 +215,7 @@ void test_CloudServerConnectionPriorityRoundTripsAndRestoresSelectionOrder() {
   TEST_ASSERT_EQUAL_INT(0, initial_attempts);
   TEST_ASSERT_EQUAL_UINT(0, initial_overflows);
 
-  Domain restarted_domain{Now(), storage};
+  Domain restarted_domain{storage};
   auto restored_cloud =
       WorkCloud::ptr::Declare(CreateWith{restarted_domain}.with_id(cloud.id()));
   restored_cloud.Load();

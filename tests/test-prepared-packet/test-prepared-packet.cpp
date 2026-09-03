@@ -24,6 +24,9 @@
 
 #include <unity.h>
 
+#include "aether-objects/domain_storage/ram_domain_storage.h"
+#include "aether-objects/obj/domain.h"
+
 #include "aether/adapter_registry.h"
 #include "aether/aether.h"
 #include "aether/channels/channel.h"
@@ -33,14 +36,12 @@
 #include "aether/crypto/ikey_provider.h"
 #include "aether/crypto/key_gen.h"
 #include "aether/crypto/sync_crypto_provider.h"
-#include "aether/obj/domain.h"
 #include "aether/prepared_packet/packet_encoder.h"
 #include "aether/prepared_packet/prepared_send_message.h"
 #include "aether/server.h"
 #include "aether/server_keys.h"
 
 #include "../test-api-protocol/assert_packet.h"
-#include "../test-object-system/map_domain_storage.h"
 
 namespace ae::test_prepared_packet {
 
@@ -92,7 +93,7 @@ struct PreparedPacketFixture {
       Uid{std::array<std::uint8_t, Uid::kSize>{4}};
 
   PreparedPacketFixture()
-      : domain{Now(), storage},
+      : domain{storage},
         aether{Aether::ptr::Create(CreateWith{domain})},
         registry{AdapterRegistry::ptr::Create(CreateWith{domain})} {
     aether->adapter_registry = registry;
@@ -141,7 +142,7 @@ struct PreparedPacketFixture {
     client->cloud().Load()->SetServers(servers);
   }
 
-  MapDomainStorage storage;
+  RamDomainStorage storage;
   Domain domain;
   Aether::ptr aether;
   AdapterRegistry::ptr registry;

@@ -17,9 +17,10 @@
 #ifndef AETHER_CHANNELS_CHANNEL_STATISTICS_H_
 #define AETHER_CHANNELS_CHANNEL_STATISTICS_H_
 
+#include "aether-objects/obj/obj.h"
+
+#include "aether/clock.h"
 #include "aether/config.h"
-#include "aether/common.h"
-#include "aether/obj/obj.h"
 
 #include "aether/types/statistic_counter.h"
 

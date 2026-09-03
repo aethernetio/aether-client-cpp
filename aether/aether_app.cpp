@@ -299,7 +299,7 @@ void AetherAppContext::InitComponentContext() {
     domain_storage.CleanUp();
 #endif  // AE_DISTILLATION
 
-    return std::make_unique<Domain>(Now(), domain_storage);
+    return std::make_unique<Domain>(domain_storage);
   });
 
   if (!aether_) {

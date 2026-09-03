@@ -1,0 +1,204 @@
+diff --git a/ini.h b/ini.h
+index 6bd5b4b..d5982f4 100644
+--- a/ini.h
++++ b/ini.h
+@@ -25,6 +25,18 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
+ 
+ #endif
+ 
++#if defined(_MSC_VER)
++#define INI_HAS_NO_EXCEPTIONS() (_HAS_EXCEPTIONS == 0) || (_CPPUNWIND == 0)
++#else
++#define INI_HAS_NO_EXCEPTIONS() (__EXCEPTIONS == 0)
++#endif
++
++#if INI_HAS_NO_EXCEPTIONS()
++#define INI_THROW(...) std::abort()
++#else
++#define INI_THROW(...) throw __VA_ARGS__
++#endif
++
+ namespace ini {
+ 
+ namespace {
+@@ -37,7 +49,7 @@ namespace {
+         } else if (str == "false") {
+             return false;
+         } else {
+-            throw std::invalid_argument("could not convert string to boolean");
++            INI_THROW(std::invalid_argument("could not convert string to boolean"));
+         }
+     }
+ 
+@@ -124,7 +136,7 @@ inline bool Section::has_key(const std::string& key) const
+ inline size_t Section::remove_key(const std::string& key)
+ {
+     if (m_items.find(key) == m_items.end()) {
+-        throw std::invalid_argument("key does not exist");
++        INI_THROW(std::invalid_argument("key does not exist"));
+     }
+ 
+     return m_items.erase(key);
+@@ -133,15 +145,15 @@ inline size_t Section::remove_key(const std::string& key)
+ inline void Section::rename_key(const std::string& old_key, const std::string& new_key)
+ {
+     if (old_key.empty() || new_key.empty()) {
+-        throw std::invalid_argument("keys cannot be empty");
++        INI_THROW(std::invalid_argument("keys cannot be empty"));
+     }
+ 
+     if (m_items.find(old_key) == m_items.end()) {
+-        throw std::invalid_argument("old key does not exist");
++        INI_THROW(std::invalid_argument("old key does not exist"));
+     }
+ 
+     if (m_items.find(new_key) != m_items.end()) {
+-        throw std::invalid_argument("new key already exists");
++        INI_THROW(std::invalid_argument("new key already exists"));
+     }
+ 
+     auto item = m_items.extract(old_key);
+@@ -158,7 +170,7 @@ template <typename T>
+ inline T Section::get(const std::string& key) const
+ {
+     if (m_items.find(key) == m_items.end()) {
+-        throw std::invalid_argument("key does not exist");
++        INI_THROW(std::invalid_argument("key does not exist"));
+     }
+ 
+     if constexpr (std::is_same<T, bool>::value) {
+@@ -174,7 +186,7 @@ inline T Section::get(const std::string& key) const
+     } else if constexpr (std::is_same<T, std::string>::value) {
+         return m_items.at(key);
+     } else {
+-        throw std::invalid_argument("type is not supported");
++        INI_THROW(std::invalid_argument("type is not supported"));
+     }
+ }
+ 
+@@ -190,7 +202,7 @@ inline void Section::set(const std::string& key, const T& value)
+     } else if constexpr (std::is_same<T, std::string>::value) {
+         m_items[key] = value;
+     } else {
+-        throw std::invalid_argument("type is not supported");
++        INI_THROW(std::invalid_argument("type is not supported"));
+     }
+ }
+ 
+@@ -217,7 +229,7 @@ inline std::unordered_map<std::string, std::string>::iterator Section::end() noe
+ inline std::string& Section::operator[](const std::string& key)
+ {
+     if (key.empty()) {
+-        throw std::invalid_argument("keys cannot be empty");
++        INI_THROW(std::invalid_argument("keys cannot be empty"));
+     }
+ 
+     return m_items[key];
+@@ -256,7 +268,7 @@ inline File::File()
+ inline File::File(std::ifstream& stream)
+ {
+     if (!stream.is_open()) {
+-        throw std::invalid_argument("stream is closed");
++        INI_THROW(std::invalid_argument("stream is closed"));
+     }
+ 
+     read(stream);
+@@ -271,7 +283,7 @@ inline File::File(const std::string& text)
+ inline void File::add_section(const std::string& section_name)
+ {
+     if (m_sections.find(section_name) != m_sections.end()) {
+-        throw std::invalid_argument("section already exists");
++        INI_THROW(std::invalid_argument("section already exists"));
+     }
+ 
+     m_sections[section_name];
+@@ -295,11 +307,11 @@ inline bool File::has_section(const std::string& section_name) const
+ inline size_t File::remove_section(const std::string& section_name)
+ {
+     if (section_name.empty()) {
+-        throw std::invalid_argument("section names cannot be empty");
++        INI_THROW(std::invalid_argument("section names cannot be empty"));
+     }
+ 
+     if (m_sections.find(section_name) == m_sections.end()) {
+-        throw std::invalid_argument("section does not exist");
++        INI_THROW(std::invalid_argument("section does not exist"));
+     }
+ 
+     return m_sections.erase(section_name);
+@@ -308,15 +320,15 @@ inline size_t File::remove_section(const std::string& section_name)
+ inline void File::rename_section(const std::string& old_section_name, const std::string& new_section_name)
+ {
+     if (old_section_name.empty() || new_section_name.empty()) {
+-        throw std::invalid_argument("section names cannot be empty");
++        INI_THROW(std::invalid_argument("section names cannot be empty"));
+     }
+ 
+     if (m_sections.find(old_section_name) == m_sections.end()) {
+-        throw std::invalid_argument("old section name does not exist");
++        INI_THROW(std::invalid_argument("old section name does not exist"));
+     }
+ 
+     if (m_sections.find(new_section_name) != m_sections.end()) {
+-        throw std::invalid_argument("new section name already exists");
++        INI_THROW(std::invalid_argument("new section name already exists"));
+     }
+ 
+     auto section = m_sections.extract(old_section_name);
+@@ -333,7 +345,7 @@ inline void File::write(const std::filesystem::path& path) const
+ {
+     std::ofstream stream(path);
+     if (!stream.is_open()) {
+-        throw std::invalid_argument("stream is closed");
++        INI_THROW(std::invalid_argument("stream is closed"));
+     }
+ 
+     for (auto const& [section_name, section] : m_sections) {
+@@ -371,7 +383,7 @@ inline std::unordered_map<std::string, Section>::iterator File::end() noexcept
+ inline Section& File::operator[](const std::string& section_name)
+ {
+     if (section_name.empty()) {
+-        throw std::invalid_argument("section headers cannot be empty");
++        INI_THROW(std::invalid_argument("section headers cannot be empty"));
+     }
+ 
+     return m_sections[section_name];
+@@ -389,7 +401,7 @@ inline void File::read(std::istream& stream)
+         size_t r_bracket_pos = line.rfind(']');
+         if (line.find('[') == 0 && r_bracket_pos != std::string::npos) {
+             if (r_bracket_pos == 1) {
+-                throw std::invalid_argument("section headers cannot be empty");
++                INI_THROW(std::invalid_argument("section headers cannot be empty"));
+             }
+ 
+             section = &m_sections[line.substr(1, r_bracket_pos - 1)];
+@@ -406,19 +418,19 @@ inline void File::read(std::istream& stream)
+         // Throws an exception because if the section is null
+         // then a section header is missing from the configuration file.
+         if (section == nullptr) {
+-            throw std::invalid_argument("file is missing a section header");
++            INI_THROW(std::invalid_argument("file is missing a section header"));
+         }
+ 
+         std::string key = trim(line.substr(0, delimiter_pos));
+ 
+         // Checks if the key is an empty string.
+         if (key.empty()) {
+-            throw std::invalid_argument("keys cannot be empty");
++            INI_THROW(std::invalid_argument("keys cannot be empty"));
+         }
+ 
+         // Checks if the key already exists.
+         if ((*section).has_key(key)) {
+-            throw std::invalid_argument("key already exists");
++            INI_THROW(std::invalid_argument("key already exists"));
+         }
+ 
+         std::string value = trim(line.substr(delimiter_pos + 1));
+@@ -446,4 +458,4 @@ inline File open(const std::filesystem::path& path)
+     return file;
+ }
+ 
+-} // namespace ini
+\ No newline at end of file
++} // namespace ini

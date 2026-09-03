@@ -25,7 +25,6 @@ list(APPEND test_srcs
   test_safe_stream_send_recv.cpp
   test_safe_stream.cpp
   test_safe_stream_reliability.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/../test-object-system/map_domain_storage.cpp
 )
 
 if(NOT CM_PLATFORM)

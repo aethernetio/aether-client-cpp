@@ -22,8 +22,8 @@
 
 #include "aether/common.h"
 
+#include "aether-objects/ptr/ptr_view.h"
 #include "aether/ae_context.h"
-#include "aether/ptr/ptr_view.h"
 #include "aether/types/uid.h"
 
 #include "aether/write_action/buffer_write.h"
