@@ -92,7 +92,7 @@ auto ClientConnectivityPolicy::ConfigureRxTimings(
 
 void ClientConnectivityPolicy::ConfigureServerRxTiming(
     ServerId server_id, RxTimingConf conf,
-    Percentile8 rtt_reliability_percentile) {
+    Percentile rtt_reliability_percentile) {
   auto& state = EnsureServerPresence(server_id);
   auto const timing_changed = (state.desired.interval != conf.interval) ||
                               (state.desired.rx_window != conf.rx_window);

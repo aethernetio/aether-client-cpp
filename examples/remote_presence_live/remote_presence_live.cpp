@@ -55,7 +55,7 @@
 #include "aether/all.h"
 #include "aether/client_connectivity_policy.h"
 #include "aether/cloud_connections/cloud_request_execution_policy.h"
-#include "ae-numeric/percentile8.h"
+#include "ae-numeric/percentile.h"
 #include "aether/cloud_connections/local_presence_schedule.h"
 #include "aether/config.h"
 #include "aether/remote_presence.h"
@@ -141,7 +141,7 @@ void ApplyTimings(Client& client) {
   policy->ResetRxTimings();
   policy->SetOfflineDetectionTimeout(kOfflineTimeout);
   policy->SetCloudRequestExecutionPolicy(
-      CloudRequestExecutionPolicy::FromFactor(Percentile8::FromPercent(99.99), TimeoutFactor8::FromDouble(1.2), /*retries=*/2,
+      CloudRequestExecutionPolicy::FromFactor(Percentile::FromPercent(99.99), TimeoutFactor8::FromDouble(1.2), /*retries=*/2,
                                               /*hedge=*/2));
   policy->ConfigureRxTimings(RequestPolicy::All{})
       .ForAllPriorities(RxTimingConf::Every(kInterval).WithWindow(kWindow));
@@ -152,7 +152,7 @@ void ApplyTimings(Client& client) {
     policy->ConfigureServerRxTiming(
         server->server_id(),
         RxTimingConf::Every(kInterval).WithWindow(kWindow),
-        Percentile8::FromPercent(99.0));
+        Percentile::FromPercent(99.0));
   }
 }
 

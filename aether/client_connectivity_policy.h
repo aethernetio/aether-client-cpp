@@ -74,7 +74,7 @@ struct ConnectivityStatus {
 struct ServerPresenceState {
   RxTimingConf desired{
       RxTimingConf::Every(std::chrono::milliseconds{AE_PING_INTERVAL_MS})};
-  Percentile8 rtt_reliability_percentile{kDefaultRttReliabilityPercentile};
+  Percentile rtt_reliability_percentile{kDefaultRttReliabilityPercentile};
 
   bool has_confirmed_schedule{false};
   Duration confirmed_interval{};
@@ -149,7 +149,7 @@ class ClientConnectivityPolicy : public Obj {
   // Per-server runtime config. Does not invent ONLINE until a confirming Pong.
   void ConfigureServerRxTiming(
       ServerId server_id, RxTimingConf conf,
-      Percentile8 rtt_reliability_percentile =
+      Percentile rtt_reliability_percentile =
           kDefaultRttReliabilityPercentile);
 
   void SetServerSelectedForAggregate(ServerId server_id, bool selected);

@@ -22,7 +22,7 @@
 
 #include <chrono>
 
-#include "ae-numeric/percentile8.h"
+#include "ae-numeric/percentile.h"
 
 #include "aether/clock.h"
 #include "aether/config.h"
@@ -37,7 +37,7 @@ inline constexpr std::uint8_t kMaxCloudRequestRetryCount{31};
 // Orthogonal to RequestPolicy (which servers are candidates).
 struct CloudRequestExecutionPolicy {
   // Soft response timeout uses channel response RTT percentile.
-  Percentile8 response_percentile{Percentile8::FromPercent(99.0)};
+  Percentile response_percentile{Percentile::FromPercent(99.0)};
   // Soft-timeout multiplier (1-byte FixedPoint, typically Q2.6).
   TimeoutFactor8 timeout_factor{TimeoutFactor8::FromDouble(1.2)};
   // Retries after the initial attempt. retry_count=0 => 1 attempt total.
@@ -55,7 +55,7 @@ struct CloudRequestExecutionPolicy {
   }
 
   static constexpr CloudRequestExecutionPolicy FromFactor(
-      Percentile8 percentile, TimeoutFactor8 factor, std::uint8_t retries,
+      Percentile percentile, TimeoutFactor8 factor, std::uint8_t retries,
       std::uint8_t hedge) noexcept {
     CloudRequestExecutionPolicy p{};
     p.response_percentile = percentile;

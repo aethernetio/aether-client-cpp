@@ -22,7 +22,7 @@
 #include <unity.h>
 
 #include "aether/cloud_connections/cloud_request_execution_policy.h"
-#include "ae-numeric/percentile8.h"
+#include "ae-numeric/percentile.h"
 #include "aether/types/statistic_counter.h"
 
 namespace ae::test_cloud_request {
@@ -44,13 +44,13 @@ void test_TimeoutCalculation() {
   TEST_ASSERT_EQUAL(500, std::chrono::duration_cast<Ms>(p99).count());
 
   auto const t95_10 =
-      ComputeCloudRequestSoftTimeout(p95, CloudRequestExecutionPolicy::FromFactor(Percentile8::FromPercent(95.0), TimeoutFactor8::FromDouble(1.0), 1, 0));
+      ComputeCloudRequestSoftTimeout(p95, CloudRequestExecutionPolicy::FromFactor(Percentile::FromPercent(95.0), TimeoutFactor8::FromDouble(1.0), 1, 0));
   auto const t95_12 =
-      ComputeCloudRequestSoftTimeout(p95, CloudRequestExecutionPolicy::FromFactor(Percentile8::FromPercent(95.0), TimeoutFactor8::FromDouble(1.2), 1, 0));
+      ComputeCloudRequestSoftTimeout(p95, CloudRequestExecutionPolicy::FromFactor(Percentile::FromPercent(95.0), TimeoutFactor8::FromDouble(1.2), 1, 0));
   auto const t99_10 =
-      ComputeCloudRequestSoftTimeout(p99, CloudRequestExecutionPolicy::FromFactor(Percentile8::FromPercent(99.0), TimeoutFactor8::FromDouble(1.0), 1, 0));
+      ComputeCloudRequestSoftTimeout(p99, CloudRequestExecutionPolicy::FromFactor(Percentile::FromPercent(99.0), TimeoutFactor8::FromDouble(1.0), 1, 0));
   auto const t99_12 =
-      ComputeCloudRequestSoftTimeout(p99, CloudRequestExecutionPolicy::FromFactor(Percentile8::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 1, 0));
+      ComputeCloudRequestSoftTimeout(p99, CloudRequestExecutionPolicy::FromFactor(Percentile::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 1, 0));
   TEST_ASSERT_EQUAL(500, std::chrono::duration_cast<Ms>(t95_10).count());
   // 500ms * TimeoutFactor8(1.2) raw=77 / 64 = 601.5625 → 602 nearest
   TEST_ASSERT_EQUAL(602, std::chrono::duration_cast<Ms>(t95_12).count());
@@ -70,7 +70,7 @@ void test_TimeoutCalculation() {
 
 void test_RetryCountSemantics() {
   CloudRequestExecutionPolicy p0 =
-      CloudRequestExecutionPolicy::FromFactor(Percentile8::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 0, 0);
+      CloudRequestExecutionPolicy::FromFactor(Percentile::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 0, 0);
   TEST_ASSERT_EQUAL(1, p0.TotalAttempts());
   CloudRequestServerExecState s0;
   s0.activated = true;
@@ -81,7 +81,7 @@ void test_RetryCountSemantics() {
   TEST_ASSERT_TRUE(s0.exhausted);
 
   CloudRequestExecutionPolicy p1 =
-      CloudRequestExecutionPolicy::FromFactor(Percentile8::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 1, 0);
+      CloudRequestExecutionPolicy::FromFactor(Percentile::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 1, 0);
   TEST_ASSERT_EQUAL(2, p1.TotalAttempts());
   CloudRequestServerExecState s1;
   s1.activated = true;
@@ -97,7 +97,7 @@ void test_RetryCountSemantics() {
   TEST_ASSERT_TRUE(s1.exhausted);
 
   CloudRequestExecutionPolicy p2 =
-      CloudRequestExecutionPolicy::FromFactor(Percentile8::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 2, 0);
+      CloudRequestExecutionPolicy::FromFactor(Percentile::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 2, 0);
   TEST_ASSERT_EQUAL(3, p2.TotalAttempts());
   CloudRequestServerExecState s2;
   s2.activated = true;
@@ -119,7 +119,7 @@ void test_RetryCountSemantics() {
 
 void test_NoQuarantineBeforeExhaustionAndHedge() {
   CloudRequestExecutionPolicy policy =
-      CloudRequestExecutionPolicy::FromFactor(Percentile8::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 2, 2);
+      CloudRequestExecutionPolicy::FromFactor(Percentile::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 2, 2);
   CloudRequestServerExecState s;
   s.activated = true;
   TEST_ASSERT_EQUAL(1, s.StartAttempt(policy));
@@ -148,7 +148,7 @@ void test_NoQuarantineBeforeExhaustionAndHedge() {
 
 void test_HedgeZeroKeepsSequential() {
   CloudRequestExecutionPolicy policy =
-      CloudRequestExecutionPolicy::FromFactor(Percentile8::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 2, 0);
+      CloudRequestExecutionPolicy::FromFactor(Percentile::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 2, 0);
   CloudRequestServerExecState s1;
   s1.activated = true;
   s1.StartAttempt(policy);
@@ -158,7 +158,7 @@ void test_HedgeZeroKeepsSequential() {
 
 void test_LateResponseAfterSoftTimeout() {
   CloudRequestExecutionPolicy policy =
-      CloudRequestExecutionPolicy::FromFactor(Percentile8::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 2, 0);
+      CloudRequestExecutionPolicy::FromFactor(Percentile::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 2, 0);
   CloudRequestServerExecState s;
   s.activated = true;
   TEST_ASSERT_EQUAL(1, s.StartAttempt(policy));
@@ -179,10 +179,10 @@ void test_LateResponseAfterSoftTimeout() {
 void test_PerServerTimeoutIndependent() {
   auto const t1 = ComputeCloudRequestSoftTimeout(
       Duration{Ms{100}},
-      CloudRequestExecutionPolicy::FromFactor(Percentile8::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 1, 0));
+      CloudRequestExecutionPolicy::FromFactor(Percentile::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 1, 0));
   auto const t2 = ComputeCloudRequestSoftTimeout(
       Duration{Ms{300}},
-      CloudRequestExecutionPolicy::FromFactor(Percentile8::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 1, 0));
+      CloudRequestExecutionPolicy::FromFactor(Percentile::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 1, 0));
   TEST_ASSERT_EQUAL(120, std::chrono::duration_cast<Ms>(t1).count());
   // 300ms * 77/64 = 360.9375 → 361 nearest
   TEST_ASSERT_EQUAL(361, std::chrono::duration_cast<Ms>(t2).count());
@@ -190,70 +190,74 @@ void test_PerServerTimeoutIndependent() {
 
 void test_PolicySnapshotDefaults() {
   auto const d = CloudRequestExecutionPolicy::Default();
-  TEST_ASSERT_EQUAL_UINT8(Percentile8::FromPercent(99.0).Code(), d.response_percentile.Code());
+  TEST_ASSERT_EQUAL_UINT16(
+      Percentile::FromPercent(99.0).TailPercent().RawValue(),
+      d.response_percentile.TailPercent().RawValue());
   TEST_ASSERT_EQUAL_UINT8(TimeoutFactor8::FromDouble(1.2).RawValue(), d.timeout_factor.RawValue());
   TEST_ASSERT_EQUAL(1, d.retry_count);
   TEST_ASSERT_EQUAL(0, d.hedge_next_servers);
   TEST_ASSERT_EQUAL(2, d.TotalAttempts());
-  static_assert(sizeof(Percentile8) == 1);
+  static_assert(sizeof(Percentile) == 2);
   static_assert(sizeof(TimeoutFactor8) == 1);
   std::printf("sizeof(CloudRequestExecutionPolicy)=%zu\n",
               sizeof(CloudRequestExecutionPolicy));
 }
 
-void test_Percentile8FractionalDistinctRanks() {
+void test_PercentileFractionalDistinctRanks() {
   // Need N large enough that quantized p99.9 / p99.99 ranks differ
   // (see PercentileIndex: diverge by N≈10000).
   StatisticsCounter<int, 10000> stats;
   for (int i = 0; i < 10000; ++i) {
     stats.Add(i);
   }
-  auto const p99 = stats.PercentileValue(Percentile8::FromPercent(99.0));
-  auto const p999 = stats.PercentileValue(Percentile8::FromPercent(99.9));
-  auto const p9999 = stats.PercentileValue(Percentile8::FromPercent(99.99));
+  auto const p99 = stats.PercentileValue(Percentile::FromPercent(99.0));
+  auto const p999 = stats.PercentileValue(Percentile::FromPercent(99.9));
+  auto const p9999 = stats.PercentileValue(Percentile::FromPercent(99.99));
   std::printf(
       "selected RTT ranks (samples 0..9999): p99=%d p99.9=%d p99.99=%d\n", p99,
       p999, p9999);
   TEST_ASSERT_TRUE(p99 <= p999);
   TEST_ASSERT_TRUE(p999 <= p9999);
   TEST_ASSERT_TRUE(p999 < p9999);
-  TEST_ASSERT_TRUE(PercentileIndex(1'000'000, Percentile8::FromPercent(99.9)) <
-                   PercentileIndex(1'000'000, Percentile8::FromPercent(99.99)));
+  TEST_ASSERT_TRUE(PercentileIndex(1'000'000, Percentile::FromPercent(99.9)) <
+                   PercentileIndex(1'000'000, Percentile::FromPercent(99.99)));
   TEST_ASSERT_EQUAL(PercentileIndexInteger(1000, 95),
-                    PercentileIndex(1000, Percentile8::FromPercent(95.0)));
+                    PercentileIndex(1000, Percentile::FromPercent(95.0)));
 }
 
 void test_PolicyFieldsAreRuntimeAssignable() {
   CloudRequestExecutionPolicy policy =
-      CloudRequestExecutionPolicy::FromFactor(Percentile8::FromPercent(95.0),
+      CloudRequestExecutionPolicy::FromFactor(Percentile::FromPercent(95.0),
                                               TimeoutFactor8::FromDouble(1.0),
                                               1, 0);
   auto const snap = policy;
-  policy.response_percentile = Percentile8::FromPercent(99.99);
+  policy.response_percentile = Percentile::FromPercent(99.99);
   policy.timeout_factor = TimeoutFactor8::FromDouble(1.2);
-  TEST_ASSERT_EQUAL_UINT8(Percentile8::FromPercent(95.0).Code(),
-                          snap.response_percentile.Code());
+  TEST_ASSERT_EQUAL_UINT16(
+      Percentile::FromPercent(95.0).TailPercent().RawValue(),
+      snap.response_percentile.TailPercent().RawValue());
   TEST_ASSERT_EQUAL_UINT8(TimeoutFactor8::FromDouble(1.0).RawValue(),
                           snap.timeout_factor.RawValue());
-  TEST_ASSERT_EQUAL_UINT8(Percentile8::FromPercent(99.99).Code(),
-                          policy.response_percentile.Code());
+  TEST_ASSERT_EQUAL_UINT16(
+      Percentile::FromPercent(99.99).TailPercent().RawValue(),
+      policy.response_percentile.TailPercent().RawValue());
 }
 
 void test_RetryCountClampAndMax() {
   TEST_ASSERT_EQUAL(31, kMaxCloudRequestRetryCount);
 
   CloudRequestExecutionPolicy p0 =
-      CloudRequestExecutionPolicy::FromFactor(Percentile8::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 0, 0);
+      CloudRequestExecutionPolicy::FromFactor(Percentile::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 0, 0);
   TEST_ASSERT_EQUAL(0, p0.retry_count);
   TEST_ASSERT_EQUAL(1, p0.TotalAttempts());
 
   CloudRequestExecutionPolicy p1 =
-      CloudRequestExecutionPolicy::FromFactor(Percentile8::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 1, 0);
+      CloudRequestExecutionPolicy::FromFactor(Percentile::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 1, 0);
   TEST_ASSERT_EQUAL(1, p1.retry_count);
   TEST_ASSERT_EQUAL(2, p1.TotalAttempts());
 
   CloudRequestExecutionPolicy p31 =
-      CloudRequestExecutionPolicy::FromFactor(Percentile8::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 31, 0);
+      CloudRequestExecutionPolicy::FromFactor(Percentile::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 31, 0);
   TEST_ASSERT_EQUAL(31, p31.retry_count);
   TEST_ASSERT_EQUAL(32, p31.TotalAttempts());
 
@@ -264,14 +268,14 @@ void test_RetryCountClampAndMax() {
   TEST_ASSERT_EQUAL(32, over.TotalAttempts());
 
   auto const from_over =
-      CloudRequestExecutionPolicy::FromFactor(Percentile8::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 255, 0);
+      CloudRequestExecutionPolicy::FromFactor(Percentile::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 255, 0);
   TEST_ASSERT_EQUAL(31, from_over.retry_count);
   TEST_ASSERT_EQUAL(32, from_over.TotalAttempts());
 }
 
 void test_RetryCount31StateMachine() {
   CloudRequestExecutionPolicy policy =
-      CloudRequestExecutionPolicy::FromFactor(Percentile8::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 31, 0);
+      CloudRequestExecutionPolicy::FromFactor(Percentile::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 31, 0);
   TEST_ASSERT_EQUAL(32, policy.TotalAttempts());
 
   CloudRequestServerExecState s;
@@ -302,7 +306,7 @@ void test_ChannelChangedOneCallbackPerServer() {
   // one channel-changed event must produce exactly one OnChannelChanged
   // decision and at most one additional attempt.
   CloudRequestExecutionPolicy policy =
-      CloudRequestExecutionPolicy::FromFactor(Percentile8::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 2, 0);
+      CloudRequestExecutionPolicy::FromFactor(Percentile::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 2, 0);
   CloudRequestServerExecState s;
   s.activated = true;
   TEST_ASSERT_EQUAL(1, s.StartAttempt(policy));
@@ -335,7 +339,7 @@ void test_ChannelChangedThreeOutstandingAttempts() {
   // Three outstanding attempts (retry_count=2, all started via soft path /
   // channel), then one channel event must still be a single decision.
   CloudRequestExecutionPolicy policy =
-      CloudRequestExecutionPolicy::FromFactor(Percentile8::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 2, 0);
+      CloudRequestExecutionPolicy::FromFactor(Percentile::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 2, 0);
   CloudRequestServerExecState s;
   s.activated = true;
   s.StartAttempt(policy);  // #1
@@ -359,7 +363,7 @@ void test_ChannelChangedThreeOutstandingAttempts() {
 
 void test_ApiErrorDoesNotQuarantine() {
   CloudRequestExecutionPolicy policy =
-      CloudRequestExecutionPolicy::FromFactor(Percentile8::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 2, 0);
+      CloudRequestExecutionPolicy::FromFactor(Percentile::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 2, 0);
   CloudRequestServerExecState s;
   s.activated = true;
   TEST_ASSERT_EQUAL(1, s.StartAttempt(policy));
@@ -385,7 +389,7 @@ void test_ApiErrorDoesNotQuarantine() {
 void test_NoResponseStillQuarantinesAfterBudget() {
   // retry_count=2 => attempts=3 soft timeouts then exhaust (=quarantine point).
   CloudRequestExecutionPolicy policy =
-      CloudRequestExecutionPolicy::FromFactor(Percentile8::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 2, 0);
+      CloudRequestExecutionPolicy::FromFactor(Percentile::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 2, 0);
   CloudRequestServerExecState s;
   s.activated = true;
   s.StartAttempt(policy);
@@ -404,7 +408,7 @@ void test_NoResponseStillQuarantinesAfterBudget() {
 void test_DeterministicLatencyTimeline() {
   // p99=100ms, factor=1.2 => T=120ms per attempt when RTT fixed.
   CloudRequestExecutionPolicy policy =
-      CloudRequestExecutionPolicy::FromFactor(Percentile8::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 2, 1);
+      CloudRequestExecutionPolicy::FromFactor(Percentile::FromPercent(99.0), TimeoutFactor8::FromDouble(1.2), 2, 1);
   auto const T =
       ComputeCloudRequestSoftTimeout(Duration{Ms{100}}, policy);
   TEST_ASSERT_EQUAL(120, std::chrono::duration_cast<Ms>(T).count());
@@ -462,7 +466,7 @@ int main() {
   RUN_TEST(ae::test_cloud_request::test_NoResponseStillQuarantinesAfterBudget);
   RUN_TEST(ae::test_cloud_request::test_PerServerTimeoutIndependent);
   RUN_TEST(ae::test_cloud_request::test_PolicySnapshotDefaults);
-  RUN_TEST(ae::test_cloud_request::test_Percentile8FractionalDistinctRanks);
+  RUN_TEST(ae::test_cloud_request::test_PercentileFractionalDistinctRanks);
   RUN_TEST(ae::test_cloud_request::test_PolicyFieldsAreRuntimeAssignable);
   RUN_TEST(ae::test_cloud_request::test_DeterministicLatencyTimeline);
   return UNITY_END();

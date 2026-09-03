@@ -57,9 +57,9 @@ CloudRequest::CloudRequest(AeContext const& ae_context,
           MethodPtr<&CloudRequest::ServersUpdated>{this})} {
   NormalizeCloudRequestExecutionPolicy(exec_policy_);
   AE_CLOUD_REQ_DEBUG(
-      "CLOUD_REQUEST_START percentile_code={} factor_raw={} retry_count={} "
+      "CLOUD_REQUEST_START percentile_tail_raw={} factor_raw={} retry_count={} "
       "hedge_next_servers={}",
-      exec_policy_.response_percentile.Code(),
+      exec_policy_.response_percentile.TailPercent().RawValue(),
       exec_policy_.timeout_factor.RawValue(), exec_policy_.retry_count,
       exec_policy_.hedge_next_servers);
   RebuildCandidates();
@@ -81,9 +81,9 @@ CloudRequest::CloudRequest(AeContext const& ae_context,
           MethodPtr<&CloudRequest::ServersUpdated>{this})} {
   NormalizeCloudRequestExecutionPolicy(exec_policy_);
   AE_CLOUD_REQ_DEBUG(
-      "CLOUD_REQUEST_START percentile_code={} factor_raw={} retry_count={} "
+      "CLOUD_REQUEST_START percentile_tail_raw={} factor_raw={} retry_count={} "
       "hedge_next_servers={}",
-      exec_policy_.response_percentile.Code(),
+      exec_policy_.response_percentile.TailPercent().RawValue(),
       exec_policy_.timeout_factor.RawValue(), exec_policy_.retry_count,
       exec_policy_.hedge_next_servers);
   RebuildCandidates();

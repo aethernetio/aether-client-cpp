@@ -29,7 +29,7 @@ IGNORE_IMPLICIT_CONVERSION()
 #include <etl/circular_buffer.h>
 DISABLE_WARNING_POP()
 
-#include "ae-numeric/percentile8.h"
+#include "ae-numeric/percentile.h"
 
 #include "aether-miscpp/format/format.h"
 #include "aether-miscpp/serialization/binary_archive.h"
@@ -105,9 +105,9 @@ class StatisticsCounter final {
   }
 
   /**
-   * \brief Percentile8 accessor. Rank uses integer/fixed tail math only.
+   * \brief Percentile accessor. Rank uses integer/fixed tail math only.
    */
-  [[nodiscard]] TValue PercentileValue(Percentile8 percentile) const {
+  [[nodiscard]] TValue PercentileValue(Percentile percentile) const {
     assert(!value_buffer_.empty());
     if (percentile.IsExactHundred()) {
       return max();
