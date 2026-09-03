@@ -39,7 +39,12 @@ function requireLiveGateway() {
 async function openProfile(browser, profile, transport, gateway) {
   const context = await browser.newContext();
   const page = await context.newPage();
-  const params = new URLSearchParams({ profile, transport, gateway });
+  const params = new URLSearchParams({
+    profile,
+    transport,
+    gateway,
+    autostart: '0',
+  });
   await page.goto(`/?${params.toString()}`);
   await page.waitForFunction(() => !!window.__AETHER_TEST__, null, {
     timeout: 120_000,
@@ -53,12 +58,24 @@ async function clearAndStart(page) {
     if (api.clearProfile) {
       api.clearProfile();
     }
+    await new Promise((r) => setTimeout(r, 300));
     api.start();
   });
   await page.waitForFunction(() => {
     const s = window.__AETHER_TEST__.getState();
-    return s.startsWith('Ready') || s.startsWith('Connected');
+    const persisted =
+      !window.__AETHER_TEST__.storagePersisted ||
+      window.__AETHER_TEST__.storagePersisted();
+    return (
+      (s.startsWith('Ready') && persisted) ||
+      s.startsWith('Connected') ||
+      s.startsWith('Error')
+    );
   }, null, { timeout: 180_000 });
+  const state = await page.evaluate(() => window.__AETHER_TEST__.getState());
+  if (String(state).startsWith('Error')) {
+    throw new Error(`clearAndStart failed: ${state}`);
+  }
 }
 
 test.describe('live Æther cloud', () => {
@@ -87,15 +104,22 @@ test.describe('live Æther cloud', () => {
       await b.page.waitForFunction(() => !!window.__AETHER_TEST__, null, {
         timeout: 120_000,
       });
+      // Reload keeps autostart=0 from the query string — start manually.
       await a.page.evaluate(() => window.__AETHER_TEST__.start());
       await b.page.evaluate(() => window.__AETHER_TEST__.start());
       await a.page.waitForFunction(() => {
         const s = window.__AETHER_TEST__.getState();
-        return s.startsWith('Ready') || s.startsWith('Connected');
+        const persisted =
+          !window.__AETHER_TEST__.storagePersisted ||
+          window.__AETHER_TEST__.storagePersisted();
+        return (s.startsWith('Ready') && persisted) || s.startsWith('Connected');
       }, null, { timeout: 180_000 });
       await b.page.waitForFunction(() => {
         const s = window.__AETHER_TEST__.getState();
-        return s.startsWith('Ready') || s.startsWith('Connected');
+        const persisted =
+          !window.__AETHER_TEST__.storagePersisted ||
+          window.__AETHER_TEST__.storagePersisted();
+        return (s.startsWith('Ready') && persisted) || s.startsWith('Connected');
       }, null, { timeout: 180_000 });
 
       const uidA2 = await a.page.evaluate(() => window.__AETHER_TEST__.getUid());
@@ -103,14 +127,14 @@ test.describe('live Æther cloud', () => {
       expect(uidA2).toBe(uidA1);
       expect(uidB2).toBe(uidB1);
 
-      await b.page.evaluate((uid) => {
-        window.__AETHER_TEST__.setRemoteUid(uid);
-        window.__AETHER_TEST__.connect();
-      }, uidA2);
+      // One-sided initiate: A opens to B; B accepts inbound P2P port.
       await a.page.evaluate((uid) => {
         window.__AETHER_TEST__.setRemoteUid(uid);
         window.__AETHER_TEST__.connect();
       }, uidB2);
+      await b.page.evaluate((uid) => {
+        window.__AETHER_TEST__.setRemoteUid(uid);
+      }, uidA2);
 
       await a.page.waitForFunction(
         () => window.__AETHER_TEST__.getState().startsWith('Connected'),
@@ -119,17 +143,16 @@ test.describe('live Æther cloud', () => {
       );
 
       await a.page.evaluate((n) => {
-        window.__AETHER_TEST__.startPeriodic(50);
-        // Also drive explicit pings in case periodic is gated.
-        let i = 0;
-        const id = setInterval(() => {
-          window.__AETHER_TEST__.sendPing();
-          if (++i >= n) {
-            clearInterval(id);
-            window.__AETHER_TEST__.stopPeriodic &&
-              window.__AETHER_TEST__.stopPeriodic();
+        // Cap concurrency via kMaxInFlight=16; keep interval above typical RTT.
+        window.__AETHER_TEST__.startPeriodic(80);
+        const started = Date.now();
+        const watch = setInterval(() => {
+          const stats = window.__AETHER_TEST__.getStats();
+          if ((stats.pong_received || 0) >= n || Date.now() - started > 280_000) {
+            clearInterval(watch);
+            window.__AETHER_TEST__.stop();
           }
-        }, 40);
+        }, 200);
       }, pingCount);
 
       await a.page.waitForFunction(
