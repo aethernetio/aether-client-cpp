@@ -42,8 +42,10 @@
 #  define AE_TASK_ALIGN alignof(std::max_align_t)
 #endif
 
+// Sized for concurrent Local Presence pings plus Remote Presence
+// get_client_timing across selected servers with soft-timeout retry/hedge.
 #ifndef AE_API_PROTOCOL_MAX_PENDING_RESPONSES
-#  define AE_API_PROTOCOL_MAX_PENDING_RESPONSES 10
+#  define AE_API_PROTOCOL_MAX_PENDING_RESPONSES 32
 #endif
 
 #ifndef AE_API_PROTOCOL_MAX_PACKET_STACK_DEPTH
