@@ -328,6 +328,10 @@ class BrowserPingPongApp {
     }
   }
 
+  void SetWorkServerFilter(ServerId server_id) {
+    work_server_filter_ = server_id;
+  }
+
   void SetPayloadBytes(int payload_bytes) {
     if (payload_bytes >= 0 &&
         static_cast<std::size_t>(payload_bytes) <=
@@ -733,6 +737,19 @@ class BrowserPingPongApp {
       }
     }
     if (has_browser) {
+      // Optional single-work-host probe: keep only the requested server id.
+      if (work_server_filter_ != 0) {
+        auto& servers = cloud->servers();
+        for (auto it = servers.begin(); it != servers.end();) {
+          if (it->first != work_server_filter_) {
+            it = servers.erase(it);
+          } else {
+            ++it;
+          }
+        }
+        AE_TELED_INFO("Work cloud filtered to server id {}",
+                      work_server_filter_);
+      }
       return;
     }
 
@@ -943,6 +960,7 @@ class BrowserPingPongApp {
   std::string gateway_url_{"wss://dbservice.aethernet.io:9013/"};
   std::string transport_{"WSS"};
   std::string remote_uid_str_;
+  ServerId work_server_filter_{0};
   std::string uid_str_;
   std::string stats_json_{"{}"};
   Endpoint gateway_endpoint_{};
@@ -1049,6 +1067,14 @@ EMSCRIPTEN_KEEPALIVE
 #endif
 void aether_bpp_set_ping_timeout_ms(int timeout_ms) {
   App().SetPingTimeoutMs(timeout_ms);
+}
+
+#if defined(__EMSCRIPTEN__)
+EMSCRIPTEN_KEEPALIVE
+#endif
+void aether_bpp_set_work_server_filter(int server_id) {
+  App().SetWorkServerFilter(static_cast<ae::ServerId>(
+      server_id < 0 ? 0 : server_id));
 }
 
 #if defined(__EMSCRIPTEN__)

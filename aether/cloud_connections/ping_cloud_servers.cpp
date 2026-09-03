@@ -59,7 +59,7 @@ PingCloudServers::ServerPing::ServerPing(AeContext const& ae_context,
     machine_.ArmInitial(Now());
   }
   // Browser cooperative loop: absolute/long DelayedTask wakes have been
-  // unreliable; keep a 1s heartbeat so pull_messages / presence still pump.
+  // unreliable; keep a 1s heartbeat so presence Pump still runs.
   ArmHeartbeat();
   Pump();
 }
@@ -125,15 +125,6 @@ void PingCloudServers::ServerPing::Pump() {
   }
   auto const now = Now();
   auto const rtt = SelectedRtt();
-  // Keep draining even if Ping ApiPromise / hard-wait is stuck.
-  if (auto* cc = cloud_sc_->client_connection();
-      cc != nullptr &&
-      cc->stream_info().link_state == LinkState::kLinked) {
-    static_cast<void>(cc->AuthorizedApiCall(
-        SubApi{[](ApiContext<AuthorizedApi>& auth_api) {
-          auth_api->pull_messages();
-        }}));
-  }
   auto tick = machine_.TickNow(now, rtt);
   SyncBlockers();
   DropFinishedPings();
@@ -314,12 +305,6 @@ void PingCloudServers::ServerPing::StartSend(
                   }
 
                   auto const send_time = Now();
-                  // Separate void-only pull so queue drain cannot be blocked by
-                  // ping ApiPromise parse/result issues on browser WSS.
-                  static_cast<void>(cc->AuthorizedApiCall(
-                      SubApi{[](ApiContext<AuthorizedApi>& auth_api) {
-                        auth_api->pull_messages();
-                      }}));
                   auto ping = std::make_unique<Ping>(
                       ae_context_, *cloud_sc_, spec.wire_interval,
                       spec.rx_window, spec.hard_wait);

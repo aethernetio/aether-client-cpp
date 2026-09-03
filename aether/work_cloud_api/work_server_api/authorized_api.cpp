@@ -27,7 +27,7 @@ AuthorizedApi::AuthorizedApi(ProtocolContext& protocol_context)
       resolver_clouds{protocol_context},
       send_telemetry{protocol_context},
       get_client_timing{protocol_context},
-      pull_messages{protocol_context},
+      open_receive_window{protocol_context},
       report_applied_config{protocol_context},
       send_message_with_result{protocol_context} {}
 }  // namespace ae

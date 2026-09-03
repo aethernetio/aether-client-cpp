@@ -45,15 +45,15 @@ class AuthorizedApi : public ApiClass {
 
   Method<18, void(Telemetric telemetric)> send_telemetry;
 
-  // Existing server Method 35. Client binding only — wire DTO unchanged.
+  // origin/main ClientServerApi.adsl.yaml (aethernetio/aether @ e6c4bd7).
   Method<35, ApiPromise<ClientTiming>(Uid uid)> get_client_timing;
 
-  // Server Method 36 — drains the message queue without an ApiPromise round-trip.
-  Method<36, void()> pull_messages;
+  // Method 36 is openReceiveWindow(durationMs) -> AFuture/void, NOT a
+  // zero-argument pull_messages. Wire: command id + request id + durationMs.
+  Method<36, ApiPromise<void>(std::uint64_t duration_ms)> open_receive_window;
 
   Method<38, void(std::vector<AppliedConfig> configs)> report_applied_config;
 
-  // Server Method 39 — enqueue ACK (void future) for send diagnostics/reliability.
   Method<39, ApiPromise<void>(AeMessage message)> send_message_with_result;
 };
 }  // namespace ae

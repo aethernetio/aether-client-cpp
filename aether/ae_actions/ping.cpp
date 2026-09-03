@@ -109,10 +109,10 @@ void Ping::Start(TimePoint current_time) {
 
   auto& write_action = cc->AuthorizedApiCall(
       SubApi{[this, current_time](ApiContext<AuthorizedApi>& auth_api) {
-        // Drain first via void pull_messages so delivery does not depend on the
-        // ping ApiPromise result path (observed stuck over browser WSS).
-        auth_api->pull_messages();
-
+        // Single nested command only: AuthorizedApi.ping opens the RX window
+        // on the server. Do not prepend method 36 (openReceiveWindow) or any
+        // other AuthorizedApi call — a former void pull_messages at id 36
+        // desynchronized the LoginStream against production openReceiveWindow.
         auto next_ping_hint_ms = static_cast<std::uint64_t>(
             std::chrono::duration_cast<std::chrono::milliseconds>(
                 next_ping_hint_)
@@ -182,21 +182,6 @@ void Ping::Start(TimePoint current_time) {
   if (state_ != RequestState::kPending) {
     write_sub_.Reset();
   }
-
-  // Unencrypted LoginApi probe: if work WSS never answers even this, the
-  // failure is below SyncCrypto/AuthorizedApi (transport / FastMeta path).
-  cc->LoginApiCall(SubApi{[&](ApiContext<LoginApi>& api_call) {
-    api_call->get_my_ip().Subscribe([sid = server_id_](auto&& res) noexcept {
-      if (res) {
-        auto&& ip = std::forward<decltype(res)>(res).value();
-        AE_TELED_INFO("Work cloud get_my_ip server {} ip {}:{}", sid, ip.ip,
-                      ip.port);
-      } else {
-        AE_TELED_ERROR("Work cloud get_my_ip server {} error {}", sid,
-                       std::forward<decltype(res)>(res).error());
-      }
-    });
-  }});
 }
 
 void Ping::PingResponse(RequestId request_id) {
