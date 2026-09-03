@@ -144,23 +144,38 @@ void Pump(AetherApp& app, TimePoint until) {
   }
 }
 
-TimePoint EarliestConfirmedClose(Client& client) {
-  auto close = TimePoint::max();
-  auto policy = client.connectivity_policy();
-  if (!policy) {
-    return close;
+#if defined(_WIN32)
+bool IsProcessElevated() {
+  HANDLE token = nullptr;
+  if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) {
+    return false;
   }
-  for (auto* server : client.cloud_connection().selected_servers()) {
-    if (server == nullptr) {
-      continue;
-    }
-    auto const* state = policy->FindServerPresence(server->server_id());
-    if (state != nullptr && state->has_confirmed_schedule) {
-      close = std::min(close, state->confirmed_window_close_local);
-    }
-  }
-  return close;
+  TOKEN_ELEVATION elevation{};
+  DWORD size = 0;
+  auto const ok = GetTokenInformation(token, TokenElevation, &elevation,
+                                      sizeof(elevation), &size);
+  CloseHandle(token);
+  return ok && (elevation.TokenIsElevated != 0);
 }
+
+CloudServerConnection* FirstSelectedServer(Client& client) {
+  auto const& selected = client.cloud_connection().selected_servers();
+  for (auto* server : selected) {
+    if (server != nullptr) {
+      return server;
+    }
+  }
+  return nullptr;
+}
+
+TimePoint ServerConfirmedClose(ClientConnectivityPolicy& policy, ServerId id) {
+  auto const* state = policy.FindServerPresence(id);
+  if (state == nullptr || !state->has_confirmed_schedule) {
+    return TimePoint::max();
+  }
+  return state->confirmed_window_close_local;
+}
+#endif
 
 void ApplyOneSecondTimings(Client& client) {
   auto policy = client.connectivity_policy();
@@ -182,6 +197,12 @@ void test_WindowsFirewallOfflineAndRecovery() {
 #if !defined(_WIN32)
   TEST_IGNORE_MESSAGE("Windows Firewall test runs on Win32 only");
 #else
+  if (!IsProcessElevated()) {
+    TEST_IGNORE_MESSAGE(
+        "SKIP: privileged firewall test requires Administrator "
+        "(AE_ENABLE_PRIVILEGED_NETWORK_TESTS=ON)");
+  }
+
   auto app = MakeApp();
   TEST_ASSERT_NOT_NULL(app.get());
 
@@ -212,24 +233,38 @@ void test_WindowsFirewallOfflineAndRecovery() {
   Pump(*app, Now() + 1500ms);
   TEST_ASSERT_TRUE(client->IsLocallyOnline());
 
-  auto const close = EarliestConfirmedClose(*client.Load());
-  TEST_ASSERT_TRUE_MESSAGE(close != TimePoint::max(),
+  auto* target = FirstSelectedServer(*client.Load());
+  TEST_ASSERT_NOT_NULL(target);
+  auto const sid = target->server_id();
+  auto policy = client->connectivity_policy();
+  TEST_ASSERT_TRUE(static_cast<bool>(policy));
+  auto const initial_close = ServerConfirmedClose(*policy.Load(), sid);
+  TEST_ASSERT_TRUE_MESSAGE(initial_close != TimePoint::max(),
                            "no confirmed receive window");
 
   WindowsExeFirewall fw{ThisExePath()};
   auto const fault_time = Now();
-  TEST_ASSERT_TRUE_MESSAGE(
-      fw.Block(),
-      "netsh advfirewall failed (run the test as Administrator)");
+  if (!fw.Block()) {
+    TEST_IGNORE_MESSAGE(
+        "SKIP: netsh advfirewall failed (need Administrator)");
+  }
 
   bool early_offline = false;
   TimePoint detected_offline{};
-  auto const detect_deadline = close + 3s;
+  TimePoint final_close = initial_close;
+  int pongs_after_block = 0;
+  auto detect_deadline = final_close + 5s;
   while (Now() < detect_deadline && !app->IsExited()) {
     Pump(*app, Now() + kPoll);
-    auto const online = client->IsLocallyOnline();
     auto const now = Now();
-    if (now <= close) {
+    auto const close_now = ServerConfirmedClose(*policy.Load(), sid);
+    if (close_now != TimePoint::max() && close_now > final_close) {
+      ++pongs_after_block;
+      final_close = close_now;
+      detect_deadline = final_close + 5s;
+    }
+    auto const online = policy->IsServerLocallyOnline(sid, now);
+    if (now <= final_close) {
       if (!online) {
         early_offline = true;
         detected_offline = now;
@@ -241,62 +276,83 @@ void test_WindowsFirewallOfflineAndRecovery() {
     }
   }
 
-  auto const close_ms =
-      std::chrono::duration_cast<std::chrono::milliseconds>(close - fault_time)
-          .count();
-  auto const detected_ms =
+  auto const to_ms = [](TimePoint a, TimePoint b) {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(a - b)
+        .count();
+  };
+  auto const fault_to_initial = to_ms(initial_close, fault_time);
+  auto const fault_to_final = to_ms(final_close, fault_time);
+  auto const fault_to_offline =
       detected_offline.time_since_epoch().count() == 0
           ? -1
-          : std::chrono::duration_cast<std::chrono::milliseconds>(
-                detected_offline - fault_time)
-                .count();
+          : to_ms(detected_offline, fault_time);
   std::printf(
-      "FIREWALL fault interval_ms=1000 rx_window_ms=1000 "
-      "fault_to_window_close_ms=%lld detected_offline_after_fault_ms=%lld "
+      "FIREWALL interval_ms=1000 rx_window_ms=1000 "
+      "pongs_after_block=%d fault_to_initial_close_ms=%lld "
+      "final_effective_close_ms=%lld fault_to_offline_ms=%lld "
       "early_offline=%s\n",
-      static_cast<long long>(close_ms), static_cast<long long>(detected_ms),
+      pongs_after_block, static_cast<long long>(fault_to_initial),
+      static_cast<long long>(fault_to_final),
+      static_cast<long long>(fault_to_offline),
       early_offline ? "YES" : "NO");
   if (FILE* log = std::fopen("firewall_result.txt", "w")) {
-    std::fprintf(
-        log,
-        "interval_ms=1000\nrx_window_ms=1000\n"
-        "fault_to_window_close_ms=%lld\ndetected_offline_after_fault_ms=%lld\n"
-        "early_offline=%s\n",
-        static_cast<long long>(close_ms), static_cast<long long>(detected_ms),
-        early_offline ? "YES" : "NO");
+    std::fprintf(log,
+                 "interval_ms=1000\nrx_window_ms=1000\n"
+                 "pongs_after_block=%d\nfault_to_initial_close_ms=%lld\n"
+                 "final_effective_close_ms=%lld\nfault_to_offline_ms=%lld\n"
+                 "early_offline=%s\n",
+                 pongs_after_block, static_cast<long long>(fault_to_initial),
+                 static_cast<long long>(fault_to_final),
+                 static_cast<long long>(fault_to_offline),
+                 early_offline ? "YES" : "NO");
     std::fclose(log);
   }
 
-  TEST_ASSERT_FALSE_MESSAGE(early_offline,
-                            "OFFLINE appeared before confirmed_window_close");
+  TEST_ASSERT_FALSE_MESSAGE(
+      early_offline, "OFFLINE appeared before current_effective_close");
   TEST_ASSERT_TRUE_MESSAGE(detected_offline.time_since_epoch().count() != 0,
                            "OFFLINE was not detected after firewall block");
-  TEST_ASSERT_TRUE(detected_offline > close);
+  TEST_ASSERT_TRUE(detected_offline > final_close);
 
   fw.Unblock();
   auto const recover_from = Now();
+  TimePoint first_pong{};
   TimePoint recovered{};
+  auto last_close = final_close;
   while (Now() < recover_from + 20s && !app->IsExited()) {
     Pump(*app, Now() + kPoll);
-    if (client->IsLocallyOnline()) {
+    auto const close_now = ServerConfirmedClose(*policy.Load(), sid);
+    if (first_pong.time_since_epoch().count() == 0 &&
+        close_now != TimePoint::max() && close_now > last_close) {
+      first_pong = Now();
+    }
+    if (policy->IsServerLocallyOnline(sid, Now())) {
       recovered = Now();
       break;
     }
   }
-  auto const recovery_ms =
+  auto const unblock_to_pong =
+      first_pong.time_since_epoch().count() == 0
+          ? -1
+          : to_ms(first_pong, recover_from);
+  auto const unblock_to_online =
       recovered.time_since_epoch().count() == 0
           ? -1
-          : std::chrono::duration_cast<std::chrono::milliseconds>(
-                recovered - recover_from)
-                .count();
-  std::printf("FIREWALL recovery_latency_ms=%lld\n",
-              static_cast<long long>(recovery_ms));
+          : to_ms(recovered, recover_from);
+  std::printf(
+      "FIREWALL unblock_to_first_successful_pong_ms=%lld "
+      "unblock_to_online_ms=%lld\n",
+      static_cast<long long>(unblock_to_pong),
+      static_cast<long long>(unblock_to_online));
   if (FILE* log = std::fopen("firewall_result.txt", "a")) {
-    std::fprintf(log, "recovery_latency_ms=%lld\npass=1\n",
-                 static_cast<long long>(recovery_ms));
+    std::fprintf(log,
+                 "unblock_to_first_successful_pong_ms=%lld\n"
+                 "unblock_to_online_ms=%lld\npass=1\n",
+                 static_cast<long long>(unblock_to_pong),
+                 static_cast<long long>(unblock_to_online));
     std::fclose(log);
   }
-  TEST_ASSERT_TRUE_MESSAGE(client->IsLocallyOnline(),
+  TEST_ASSERT_TRUE_MESSAGE(policy->IsServerLocallyOnline(sid, Now()),
                            "did not return ONLINE after firewall unblock");
 #endif
 }

@@ -193,6 +193,7 @@ list(APPEND aether_srcs
             "cloud_connections/cloud_server_connection.cpp"
             "cloud_connections/cloud_server_connections.cpp"
             "cloud_connections/ping_cloud_servers.cpp"
+            "cloud_connections/local_presence_machine.cpp"
             "cloud_connections/cloud_subscription.cpp"
             "cloud_connections/cloud_request.cpp")
 

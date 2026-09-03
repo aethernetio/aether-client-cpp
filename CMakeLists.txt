@@ -62,6 +62,7 @@ option(AE_BUILD_TOOLS "Build tools" ${AE_ROOT_PORJECT})
 option(AE_BUILD_EXAMPLES "Build examples" ${AE_ROOT_PORJECT})
 option(AE_BUILD_TESTS "Build tests" ${AE_ROOT_PORJECT})
 option(AE_BUILD_ANDROID_SMOKE "Build Android NDK smoke shared library and runner" Off)
+option(AE_ENABLE_PRIVILEGED_NETWORK_TESTS "Enable Administrator/network live tests" Off)
 option(AE_ADDRESS_SANITIZE "Enable address sanitizer" Off)
 option(AE_NO_STRIP_ALL "Do not apply --strip_all, useful for bloaty and similar tools " Off)
 

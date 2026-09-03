@@ -25,18 +25,23 @@ if(NOT CM_PLATFORM)
   endif()
   add_test(NAME ${PROJECT_NAME} COMMAND $<TARGET_FILE:${PROJECT_NAME}>)
 
-  add_executable(test-local-presence-firewall firewall_live.cpp)
-  target_include_directories(test-local-presence-firewall PRIVATE ${ROOT_DIR})
-  target_link_libraries(test-local-presence-firewall PRIVATE unity aether)
-  target_compile_definitions(test-local-presence-firewall PRIVATE
-    "AE_DISTILLATION=1"
-  )
-  if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-    target_compile_options(test-local-presence-firewall PRIVATE /Zc:preprocessor)
+  if(AE_ENABLE_PRIVILEGED_NETWORK_TESTS)
+    add_executable(test-local-presence-firewall firewall_live.cpp)
+    target_include_directories(test-local-presence-firewall PRIVATE ${ROOT_DIR})
+    target_link_libraries(test-local-presence-firewall PRIVATE unity aether)
+    target_compile_definitions(test-local-presence-firewall PRIVATE
+      "AE_DISTILLATION=1"
+    )
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+      target_compile_options(test-local-presence-firewall PRIVATE /Zc:preprocessor)
+    endif()
+    add_test(NAME test-local-presence-firewall
+             COMMAND $<TARGET_FILE:test-local-presence-firewall>)
+    set_tests_properties(test-local-presence-firewall PROPERTIES
+      TIMEOUT 90
+      LABELS "manual;privileged;network"
+    )
   endif()
-  add_test(NAME test-local-presence-firewall
-           COMMAND $<TARGET_FILE:test-local-presence-firewall>)
-  set_tests_properties(test-local-presence-firewall PROPERTIES TIMEOUT 90)
 else()
   message(WARNING "Not implemented for ${CM_PLATFORM}")
 endif()

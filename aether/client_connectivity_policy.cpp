@@ -42,10 +42,7 @@ ClientConnectivityPolicy::RxTimingConfig::RxTimingConfig(
 
 ClientConnectivityPolicy::RxTimingConfig&
 ClientConnectivityPolicy::RxTimingConfig::ForAllPriorities(RxTimingConf conf) {
-  for (auto& item : policy_->rx_timings_) {
-    item.conf = conf;
-  }
-  policy_->ApplyDesiredToBoundServers(conf);
+  policy_->ApplyDesiredForAllPriorities(conf);
   return *this;
 }
 
@@ -119,6 +116,24 @@ void ClientConnectivityPolicy::SetServerSelectedForAggregate(ServerId server_id,
   EnsureServerPresence(server_id).selected_for_aggregate = selected;
 }
 
+void ClientConnectivityPolicy::BindServerPriority(ServerId server_id,
+                                                  std::size_t priority) {
+  auto& state = EnsureServerPresence(server_id);
+  state.bound_priority = priority;
+  if (!state.has_user_rx_timing && (priority < rx_timings_.size())) {
+    ApplyDesiredIfNoOverride(server_id, state, rx_timings_[priority].conf);
+  }
+}
+
+void ClientConnectivityPolicy::SetServerQuarantined(ServerId server_id,
+                                                    bool quarantined) {
+  EnsureServerPresence(server_id).quarantined = quarantined;
+}
+
+void ClientConnectivityPolicy::RemoveServerFromCloud(ServerId server_id) {
+  ClearServerPresence(server_id);
+}
+
 ClientConnectivityPolicy::SuspendBlocker
 ClientConnectivityPolicy::AcquireSuspendBlock() {
   return SuspendBlocker{*this};
@@ -189,10 +204,11 @@ void ClientConnectivityPolicy::ConfirmServerPong(ServerId server_id,
                                                  TimePoint send_time,
                                                  TimePoint pong_time,
                                                  Duration interval,
-                                                 Duration rx_window) {
+                                                 Duration rx_window,
+                                                 Duration selected_rtt) {
   auto& state = EnsureServerPresence(server_id);
-  auto const schedule =
-      MakeConfirmedSchedule(send_time, pong_time, interval, rx_window);
+  auto const schedule = MakeConfirmedSchedule(send_time, pong_time, interval,
+                                              rx_window, selected_rtt);
   state.has_confirmed_schedule = true;
   state.confirmed_interval = schedule.interval;
   state.confirmed_rx_window = schedule.rx_window;
@@ -200,35 +216,12 @@ void ClientConnectivityPolicy::ConfirmServerPong(ServerId server_id,
   state.confirmed_pong_receive_time = schedule.pong_receive_time;
   state.confirmed_window_open_local = schedule.window_open_local;
   state.confirmed_window_close_local = schedule.window_close_local;
-  state.online = true;
   state.config_change_pending = (state.desired.interval != interval) ||
                                 (state.desired.rx_window != rx_window);
 }
 
-void ClientConnectivityPolicy::MarkServerOffline(ServerId server_id,
-                                                 TimePoint now) {
-  auto* state = FindServerPresence(server_id);
-  if (state == nullptr) {
-    return;
-  }
-  if (state->has_confirmed_schedule && now > state->confirmed_window_close_local) {
-    state->online = false;
-  }
-}
-
 void ClientConnectivityPolicy::ClearServerPresence(ServerId server_id) {
   server_presence_.erase(server_id);
-}
-
-void ClientConnectivityPolicy::InvalidateConfirmedSchedule(ServerId server_id) {
-  auto* state = FindServerPresence(server_id);
-  if (state == nullptr) {
-    return;
-  }
-  state->has_confirmed_schedule = false;
-  state->online = false;
-  state->confirmed_window_open_local = {};
-  state->confirmed_window_close_local = {};
 }
 
 bool ClientConnectivityPolicy::IsLocallyOnline() const noexcept {
@@ -259,14 +252,6 @@ bool ClientConnectivityPolicy::IsServerLocallyOnline(
                                  state->confirmed_window_close_local);
 }
 
-void ClientConnectivityPolicy::RefreshOnlineFlags(TimePoint now) {
-  for (auto& [id, state] : server_presence_) {
-    static_cast<void>(id);
-    state.online = IsConfirmedWindowOnline(state.has_confirmed_schedule, now,
-                                           state.confirmed_window_close_local);
-  }
-}
-
 void ClientConnectivityPolicy::ResetRuntimeState() {
   auto current_time = Now();
   for (auto& t : rx_timings_) {
@@ -279,22 +264,44 @@ void ClientConnectivityPolicy::ResetRuntimeState() {
     static_cast<void>(id);
     if (current_time < state.confirmed_pong_receive_time) {
       state.has_confirmed_schedule = false;
-      state.online = false;
       state.confirmed_window_open_local = {};
       state.confirmed_window_close_local = {};
     }
   }
 }
 
-void ClientConnectivityPolicy::ApplyDesiredToBoundServers(RxTimingConf conf) {
+void ClientConnectivityPolicy::ApplyDesiredIfNoOverride(
+    ServerId server_id, ServerPresenceState& state, RxTimingConf conf) {
+  if (state.has_user_rx_timing) {
+    return;
+  }
+  auto const timing_changed = (state.desired.interval != conf.interval) ||
+                              (state.desired.rx_window != conf.rx_window);
+  state.desired = conf;
+  if (timing_changed) {
+    state.config_change_pending = true;
+    server_rx_timing_changed_event_.Emit(server_id);
+  }
+}
+
+void ClientConnectivityPolicy::ApplyDesiredForAllPriorities(RxTimingConf conf) {
+  for (auto& item : rx_timings_) {
+    item.conf = conf;
+  }
   for (auto& [id, state] : server_presence_) {
-    static_cast<void>(id);
-    auto const timing_changed = (state.desired.interval != conf.interval) ||
-                                (state.desired.rx_window != conf.rx_window);
-    state.desired = conf;
-    if (timing_changed) {
-      state.config_change_pending = true;
+    ApplyDesiredIfNoOverride(id, state, conf);
+  }
+}
+
+void ClientConnectivityPolicy::ApplyDesiredForPriority(std::size_t priority,
+                                                       RxTimingConf conf) {
+  assert(priority < rx_timings_.size());
+  rx_timings_[priority].conf = conf;
+  for (auto& [id, state] : server_presence_) {
+    if (state.bound_priority != priority) {
+      continue;
     }
+    ApplyDesiredIfNoOverride(id, state, conf);
   }
 }
 

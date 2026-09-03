@@ -81,12 +81,11 @@ struct ServerPresenceState {
   TimePoint confirmed_window_open_local{};
   TimePoint confirmed_window_close_local{};
 
-  bool online{false};
-  std::uint64_t current_attempt_id{0};
-  PingAttemptKind current_attempt_kind{PingAttemptKind::kInitial};
   bool config_change_pending{false};
   bool selected_for_aggregate{true};
   bool has_user_rx_timing{false};
+  bool quarantined{false};
+  std::size_t bound_priority{static_cast<std::size_t>(-1)};
 };
 
 class ClientConnectivityPolicy : public Obj {
@@ -102,8 +101,7 @@ class ClientConnectivityPolicy : public Obj {
     template <std::size_t Priority>
     RxTimingConfig& ForPriority(RxTimingConf conf) {
       static_assert(Priority < kMaxRxServerPriorities);
-      policy_->rx_timings_[Priority].conf = conf;
-      policy_->ApplyDesiredToBoundServers(conf);
+      policy_->ApplyDesiredForPriority(Priority, conf);
       return *this;
     }
 
@@ -151,6 +149,9 @@ class ClientConnectivityPolicy : public Obj {
       std::uint8_t rtt_reliability_percentile = kDefaultRttReliabilityPercentile);
 
   void SetServerSelectedForAggregate(ServerId server_id, bool selected);
+  void BindServerPriority(ServerId server_id, std::size_t priority);
+  void SetServerQuarantined(ServerId server_id, bool quarantined);
+  void RemoveServerFromCloud(ServerId server_id);
 
   RequestPolicy::Variant const& rx_targets() const noexcept {
     return rx_targets_;
@@ -176,29 +177,27 @@ class ClientConnectivityPolicy : public Obj {
   ServerPresenceState const* FindServerPresence(ServerId server_id) const noexcept;
   ServerPresenceState* FindServerPresence(ServerId server_id) noexcept;
 
-  // Confirm schedule from a successful Pong (measured RTT).
+  // Confirm schedule from a successful Pong using selected_rtt projection.
   void ConfirmServerPong(ServerId server_id, TimePoint send_time,
                          TimePoint pong_time, Duration interval,
-                         Duration rx_window);
+                         Duration rx_window, Duration selected_rtt);
 
-  void MarkServerOffline(ServerId server_id, TimePoint now);
   void ClearServerPresence(ServerId server_id);
-  // Drop confirmed schedule (quarantine / unusable) but keep desired timing.
-  void InvalidateConfirmedSchedule(ServerId server_id);
 
-  // Read-only. No side effects. Aggregate: ONLINE iff any selected usable
-  // server has a confirmed schedule that has not expired.
+  // Read-only. No side effects. Aggregate: ONLINE iff any selected server
+  // still in Personal Cloud has a confirmed schedule that has not expired.
   bool IsLocallyOnline() const noexcept;
   bool IsLocallyOnline(TimePoint now) const noexcept;
   bool IsServerLocallyOnline(ServerId server_id, TimePoint now) const noexcept;
-
-  void RefreshOnlineFlags(TimePoint now);
 
  private:
   void ResetRuntimeState();
   void IncrementSuspendBlock();
   void DecrementSuspendBlock();
-  void ApplyDesiredToBoundServers(RxTimingConf conf);
+  void ApplyDesiredForAllPriorities(RxTimingConf conf);
+  void ApplyDesiredForPriority(std::size_t priority, RxTimingConf conf);
+  void ApplyDesiredIfNoOverride(ServerId server_id, ServerPresenceState& state,
+                                RxTimingConf conf);
 
   RequestPolicy::Variant rx_targets_;
   std::array<RxTiming, kMaxRxServerPriorities> rx_timings_;

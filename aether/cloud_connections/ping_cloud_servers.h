@@ -29,7 +29,7 @@
 #  include "aether/ae_context.h"
 #  include "aether/client_connectivity_policy.h"
 #  include "aether/cloud_connections/cloud_server_connections.h"
-#  include "aether/cloud_connections/local_presence_schedule.h"
+#  include "aether/cloud_connections/local_presence_machine.h"
 #  include "aether/events/event_subscription.h"
 #  include "aether/executors/executors.h"
 #  include "aether/tasks/manual_task_scheduler.h"
@@ -45,64 +45,61 @@ class PingCloudServers {
 
     AE_CLASS_NO_COPY_MOVE(ServerPing)
 
-    void Stop();
+    void PauseForQuarantine();
+    void ResumeFromQuarantine();
     void NotifyConfigChanged();
 
-    TimePoint next_service_time() const noexcept { return next_ping_time_; }
+    TimePoint next_service_time() const noexcept { return next_wake_; }
     std::size_t priority() const noexcept { return priority_; }
-    RxTimingConf const& timing() const noexcept { return active_conf_; }
-    bool stopped() const noexcept { return stop_; }
+    bool quarantined() const noexcept { return machine_.quarantined(); }
 
    private:
-    void ScheduleNext(TimePoint when, PingAttemptKind kind);
-    void StartAttempt(PingAttemptKind kind);
-    void Start();
+    struct LiveAttempt {
+      LocalPresenceMachine::SendSpec spec{};
+      TimePoint send_time{};
+      std::unique_ptr<Ping> ping;
+      Subscription result_sub;
+    };
+
+    void Pump();
+    void ScheduleWake(TimePoint when);
+    void SyncBlockers();
+    void DropFinishedPings();
 
     template <typename F>
     void WaitForLink(ClientServerConnection& cc, F&& f);
 
     auto EnsureLinked();
     Duration SelectedRtt() const;
-    Duration AttemptTimeout(Duration rtt) const;
-
-    void OnPingResult(std::uint64_t attempt_id, TimePoint send_time,
-                      Duration sent_interval, Duration sent_window,
-                      Ping::PingResult const& res);
-    void ApplyConfirmedPong(TimePoint send_time, TimePoint pong_time,
-                            Duration sent_interval, Duration sent_window);
-    void OnAttemptTimeout(std::uint64_t attempt_id);
-    void AfterFailedAttempt();
-    void HoldRxUntil(TimePoint until);
+    void StartSend(LocalPresenceMachine::SendSpec spec);
+    void OnPingResult(std::uint64_t attempt_id, Ping::PingResult const& res);
+    void AddRttSample(Duration measured);
     void ScheduleRestream();
-    void AbandonInFlight();
+    void ApplyConfirmed(LocalPresenceMachine::PongOutcome const& outcome);
 
     AeContext ae_context_;
     ClientConnectivityPolicy* policy_;
     CloudServerConnection* cloud_sc_;
     ServerId server_id_{};
     std::size_t priority_{};
-    RxTimingConf active_conf_{};
+    LocalPresenceMachine machine_;
 
     std::optional<ex::AnyWaiter<ex::set_value_t(), ex::set_error_t(int)>>
         waiter_;
-    std::optional<Ping> ping_;
-    bool stop_{false};
-    bool attempt_in_flight_{false};
-    std::uint64_t active_attempt_id_{0};
-    PingAttemptKind active_attempt_kind_{PingAttemptKind::kInitial};
-    TimePoint active_send_time_{};
-    Duration active_sent_interval_{};
-    Duration active_sent_window_{};
+    std::map<std::uint64_t, LiveAttempt> live_;
 
     Subscription link_state_sub_;
-    TaskSubscription start_sub_;
-    TaskSubscription attempt_timeout_sub_;
-    TaskSubscription rx_window_sub_;
+    TaskSubscription wake_sub_;
+    TaskSubscription current_window_sub_;
     TaskSubscription restream_sub_;
-    ClientConnectivityPolicy::SuspendBlocker ping_blocker_;
-    ClientConnectivityPolicy::SuspendBlocker rx_window_blocker_;
+    ClientConnectivityPolicy::SuspendBlocker request_blocker_;
+    ClientConnectivityPolicy::SuspendBlocker current_window_blocker_;
     ClientConnectivityPolicy::SuspendBlocker restream_blocker_;
-    TimePoint next_ping_time_;
+    TimePoint next_wake_{TimePoint::max()};
+    bool stop_{false};
+    bool holding_request_{false};
+    bool holding_current_{false};
+    TimePoint scheduled_current_close_{};
   };
 
  public:
@@ -118,6 +115,7 @@ class PingCloudServers {
   void ServerQuarantined(CloudServerConnection* cloud_sc);
   void ServerQuarantineReleased(CloudServerConnection* cloud_sc);
   void OnServerRxTimingChanged(ServerId server_id);
+  void RemoveMissingServers();
 
   AeContext ae_context_;
   CloudServerConnections* cloud_server_connections_;

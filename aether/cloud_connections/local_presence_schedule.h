@@ -30,6 +30,8 @@ inline constexpr Duration kLocalPresenceGuard =
 
 inline constexpr std::uint8_t kDefaultRttReliabilityPercentile{99};
 
+inline constexpr std::size_t kMaxOutstandingPresenceAttempts{8};
+
 enum class PingAttemptKind : std::uint8_t {
   kInitial = 0,
   kPrefix1,
@@ -38,10 +40,25 @@ enum class PingAttemptKind : std::uint8_t {
   kRecovery,
 };
 
+enum class PresenceRestreamReason : std::uint8_t {
+  kNone = 0,
+  kHardWriteFailure,
+  kHardLinkFailure,
+  kPingApiError,
+  kConnectionUnavailable,
+};
+
 // One-way RTT projection used consistently for schedule placement.
-// Documented model: one_way = rtt / 2 (local monotonic timeline only).
-inline Duration OneWayFromRtt(Duration rtt) noexcept {
-  return rtt / 2;
+// Documented model: one_way = selected_rtt / 2 (local monotonic timeline only).
+inline Duration OneWayFromRtt(Duration rtt) noexcept { return rtt / 2; }
+
+inline Duration MaxDuration(Duration a, Duration b) noexcept {
+  return a > b ? a : b;
+}
+
+inline Duration PresenceHardWait(Duration selected_rtt, Duration interval,
+                                 Duration window) noexcept {
+  return MaxDuration(selected_rtt * 8, interval + window);
 }
 
 struct ConfirmedReceiveSchedule {
@@ -50,41 +67,66 @@ struct ConfirmedReceiveSchedule {
   TimePoint ping_send_time{};
   TimePoint pong_receive_time{};
   Duration measured_rtt{};
+  Duration selected_rtt{};
   TimePoint window_open_local{};
   TimePoint window_close_local{};
 };
 
 // After successful Pong for Ping sent at send_time:
-//   R_server ≈ send_time + one_way
-//   window_open  = R_server + interval
-//   window_close = window_open + rx_window
+//   estimated_server_receive = send_time + selected_rtt / 2
+//   window_open  = estimated_server_receive + sent_interval
+//   window_close = window_open + sent_window
+// measured RTT is diagnostics/statistics only and must not move the projection.
 inline ConfirmedReceiveSchedule MakeConfirmedSchedule(
     TimePoint send_time, TimePoint pong_time, Duration interval,
-    Duration rx_window) noexcept {
+    Duration rx_window, Duration selected_rtt) noexcept {
   ConfirmedReceiveSchedule out{};
   out.interval = interval;
   out.rx_window = rx_window;
   out.ping_send_time = send_time;
   out.pong_receive_time = pong_time;
+  out.selected_rtt = selected_rtt;
   if (pong_time > send_time) {
     out.measured_rtt =
         std::chrono::duration_cast<Duration>(pong_time - send_time);
   }
-  auto const one_way = OneWayFromRtt(out.measured_rtt);
+  auto const one_way = OneWayFromRtt(selected_rtt);
   out.window_open_local = send_time + one_way + interval;
   out.window_close_local = out.window_open_local + rx_window;
   return out;
 }
 
+struct CadencePlan {
+  TimePoint following_open_target{};
+  Duration wire_interval{};
+};
+
+// configured interval is the distance between planned opening targets, not
+// between early prefix sends.
+inline CadencePlan PlanWireInterval(TimePoint send_time, Duration selected_rtt,
+                                    TimePoint following_open_target,
+                                    Duration desired_interval) noexcept {
+  auto const a_estimated = send_time + OneWayFromRtt(selected_rtt);
+  if (following_open_target <= a_estimated) {
+    return CadencePlan{a_estimated + desired_interval, desired_interval};
+  }
+  return CadencePlan{
+      following_open_target,
+      std::chrono::duration_cast<Duration>(following_open_target -
+                                           a_estimated)};
+}
+
 // prefix1 = O - 1.5*R - G
 // prefix2 = O - 0.5*R - G
-inline TimePoint ComputePrefix1Time(TimePoint window_open, Duration rtt,
-                                    Duration guard = kLocalPresenceGuard) noexcept {
+inline TimePoint ComputePrefix1Time(
+    TimePoint window_open, Duration rtt,
+    Duration guard = kLocalPresenceGuard) noexcept {
   return window_open - (rtt * 3) / 2 - guard;
 }
 
-inline TimePoint ComputePrefix2Time(TimePoint window_open, Duration rtt,
-                                    Duration guard = kLocalPresenceGuard) noexcept {
+inline TimePoint ComputePrefix2Time(
+    TimePoint window_open, Duration rtt,
+    Duration guard = kLocalPresenceGuard) noexcept {
   return window_open - rtt / 2 - guard;
 }
 
@@ -96,60 +138,9 @@ inline bool IsConfirmedWindowOnline(bool has_confirmed, TimePoint now,
   return now <= window_close;
 }
 
-inline bool IsCurrentPingAttempt(std::uint64_t active_attempt_id,
-                                 std::uint64_t result_attempt_id) noexcept {
-  return active_attempt_id == result_attempt_id;
-}
-
-// Next Ping after a failed attempt. p99/selected RTT timeout is NOT OFFLINE.
-struct PresenceAttemptPlan {
-  TimePoint when{};
-  PingAttemptKind kind{PingAttemptKind::kRecovery};
-  bool mark_offline{false};
-};
-
-inline PresenceAttemptPlan PlanAfterFailedAttempt(
-    bool has_confirmed_schedule, TimePoint confirmed_window_open,
-    TimePoint confirmed_window_close, PingAttemptKind failed_kind,
-    TimePoint now, Duration rtt,
-    Duration guard = kLocalPresenceGuard) noexcept {
-  PresenceAttemptPlan plan{};
-  if (has_confirmed_schedule && now <= confirmed_window_close) {
-    plan.mark_offline = false;
-    if (failed_kind == PingAttemptKind::kPrefix1) {
-      plan.kind = PingAttemptKind::kPrefix2;
-      auto const prefix2 =
-          ComputePrefix2Time(confirmed_window_open, rtt, guard);
-      plan.when = prefix2 > now ? prefix2 : now;
-      return plan;
-    }
-    plan.kind = PingAttemptKind::kRetry;
-    plan.when = now + rtt;
-    return plan;
-  }
-  plan.mark_offline = has_confirmed_schedule;
-  plan.kind = PingAttemptKind::kRecovery;
-  plan.when = now + rtt;
-  return plan;
-}
-
-// After a confirming Pong: prefix1 of the new window, unless a newer desired
-// interval/window still needs a Ping.
-inline PresenceAttemptPlan PlanAfterSuccessfulPong(
-    TimePoint confirmed_window_open, TimePoint now, Duration rtt,
-    bool send_new_config_immediately,
-    Duration guard = kLocalPresenceGuard) noexcept {
-  PresenceAttemptPlan plan{};
-  plan.mark_offline = false;
-  if (send_new_config_immediately) {
-    plan.kind = PingAttemptKind::kInitial;
-    plan.when = now;
-    return plan;
-  }
-  plan.kind = PingAttemptKind::kPrefix1;
-  auto const prefix1 = ComputePrefix1Time(confirmed_window_open, rtt, guard);
-  plan.when = prefix1 > now ? prefix1 : now;
-  return plan;
+inline bool AttemptOpensPromisedWindow(PingAttemptKind kind) noexcept {
+  return kind == PingAttemptKind::kPrefix1 ||
+         kind == PingAttemptKind::kPrefix2 || kind == PingAttemptKind::kRetry;
 }
 
 }  // namespace ae
