@@ -1,0 +1,6 @@
+# TEST-ONLY opaque browser transport gateway
+#
+# This is NOT production browser transport support.
+# See README.md.
+
+websockets>=12.0,<14
