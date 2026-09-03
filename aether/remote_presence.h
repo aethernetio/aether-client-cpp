@@ -60,8 +60,6 @@ struct RemoteServerPresenceSample {
   bool has_timing{false};
 };
 
-inline constexpr std::size_t kRemotePresenceQueryRetryCount{1};
-
 inline TimePoint TimePointOffsetByMs(TimePoint anchor,
                                      std::int64_t delta_ms) noexcept {
   if (delta_ms == 0) {

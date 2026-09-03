@@ -30,9 +30,11 @@
 #include "aether/cloud_connections/cloud_request.h"
 #include "aether/events/event_subscription.h"
 #include "aether/events/events.h"
+#include "aether/events/multi_subscription.h"
 #include "aether/remote_presence.h"
 #include "aether/types/server_id.h"
 #include "aether/types/uid.h"
+#include "aether/cloud_connections/cloud_request_execution_policy.h"
 
 namespace ae {
 
@@ -73,8 +75,10 @@ class QueryPeerPresence final : public Action {
 
  private:
   struct AttemptMeta {
-    TimePoint send_time{};
-    std::uint64_t generation{0};
+    std::uint64_t next_generation{0};
+    // Per-attempt send times so late responses from earlier attempts remain
+    // classifiable after a soft-timeout retry is launched.
+    std::map<std::uint64_t, TimePoint> send_times;
   };
 
   void OnCloud(Result<Cloud::ptr, int> result);
@@ -91,6 +95,7 @@ class QueryPeerPresence final : public Action {
   void Complete(PeerPresence const& presence);
   void Fail(int code);
   Duration OfflineTimeout() const noexcept;
+  CloudRequestExecutionPolicy ExecutionPolicy() const noexcept;
   bool AllUsableTerminal() const noexcept;
 
   AeContext ae_context_;
@@ -107,7 +112,9 @@ class QueryPeerPresence final : public Action {
   std::unique_ptr<CloudServerConnections> dest_cloud_;
   CloudServerConnections* work_cloud_{nullptr};
   std::optional<CloudRequest> cloud_request_;
-  std::map<ServerId, Subscription> timing_subs_;
+  // MultiSubscription so soft-timeout retries do not destroy earlier
+  // get_client_timing response subscribers (late responses must be accepted).
+  std::map<ServerId, MultiSubscription> timing_subs_;
   std::map<ServerId, AttemptMeta> attempts_;
   std::vector<RemoteServerPresenceSample> samples_;
   std::vector<ServerId> peer_cloud_server_ids_;

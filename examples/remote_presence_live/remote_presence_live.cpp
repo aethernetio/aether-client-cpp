@@ -44,6 +44,7 @@
 #include "aether/ae_actions/query_peer_presence.h"
 #include "aether/all.h"
 #include "aether/client_connectivity_policy.h"
+#include "aether/cloud_connections/cloud_request_execution_policy.h"
 #include "aether/cloud_connections/local_presence_schedule.h"
 #include "aether/config.h"
 #include "aether/remote_presence.h"
@@ -126,6 +127,9 @@ void ApplyTimings(Client& client) {
   }
   policy->ResetRxTimings();
   policy->SetOfflineDetectionTimeout(kOfflineTimeout);
+  policy->SetCloudRequestExecutionPolicy(
+      CloudRequestExecutionPolicy::FromFactor(99, 1.2, /*retries=*/2,
+                                              /*hedge=*/2));
   policy->ConfigureRxTimings(RequestPolicy::All{})
       .ForAllPriorities(RxTimingConf::Every(kInterval).WithWindow(kWindow));
   for (auto* server : client.cloud_connection().selected_servers()) {

@@ -24,6 +24,7 @@
 #include <map>
 #include <optional>
 
+#include "aether/cloud_connections/cloud_request_execution_policy.h"
 #include "aether/cloud_connections/local_presence_schedule.h"
 #include "aether/cloud_connections/request_policy.h"
 #include "aether/config.h"
@@ -191,6 +192,15 @@ class ClientConnectivityPolicy : public Obj {
     return offline_detection_timeout_;
   }
 
+  // Runtime CloudRequest soft-timeout / retry / hedge policy (not wire).
+  // Applies to NEW CloudRequest operations only (snapshot at construction).
+  void SetCloudRequestExecutionPolicy(
+      CloudRequestExecutionPolicy policy) noexcept;
+  CloudRequestExecutionPolicy const& cloud_request_execution_policy()
+      const noexcept {
+    return cloud_request_execution_policy_;
+  }
+
   // Read-only. No side effects. Aggregate OR: ONLINE iff any selected server
   // has confirmed interval>0 and now <= expected_open + offline_detection_timeout.
   bool IsLocallyOnline() const noexcept;
@@ -214,6 +224,7 @@ class ClientConnectivityPolicy : public Obj {
   std::uint8_t suspend_block_count_{};
   Duration offline_detection_timeout_{std::chrono::milliseconds{
       AE_OFFLINE_DETECTION_TIMEOUT_MS}};
+  CloudRequestExecutionPolicy cloud_request_execution_policy_{};
 
   Event<void()> suspend_allowed_event_;
   Event<void(ServerId)> server_rx_timing_changed_event_;

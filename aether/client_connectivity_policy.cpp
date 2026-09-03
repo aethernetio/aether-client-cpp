@@ -246,6 +246,17 @@ void ClientConnectivityPolicy::SetOfflineDetectionTimeout(
   offline_detection_timeout_ = timeout;
 }
 
+void ClientConnectivityPolicy::SetCloudRequestExecutionPolicy(
+    CloudRequestExecutionPolicy policy) noexcept {
+  if (policy.response_percentile > 100) {
+    policy.response_percentile = 100;
+  }
+  if (policy.timeout_factor_permille == 0) {
+    policy.timeout_factor_permille = 1000;
+  }
+  cloud_request_execution_policy_ = policy;
+}
+
 bool ClientConnectivityPolicy::IsLocallyOnline() const noexcept {
   return IsLocallyOnline(Now());
 }

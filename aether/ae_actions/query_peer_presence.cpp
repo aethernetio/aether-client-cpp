@@ -65,6 +65,14 @@ Duration QueryPeerPresence::OfflineTimeout() const noexcept {
   return policy.Load()->offline_detection_timeout();
 }
 
+CloudRequestExecutionPolicy QueryPeerPresence::ExecutionPolicy() const noexcept {
+  auto policy = client_->connectivity_policy();
+  if (!policy) {
+    return CloudRequestExecutionPolicy::Default();
+  }
+  return policy.Load()->cloud_request_execution_policy();
+}
+
 void QueryPeerPresence::BindPeerCloud(Cloud::ptr cloud) {
   used_observer_cloud_ = false;
 
@@ -190,17 +198,17 @@ void QueryPeerPresence::StartQuery() {
           queried_server_ids_.push_back(server_id);
         }
         auto& meta = attempts_[server_id];
-        ++meta.generation;
-        meta.send_time = Now();
-        auto const generation = meta.generation;
-        timing_subs_[server_id] =
+        auto const generation = ++meta.next_generation;
+        meta.send_times[generation] = Now();
+        // Accumulate subscribers — do not replace, so late responses from
+        // earlier soft-timeout attempts remain deliverable.
+        timing_subs_[server_id] +=
             auth_api->get_client_timing(peer_uid_).Subscribe(
                 [this, sc, generation](auto const& res) {
                   OnServerTiming(sc, generation, res);
                 });
       }},
-      *work_cloud_, RequestPolicy::All{},
-      /*max_retries=*/kRemotePresenceQueryRetryCount + 1);
+      *work_cloud_, RequestPolicy::All{}, ExecutionPolicy());
 
   exhausted_sub_ = cloud_request_->attempt_exhausted_event().Subscribe(
       [this](CloudServerConnection* sc) {
@@ -249,18 +257,18 @@ void QueryPeerPresence::RequestTiming(CloudServerConnection* sc) {
   }
 
   auto& meta = attempts_[server_id];
-  ++meta.generation;
-  meta.send_time = Now();
-  auto const generation = meta.generation;
+  auto const generation = ++meta.next_generation;
+  meta.send_times[generation] = Now();
 
   // AuthorizedApiCall requires an active ApiContext path via CloudRequest's
   // handler; for recovered servers we re-enter through a one-server request.
   conn->AuthorizedApiCall(SubApi{[&, sc, generation](
                                      ApiContext<AuthorizedApi>& auth_api) {
-    timing_subs_[server_id] = auth_api->get_client_timing(peer_uid_).Subscribe(
-        [this, sc, generation](auto const& res) {
-          OnServerTiming(sc, generation, res);
-        });
+    timing_subs_[server_id] +=
+        auth_api->get_client_timing(peer_uid_).Subscribe(
+            [this, sc, generation](auto const& res) {
+              OnServerTiming(sc, generation, res);
+            });
   }});
 }
 
@@ -292,10 +300,27 @@ void QueryPeerPresence::OnServerTiming(
     return;
   }
   auto const server_id = sc->server_id();
+  for (auto const& sample : samples_) {
+    if (sample.server_id == server_id &&
+        (sample.status == RemoteServerPresence::kOnline ||
+         sample.status == RemoteServerPresence::kOffline ||
+         sample.status == RemoteServerPresence::kExcluded)) {
+      // Already terminal for this server — ignore duplicate/late extras.
+      return;
+    }
+  }
+
   auto meta_it = attempts_.find(server_id);
-  if (meta_it == attempts_.end() || meta_it->second.generation != generation) {
+  if (meta_it == attempts_.end()) {
     return;
   }
+  auto send_it = meta_it->second.send_times.find(generation);
+  if (send_it == meta_it->second.send_times.end()) {
+    return;
+  }
+  auto const send_time = send_it->second;
+  meta_it->second.send_times.erase(send_it);
+
   if (!res) {
     if (cloud_request_.has_value()) {
       auto const exhausted = cloud_request_->FailAttempt(sc);
@@ -314,8 +339,8 @@ void QueryPeerPresence::OnServerTiming(
   TimePoint expected{};
   TimePoint deadline{};
   auto const status = ClassifyRemoteServerPresence(
-      recv, meta_it->second.send_time, recv, res.value(), OfflineTimeout(),
-      &expected, &deadline);
+      recv, send_time, recv, res.value(), OfflineTimeout(), &expected,
+      &deadline);
 
   for (auto& sample : samples_) {
     if (sample.server_id != server_id) {
@@ -330,13 +355,16 @@ void QueryPeerPresence::OnServerTiming(
   }
 
   AE_TELED_DEBUG(
-      "REMOTE_PRESENCE server {} next_delta {} status {} expected {} deadline {}",
+      "REMOTE_PRESENCE server {} next_delta {} status {} expected {} deadline "
+      "{} (generation {})",
       server_id, res.value().next_ping_delta_ms, static_cast<int>(status),
-      expected, deadline);
+      expected, deadline, generation);
 
   if (cloud_request_.has_value()) {
     cloud_request_->SucceedAttempt(sc);
   }
+  // Drop remaining attempt send times — server is done.
+  meta_it->second.send_times.clear();
   MaybeComplete();
 }
 

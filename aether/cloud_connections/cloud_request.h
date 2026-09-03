@@ -16,126 +16,121 @@
 #ifndef AETHER_CLOUD_CONNECTIONS_CLOUD_REQUEST_H_
 #define AETHER_CLOUD_CONNECTIONS_CLOUD_REQUEST_H_
 
+#include <cstddef>
+#include <cstdint>
 #include <map>
+#include <vector>
 
 #include "aether/common.h"
 #include "aether/ae_context.h"
 #include "aether/actions/action.h"
+#include "aether/cloud_connections/cloud_request_execution_policy.h"
 #include "aether/cloud_connections/request_policy.h"
 #include "aether/cloud_connections/cloud_callbacks.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
+#include "aether/events/multi_subscription.h"
 
 namespace ae {
 /**
- * \brief Makes request according to the request policy.
- * If request fails or times out, it will restream the cloud connection and
- * retry on different channels. When a server exhausts its retry budget,
- * it moves on to the next server in the list.
- * ResponseSubscriber must subscribe to client_api and handle the
- * response. On success, listener must call CloudRequest::Succeeded(). On
- * failure, listener must call CloudRequest::Failed().
+ * \brief Makes request according to RequestPolicy (candidate set) and
+ * CloudRequestExecutionPolicy (soft timeout / retry / hedge / quarantine).
+ *
+ * Soft response timeout does NOT Restream or quarantine. Quarantine for
+ * no-response happens only after the per-server retry budget is exhausted.
+ * Late valid responses from earlier attempts are accepted.
+ *
+ * ResponseSubscriber / ApiRequestHandler must handle responses. On whole
+ * request success, call CloudRequest::Succeeded(); on whole failure,
+ * CloudRequest::Failed(). Per-server: SucceedAttempt / FailAttempt.
  */
-// Testable per-server completion flags used by CloudRequest.
-struct CloudRequestAttemptState {
-  bool exhausted{false};
-  bool succeeded{false};
-  std::size_t retry_count{0};
-
-  bool ShouldSkipMake() const noexcept { return exhausted || succeeded; }
-
-  void MarkSucceeded() { succeeded = true; }
-
-  // Returns true when this failure exhausted the retry budget.
-  bool MarkFailed(std::size_t max_retries) {
-    if (succeeded) {
-      return false;
-    }
-    ++retry_count;
-    if (retry_count >= max_retries) {
-      exhausted = true;
-      return true;
-    }
-    return false;
-  }
-};
-
-inline bool CloudRequestShouldFailAll(bool any_open,
-                                      bool any_succeeded) noexcept {
-  return !any_open && !any_succeeded;
-}
+// Compatibility alias for older unit helpers.
+using CloudRequestAttemptState = CloudRequestServerExecState;
 
 class CloudRequest final : public Action {
-  struct ServerRequest {
-    MultiSubscription state_subs;
+  struct AttemptState {
+    MultiSubscription subs;
     TaskSubscription timeout_sub;
-    std::size_t retry_count{0};
-    bool exhausted{false};
-    bool succeeded{false};
+    std::uint8_t attempt_index{0};
+    bool timed_out{false};
+  };
+
+  struct ServerRequest {
+    CloudRequestServerExecState exec{};
+    // Durable across attempts so late responses remain deliverable.
+    MultiSubscription response_subs;
+    std::vector<AttemptState> attempts;
   };
 
  public:
-  static constexpr std::size_t kDefaultMaxRetries = 5;
-  static constexpr Duration kDefaultRequestTimeout =
-      std::chrono::milliseconds{AE_CLOUD_REQUEST_TIMEOUT_MS};
-
   using ResultEvent = Event<void(bool)>;
   using AttemptExhaustedEvent = Event<void(CloudServerConnection*)>;
 
   CloudRequest(AeContext const& ae_context, ApiCallWithListener&& api_call,
                CloudServerConnections& cloud_server_connections,
                RequestPolicy::Variant policy,
-               std::size_t max_retries = kDefaultMaxRetries,
-               Duration request_timeout = kDefaultRequestTimeout);
+               CloudRequestExecutionPolicy exec_policy =
+                   CloudRequestExecutionPolicy::Default());
 
   CloudRequest(AeContext const& ae_context, ApiRequestHandler&& api_request,
                CloudServerConnections& cloud_server_connections,
                RequestPolicy::Variant policy,
-               std::size_t max_retries = kDefaultMaxRetries,
-               Duration request_timeout = kDefaultRequestTimeout);
+               CloudRequestExecutionPolicy exec_policy =
+                   CloudRequestExecutionPolicy::Default());
 
   AE_CLASS_NO_COPY_MOVE(CloudRequest)
 
   void Succeeded();
   void Failed();
-  // Per-server success: stop this server's timeout/channel/write
-  // subscriptions, skip further retries, and do not finish CloudRequest.
+  // Per-server success: accept late responses, cancel future retries, no
+  // Restream / quarantine.
   void SucceedAttempt(CloudServerConnection* sc);
-  // Listener-side attempt failure: retry/exhaust this server without
-  // ending the whole CloudRequest. Returns true when the server is exhausted.
+  // Listener-side attempt failure (e.g. API error). Soft retry budget applies.
+  // Returns true when the server is exhausted (and quarantined for no usable
+  // response path).
   bool FailAttempt(CloudServerConnection* sc);
+
+  CloudRequestExecutionPolicy const& execution_policy() const noexcept {
+    return exec_policy_;
+  }
 
   ResultEvent::Subscriber result_event();
   AttemptExhaustedEvent::Subscriber attempt_exhausted_event();
 
  private:
-  void MakeRequest();
-  void MakeServerRequest(CloudServerConnection* sc, ServerRequest& sr);
-  void PrefillServerRequests();
+  void RebuildCandidates();
+  void ActivateInitial();
+  void ActivateFollowing(std::uint8_t count, bool as_hedge = false,
+                         CloudServerConnection* source = nullptr);
+  void ActivateServer(CloudServerConnection* sc);
+  void LaunchAttempt(CloudServerConnection* sc, ServerRequest& sr);
+
+  Duration SoftTimeoutFor(CloudServerConnection* sc) const;
+  void OnSoftTimeout(CloudServerConnection* sc, std::uint8_t attempt_index);
+  void ExhaustServerNoResponse(CloudServerConnection* sc, ServerRequest& sr);
 
   void ServersUpdated();
   void OnChannelChanged(CloudServerConnection* sc);
-  void OnServerRequestTimeout(CloudServerConnection* sc);
   void OnWriteFailed(CloudServerConnection* sc);
 
-  void RemoveRequest(CloudServerConnection* server_connection);
-  void EnqueueMakeRequest();
+  void EnqueuePump();
+  void Pump();
   void EmitAttemptExhausted(CloudServerConnection* sc);
-
   void Finish();
 
   AeContext ae_context_;
   std::variant<ApiCallWithListener, ApiRequestHandler> request_;
   CloudServerConnections* cloud_scs_;
   RequestPolicy::Variant policy_;
-  std::size_t max_retries_;
-  Duration request_timeout_;
-  TaskSubscription task_sub_;
+  // Snapshot at construction ? runtime policy changes do not affect this op.
+  CloudRequestExecutionPolicy exec_policy_;
 
-  Subscription swa_sub_;
+  TaskSubscription task_sub_;
   Subscription server_changed_sub_;
   ResultEvent result_event_;
   AttemptExhaustedEvent attempt_exhausted_event_;
 
+  std::vector<CloudServerConnection*> candidates_;
+  std::size_t activate_cursor_{0};
   std::map<CloudServerConnection*, ServerRequest> server_requests_;
 };
 

@@ -47,5 +47,6 @@ add_subdirectory(test-tasks)
 add_subdirectory(test-server-connection)
 
 add_subdirectory(test-local-presence)
+add_subdirectory(test-cloud-request)
 
 add_subdirectory(third_party_tests)
