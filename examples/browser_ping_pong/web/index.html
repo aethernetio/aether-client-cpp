@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Browser Aether Ping/Pong</title>
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <main class="page">
+    <h1>Browser Aether Ping/Pong</h1>
+
+    <section class="panel" aria-label="Profile">
+      <h2>Profile</h2>
+      <div class="row">
+        <label><input type="radio" name="profile" value="A" checked /> A</label>
+        <label><input type="radio" name="profile" value="B" /> B</label>
+        <label>
+          <input type="radio" name="profile" value="custom" /> custom
+          <input id="profile-custom" type="text" placeholder="name" disabled />
+        </label>
+      </div>
+    </section>
+
+    <section class="panel" aria-label="Transport">
+      <h2>Transport</h2>
+      <div class="row">
+        <label><input type="radio" name="transport" value="HTTP" /> HTTP</label>
+        <label><input type="radio" name="transport" value="HTTPS" /> HTTPS</label>
+        <label><input type="radio" name="transport" value="WS" checked /> WS</label>
+        <label><input type="radio" name="transport" value="WSS" /> WSS</label>
+      </div>
+      <label class="block">
+        Browser gateway endpoint
+        <input id="gateway" type="text" value="ws://127.0.0.1:8080" />
+      </label>
+    </section>
+
+    <section class="panel" aria-label="Identity">
+      <h2>Identity</h2>
+      <label class="block">
+        My Aether UID
+        <div class="row">
+          <input id="my-uid" type="text" readonly data-testid="my-uid" />
+          <button type="button" id="copy-uid">Copy</button>
+        </div>
+      </label>
+      <label class="block">
+        Remote Aether UID
+        <div class="row">
+          <input id="remote-uid" type="text" data-testid="remote-uid" placeholder="peer uid" />
+          <button type="button" id="connect">Connect</button>
+        </div>
+      </label>
+    </section>
+
+    <section class="panel" aria-label="State">
+      <h2>State</h2>
+      <p id="state" data-testid="state" data-state="Idle">Idle</p>
+    </section>
+
+    <section class="panel" aria-label="Controls">
+      <h2>Controls</h2>
+      <div class="row">
+        <button type="button" id="send-ping">Send Ping</button>
+        <button type="button" id="start-periodic">Start periodic ping</button>
+        <button type="button" id="stop">Stop</button>
+        <button type="button" id="clear-profile">Clear this profile state</button>
+      </div>
+      <label class="block">
+        Periodic interval (ms)
+        <input id="interval-ms" type="number" min="10" value="200" />
+      </label>
+    </section>
+
+    <section class="panel" aria-label="Statistics">
+      <h2>Statistics</h2>
+      <dl id="stats" data-testid="stats">
+        <div><dt>sent</dt><dd data-stat="sent">0</dd></div>
+        <div><dt>pong received</dt><dd data-stat="pong_received">0</dd></div>
+        <div><dt>timed out</dt><dd data-stat="timed_out">0</dd></div>
+        <div><dt>duplicate</dt><dd data-stat="duplicate">0</dd></div>
+        <div><dt>out of order</dt><dd data-stat="out_of_order">0</dd></div>
+        <div><dt>latest RTT</dt><dd data-stat="rtt_latest_ms">0</dd></div>
+        <div><dt>minimum RTT</dt><dd data-stat="rtt_min_ms">0</dd></div>
+        <div><dt>average RTT</dt><dd data-stat="rtt_avg_ms">0</dd></div>
+        <div><dt>p50</dt><dd data-stat="rtt_p50_ms">0</dd></div>
+        <div><dt>p95</dt><dd data-stat="rtt_p95_ms">0</dd></div>
+        <div><dt>p99</dt><dd data-stat="rtt_p99_ms">0</dd></div>
+        <div><dt>maximum RTT</dt><dd data-stat="rtt_max_ms">0</dd></div>
+        <div><dt>transport</dt><dd data-stat="transport">none</dd></div>
+        <div><dt>reconnect count</dt><dd data-stat="reconnect_count">0</dd></div>
+      </dl>
+    </section>
+
+    <p id="boot-error" class="error" hidden></p>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

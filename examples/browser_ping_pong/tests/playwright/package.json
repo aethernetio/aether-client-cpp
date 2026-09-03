@@ -1,0 +1,17 @@
+{
+  "name": "aether-browser-ping-pong-e2e",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Playwright e2e for examples/browser_ping_pong",
+  "scripts": {
+    "test": "playwright test",
+    "test:http": "playwright test --grep @http",
+    "test:https": "playwright test --grep @https",
+    "test:ws": "playwright test --grep @ws",
+    "test:wss": "playwright test --grep @wss",
+    "test:all-transports": "node scripts/run-all-transports.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}

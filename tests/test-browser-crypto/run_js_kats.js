@@ -43,12 +43,19 @@ function assertEq(name, a, b) {
 
 async function loadSodium() {
   const candidates = [
+    path.join(root, 'examples/browser_ping_pong/vendor/libsodium/libsodium-wrappers.js'),
     path.join(root, 'examples/browser_ping_pong/vendor/node_modules/libsodium-wrappers'),
     'libsodium-wrappers',
   ];
   let lastErr;
   for (const c of candidates) {
     try {
+      // Vendored wrappers expect Module.sodium from the sibling dist build.
+      if (c.endsWith('libsodium-wrappers.js')) {
+        const sodiumPath = path.join(
+            path.dirname(c), 'dist', 'modules', 'libsodium.js');
+        global._sodiumLibsPath = sodiumPath;
+      }
       const sodium = require(c);
       await sodium.ready;
       return sodium;
