@@ -134,7 +134,7 @@ CPMAddPackage(
 CPMAddPackage(
   NAME ae-numeric
   GIT_REPOSITORY "https://github.com/aethernetio/aethernet-numeric.git"
-  GIT_TAG "edbdc0bef6e6b4140f52e3f841cb1b0e53a686e7"
+  GIT_TAG "main"
   OPTIONS "AE_NUMERIC_INSTALL ${AE_INSTALL}" "AE_BUILD_TESTS OFF"
   EXCLUDE_FROM_ALL FALSE
 )
@@ -148,7 +148,7 @@ CPMAddPackage(
 CPMAddPackage(
   NAME aether-tele
   GIT_REPOSITORY "https://github.com/aethernetio/aether-tele.git"
-  GIT_TAG "7424eb5bdd49e78bd73aa1e453594d3660c111c4"
+  GIT_TAG "main"
   OPTIONS "AE_TELE_INSTALL ${AE_INSTALL}"
           "AE_TELE_BUILD_TESTS ${AE_BUILD_TESTS}"
   EXCLUDE_FROM_ALL FALSE
