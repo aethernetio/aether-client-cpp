@@ -152,6 +152,8 @@ void AcquireProfileLock(std::string_view profile_name, OpCallback callback) {
   }
   auto* heap_cb = new OpCallback(std::move(callback));
   std::string name{profile_name};
+  // EM_ASM splits on commas outside parentheses — avoid bare object-literal
+  // commas by assigning fields one-by-one.
   EM_ASM(
       {
         var profile = UTF8ToString($0);
@@ -163,23 +165,22 @@ void AcquireProfileLock(std::string_view profile_name, OpCallback callback) {
           _ae_emscripten_storage_op_done(ok ? 1 : 0, ptr, userData);
           _free(ptr);
         };
-        if (typeof navigator === 'undefined' || !navigator.locks ||
-            typeof navigator.locks.request !== 'function') {
+        if (typeof navigator === "undefined" || !navigator.locks ||
+            typeof navigator.locks.request !== "function") {
           complete(false,
-                   'navigator.locks is required for safe profile access');
+                   "navigator.locks is required for safe profile access");
           return;
         }
-        var lockName = 'aether-profile:' + profile;
+        var lockName = "aether-profile:" + profile;
         if (Module.__aetherProfileLock) {
-          complete(false, 'profile lock already requested by this tab');
+          complete(false, "profile lock already requested by this tab");
           return;
         }
-        var held = {
-          name : lockName,
-          acquired : false,
-          cancelled : false,
-          release : null
-        };
+        var held = {};
+        held.name = lockName;
+        held.acquired = false;
+        held.cancelled = false;
+        held.release = null;
         Module.__aetherProfileLock = held;
         navigator.locks
             .request(lockName, {ifAvailable : true}, function(lock) {
@@ -187,18 +188,18 @@ void AcquireProfileLock(std::string_view profile_name, OpCallback callback) {
                 if (Module.__aetherProfileLock === held) {
                   delete Module.__aetherProfileLock;
                 }
-                complete(false, 'profile lock held by another tab');
+                complete(false, "profile lock held by another tab");
                 return;
               }
               if (held.cancelled) {
                 if (Module.__aetherProfileLock === held) {
                   delete Module.__aetherProfileLock;
                 }
-                complete(false, 'profile lock acquisition cancelled');
+                complete(false, "profile lock acquisition cancelled");
                 return;
               }
               held.acquired = true;
-              complete(true, '');
+              complete(true, "");
               return new Promise(function(resolve) {
                 held.release = resolve;
                 if (held.cancelled) {
