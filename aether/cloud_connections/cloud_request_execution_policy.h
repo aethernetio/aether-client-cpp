@@ -27,6 +27,10 @@
 
 namespace ae {
 
+// Max retries after the initial attempt for one CloudRequest ↔ one server.
+// Total attempts = 1 + retry_count ∈ [1, 32].
+inline constexpr std::uint8_t kMaxCloudRequestRetryCount{31};
+
 // Runtime (non-wire) CloudRequest latency / retry / hedge policy.
 // Orthogonal to RequestPolicy (which servers are candidates).
 struct CloudRequestExecutionPolicy {
@@ -35,6 +39,7 @@ struct CloudRequestExecutionPolicy {
   // Public semantic 1.2x stored as fixed-point permille (1200 => 1.2).
   std::uint16_t timeout_factor_permille{1200};
   // Retries after the initial attempt. retry_count=0 => 1 attempt total.
+  // Clamped to [0, kMaxCloudRequestRetryCount].
   std::uint8_t retry_count{1};
   // How many not-yet-activated following candidates to start on first soft miss.
   std::uint8_t hedge_next_servers{0};
@@ -66,11 +71,26 @@ struct CloudRequestExecutionPolicy {
         p.timeout_factor_permille = static_cast<std::uint16_t>(scaled);
       }
     }
-    p.retry_count = retries;
+    p.retry_count = retries > kMaxCloudRequestRetryCount
+                        ? kMaxCloudRequestRetryCount
+                        : retries;
     p.hedge_next_servers = hedge;
     return p;
   }
 };
+
+inline void NormalizeCloudRequestExecutionPolicy(
+    CloudRequestExecutionPolicy& policy) noexcept {
+  if (policy.response_percentile > 100) {
+    policy.response_percentile = 100;
+  }
+  if (policy.timeout_factor_permille == 0) {
+    policy.timeout_factor_permille = 1000;
+  }
+  if (policy.retry_count > kMaxCloudRequestRetryCount) {
+    policy.retry_count = kMaxCloudRequestRetryCount;
+  }
+}
 
 // T = round_nearest(rtt_ms * timeout_factor_permille / 1000).
 inline Duration ScaleDurationByPermille(Duration base,
@@ -107,17 +127,26 @@ struct CloudRequestServerExecState {
   bool activated{false};
   bool succeeded{false};
   bool exhausted{false};
+  // Authenticated API-level error: server is alive; attempt terminal; no
+  // no-response quarantine.
+  bool remote_error_completed{false};
   bool first_soft_miss_seen{false};
   std::uint8_t attempts_started{0};
   std::uint8_t soft_timeouts{0};
+  // Counts OnChannelChanged decisions (one event → one increment).
+  std::uint8_t channel_changed_events{0};
+
+  [[nodiscard]] bool IsTerminal() const noexcept {
+    return succeeded || exhausted || remote_error_completed;
+  }
 
   [[nodiscard]] bool ShouldSkip() const noexcept {
-    return succeeded || exhausted || !activated;
+    return IsTerminal() || !activated;
   }
 
   [[nodiscard]] bool CanStartAttempt(
       CloudRequestExecutionPolicy const& policy) const noexcept {
-    if (!activated || succeeded || exhausted) {
+    if (!activated || IsTerminal()) {
       return false;
     }
     return attempts_started < policy.TotalAttempts();
@@ -140,18 +169,36 @@ struct CloudRequestServerExecState {
 
   // Soft timeout for the current in-flight attempt. Does not Restream.
   SoftTimeoutAction OnSoftTimeout(CloudRequestExecutionPolicy const& policy) {
-    if (succeeded || exhausted || !activated) {
+    if (IsTerminal() || !activated) {
       return SoftTimeoutAction::kIgnore;
     }
     ++soft_timeouts;
-    bool const first_miss = !first_soft_miss_seen;
     first_soft_miss_seen = true;
-    static_cast<void>(first_miss);
     if (attempts_started < policy.TotalAttempts()) {
       return SoftTimeoutAction::kRetry;
     }
     exhausted = true;
     return SoftTimeoutAction::kExhaust;
+  }
+
+  enum class ChannelChangedAction : std::uint8_t {
+    kIgnore = 0,
+    kRetry,
+    kExhaust,
+  };
+
+  // One channel-changed event → at most one LaunchAttempt (or exhaust).
+  ChannelChangedAction OnChannelChanged(
+      CloudRequestExecutionPolicy const& policy) {
+    if (IsTerminal() || !activated) {
+      return ChannelChangedAction::kIgnore;
+    }
+    ++channel_changed_events;
+    if (!CanStartAttempt(policy)) {
+      exhausted = true;
+      return ChannelChangedAction::kExhaust;
+    }
+    return ChannelChangedAction::kRetry;
   }
 
   // How many following candidates to activate because of this soft miss.
@@ -165,10 +212,18 @@ struct CloudRequestServerExecState {
   }
 
   void MarkSucceeded() {
-    if (exhausted) {
+    if (exhausted || remote_error_completed) {
       return;
     }
     succeeded = true;
+  }
+
+  // Valid authenticated response with API-level failure — server is alive.
+  void MarkRemoteErrorCompleted() {
+    if (succeeded || exhausted) {
+      return;
+    }
+    remote_error_completed = true;
   }
 
   void MarkExhausted() { exhausted = true; }

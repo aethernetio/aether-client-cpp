@@ -248,12 +248,7 @@ void ClientConnectivityPolicy::SetOfflineDetectionTimeout(
 
 void ClientConnectivityPolicy::SetCloudRequestExecutionPolicy(
     CloudRequestExecutionPolicy policy) noexcept {
-  if (policy.response_percentile > 100) {
-    policy.response_percentile = 100;
-  }
-  if (policy.timeout_factor_permille == 0) {
-    policy.timeout_factor_permille = 1000;
-  }
+  NormalizeCloudRequestExecutionPolicy(policy);
   cloud_request_execution_policy_ = policy;
 }
 

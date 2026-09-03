@@ -322,16 +322,13 @@ void QueryPeerPresence::OnServerTiming(
   meta_it->second.send_times.erase(send_it);
 
   if (!res) {
+    // Authenticated API error: server is alive — do not use no-response
+    // FailAttempt / quarantine path.
     if (cloud_request_.has_value()) {
-      auto const exhausted = cloud_request_->FailAttempt(sc);
-      if (exhausted) {
-        MarkUnknown(server_id);
-        MaybeComplete();
-      }
-    } else {
-      MarkUnknown(server_id);
-      MaybeComplete();
+      cloud_request_->CompleteAttemptWithRemoteError(sc);
     }
+    MarkUnknown(server_id);
+    MaybeComplete();
     return;
   }
 

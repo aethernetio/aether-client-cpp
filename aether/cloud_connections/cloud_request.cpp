@@ -55,6 +55,7 @@ CloudRequest::CloudRequest(AeContext const& ae_context,
       exec_policy_{exec_policy},
       server_changed_sub_{cloud_scs_->servers_update_event().Subscribe(
           MethodPtr<&CloudRequest::ServersUpdated>{this})} {
+  NormalizeCloudRequestExecutionPolicy(exec_policy_);
   AE_CLOUD_REQ_DEBUG(
       "CLOUD_REQUEST_START percentile={} factor_permille={} retry_count={} "
       "hedge_next_servers={}",
@@ -77,6 +78,7 @@ CloudRequest::CloudRequest(AeContext const& ae_context,
       exec_policy_{exec_policy},
       server_changed_sub_{cloud_scs_->servers_update_event().Subscribe(
           MethodPtr<&CloudRequest::ServersUpdated>{this})} {
+  NormalizeCloudRequestExecutionPolicy(exec_policy_);
   AE_CLOUD_REQ_DEBUG(
       "CLOUD_REQUEST_START percentile={} factor_permille={} retry_count={} "
       "hedge_next_servers={}",
@@ -97,56 +99,47 @@ void CloudRequest::Failed() {
   result_event_.Emit(false);
 }
 
+void CloudRequest::StopServerTimers(ServerRequest& sr) {
+  for (auto& attempt : sr.attempts) {
+    attempt.timeout_sub.Reset();
+  }
+  sr.channel_changed_sub.Reset();
+}
+
 void CloudRequest::SucceedAttempt(CloudServerConnection* sc) {
   auto it = server_requests_.find(sc);
   if (it == server_requests_.end()) {
     return;
   }
   auto& sr = it->second;
-  if (sr.exec.succeeded || sr.exec.exhausted) {
+  if (sr.exec.IsTerminal()) {
     return;
   }
   AE_CLOUD_REQ_DEBUG("SERVER_ATTEMPT_SUCCESS server_id={}", sc->server_id());
-  // Cancel future soft timers; keep response_subs so in-flight late responses
-  // can still be observed by the listener if needed, but mark success first.
-  for (auto& attempt : sr.attempts) {
-    attempt.timeout_sub.Reset();
-  }
+  StopServerTimers(sr);
   sr.exec.MarkSucceeded();
-  // Sequential hedge=0 style: after success, activate the next candidate if
-  // RequestPolicy still requires more servers.
   ActivateFollowing(1);
   EnqueuePump();
 }
 
-bool CloudRequest::FailAttempt(CloudServerConnection* sc) {
+void CloudRequest::CompleteAttemptWithRemoteError(CloudServerConnection* sc) {
   auto it = server_requests_.find(sc);
   if (it == server_requests_.end()) {
-    return false;
+    return;
   }
   auto& sr = it->second;
-  if (sr.exec.succeeded || sr.exec.exhausted) {
-    return false;
+  if (sr.exec.IsTerminal()) {
+    return;
   }
-  // Treat application-reported failure like a soft miss for budget purposes:
-  // do not Restream; retry if budget remains; otherwise quarantine.
-  bool const first_soft_miss = !sr.exec.first_soft_miss_seen;
-  auto const action = sr.exec.OnSoftTimeout(exec_policy_);
-  if (first_soft_miss && exec_policy_.hedge_next_servers > 0) {
-    ActivateFollowing(exec_policy_.hedge_next_servers, /*as_hedge=*/true, sc);
-  }
-  if (action == CloudRequestServerExecState::SoftTimeoutAction::kRetry) {
-    LaunchAttempt(sc, sr);
-    EnqueuePump();
-    return false;
-  }
-  if (action == CloudRequestServerExecState::SoftTimeoutAction::kExhaust) {
-    ExhaustServerNoResponse(sc, sr);
-    EnqueuePump();
-    return true;
-  }
+  // Authenticated API error: server proved it is alive. Do not treat as
+  // no-response, do not soft-retry, do not quarantine for timeout policy.
+  AE_CLOUD_REQ_DEBUG(
+      "SERVER_REMOTE_API_ERROR server_id={} (no no-response quarantine)",
+      sc->server_id());
+  StopServerTimers(sr);
+  sr.exec.MarkRemoteErrorCompleted();
+  ActivateFollowing(1);
   EnqueuePump();
-  return sr.exec.exhausted;
 }
 
 CloudRequest::ResultEvent::Subscriber CloudRequest::result_event() {
@@ -166,8 +159,6 @@ void CloudRequest::RebuildCandidates() {
   std::vector<CloudServerConnection*> next;
   cloud_scs_->ForServers([&](CloudServerConnection* sc) { next.push_back(sc); },
                          policy_);
-  // Preserve activation cursor semantics: append newly eligible servers after
-  // existing candidate order; keep already-known pointers stable.
   for (auto* sc : next) {
     auto const known =
         std::find(candidates_.begin(), candidates_.end(), sc) !=
@@ -191,7 +182,7 @@ void CloudRequest::ActivateFollowing(std::uint8_t count, bool as_hedge,
   while (count > 0 && activate_cursor_ < candidates_.size()) {
     auto* sc = candidates_[activate_cursor_++];
     auto& sr = server_requests_[sc];
-    if (sr.exec.activated || sr.exec.succeeded || sr.exec.exhausted) {
+    if (sr.exec.activated || sr.exec.IsTerminal()) {
       continue;
     }
     if (as_hedge) {
@@ -210,7 +201,25 @@ void CloudRequest::ActivateServer(CloudServerConnection* sc) {
     return;
   }
   sr.exec.activated = true;
+  EnsureChannelChangedSubscription(sc, sr);
   LaunchAttempt(sc, sr);
+}
+
+void CloudRequest::EnsureChannelChangedSubscription(CloudServerConnection* sc,
+                                                    ServerRequest& sr) {
+  if (sr.channel_changed_sub) {
+    return;
+  }
+  auto* conn = sc->client_connection();
+  if (conn == nullptr) {
+    return;
+  }
+  sr.channel_changed_sub =
+      conn->server_connection().channel_changed_event().Subscribe([this, sc]() {
+        AE_CLOUD_REQ_WARNING("Request server channel changed {}",
+                             sc->server_id());
+        OnChannelChanged(sc);
+      });
 }
 
 Duration CloudRequest::SoftTimeoutFor(CloudServerConnection* sc) const {
@@ -246,19 +255,18 @@ void CloudRequest::LaunchAttempt(CloudServerConnection* sc,
   if (conn == nullptr) {
     AE_CLOUD_REQ_WARNING("SERVER_ATTEMPT skipped disconnected server {}",
                          sc->server_id());
-    // Hard unusable: exhaust and quarantine via existing health path if link
-    // errors; for a missing connection treat as attempt failure.
     auto const action = sr.exec.OnSoftTimeout(exec_policy_);
     if (action == CloudRequestServerExecState::SoftTimeoutAction::kExhaust) {
       ExhaustServerNoResponse(sc, sr);
     } else if (action ==
                CloudRequestServerExecState::SoftTimeoutAction::kRetry) {
-      // Will retry on next pump when connection appears.
       sr.exec.attempts_started =
           static_cast<std::uint8_t>(sr.exec.attempts_started - 1);
     }
     return;
   }
+
+  EnsureChannelChangedSubscription(sc, sr);
 
   auto const timeout = SoftTimeoutFor(sc);
   AE_CLOUD_REQ_DEBUG(
@@ -286,26 +294,19 @@ void CloudRequest::LaunchAttempt(CloudServerConnection* sc,
                  },
                  request_);
 
-  // Write failure is a hard-ish send problem — count toward budget without
-  // Restream from soft timeout path.
-  attempt.subs += swa.status_event().Subscribe([this, sc](auto status) {
+  // Write failure: send may not have reached the server. Reuse soft retry
+  // budget (no Restream). LinkError quarantine remains on the connection
+  // health path and is not duplicated here beyond ExhaustServerNoResponse.
+  attempt.write_subs += swa.status_event().Subscribe([this, sc](auto status) {
     if (status == WriteAction::Status::kFail) {
       AE_CLOUD_REQ_WARNING("Request write error server {}", sc->server_id());
       OnWriteFailed(sc);
     }
   });
-  attempt.subs +=
-      conn->server_connection().channel_changed_event().Subscribe([this, sc]() {
-        AE_CLOUD_REQ_WARNING("Request server channel changed {}",
-                             sc->server_id());
-        OnChannelChanged(sc);
-      });
 
   if (std::holds_alternative<ApiCallWithListener>(request_)) {
     auto& listener = std::get<ApiCallWithListener>(request_).listener;
     if (listener) {
-      // Keep listener subscriptions durable so late responses from earlier
-      // attempts are not destroyed when a retry is launched.
       sr.response_subs += listener(conn->client_safe_api(), sc, this);
     }
   }
@@ -324,7 +325,7 @@ void CloudRequest::OnSoftTimeout(CloudServerConnection* sc,
     return;
   }
   auto& sr = it->second;
-  if (sr.exec.succeeded || sr.exec.exhausted) {
+  if (sr.exec.IsTerminal()) {
     return;
   }
 
@@ -361,21 +362,17 @@ void CloudRequest::OnSoftTimeout(CloudServerConnection* sc,
 
 void CloudRequest::ExhaustServerNoResponse(CloudServerConnection* sc,
                                            ServerRequest& sr) {
-  if (sr.exec.succeeded) {
+  if (sr.exec.succeeded || sr.exec.remote_error_completed) {
     return;
   }
   sr.exec.MarkExhausted();
-  for (auto& attempt : sr.attempts) {
-    attempt.timeout_sub.Reset();
-  }
+  StopServerTimers(sr);
   AE_CLOUD_REQ_WARNING(
-      "SERVER_RETRY_EXHAUSTED server_id={} attempts={} -> "
+      "SERVER_RETRY_EXHAUSTED server_id={} attempts={} soft_timeouts={} -> "
       "SERVER_QUARANTINE_NO_RESPONSE",
-      sc->server_id(), sr.exec.attempts_started);
+      sc->server_id(), sr.exec.attempts_started, sr.exec.soft_timeouts);
   cloud_scs_->QuarantineForNoResponse(*sc);
   EmitAttemptExhausted(sc);
-  // After quarantine/reconcile, ServersUpdated may add a replacement — also
-  // advance sequential activation for remaining required candidates.
   ActivateFollowing(1);
 }
 
@@ -385,16 +382,18 @@ void CloudRequest::OnChannelChanged(CloudServerConnection* sc) {
     return;
   }
   auto& sr = it->second;
-  if (sr.exec.succeeded || sr.exec.exhausted || !sr.exec.activated) {
+  auto const action = sr.exec.OnChannelChanged(exec_policy_);
+  if (action ==
+      CloudRequestServerExecState::ChannelChangedAction::kIgnore) {
     return;
   }
-  // Channel change is infrastructure: re-send without Restream-from-soft-timeout,
-  // using remaining attempt budget if available.
-  if (!sr.exec.CanStartAttempt(exec_policy_)) {
+  if (action ==
+      CloudRequestServerExecState::ChannelChangedAction::kExhaust) {
     ExhaustServerNoResponse(sc, sr);
     EnqueuePump();
     return;
   }
+  // Exactly one LaunchAttempt per channel-changed event.
   LaunchAttempt(sc, sr);
   EnqueuePump();
 }
@@ -405,11 +404,13 @@ void CloudRequest::OnWriteFailed(CloudServerConnection* sc) {
     return;
   }
   auto& sr = it->second;
-  if (sr.exec.succeeded || sr.exec.exhausted) {
+  if (sr.exec.IsTerminal()) {
     return;
   }
-  // Write failure: do not soft-Restream; apply retry budget. Hard LinkError
-  // quarantine remains on the connection health path.
+  // WriteAction::kFail: treat as send-path failure using soft retry budget
+  // (no Restream). Hard LinkError quarantine is owned by CloudServerConnections
+  // stream/error subscriptions — ExhaustServerNoResponse may also quarantine
+  // after budget exhaustion if the write failures never produced a response.
   bool const first_soft_miss = !sr.exec.first_soft_miss_seen;
   auto const action = sr.exec.OnSoftTimeout(exec_policy_);
   if (first_soft_miss && exec_policy_.hedge_next_servers > 0) {
@@ -426,14 +427,10 @@ void CloudRequest::OnWriteFailed(CloudServerConnection* sc) {
 
 void CloudRequest::ServersUpdated() {
   RebuildCandidates();
-  // If nothing is active yet, start the first candidate. Otherwise activate
-  // newly appended replacements only when sequential policy needs them or
-  // hedge already opened the window — ActivateFollowing(1) after exhaustion
-  // handles the common replacement case.
   bool any_activated = false;
   for (auto const& [sc, sr] : server_requests_) {
     static_cast<void>(sc);
-    if (sr.exec.activated && !sr.exec.exhausted && !sr.exec.succeeded) {
+    if (sr.exec.activated && !sr.exec.IsTerminal()) {
       any_activated = true;
       break;
     }
@@ -441,7 +438,6 @@ void CloudRequest::ServersUpdated() {
   if (!any_activated) {
     ActivateInitial();
   } else {
-    // Ensure replacements beyond the cursor can be pulled in for All.
     ActivateFollowing(1);
   }
   EnqueuePump();
@@ -464,14 +460,12 @@ void CloudRequest::Pump() {
     static_cast<void>(sc);
     if (sr.exec.succeeded) {
       any_succeeded = true;
-    } else if (sr.exec.activated && !sr.exec.exhausted) {
+    } else if (sr.exec.activated && !sr.exec.IsTerminal()) {
       any_open = true;
-    } else if (!sr.exec.activated && !sr.exec.exhausted) {
-      // Candidate not yet activated — still open for sequential/hedge.
+    } else if (!sr.exec.activated && !sr.exec.IsTerminal()) {
       any_open = true;
     }
   }
-  // Candidates reserved but not activated still count as open work.
   if (activate_cursor_ < candidates_.size()) {
     any_open = true;
   }

@@ -197,6 +197,168 @@ void test_PolicySnapshotDefaults() {
   TEST_ASSERT_EQUAL(2, d.TotalAttempts());
 }
 
+void test_RetryCountClampAndMax() {
+  TEST_ASSERT_EQUAL(31, kMaxCloudRequestRetryCount);
+
+  CloudRequestExecutionPolicy p0 =
+      CloudRequestExecutionPolicy::FromFactor(99, 1.2, 0, 0);
+  TEST_ASSERT_EQUAL(0, p0.retry_count);
+  TEST_ASSERT_EQUAL(1, p0.TotalAttempts());
+
+  CloudRequestExecutionPolicy p1 =
+      CloudRequestExecutionPolicy::FromFactor(99, 1.2, 1, 0);
+  TEST_ASSERT_EQUAL(1, p1.retry_count);
+  TEST_ASSERT_EQUAL(2, p1.TotalAttempts());
+
+  CloudRequestExecutionPolicy p31 =
+      CloudRequestExecutionPolicy::FromFactor(99, 1.2, 31, 0);
+  TEST_ASSERT_EQUAL(31, p31.retry_count);
+  TEST_ASSERT_EQUAL(32, p31.TotalAttempts());
+
+  CloudRequestExecutionPolicy over{};
+  over.retry_count = 255;
+  NormalizeCloudRequestExecutionPolicy(over);
+  TEST_ASSERT_EQUAL(31, over.retry_count);
+  TEST_ASSERT_EQUAL(32, over.TotalAttempts());
+
+  auto const from_over =
+      CloudRequestExecutionPolicy::FromFactor(99, 1.2, 255, 0);
+  TEST_ASSERT_EQUAL(31, from_over.retry_count);
+  TEST_ASSERT_EQUAL(32, from_over.TotalAttempts());
+}
+
+void test_RetryCount31StateMachine() {
+  CloudRequestExecutionPolicy policy =
+      CloudRequestExecutionPolicy::FromFactor(99, 1.2, 31, 0);
+  TEST_ASSERT_EQUAL(32, policy.TotalAttempts());
+
+  CloudRequestServerExecState s;
+  s.activated = true;
+  for (int i = 0; i < 31; ++i) {
+    TEST_ASSERT_TRUE(s.CanStartAttempt(policy));
+    TEST_ASSERT_EQUAL(i + 1, s.StartAttempt(policy));
+    auto const action = s.OnSoftTimeout(policy);
+    TEST_ASSERT_EQUAL(
+        static_cast<int>(CloudRequestServerExecState::SoftTimeoutAction::kRetry),
+        static_cast<int>(action));
+    TEST_ASSERT_FALSE(s.exhausted);
+  }
+  TEST_ASSERT_EQUAL(31, s.attempts_started);
+  TEST_ASSERT_EQUAL(31, s.soft_timeouts);
+  TEST_ASSERT_EQUAL(32, s.StartAttempt(policy));
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(CloudRequestServerExecState::SoftTimeoutAction::kExhaust),
+      static_cast<int>(s.OnSoftTimeout(policy)));
+  TEST_ASSERT_TRUE(s.exhausted);
+  TEST_ASSERT_EQUAL(32, s.attempts_started);
+  TEST_ASSERT_EQUAL(32, s.soft_timeouts);
+  TEST_ASSERT_EQUAL(0, s.StartAttempt(policy));  // no uint8 wrap / extra
+}
+
+void test_ChannelChangedOneCallbackPerServer() {
+  // retry_count=2: after attempt #1 soft timeout and attempt #2 started,
+  // one channel-changed event must produce exactly one OnChannelChanged
+  // decision and at most one additional attempt.
+  CloudRequestExecutionPolicy policy =
+      CloudRequestExecutionPolicy::FromFactor(99, 1.2, 2, 0);
+  CloudRequestServerExecState s;
+  s.activated = true;
+  TEST_ASSERT_EQUAL(1, s.StartAttempt(policy));
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(CloudRequestServerExecState::SoftTimeoutAction::kRetry),
+      static_cast<int>(s.OnSoftTimeout(policy)));
+  TEST_ASSERT_EQUAL(2, s.StartAttempt(policy));
+  // Simulate two outstanding attempts (#1 timed out late-response possible,
+  // #2 active) — still one channel-changed subscription / one callback.
+  auto const a = s.OnChannelChanged(policy);
+  TEST_ASSERT_EQUAL(1, s.channel_changed_events);
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(
+          CloudRequestServerExecState::ChannelChangedAction::kRetry),
+      static_cast<int>(a));
+  TEST_ASSERT_EQUAL(3, s.StartAttempt(policy));
+  TEST_ASSERT_FALSE(s.exhausted);
+  // Budget exhausted: further channel change must not start more attempts.
+  auto const b = s.OnChannelChanged(policy);
+  TEST_ASSERT_EQUAL(2, s.channel_changed_events);
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(
+          CloudRequestServerExecState::ChannelChangedAction::kExhaust),
+      static_cast<int>(b));
+  TEST_ASSERT_TRUE(s.exhausted);
+  TEST_ASSERT_EQUAL(3, s.attempts_started);
+}
+
+void test_ChannelChangedThreeOutstandingAttempts() {
+  // Three outstanding attempts (retry_count=2, all started via soft path /
+  // channel), then one channel event must still be a single decision.
+  CloudRequestExecutionPolicy policy =
+      CloudRequestExecutionPolicy::FromFactor(99, 1.2, 2, 0);
+  CloudRequestServerExecState s;
+  s.activated = true;
+  s.StartAttempt(policy);  // #1
+  s.OnSoftTimeout(policy);
+  s.StartAttempt(policy);  // #2
+  s.OnSoftTimeout(policy);
+  s.StartAttempt(policy);  // #3 — budget full, three outstanding conceptually
+  TEST_ASSERT_EQUAL(3, s.attempts_started);
+  TEST_ASSERT_FALSE(s.CanStartAttempt(policy));
+
+  auto const a = s.OnChannelChanged(policy);
+  TEST_ASSERT_EQUAL(1, s.channel_changed_events);
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(
+          CloudRequestServerExecState::ChannelChangedAction::kExhaust),
+      static_cast<int>(a));
+  TEST_ASSERT_TRUE(s.exhausted);
+  TEST_ASSERT_EQUAL(3, s.attempts_started);  // no extra launch
+  TEST_ASSERT_EQUAL(0, s.StartAttempt(policy));
+}
+
+void test_ApiErrorDoesNotQuarantine() {
+  CloudRequestExecutionPolicy policy =
+      CloudRequestExecutionPolicy::FromFactor(99, 1.2, 2, 0);
+  CloudRequestServerExecState s;
+  s.activated = true;
+  TEST_ASSERT_EQUAL(1, s.StartAttempt(policy));
+  s.MarkRemoteErrorCompleted();
+  TEST_ASSERT_TRUE(s.remote_error_completed);
+  TEST_ASSERT_TRUE(s.IsTerminal());
+  TEST_ASSERT_FALSE(s.exhausted);
+  TEST_ASSERT_FALSE(s.succeeded);
+  TEST_ASSERT_EQUAL(0, s.soft_timeouts);
+  TEST_ASSERT_FALSE(s.CanStartAttempt(policy));
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(CloudRequestServerExecState::SoftTimeoutAction::kIgnore),
+      static_cast<int>(s.OnSoftTimeout(policy)));
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(
+          CloudRequestServerExecState::ChannelChangedAction::kIgnore),
+      static_cast<int>(s.OnChannelChanged(policy)));
+  TEST_ASSERT_EQUAL(0, s.channel_changed_events);
+  TEST_ASSERT_EQUAL(0, s.soft_timeouts);
+  TEST_ASSERT_FALSE(s.exhausted);  // no no-response quarantine path
+}
+
+void test_NoResponseStillQuarantinesAfterBudget() {
+  // retry_count=2 => attempts=3 soft timeouts then exhaust (=quarantine point).
+  CloudRequestExecutionPolicy policy =
+      CloudRequestExecutionPolicy::FromFactor(99, 1.2, 2, 0);
+  CloudRequestServerExecState s;
+  s.activated = true;
+  s.StartAttempt(policy);
+  s.OnSoftTimeout(policy);
+  TEST_ASSERT_FALSE(s.exhausted);
+  s.StartAttempt(policy);
+  s.OnSoftTimeout(policy);
+  TEST_ASSERT_FALSE(s.exhausted);
+  s.StartAttempt(policy);
+  s.OnSoftTimeout(policy);
+  TEST_ASSERT_TRUE(s.exhausted);
+  TEST_ASSERT_EQUAL(3, s.attempts_started);
+  TEST_ASSERT_EQUAL(3, s.soft_timeouts);
+}
+
 void test_DeterministicLatencyTimeline() {
   // p99=100ms, factor=1.2 => T=120ms per attempt when RTT fixed.
   CloudRequestExecutionPolicy policy =
@@ -247,9 +409,15 @@ int main() {
   UNITY_BEGIN();
   RUN_TEST(ae::test_cloud_request::test_TimeoutCalculation);
   RUN_TEST(ae::test_cloud_request::test_RetryCountSemantics);
+  RUN_TEST(ae::test_cloud_request::test_RetryCountClampAndMax);
+  RUN_TEST(ae::test_cloud_request::test_RetryCount31StateMachine);
   RUN_TEST(ae::test_cloud_request::test_NoQuarantineBeforeExhaustionAndHedge);
   RUN_TEST(ae::test_cloud_request::test_HedgeZeroKeepsSequential);
   RUN_TEST(ae::test_cloud_request::test_LateResponseAfterSoftTimeout);
+  RUN_TEST(ae::test_cloud_request::test_ChannelChangedOneCallbackPerServer);
+  RUN_TEST(ae::test_cloud_request::test_ChannelChangedThreeOutstandingAttempts);
+  RUN_TEST(ae::test_cloud_request::test_ApiErrorDoesNotQuarantine);
+  RUN_TEST(ae::test_cloud_request::test_NoResponseStillQuarantinesAfterBudget);
   RUN_TEST(ae::test_cloud_request::test_PerServerTimeoutIndependent);
   RUN_TEST(ae::test_cloud_request::test_PolicySnapshotDefaults);
   RUN_TEST(ae::test_cloud_request::test_DeterministicLatencyTimeline);

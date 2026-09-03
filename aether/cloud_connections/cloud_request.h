@@ -28,6 +28,7 @@
 #include "aether/cloud_connections/request_policy.h"
 #include "aether/cloud_connections/cloud_callbacks.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
+#include "aether/events/event_subscription.h"
 #include "aether/events/multi_subscription.h"
 
 namespace ae {
@@ -39,16 +40,21 @@ namespace ae {
  * no-response happens only after the per-server retry budget is exhausted.
  * Late valid responses from earlier attempts are accepted.
  *
+ * Authenticated API-level errors (CompleteAttemptWithRemoteError) prove the
+ * server is alive and must not quarantine via the no-response path.
+ *
  * ResponseSubscriber / ApiRequestHandler must handle responses. On whole
  * request success, call CloudRequest::Succeeded(); on whole failure,
- * CloudRequest::Failed(). Per-server: SucceedAttempt / FailAttempt.
+ * CloudRequest::Failed(). Per-server: SucceedAttempt /
+ * CompleteAttemptWithRemoteError.
  */
 // Compatibility alias for older unit helpers.
 using CloudRequestAttemptState = CloudRequestServerExecState;
 
 class CloudRequest final : public Action {
   struct AttemptState {
-    MultiSubscription subs;
+    // Write-status subscription for this attempt only.
+    MultiSubscription write_subs;
     TaskSubscription timeout_sub;
     std::uint8_t attempt_index{0};
     bool timed_out{false};
@@ -58,6 +64,9 @@ class CloudRequest final : public Action {
     CloudRequestServerExecState exec{};
     // Durable across attempts so late responses remain deliverable.
     MultiSubscription response_subs;
+    // One channel_changed subscription for the whole server lifetime in this
+    // CloudRequest ? not per attempt.
+    Subscription channel_changed_sub;
     std::vector<AttemptState> attempts;
   };
 
@@ -84,10 +93,9 @@ class CloudRequest final : public Action {
   // Per-server success: accept late responses, cancel future retries, no
   // Restream / quarantine.
   void SucceedAttempt(CloudServerConnection* sc);
-  // Listener-side attempt failure (e.g. API error). Soft retry budget applies.
-  // Returns true when the server is exhausted (and quarantined for no usable
-  // response path).
-  bool FailAttempt(CloudServerConnection* sc);
+  // Valid authenticated response with API-level failure. Server is alive:
+  // no soft-timeout retry budget, no no-response quarantine.
+  void CompleteAttemptWithRemoteError(CloudServerConnection* sc);
 
   CloudRequestExecutionPolicy const& execution_policy() const noexcept {
     return exec_policy_;
@@ -102,7 +110,10 @@ class CloudRequest final : public Action {
   void ActivateFollowing(std::uint8_t count, bool as_hedge = false,
                          CloudServerConnection* source = nullptr);
   void ActivateServer(CloudServerConnection* sc);
+  void EnsureChannelChangedSubscription(CloudServerConnection* sc,
+                                        ServerRequest& sr);
   void LaunchAttempt(CloudServerConnection* sc, ServerRequest& sr);
+  void StopServerTimers(ServerRequest& sr);
 
   Duration SoftTimeoutFor(CloudServerConnection* sc) const;
   void OnSoftTimeout(CloudServerConnection* sc, std::uint8_t attempt_index);
