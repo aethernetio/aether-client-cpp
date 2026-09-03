@@ -20,13 +20,13 @@
 #include "aether/config.h"
 
 #if AE_SUPPORT_LORA
+#  include "aether-objects/obj/obj.h"
 #  include "aether/access_points/access_point.h"
 #  include "aether/actions/action.h"
 #  include "aether/actions/action_ptr.h"
 #  include "aether/adapters/lora_module_adapter.h"
 #  include "aether/events/event_subscription.h"
 #  include "aether/lora_modules/ilora_module_driver.h"
-#  include "aether/obj/obj.h"
 #  include "aether/types/state_machine.h"
 
 namespace ae {

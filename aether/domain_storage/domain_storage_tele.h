@@ -17,30 +17,10 @@
 #ifndef AETHER_DOMAIN_STORAGE_DOMAIN_STORAGE_TELE_H_
 #define AETHER_DOMAIN_STORAGE_DOMAIN_STORAGE_TELE_H_
 
-#include "aether/tele.h"
+#include "aether/tele.h"  // IWYU pragma: exports
 
 AE_TELE_MODULE(kDomainStorage, 9, 171, 185);
 AE_TELE_MODULE(kDomainStorageDebug, 109, 300, 320);
-
-AE_TAG(kFileSystemDsLoadObjClassIdNotFound, kDomainStorage)
-AE_TAG(kFileSystemDsEnumObjIdNotFound, kDomainStorage)
-AE_TAG(kFileSystemDsRemoveObjError, kDomainStorage)
-
-AE_TAG(kFileSystemDsEnumerated, kDomainStorageDebug)
-AE_TAG(kFileSystemDsObjSaved, kDomainStorageDebug)
-AE_TAG(kFileSystemDsObjLoaded, kDomainStorageDebug)
-AE_TAG(kFileSystemDsObjRemoved, kDomainStorageDebug)
-
-AE_TAG(kRamDsLoadObjVersionNotFound, kDomainStorage)
-AE_TAG(kRamDsLoadObjIdNoFound, kDomainStorage)
-AE_TAG(kRamDsLoadObjClassIdNotFound, kDomainStorage)
-AE_TAG(kRamDsEnumObjIdNotFound, kDomainStorage)
-AE_TAG(kRamDsRemoveObjError, kDomainStorage)
-
-AE_TAG(kRamDsEnumerated, kDomainStorageDebug)
-AE_TAG(kRamDsObjSaved, kDomainStorageDebug)
-AE_TAG(kRamDsObjLoaded, kDomainStorageDebug)
-AE_TAG(kRamDsObjRemoved, kDomainStorageDebug)
 
 AE_TAG(kSpifsDsLoadObjVersionNotFound, kDomainStorage)
 AE_TAG(kSpifsDsLoadObjIdNoFound, kDomainStorage)

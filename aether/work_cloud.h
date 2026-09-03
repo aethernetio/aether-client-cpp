@@ -17,8 +17,8 @@
 #ifndef AETHER_WORK_CLOUD_H_
 #define AETHER_WORK_CLOUD_H_
 
+#include "aether-objects/obj/obj.h"
 #include "aether/cloud.h"
-#include "aether/obj/obj.h"
 #include "aether/types/uid.h"
 
 namespace ae {

@@ -24,12 +24,14 @@
 
 #include <unity.h>
 
+#include "aether-objects/domain_storage/ram_domain_storage.h"
+#include "aether-objects/obj/domain.h"
+
 #include "aether/adapter_registry.h"
 #include "aether/ae_context.h"
 #include "aether/channels/channel.h"
 #include "aether/config.h"
 #include "aether/executors/executors.h"
-#include "aether/obj/domain.h"
 #include "aether/server.h"
 #include "aether/server_connections/server_connection.h"
 #include "aether/stream_api/istream.h"
@@ -37,8 +39,6 @@
 #include "aether/types/address.h"
 #include "aether/types/server_id.h"
 #include "aether/write_action/write_action.h"
-
-#include "tests/test-object-system/map_domain_storage.h"
 
 namespace ae {
 
@@ -205,8 +205,8 @@ Server::ptr MakeServerWithChannels(Domain& domain,
 void test_SingleChannelBuildFailureReachesLinkError() {
   TestContext ctx;
   AeContext ae_ctx{ctx};
-  MapDomainStorage storage;
-  Domain domain{Now(), storage};
+  RamDomainStorage storage;
+  Domain domain{storage};
 
   int builds = 0;
   FakeBuildPolicy policy{FakeBuildPolicy::Mode::kAlwaysFail, &builds, &ae_ctx};
@@ -251,8 +251,8 @@ void test_SingleChannelBuildFailureReachesLinkError() {
 void test_ResultCallbackSeesFinishedAction() {
   TestContext ctx;
   AeContext ae_ctx{ctx};
-  MapDomainStorage storage;
-  Domain domain{Now(), storage};
+  RamDomainStorage storage;
+  Domain domain{storage};
 
   int builds = 0;
   FakeBuildPolicy policy{FakeBuildPolicy::Mode::kAlwaysFail, &builds, &ae_ctx};
@@ -271,8 +271,8 @@ void test_ResultCallbackSeesFinishedAction() {
 void test_SecondChannelSucceedsAfterFirstFailure() {
   TestContext ctx;
   AeContext ae_ctx{ctx};
-  MapDomainStorage storage;
-  Domain domain{Now(), storage};
+  RamDomainStorage storage;
+  Domain domain{storage};
 
   int builds = 0;
   FakeBuildPolicy policy{FakeBuildPolicy::Mode::kFailThenSucceed, &builds,
@@ -297,8 +297,8 @@ void test_SecondChannelSucceedsAfterFirstFailure() {
 void test_FullPoolStillReachesLinkError() {
   TestContext ctx;
   AeContext ae_ctx{ctx};
-  MapDomainStorage storage;
-  Domain domain{Now(), storage};
+  RamDomainStorage storage;
+  Domain domain{storage};
 
   // Leave a few slots for transport timeout plumbing; keep the rest occupied
   // with active delayed tasks so deferred reselect cannot allocate.
@@ -346,8 +346,8 @@ void test_FullPoolStillReachesLinkError() {
 void test_NoBusyLoopOnPermanentFailure() {
   TestContext ctx;
   AeContext ae_ctx{ctx};
-  MapDomainStorage storage;
-  Domain domain{Now(), storage};
+  RamDomainStorage storage;
+  Domain domain{storage};
 
   int builds = 0;
   FakeBuildPolicy policy{FakeBuildPolicy::Mode::kAlwaysFail, &builds, &ae_ctx};

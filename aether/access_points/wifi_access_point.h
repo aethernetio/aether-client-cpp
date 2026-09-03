@@ -22,10 +22,10 @@
 #include "aether/config.h"
 
 #if AE_SUPPORT_WIFIS
+#  include "aether-objects/obj/obj_ptr.h"
 #  include "aether/actions/action.h"
 #  include "aether/ae_context.h"
 #  include "aether/events/events.h"
-#  include "aether/obj/obj_ptr.h"
 
 #  include "aether/access_points/access_point.h"
 #  include "aether/wifi/wifi_driver.h"

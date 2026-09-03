@@ -1,0 +1,83 @@
+# Copyright 2026 Aethernet Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# User-editable CMake toolchain draft for GNU and Clang.
+#
+# Select it explicitly with:
+# cmake -S . -B <build-dir> -DCMAKE_TOOLCHAIN_FILE=<path-to-this-file>
+#
+# These directory-wide options affect every target created after this toolchain
+# is loaded, including dependencies. They apply only to Release builds.
+
+# GNU and Clang compile options.
+set(_gnu_clang_compile_options
+    -ffast-math
+    # These explicit math flags are intentionally selected for this toolchain.
+    -fno-math-errno
+    -funsafe-math-optimizations
+    -fassociative-math
+    -freciprocal-math
+    -ffinite-math-only
+    -fno-signed-zeros
+    -fno-trapping-math
+    -DNDEBUG
+    -fdata-sections
+    -ffunction-sections)
+set(_gnu_clang_cxx_compile_options -fno-exceptions -fno-rtti)
+
+add_compile_options(
+    "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:C,GNU,Clang>>:${_gnu_clang_compile_options}>"
+    "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>>:${_gnu_clang_compile_options}>"
+    "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>>:${_gnu_clang_cxx_compile_options}>")
+
+# GNU compiler-specific compile options.
+set(_gnu_compile_options
+    -fno-fp-int-builtin-inexact
+    -flto=auto
+    -ffat-lto-objects)
+set(_gnu_c_compile_options
+    -fsingle-precision-constant
+    "$<$<VERSION_GREATER_EQUAL:$<C_COMPILER_VERSION>,12.1>:-Oz>"
+    "$<$<NOT:$<VERSION_GREATER_EQUAL:$<C_COMPILER_VERSION>,12.1>>:-Os>")
+set(_gnu_cxx_compile_options
+    "$<$<VERSION_GREATER_EQUAL:$<CXX_COMPILER_VERSION>,12.1>:-Oz>"
+    "$<$<NOT:$<VERSION_GREATER_EQUAL:$<CXX_COMPILER_VERSION>,12.1>>:-Os>")
+
+add_compile_options(
+    "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:C,GNU>>:${_gnu_compile_options};${_gnu_c_compile_options}>"
+    "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:CXX,GNU>>:${_gnu_compile_options};${_gnu_cxx_compile_options}>")
+
+# Clang compiler-specific compile options.
+set(_clang_compile_options -Os -flto)
+add_compile_options(
+    "$<$<AND:$<CONFIG:Release>,$<C_COMPILER_ID:Clang>>:${_clang_compile_options}>")
+
+# GNU and Clang link options.
+set(_gnu_clang_link_options
+    -fdata-sections
+    -ffunction-sections
+    -Wl,--gc-sections
+    -Wl,--strip-all)
+add_link_options(
+    "$<$<AND:$<CONFIG:Release>,$<CXX_COMPILER_ID:GNU,Clang>>:${_gnu_clang_link_options}>")
+
+# GNU compiler-specific link options.
+set(_gnu_link_options -flto=auto)
+add_link_options(
+    "$<$<AND:$<CONFIG:Release>,$<CXX_COMPILER_ID:GNU>>:${_gnu_link_options}>")
+
+# Clang compiler-specific link options.
+set(_clang_link_options -flto)
+add_link_options(
+    "$<$<AND:$<CONFIG:Release>,$<CXX_COMPILER_ID:Clang>>:${_clang_link_options}>")

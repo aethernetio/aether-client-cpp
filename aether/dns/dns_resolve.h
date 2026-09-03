@@ -17,15 +17,15 @@
 #ifndef AETHER_DNS_DNS_RESOLVE_H_
 #define AETHER_DNS_DNS_RESOLVE_H_
 
-#include <vector>  // IWYU pragma: keep
 #include <cassert>
+#include <vector>  // IWYU pragma: keep
 
+#include "aether-objects/obj/dummy_obj.h"  // IWYU pragma: keep
 #include "aether/config.h"
-#include "aether/obj/dummy_obj.h"  // IWYU pragma: keep
 #if AE_SUPPORT_CLOUD_DNS
-#  include "aether/obj/obj.h"
-#  include "aether/types/address.h"
+#  include "aether-objects/obj/obj.h"
 #  include "aether/executors/executors.h"
+#  include "aether/types/address.h"
 
 namespace ae {
 

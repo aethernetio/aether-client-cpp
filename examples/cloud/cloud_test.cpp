@@ -15,10 +15,10 @@
  */
 
 #include <chrono>
-#include <cstdint>
+#include <iostream>
+#include <string_view>
 
 #include "aether/all.h"
-#include "aether/client_messages/p2p_message_stream.h"
 
 #define AE_EXAMPLE_LORA_MODULE 0
 #define AE_EXAMPLE_MODEM 0
@@ -61,6 +61,22 @@ int AetherCloudExample() {
    */
   auto aether_app = ae::examples::construct_aether_app();
 
+  // Clients message exchange state
+  int received_count = 0;
+  int confirmed_count = 0;
+
+  using namespace std::string_view_literals;
+  auto messages = std::array{
+      "Hello, it's me"sv,
+      "I was wondering if, after all these years, you'd like to meet"sv,
+      "To go over everything"sv,
+      "They say that time's supposed to heal ya"sv,
+      "But I ain't done much healin'"sv,
+      "Hello, can you hear me?"sv,
+      "I'm in California dreaming about who we used to be"sv,
+      "When we were younger and free"sv,
+      "I've forgotten how it felt before the world fell at our feet"sv};
+
   /**
    * Start clients selection or registration.
    * Clients might be loaded from data storage saved during previous run
@@ -69,133 +85,134 @@ int AetherCloudExample() {
   ae::Client::ptr client_a;
   ae::Client::ptr client_b;
 
-  auto& select_client_a =
-      aether_app->aether()->SelectClient(ae::examples::kParentUid, "A");
-  select_client_a.result_event().Subscribe([&](auto const& res) {
-    if (res) {
-      client_a = res.value();
-    } else {
-      aether_app->Exit(1);
-    }
-  });
-
-  auto& select_client_b =
-      aether_app->aether()->SelectClient(ae::examples::kParentUid, "B");
-  select_client_b.result_event().Subscribe([&](auto const& res) {
-    if (res) {
-      client_b = res.value();
-    } else {
-      aether_app->Exit(1);
-    }
-  });
-
-  aether_app->WaitActions(select_client_a, select_client_b);
-
-  // clients must be selected
-  assert(client_a && client_b);
-
-  // setup connectivity timings
-  using namespace std::chrono_literals;
-  client_a->connectivity_policy()->ResetRxTimings();
-  client_b->connectivity_policy()->ResetRxTimings();
-
-  client_a->connectivity_policy()
-      ->ConfigureRxTimings(ae::RequestPolicy::All{})
-      .ForPriority<0>(ae::RxTimingConf::Every(5s))
-#if AE_CLOUD_MAX_SERVER_CONNECTIONS >= 3
-      .ForPriority<1>(ae::RxTimingConf::Every(10s))
-      .ForPriority<2>(ae::RxTimingConf::Every(20s))
-#endif
-      ;
-
-  client_b->connectivity_policy()
-      ->ConfigureRxTimings(ae::RequestPolicy::All{})
-      .ForPriority<0>(ae::RxTimingConf::Every(5s))
-#if AE_CLOUD_MAX_SERVER_CONNECTIONS >= 3
-      .ForPriority<1>(ae::RxTimingConf::Every(10s))
-      .ForPriority<2>(ae::RxTimingConf::Every(20s))
-#endif
-      ;
-
-  // Make clients messages exchange.
-  int received_count = 0;
-  int confirmed_count = 0;
-
   /**
-   * Make required preparation for receiving messages.
-   * Subscribe to opening new stream event.
-   * Subscribe to receiving message event.
-   * Send confirmation to received message.
+   * Clients uses message streams to exchange data
    */
   std::unique_ptr<ae::ByteIStream> receiver_stream;
-  client_a->message_stream_manager().new_port_event().Subscribe(
-      [&](ae::P2pPortHandle handle) {
-        auto dest = handle.destination();
-        auto p2p_stream = std::make_shared<ae::P2pStream>(
-            *aether_app, client_a.Load(), dest, std::move(handle));
-        receiver_stream = ae::make_unique<ae::P2pSafeStream>(
-            *aether_app, ae::examples::kSafeStreamConfig,
-            std::move(p2p_stream));
+  std::unique_ptr<ae::ByteIStream> sender_stream;
 
-        receiver_stream->out_data_event().Subscribe([&](auto const& data) {
-          auto str_msg = std::string(reinterpret_cast<const char*>(data.data()),
-                                     data.size());
-          AE_TELED_DEBUG("Received a message [{}]", str_msg);
-          received_count++;
-          auto confirm_msg = std::string{"confirmed "} + str_msg;
-          auto& response_action = receiver_stream->Write(
-              {confirm_msg.data(), confirm_msg.data() + confirm_msg.size()});
-          response_action.status_event().Subscribe([&](auto status) {
+  auto pipeline =
+      ae::ex::when_all(ae::ex::action_wait(aether_app->aether()->SelectClient(
+                           ae::examples::kParentUid, "A")),
+                       ae::ex::action_wait(aether_app->aether()->SelectClient(
+                           ae::examples::kParentUid, "B"))) |
+      // Both client's registered
+      ae::ex::then([&](auto const& a, auto const& b) noexcept {
+        client_a = a;
+        client_b = b;
+
+        // setup connectivity timings
+        using namespace std::chrono_literals;
+        client_a->connectivity_policy()->ResetRxTimings();
+        client_b->connectivity_policy()->ResetRxTimings();
+
+        client_a->connectivity_policy()
+            ->ConfigureRxTimings(ae::RequestPolicy::All{})
+            .ForPriority<0>(ae::RxTimingConf::Every(5s))
+#if AE_CLOUD_MAX_SERVER_CONNECTIONS >= 3
+            .ForPriority<1>(ae::RxTimingConf::Every(10s))
+            .ForPriority<2>(ae::RxTimingConf::Every(20s))
+#endif
+            ;
+
+        client_b->connectivity_policy()
+            ->ConfigureRxTimings(ae::RequestPolicy::All{})
+            .ForPriority<0>(ae::RxTimingConf::Every(5s))
+#if AE_CLOUD_MAX_SERVER_CONNECTIONS >= 3
+            .ForPriority<1>(ae::RxTimingConf::Every(10s))
+            .ForPriority<2>(ae::RxTimingConf::Every(20s))
+#endif
+            ;
+      }) |
+      ae::ex::then([&]() noexcept {
+        /**
+         * Make required preparation for receiving messages.
+         * Subscribe to opening new stream event.
+         * Subscribe to receiving message event.
+         * Send confirmation to received message.
+         */
+        client_a->message_stream_manager().new_port_event().Subscribe(
+            [&](ae::P2pPortHandle handle) {
+              auto dest = handle.destination();
+              receiver_stream = ae::make_unique<ae::P2pSafeStream>(
+                  *aether_app, ae::examples::kSafeStreamConfig,
+                  std::make_shared<ae::P2pStream>(*aether_app, client_a.Load(),
+                                                  dest, std::move(handle)));
+
+              receiver_stream->out_data_event().Subscribe(
+                  [&](auto const& data) {
+                    auto str_msg = std::string_view{
+                        reinterpret_cast<const char*>(data.data()),
+                        data.size()};
+                    ae::Format(std::cout, "~['_']~ Received a message [{}]\n",
+                               str_msg);
+
+                    received_count++;
+                    auto confirm_msg = ae::Format("confirmed {}", str_msg);
+                    auto& response_action = receiver_stream->Write(
+                        {confirm_msg.data(),
+                         confirm_msg.data() + confirm_msg.size()});
+                    response_action.status_event().Subscribe([&](auto status) {
+                      if (status == ae::WriteAction::Status::kFail) {
+                        ae::Format(std::cerr, "~['_']~ Send response failed\n");
+                        aether_app->Exit(1);
+                      }
+                    });
+                  });
+            });
+      }) |
+      ae::ex::then([&]() noexcept {
+        /**
+         * Make required preparation to send messages.
+         * Create a sender to receiver stream.
+         * Subscribe to receiving message event for confirmations.
+         */
+        auto handle =
+            client_b->message_stream_manager().CreatePort(client_a->uid());
+        sender_stream = ae::make_unique<ae::P2pSafeStream>(
+            *aether_app, ae::examples::kSafeStreamConfig,
+            std::make_shared<ae::P2pStream>(*aether_app, client_b.Load(),
+                                            client_a->uid(),
+                                            std::move(handle)));
+
+        sender_stream->out_data_event().Subscribe([&](auto const& data) {
+          auto str_response = std::string_view{
+              reinterpret_cast<const char*>(data.data()), data.size()};
+          ae::Format(std::cout,
+                     "~['_']~ Received a response [{}], confirm_count {}\n",
+                     str_response, confirmed_count);
+          confirmed_count++;
+        });
+      }) |
+      ae::ex::then([&]() noexcept {
+        /**
+         * Actually send messages
+         */
+        ae::Format(std::cout, "Send messages\n");
+
+        for (auto const& msg : messages) {
+          auto& send_action = sender_stream->Write(
+              ae::DataBuffer{std::begin(msg), std::end(msg)});
+          send_action.status_event().Subscribe([&](auto status) {
             if (status == ae::WriteAction::Status::kFail) {
-              AE_TELED_ERROR("Send response failed");
+              ae::Format(std::cerr, "~['_']~ Send message failed\n");
               aether_app->Exit(1);
             }
           });
-        });
+        }
       });
 
   /**
-   * Make required preparation to send messages.
-   * Create a sender to receiver stream.
-   * Subscribe to receiving message event for confirmations.
+   * Full preparation pipeline is an asynchronous operation defined
+   * by stdexec's sender.
+   * Make async waiter to wait till it completes.
    */
-  auto handle = client_b->message_stream_manager().CreatePort(client_a->uid());
-  auto p2p_stream = std::make_shared<ae::P2pStream>(
-      *aether_app, client_b.Load(), client_a->uid(), std::move(handle));
-  auto sender_stream = ae::make_unique<ae::P2pSafeStream>(
-      *aether_app, ae::examples::kSafeStreamConfig, std::move(p2p_stream));
-
-  sender_stream->out_data_event().Subscribe([&](auto const& data) {
-    auto str_response =
-        std::string(reinterpret_cast<const char*>(data.data()), data.size());
-    AE_TELED_DEBUG("Received a response [{}], confirm_count {}", str_response,
-                   confirmed_count);
-    confirmed_count++;
-  });
-
-  AE_TELED_INFO("Send messages");
-  auto messages = std::array<std::string, 9>{
-      "Hello, it's me",
-      "I was wondering if, after all these years, you'd like to meet",
-      "To go over everything",
-      "They say that time's supposed to heal ya",
-      "But I ain't done much healin'",
-      "Hello, can you hear me?",
-      "I'm in California dreaming about who we used to be",
-      "When we were younger and free",
-      "I've forgotten how it felt before the world fell at our feet"};
-
-  for (auto const& msg : messages) {
-    auto& send_action =
-        sender_stream->Write(ae::DataBuffer{std::begin(msg), std::end(msg)});
-    send_action.status_event().Subscribe([&](auto status) {
-      if (status == ae::WriteAction::Status::kFail) {
-        AE_TELED_ERROR("Send message failed");
-        aether_app->Exit(1);
-      }
-    });
-  }
-
+  auto waiter = ae::ex::AsyncWaiter{ae::AeContext{*aether_app},
+                                    std::move(pipeline), [&](auto res) {
+                                      if (!res || res->IsErr()) {
+                                        aether_app->Exit(1);
+                                      }
+                                    }};
   /**
    * Application loop.
    * All the asynchronous actions are updated on this loop.
@@ -203,8 +220,9 @@ int AetherCloudExample() {
    * triggers new event.
    */
   while (!aether_app->IsExited()) {
-    AE_TELED_DEBUG("Wait cloud test received_count={} confirmed_count={}",
-                   received_count, confirmed_count);
+    ae::Format(std::cout,
+               "~['_']~ Wait cloud test received_count={} confirmed_count={}\n",
+               received_count, confirmed_count);
     if ((received_count == messages.size()) &&
         (confirmed_count == messages.size())) {
       aether_app->Exit(0);

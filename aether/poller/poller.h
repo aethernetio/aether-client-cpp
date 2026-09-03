@@ -19,7 +19,7 @@
 
 #include <memory>
 
-#include "aether/obj/obj.h"
+#include "aether-objects/obj/obj.h"
 
 namespace ae {
 /**

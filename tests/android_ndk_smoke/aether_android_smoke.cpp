@@ -17,10 +17,11 @@
 #include <cstdio>
 #include <memory>
 
+#include "aether-objects/domain_storage/ram_domain_storage.h"
+#include "aether-objects/obj/idomain_storage.h"
+
 #include "aether/aether_app.h"
 #include "aether/common.h"
-#include "aether/domain_storage/ram_domain_storage.h"
-#include "aether/obj/idomain_storage.h"
 
 namespace {
 
@@ -35,8 +36,8 @@ extern "C" int aether_android_smoke_run() {
   std::fflush(stdout);
 
   {
-    auto app = ae::AetherApp::Construct(
-        ae::AetherAppContext{MakeRamDomainStorage});
+    auto app =
+        ae::AetherApp::Construct(ae::AetherAppContext{MakeRamDomainStorage});
     if (app.get() == nullptr) {
       std::fprintf(stderr, "AETHER_ANDROID_SMOKE_FAIL construct\n");
       std::fflush(stderr);

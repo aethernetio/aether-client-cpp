@@ -21,10 +21,10 @@
 #include <map>
 #include <string>
 
+#include "aether-objects/obj/obj.h"
 #include "aether/client_connectivity_policy.h"
 #include "aether/cloud.h"
 #include "aether/memory.h"
-#include "aether/obj/obj.h"
 #include "aether/server_keys.h"
 #include "aether/types/uid.h"
 

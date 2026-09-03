@@ -19,7 +19,7 @@
 
 #include <vector>
 
-#include "aether/obj/obj.h"
+#include "aether-objects/obj/obj.h"
 #include "aether/events/events.h"
 
 #include "aether/access_points/access_point.h"

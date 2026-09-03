@@ -19,7 +19,7 @@
 
 #include <memory>
 
-#include "aether/obj/idomain_storage.h"
+#include "aether-objects/obj/idomain_storage.h"
 
 namespace ae {
 class SyncDomainStorage final : public IDomainStorage {

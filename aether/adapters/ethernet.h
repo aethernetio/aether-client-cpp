@@ -17,10 +17,10 @@
 #ifndef AETHER_ADAPTERS_ETHERNET_H_
 #define AETHER_ADAPTERS_ETHERNET_H_
 
-#include "aether/poller/poller.h"
-#include "aether/obj/dummy_obj.h"    // IWYU pragma: keep
-#include "aether/dns/dns_resolve.h"  // IWYU pragma: keep
+#include "aether-objects/obj/dummy_obj.h"  // IWYU pragma: keep
 #include "aether/adapters/adapter.h"
+#include "aether/dns/dns_resolve.h"  // IWYU pragma: keep
+#include "aether/poller/poller.h"
 
 #include "aether/access_points/ethernet_access_point.h"
 

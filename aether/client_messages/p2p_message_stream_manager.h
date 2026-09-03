@@ -20,13 +20,13 @@
 #include <map>
 #include <memory>
 
-#include "aether/ptr/ptr.h"
-#include "aether/ptr/ptr_view.h"
-#include "aether/types/uid.h"
+#include "aether-objects/ptr/ptr.h"
+#include "aether-objects/ptr/ptr_view.h"
 #include "aether/ae_context.h"
-#include "aether/events/events.h"
-#include "aether/cloud_connections/cloud_subscription.h"
 #include "aether/client_messages/p2p_port_handle.h"
+#include "aether/cloud_connections/cloud_subscription.h"
+#include "aether/events/events.h"
+#include "aether/types/uid.h"
 
 namespace ae {
 

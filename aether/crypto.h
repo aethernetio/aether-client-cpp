@@ -19,9 +19,9 @@
 
 #include <map>
 
-#include "aether/obj/obj.h"
-#include "aether/crypto/sign.h"
+#include "aether-objects/obj/obj.h"
 #include "aether/crypto/key.h"
+#include "aether/crypto/sign.h"
 
 namespace ae {
 

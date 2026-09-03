@@ -64,7 +64,6 @@ option(AE_BUILD_TESTS "Build tests" ${AE_ROOT_PORJECT})
 option(AE_BUILD_ANDROID_SMOKE "Build Android NDK smoke shared library and runner" Off)
 option(AE_ENABLE_PRIVILEGED_NETWORK_TESTS "Enable Administrator/network live tests" Off)
 option(AE_ADDRESS_SANITIZE "Enable address sanitizer" Off)
-option(AE_NO_STRIP_ALL "Do not apply --strip_all, useful for bloaty and similar tools " Off)
 
 set(UTM_ID "0" CACHE STRING "User Tracking Measurement ID, must be a uint32 value")
 set(USER_CONFIG "" CACHE PATH "Path to user provided configuration header file")
@@ -81,7 +80,6 @@ message(STATUS "Aether build options:
    AE_BUILD_TESTS=${AE_BUILD_TESTS}
    AE_BUILD_ANDROID_SMOKE=${AE_BUILD_ANDROID_SMOKE}
    AE_ADDRESS_SANITIZE=${AE_ADDRESS_SANITIZE}
-   AE_NO_STRIP_ALL=${AE_NO_STRIP_ALL}
    UTM_ID=${UTM_ID}
    USER_CONFIG=${USER_CONFIG}
    FS_INIT=${FS_INIT}
@@ -137,7 +135,7 @@ CPMAddPackage(
 CPMAddPackage(
   NAME ae-numeric
   GIT_REPOSITORY "https://github.com/aethernetio/aethernet-numeric.git"
-  GIT_TAG "edbdc0bef6e6b4140f52e3f841cb1b0e53a686e7"
+  GIT_TAG "main"
   OPTIONS "AE_NUMERIC_INSTALL ${AE_INSTALL}" "AE_BUILD_TESTS OFF"
   EXCLUDE_FROM_ALL FALSE
 )
@@ -151,7 +149,15 @@ CPMAddPackage(
 CPMAddPackage(
   NAME aether-tele
   GIT_REPOSITORY "https://github.com/aethernetio/aether-tele.git"
-  GIT_TAG "7424eb5bdd49e78bd73aa1e453594d3660c111c4"
+  GIT_TAG "main"
+  OPTIONS "AE_TELE_INSTALL ${AE_INSTALL}"
+          "AE_TELE_BUILD_TESTS ${AE_BUILD_TESTS}"
+  EXCLUDE_FROM_ALL FALSE
+)
+CPMAddPackage(
+  NAME aether-objects
+  GIT_REPOSITORY "https://github.com/aethernetio/aether-objects.git"
+  GIT_TAG "main"
   OPTIONS "AE_TELE_INSTALL ${AE_INSTALL}"
           "AE_TELE_BUILD_TESTS ${AE_BUILD_TESTS}"
   EXCLUDE_FROM_ALL FALSE
@@ -190,7 +196,8 @@ target_link_libraries(${TARGET_NAME} PUBLIC
                                       etl
                                       stdexec
                                       ae-numeric
-                                      aether::miscpp)
+                                      aether::miscpp
+                                      aether::objects)
 
 message(STATUS "Aether build for CMAKE_SYSTEM_NAME: ${CMAKE_SYSTEM_NAME}")
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux"
@@ -324,52 +331,6 @@ target_compile_options(${TARGET_NAME} PUBLIC
       /wd4456 /wd4459 /wd4714
       >
 )
-
-# setup release build options
-if (CMAKE_BUILD_TYPE STREQUAL "Release")
-  if (NOT MINGW AND
-    (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR
-    CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
-
-    target_compile_options(${TARGET_NAME} PUBLIC
-                           -ffast-math
-                           -fno-math-errno
-                           -funsafe-math-optimizations
-                           -fassociative-math
-                           -freciprocal-math
-                           -ffinite-math-only
-                           -fno-signed-zeros
-                           -fno-trapping-math)
-    # clang does not support this
-    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-      target_compile_options(${TARGET_NAME} PUBLIC
-                            -fsingle-precision-constant
-                            -fno-fp-int-builtin-inexact)
-    endif()
-
-    # TODO: make this options configurable from user side
-    target_compile_options(${TARGET_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>)
-    target_compile_options(${TARGET_NAME} PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>)
-
-
-    if (GCC_VERSION VERSION_GREATER 12.1 OR GCC_VERSION VERSION_EQUAL 12.1)
-      target_compile_options(${TARGET_NAME} PUBLIC -Oz -DNDEBUG)
-    else()
-      target_compile_options(${TARGET_NAME} PUBLIC -Os -DNDEBUG)
-    endif()
-
-    # size optimizations
-    target_compile_options(${TARGET_NAME} PUBLIC -fdata-sections -ffunction-sections)
-    target_link_options(${TARGET_NAME} PUBLIC -fdata-sections -ffunction-sections)
-    target_compile_options(${TARGET_NAME} PUBLIC -flto=auto -ffat-lto-objects)
-    target_link_options(${TARGET_NAME} PUBLIC -flto=auto)
-
-    if(NOT AE_NO_STRIP_ALL )
-      target_link_options(${TARGET_NAME} PUBLIC -Wl,--gc-sections,--strip-all)
-    endif()
-
-  endif()
-endif()
 
 if(AE_BUILD_TOOLS)
   message(STATUS "Aether builds tools!")

@@ -21,10 +21,10 @@
 #include <optional>
 #include <vector>
 
+#include "aether-objects/ptr/ptr.h"
+#include "aether-objects/ptr/ptr_view.h"
 #include "aether/ae_context.h"
 #include "aether/events/events.h"
-#include "aether/ptr/ptr.h"
-#include "aether/ptr/ptr_view.h"
 
 #include "aether/server_connections/channel_select_action.h"
 #include "aether/stream_api/istream.h"

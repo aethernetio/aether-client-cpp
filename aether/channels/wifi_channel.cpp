@@ -21,9 +21,9 @@
 #  include <limits>
 #  include <utility>
 
+#  include "aether-objects/ptr/ptr_view.h"
 #  include "aether/events/event_subscription.h"
 #  include "aether/executors/executors.h"
-#  include "aether/ptr/ptr_view.h"
 
 #  include "aether/aether.h"
 #  include "aether/dns/dns_resolve.h"

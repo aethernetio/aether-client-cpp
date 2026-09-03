@@ -17,7 +17,6 @@ cmake_minimum_required( VERSION 3.16 )
 list(APPEND test_srcs
   main.cpp
   test-prepared-packet.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/../test-object-system/map_domain_storage.cpp
 )
 
 if(NOT CM_PLATFORM)

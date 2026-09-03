@@ -53,20 +53,6 @@ list(APPEND aether_srcs
             "dns/esp32_dns_resolve.cpp")
 
 list(APPEND aether_srcs
-            "obj/obj.cpp"
-            "obj/domain.cpp"
-            "obj/obj_id.cpp"
-            "obj/registry.cpp"
-            "obj/obj_ptr_base.cpp"
-        )
-
-list(APPEND aether_srcs
-            "ptr/ptr.cpp"
-            "ptr/ptr_view.cpp"
-            "ptr/ref_tree.cpp"
-        )
-
-list(APPEND aether_srcs
             "ae_actions/get_servers.cpp"
             "ae_actions/ping.cpp"
             "ae_actions/check_access_for_send_message.cpp"
@@ -220,9 +206,7 @@ list(APPEND aether_srcs
             "domain_storage/domain_storage_factory.cpp"
             "domain_storage/registrar_domain_storage.cpp"
             "domain_storage/static_domain_storage.cpp"
-            "domain_storage/ram_domain_storage.cpp"
             "domain_storage/spifs_domain_storage.cpp"
-            "domain_storage/file_system_std_storage.cpp"
             "domain_storage/sync_domain_storage.cpp")
 
 list(APPEND aether_srcs
