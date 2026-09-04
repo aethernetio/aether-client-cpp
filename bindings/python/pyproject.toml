@@ -1,0 +1,102 @@
+# Copyright 2026 Aethernet Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+[build-system]
+requires = [
+  "scikit-build-core>=0.10",
+  "pybind11>=2.13.6",
+]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "aethernetio-client"
+version = "0.1.0"
+description = "Æther Python client SDK for Windows x64"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Aethernet Inc." }]
+requires-python = ">=3.11"
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: Microsoft :: Windows",
+  "Programming Language :: C++",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Topic :: Communications",
+]
+urls = { Homepage = "https://github.com/aethernetio/aether-client-cpp" }
+
+[project.optional-dependencies]
+test = ["pytest>=8.0"]
+
+[tool.scikit-build]
+minimum-version = "build-system.requires"
+wheel.packages = ["src/aethernetio"]
+wheel.exclude = [
+  "**.cpp",
+  "**.h",
+  "**/CMakeLists.txt",
+  "include/**",
+  "lib/**",
+]
+cmake.build-type = "Release"
+cmake.args = [
+  "-DAE_BUILD_TESTS=OFF",
+  "-DAE_BUILD_EXAMPLES=OFF",
+  "-DAE_BUILD_TOOLS=OFF",
+  "-DAE_INSTALL=OFF",
+  "-DBUILD_SHARED_LIBS=OFF",
+]
+install.components = ["python"]
+sdist.include = [
+  "CMakeLists.txt",
+  "README.md",
+  "src/**",
+  "tests/**",
+]
+sdist.exclude = [
+  "**/__pycache__/**",
+  "**/*.pyc",
+]
+build-dir = "build/{wheel_tag}"
+
+[tool.scikit-build.cmake.define]
+AE_BUILD_TESTS = "OFF"
+AE_BUILD_EXAMPLES = "OFF"
+AE_BUILD_TOOLS = "OFF"
+AE_INSTALL = "OFF"
+BUILD_SHARED_LIBS = "OFF"
+
+[tool.cibuildwheel]
+build = "cp311-win_amd64 cp312-win_amd64 cp313-win_amd64 cp314-win_amd64"
+skip = "pp* *-win32 *-arm64"
+archs = ["AMD64"]
+test-command = "python -c \"import aethernetio; print(aethernetio.__version__)\""
+test-skip = ""
+
+[tool.cibuildwheel.windows]
+before-build = "pip install delvewheel"
+repair-wheel-command = "delvewheel show {wheel}"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "live: live cloud A/B validation (network required)",
+]
