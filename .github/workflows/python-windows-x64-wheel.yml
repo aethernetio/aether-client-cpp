@@ -1,0 +1,184 @@
+# Copyright 2026 Aethernet Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Python Windows x64 wheel
+
+on:
+  push:
+    branches:
+      - feature/python-windows-x64-v1
+      - main
+      - master
+    paths:
+      - "bindings/python/**"
+      - "aether/aether_c/**"
+      - "aether/**"
+      - "CMakeLists.txt"
+      - ".github/workflows/python-windows-x64-wheel.yml"
+  pull_request:
+    paths:
+      - "bindings/python/**"
+      - "aether/aether_c/**"
+      - ".github/workflows/python-windows-x64-wheel.yml"
+  workflow_dispatch:
+    inputs:
+      run_live:
+        description: "Run live cloud A/B validation"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build-wheels:
+    name: Build win_amd64 wheels
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: bindings/python
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: x64
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build delvewheel pytest
+
+      - name: Build wheel
+        run: |
+          python -m build --wheel --outdir dist
+          Get-ChildItem dist\*.whl
+
+      - name: Inspect wheel dependencies
+        shell: pwsh
+        run: |
+          $wheel = Get-ChildItem dist\*.whl | Select-Object -First 1
+          python -m delvewheel show $wheel.FullName
+          $tmp = Join-Path $env:RUNNER_TEMP "wheel-inspect-$([guid]::NewGuid())"
+          New-Item -ItemType Directory -Path $tmp | Out-Null
+          Expand-Archive -Path $wheel.FullName -DestinationPath $tmp -Force
+          # Expand-Archive does not handle .whl; use unzip via Python
+          Remove-Item -Recurse -Force $tmp
+          New-Item -ItemType Directory -Path $tmp | Out-Null
+          python -c "import zipfile,sys; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" $wheel.FullName $tmp
+          Get-ChildItem -Recurse $tmp | Select-Object FullName, Length
+          $pyd = Get-ChildItem -Recurse $tmp -Filter "_native*.pyd" | Select-Object -First 1
+          if (-not $pyd) { throw "_native.pyd missing from wheel" }
+          dumpbin /DEPENDENTS $pyd.FullName
+          $deps = dumpbin /DEPENDENTS $pyd.FullName | Out-String
+          foreach ($banned in @("aether.dll", "libsodium.dll", "bcrypt.dll", "cares.dll", "libcares.dll")) {
+            if ($deps -match [regex]::Escape($banned)) {
+              throw "Banned dependency found: $banned"
+            }
+          }
+
+      - name: Clean venv install and import
+        shell: pwsh
+        run: |
+          $wheel = (Get-ChildItem dist\*.whl | Select-Object -First 1).FullName
+          $venv = Join-Path $env:RUNNER_TEMP "clean-venv-${{ matrix.python-version }}"
+          python -m venv $venv
+          & "$venv\Scripts\python.exe" -m pip install --upgrade pip
+          & "$venv\Scripts\python.exe" -m pip install $wheel
+          $env:PATH = ($env:PATH -split ';' | Where-Object {
+            $_ -and ($_ -notmatch 'aether-client-cpp') -and ($_ -notmatch 'bindings\\python\\build')
+          }) -join ';'
+          Push-Location $env:RUNNER_TEMP
+          try {
+            & "$venv\Scripts\python.exe" -c "import aethernetio; print(aethernetio.__version__)"
+          } finally {
+            Pop-Location
+          }
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aethernetio-client-cp${{ matrix.python-version }}-win_amd64
+          path: bindings/python/dist/*.whl
+          if-no-files-found: error
+
+  live-ab:
+    name: Live A/B (opt-in)
+    needs: build-wheels
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_live }}
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: bindings/python
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          architecture: x64
+
+      - name: Download wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: aethernetio-client-cp3.12-win_amd64
+          path: bindings/python/dist
+
+      - name: Install wheel and run live test
+        shell: pwsh
+        run: |
+          $wheel = (Get-ChildItem dist\*.whl | Select-Object -First 1).FullName
+          python -m pip install --upgrade pip
+          python -m pip install pytest $wheel
+          python -m pytest tests/test_live_ab.py -m live -s --tb=short
+
+  # Trusted Publishing scaffold: publish only from signed version tags once
+  # the PyPI project and GitHub OIDC trust are configured. Disabled by default.
+  publish-pypi:
+    name: Publish to PyPI (manual / tag)
+    needs: build-wheels
+    if: ${{ github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: windows-latest
+    environment: pypi
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Download all wheels
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: aethernetio-client-*
+          merge-multiple: true
+
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
