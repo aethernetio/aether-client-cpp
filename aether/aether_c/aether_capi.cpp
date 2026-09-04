@@ -18,7 +18,7 @@
 
 #include <cassert>
 #include <memory>
-
+#include <string>
 #include <string_view>
 
 #include "aether/aether_c/c_errors.h"
@@ -27,6 +27,7 @@
 #include "aether-objects/obj/obj_ptr.h"
 #include "aether-objects/ptr/ptr.h"
 #include "aether/actions/actions_queue.h"
+#include "aether/events/multi_subscription.h"
 #include "aether/memory.h"
 #include "aether/types/data_buffer.h"
 
@@ -53,10 +54,13 @@
 static std::shared_ptr<ae::AetherApp> aether_app;
 
 struct AetherClient {
+  std::string id_owned;
   ClientConfig config{};
   ae::Client::ptr client;
   std::map<ae::Uid, std::shared_ptr<ae::ByteIStream>> message_streams;
   std::unique_ptr<ae::ActionsQueue> actions_queue_;
+  ae::MultiSubscription subscriptions_;
+  bool closing{false};
 };
 
 std::unique_ptr<AetherClient, void (*)(AetherClient*)> default_client{
@@ -85,8 +89,11 @@ ae::SelectClientAction& SelectClientImpl(AetherClient* client,
       SelectContext{client, config->client_selected_cb,
                     config->message_received_cb, config->user_data});
 
-  select_action.result_event().Subscribe(
+  client->subscriptions_.Push(select_action.result_event().Subscribe(
       [context{select_context}](ae::Result<ae::ObjPtr<ae::Client>, int>&& res) {
+        if (context->client->closing) {
+          return;
+        }
         if (res) {
           // save the client
           context->client->client = std::move(res).value();
@@ -99,12 +106,12 @@ ae::SelectClientAction& SelectClientImpl(AetherClient* client,
             context->client_selected_cb(context->client, context->user_data);
           }
         } else {
-          if (!context->client_selected_cb) {
+          if (context->client_selected_cb == nullptr) {
             return;
           }
           context->client_selected_cb(nullptr, context->user_data);
         }
-      });
+      }));
   return select_action;
 }
 
@@ -122,7 +129,9 @@ ae::WriteAction& WriteMessageImpl(AetherClient* client, ae::Uid destination,
         std::move(handle));
     auto c_dest =
         CUidFromBytes(destination.value.data(), destination.value.size());
-    ListenMessageStream(client, user_data, c_dest, stream);
+    // Receive callbacks must use the client user_data from ClientConfig, not
+    // the per-send status callback user_data.
+    ListenMessageStream(client, client->config.user_data, c_dest, stream);
 
     std::tie(it, std::ignore) =
         client->message_streams.emplace(destination, stream);
@@ -131,19 +140,23 @@ ae::WriteAction& WriteMessageImpl(AetherClient* client, ae::Uid destination,
   auto& action = it->second->Write(std::move(data));
 
   if (status_cb != nullptr) {
-    action.status_event().Subscribe([&](auto status) {
-      switch (status) {
-        case ae::WriteAction::Status::kSuccess:
-          status_cb(ActionStatus::kSuccess, user_data);
-          break;
-        case ae::WriteAction::Status::kFail:
-          status_cb(ActionStatus::kFailure, user_data);
-          break;
-        case ae::WriteAction::Status::kStop:
-          status_cb(ActionStatus::kStopped, user_data);
-          break;
-      }
-    });
+    client->subscriptions_.Push(action.status_event().Subscribe(
+        [status_cb, user_data, client](auto status) {
+          if (client->closing) {
+            return;
+          }
+          switch (status) {
+            case ae::WriteAction::Status::kSuccess:
+              status_cb(ActionStatus::kSuccess, user_data);
+              break;
+            case ae::WriteAction::Status::kFail:
+              status_cb(ActionStatus::kFailure, user_data);
+              break;
+            case ae::WriteAction::Status::kStop:
+              status_cb(ActionStatus::kStopped, user_data);
+              break;
+          }
+        }));
   }
 
   return action;
@@ -175,17 +188,21 @@ void Listen(AetherClient* client, void* user_data) {
     return;
   }
 
-  client->client->message_stream_manager().new_port_event().Subscribe(
-      [client, user_data](ae::P2pPortHandle handle) {
-        auto dest = handle.destination();
-        auto stream = std::make_shared<ae::P2pStream>(
-            ae::AeContext{*aether_app}, client->client.Load(), dest,
-            std::move(handle));
-        // store the stream for future use
-        client->message_streams.emplace(dest, stream);
-        auto c_dest = CUidFromBytes(dest.value.data(), dest.value.size());
-        ListenMessageStream(client, user_data, c_dest, stream);
-      });
+  client->subscriptions_.Push(
+      client->client->message_stream_manager().new_port_event().Subscribe(
+          [client, user_data](ae::P2pPortHandle handle) {
+            if (client->closing) {
+              return;
+            }
+            auto dest = handle.destination();
+            auto stream = std::make_shared<ae::P2pStream>(
+                ae::AeContext{*aether_app}, client->client.Load(), dest,
+                std::move(handle));
+            // store the stream for future use
+            client->message_streams.emplace(dest, stream);
+            auto c_dest = CUidFromBytes(dest.value.data(), dest.value.size());
+            ListenMessageStream(client, user_data, c_dest, stream);
+          }));
 }
 
 void ListenMessageStream(AetherClient* client, void* user_data,
@@ -199,12 +216,15 @@ void ListenMessageStream(AetherClient* client, void* user_data,
   };
 
   // call the callback on data received
-  stream->out_data_event().Subscribe(
-      [context{std::unique_ptr<ListenContext>{new ListenContext{
+  client->subscriptions_.Push(stream->out_data_event().Subscribe(
+      [context{std::make_shared<ListenContext>(ListenContext{
           user_data,
           client,
           c_dest,
-      }}}](auto const& data) {
+      })}](auto const& data) {
+        if (context->client->closing) {
+          return;
+        }
         auto cb = context->client->config.message_received_cb;
         if (cb == nullptr) {
           return;
@@ -212,7 +232,7 @@ void ListenMessageStream(AetherClient* client, void* user_data,
         cb(context->client, context->c_dest,
            static_cast<void const*>(data.data()), data.size(),
            context->user_data);
-      });
+      }));
 }
 
 AE_EXTERN_C_BEGIN
@@ -351,12 +371,15 @@ AetherClient* SelectClient(ClientConfig const* config) {
 
   auto* ret_client = new AetherClient{};
   ret_client->config = *config;
+  if (config->id != nullptr) {
+    ret_client->id_owned = config->id;
+  }
+  ret_client->config.id = ret_client->id_owned.c_str();
   ret_client->actions_queue_ = std::make_unique<ae::ActionsQueue>();
 
-  ret_client->actions_queue_->Push(
-      ae::Stage([ret_client, config]() -> decltype(auto) {
-        return SelectClientImpl(ret_client, config);
-      }));
+  ret_client->actions_queue_->Push(ae::Stage([ret_client]() -> decltype(auto) {
+    return SelectClientImpl(ret_client, &ret_client->config);
+  }));
 
   return ret_client;
 }
@@ -365,6 +388,14 @@ void FreeClient(AetherClient* client) {
   if (client == nullptr) {
     return;
   }
+  client->closing = true;
+  client->config.client_selected_cb = nullptr;
+  client->config.message_received_cb = nullptr;
+  client->config.user_data = nullptr;
+  client->subscriptions_.Reset();
+  client->message_streams.clear();
+  client->actions_queue_.reset();
+  client->client = {};
   delete client;
 }
 
