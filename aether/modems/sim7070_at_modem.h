@@ -20,16 +20,16 @@
 #include "aether/config.h"
 
 #if AE_SUPPORT_MODEMS && AE_ENABLE_SIM7070
-#  include <set>
 #  include <memory>
+#  include <set>
 
-#  include "aether/ae_context.h"
-#  include "aether/poller/poller.h"
 #  include "aether/actions/action_pool.h"
 #  include "aether/actions/actions_queue.h"
 #  include "aether/actions/repeatable_task.h"
-#  include "aether/serial_ports/iserial_port.h"
+#  include "aether/ae_context.h"
+#  include "aether/poller/poller.h"
 #  include "aether/serial_ports/at_support/at_support.h"
+#  include "aether/serial_ports/iserial_port.h"
 
 #  include "aether/modems/imodem_driver.h"
 
@@ -196,6 +196,21 @@ class Sim7070AtModem final : public IModemDriver {
   ModemOperation* PowerOff() override;
 
  private:
+  static constexpr auto kNetworkOpActionPoolCapacity =
+      AE_MODEM_NETWORK_OP_ACTION_POOL_CAPACITY;
+  static constexpr auto kWriteActionPoolCapacity =
+      AE_MODEM_WRITE_ACTION_POOL_CAPACITY;
+
+  using OpenNetworkActionPool =
+      ActionPool<AeContext, sim7070_modem_internal::OpenNetworkOperationImpl,
+                 kNetworkOpActionPoolCapacity>;
+  using CloseNetworkActionPool =
+      ActionPool<AeContext, sim7070_modem_internal::CloseNetworkOperationImpl,
+                 kNetworkOpActionPoolCapacity>;
+  using WriteActionPool =
+      ActionPool<AeContext, sim7070_modem_internal::WriteOperationImpl,
+                 kWriteActionPoolCapacity>;
+
   void Init();
   void SetupPoll();
   void PollEvent(std::int32_t handle);
@@ -214,12 +229,9 @@ class Sim7070AtModem final : public IModemDriver {
   std::unique_ptr<ModemOperation> modem_stop_operation_;
   std::unique_ptr<ModemOperation> modem_set_psp_operation_;
   std::unique_ptr<ModemOperation> modem_poweroff_operation_;
-  ActionPool<AeContext, sim7070_modem_internal::OpenNetworkOperationImpl, 10>
-      open_network_pool_;
-  ActionPool<AeContext, sim7070_modem_internal::CloseNetworkOperationImpl, 10>
-      close_network_pool_;
-  ActionPool<AeContext, sim7070_modem_internal::WriteOperationImpl, 10>
-      write_pool_;
+  OpenNetworkActionPool open_network_pool_;
+  CloseNetworkActionPool close_network_pool_;
+  WriteActionPool write_pool_;
 
   bool initiated_;
   bool started_;

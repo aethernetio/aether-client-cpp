@@ -19,16 +19,16 @@
 
 #include "aether/config.h"
 #if AE_SUPPORT_MODEMS && AE_ENABLE_BG95
-#  include <set>
 #  include <memory>
+#  include <set>
 
-#  include "aether/ae_context.h"
-#  include "aether/poller/poller.h"
 #  include "aether/actions/action_pool.h"
 #  include "aether/actions/actions_queue.h"
 #  include "aether/actions/repeatable_task.h"
-#  include "aether/serial_ports/iserial_port.h"
+#  include "aether/ae_context.h"
+#  include "aether/poller/poller.h"
 #  include "aether/serial_ports/at_support/at_support.h"
+#  include "aether/serial_ports/iserial_port.h"
 
 #  include "aether/modems/imodem_driver.h"
 
@@ -95,8 +95,7 @@ class ModemStartedAlreadyOperation final : public ModemOperation {
 
 class ModemStartOperation final : public ModemOperation {
  public:
-  explicit ModemStartOperation(AeContext const& ae_context,
-                               Bg95AtModem& self);
+  explicit ModemStartOperation(AeContext const& ae_context, Bg95AtModem& self);
 
  private:
   auto SetBaudRate(kBaudRate const rate);
@@ -125,8 +124,7 @@ class ModemStoppedAlreadyOperation final : public ModemOperation {
 
 class ModemStopOperation final : public ModemOperation {
  public:
-  explicit ModemStopOperation(AeContext const& ae_context,
-                               Bg95AtModem& self);
+  explicit ModemStopOperation(AeContext const& ae_context, Bg95AtModem& self);
 
  private:
   auto Pipeline();
@@ -141,8 +139,8 @@ class ModemStopOperation final : public ModemOperation {
 class ModemSetPowerSaveParamOperation final : public ModemOperation {
  public:
   explicit ModemSetPowerSaveParamOperation(AeContext const& /*ae_context*/,
-                                            Bg95AtModem& /*self*/,
-                                            ModemPowerSaveParam /*psp*/) {
+                                           Bg95AtModem& /*self*/,
+                                           ModemPowerSaveParam /*psp*/) {
     SetResult(Ok{kIgnore});
   }
 };
@@ -150,7 +148,7 @@ class ModemSetPowerSaveParamOperation final : public ModemOperation {
 class ModemPowerOffOperation final : public ModemOperation {
  public:
   explicit ModemPowerOffOperation(AeContext const& ae_context,
-                                   Bg95AtModem& self);
+                                  Bg95AtModem& self);
 
  private:
   auto Pipeline();
@@ -174,13 +172,13 @@ class Bg95AtModem final : public IModemDriver {
   static constexpr std::uint16_t kModemMTU{1520};
 
  public:
-  explicit Bg95AtModem(AeContext const& ae_context,
-                       IPoller::ptr const& poller, ModemInit modem_init);
+  explicit Bg95AtModem(AeContext const& ae_context, IPoller::ptr const& poller,
+                       ModemInit modem_init);
 
   ModemOperation* Start() override;
   ModemOperation* Stop() override;
   OpenNetworkOperation* OpenNetwork(Protocol protocol, std::string const& host,
-                                     std::uint16_t port) override;
+                                    std::uint16_t port) override;
   ModemOperation* CloseNetwork(ConnectionIndex connect_index) override;
   WriteOperation* WritePacket(ConnectionIndex connect_index,
                               std::span<std::uint8_t const> data) override;
@@ -190,6 +188,21 @@ class Bg95AtModem final : public IModemDriver {
   ModemOperation* PowerOff() override;
 
  private:
+  static constexpr auto kNetworkOpActionPoolCapacity =
+      AE_MODEM_NETWORK_OP_ACTION_POOL_CAPACITY;
+  static constexpr auto kWriteActionPoolCapacity =
+      AE_MODEM_WRITE_ACTION_POOL_CAPACITY;
+
+  using OpenNetworkActionPool =
+      ActionPool<AeContext, bg95_modem_internal::OpenNetworkOperationImpl,
+                 kNetworkOpActionPoolCapacity>;
+  using CloseNetworkActionPool =
+      ActionPool<AeContext, bg95_modem_internal::CloseNetworkOperationImpl,
+                 kNetworkOpActionPoolCapacity>;
+  using WriteActionPool =
+      ActionPool<AeContext, bg95_modem_internal::WriteOperationImpl,
+                 kWriteActionPoolCapacity>;
+
   void Init();
   void SetupPoll();
   void PollEvent(std::int32_t handle);
@@ -208,12 +221,9 @@ class Bg95AtModem final : public IModemDriver {
   std::unique_ptr<ModemOperation> modem_stop_operation_;
   std::unique_ptr<ModemOperation> modem_set_psp_operation_;
   std::unique_ptr<ModemOperation> modem_poweroff_operation_;
-  ActionPool<AeContext, bg95_modem_internal::OpenNetworkOperationImpl, 10>
-      open_network_pool_;
-  ActionPool<AeContext, bg95_modem_internal::CloseNetworkOperationImpl, 10>
-      close_network_pool_;
-  ActionPool<AeContext, bg95_modem_internal::WriteOperationImpl, 10>
-      write_pool_;
+  OpenNetworkActionPool open_network_pool_;
+  CloseNetworkActionPool close_network_pool_;
+  WriteActionPool write_pool_;
 
   bool initiated_;
   bool started_;

@@ -35,9 +35,9 @@
 namespace ae {
 class Aether;
 struct RootServerSelectStreamTestAccess;
+
 class RootServerSelectStream final : public ByteIStream {
  public:
-  static constexpr std::size_t kBufferCapacity = 2;
   using ServerChangedEvent = Event<void()>;
   using CloudErrorEvent = Event<void()>;
 
@@ -54,6 +54,9 @@ class RootServerSelectStream final : public ByteIStream {
   CloudErrorEvent::Subscriber cloud_error_event();
 
  private:
+  static constexpr auto kBufferCapacity = AE_ROOT_REG_SERVER_BUFFER_CAPACITY;
+  using Buffer = BufferWrite<DataBuffer, kBufferCapacity>;
+
   friend struct RootServerSelectStreamTestAccess;
 
   WriteAction* OnWrite(DataBuffer&& data);
@@ -65,7 +68,7 @@ class RootServerSelectStream final : public ByteIStream {
   AeContext ae_context_;
   PtrView<RegistrationCloud> cloud_;
 
-  BufferWrite<DataBuffer, kBufferCapacity> buffer_write_;
+  Buffer buffer_write_;
   // The next server priority to select. Registration server priorities must be
   // contiguous starting at zero; gaps are UB. This invariant and Cloud's
   // strict server collection capacity bound ensure this value never increments
