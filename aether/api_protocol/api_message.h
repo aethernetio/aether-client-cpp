@@ -20,7 +20,6 @@
 #include <cassert>
 #include <cstdint>
 #include <tuple>
-#include <vector>
 
 #include "aether-miscpp/serialization/serialization.h"
 
@@ -67,8 +66,9 @@ struct Serializer<A, GenericMessage<Ts...>> {
             return res;
           },
           meta.value.fields);
+    } else {
+      return Ok{seri::good};
     }
-    return Ok{seri::good};
   }
 
   SeriResult Deseri(A& archive, Meta<GenericMessage<Ts...>> meta) const {
@@ -81,8 +81,9 @@ struct Serializer<A, GenericMessage<Ts...>> {
             return res;
           },
           meta.value.fields);
+    } else {
+      return Ok{seri::good};
     }
-    return Ok{seri::good};
   }
 };
 }  // namespace seri
