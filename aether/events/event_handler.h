@@ -17,6 +17,7 @@
 #ifndef AETHER_EVENTS_EVENT_HANDLER_H_
 #define AETHER_EVENTS_EVENT_HANDLER_H_
 
+#include <cstddef>
 #include <utility>
 
 #include "aether-miscpp/types/small_function.h"

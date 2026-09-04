@@ -532,7 +532,7 @@
 #  define AE_EVENT_HANDLER_MAX_SIZE 48
 #endif
 #ifndef AE_EVENT_HANDLER_ALIGN
-#  define AE_EVENT_HANDLER_ALIGN (alignof(void*))
+#  define AE_EVENT_HANDLER_ALIGN (alignof(std::max_align_t))
 #endif
 
 #ifndef NDEBUG
