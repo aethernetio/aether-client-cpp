@@ -33,11 +33,11 @@
 
 #    include "aether/poller/poller.h"
 #    include "aether/stream_api/istream.h"
-#    include "aether/transport/transport_tele.h"
-#    include "aether/transport/packet_send_action.h"
 #    include "aether/transport/packet_queue_manager.h"
-#    include "aether/write_action/failed_write_action.h"
+#    include "aether/transport/packet_send_action.h"
 #    include "aether/transport/system_sockets/sockets/isocket.h"
+#    include "aether/transport/transport_tele.h"
+#    include "aether/write_action/failed_write_action.h"
 
 namespace ae {
 namespace upd_internal {

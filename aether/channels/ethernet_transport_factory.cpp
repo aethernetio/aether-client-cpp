@@ -36,6 +36,11 @@
 // IWYU pragma: end_keeps
 
 namespace ae {
+namespace ethernet_transport_factory_internal {
+static constexpr auto kTcpPacketQueueCapacity = AE_TCP_PACKET_QUEUE_SIZE;
+static constexpr auto kUdpPacketQueueCapacity = AE_UDP_PACKET_QUEUE_SIZE;
+}  // namespace ethernet_transport_factory_internal
+
 std::unique_ptr<ByteIStream> EthernetTransportFactory::Create(
     AeContext const& ae_context, Ptr<IPoller> const& poller,
     Endpoint address_port_protocol) {
@@ -70,8 +75,10 @@ std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildTcp(
   using SocketType = WinTcpSocket;
 #    endif
 
-  return std::make_unique<TcpTransport<SocketType, AE_TCP_PACKET_QUEUE_SIZE>>(
-      ae_context, poller, std::move(address_port_protocol));
+  using Transport = TcpTransport<
+      SocketType, ethernet_transport_factory_internal::kTcpPacketQueueCapacity>;
+  return std::make_unique<Transport>(ae_context, poller,
+                                     std::move(address_port_protocol));
 #  else
   static_assert(false, "No transport enabled");
 #  endif
@@ -100,8 +107,10 @@ std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildUdp(
 #    elif WIN_SOCKET_ENABLED
   using SocketType = WinUdpSocket;
 #    endif
-  return std::make_unique<UdpTransport<SocketType, AE_UDP_PACKET_QUEUE_SIZE>>(
-      ae_context, poller, std::move(address_port_protocol));
+  using Transport = UdpTransport<
+      SocketType, ethernet_transport_factory_internal::kUdpPacketQueueCapacity>;
+  return std::make_unique<Transport>(ae_context, poller,
+                                     std::move(address_port_protocol));
 #  else
   static_assert(false, "No transport enabled");
 #  endif

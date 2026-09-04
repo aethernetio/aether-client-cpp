@@ -23,12 +23,13 @@
 #include <etl/circular_buffer.h>
 
 #include "aether/ae_context.h"
+#include "aether/common.h"
 #include "aether/transport/packet_send_action.h"
 
 #include "aether/transport/transport_tele.h"
 
 namespace ae {
-template <typename T, std::size_t MaxSize = 10>
+template <typename T, std::size_t MaxSize>
   requires(std::is_base_of_v<PacketSendAction, T>)
 class PacketQueueManager {
  public:
