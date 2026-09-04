@@ -126,6 +126,11 @@ void CloudServerConnections::Restream() {
   }
 }
 
+void CloudServerConnections::QuarantineForNoResponse(
+    CloudServerConnection& server_connection) {
+  QuarantineAndReconcile(server_connection);
+}
+
 void CloudServerConnections::InitServerConnections() {
   auto cloud = cloud_.Lock();
   assert(cloud && "cloud must outlive its connections");

@@ -46,8 +46,10 @@
 #  define AE_TASK_ALIGN alignof(std::max_align_t)
 #endif
 
+// Sized for concurrent Local Presence pings plus Remote Presence
+// get_client_timing across selected servers with soft-timeout retry/hedge.
 #ifndef AE_API_PROTOCOL_MAX_PENDING_RESPONSES
-#  define AE_API_PROTOCOL_MAX_PENDING_RESPONSES 10
+#  define AE_API_PROTOCOL_MAX_PENDING_RESPONSES 32
 #endif
 
 #ifndef AE_API_PROTOCOL_MAX_PACKET_STACK_DEPTH
@@ -342,6 +344,13 @@
 // Send ping interval, ms
 #ifndef AE_PING_INTERVAL_MS
 #  define AE_PING_INTERVAL_MS AE_DEFAULT_RESPONSE_TIMEOUT_MS + 1000
+#endif
+
+// Initial default for Local/Remote Presence offline classification timeout.
+// Runtime value lives on ClientConnectivityPolicy and may change without
+// a new Ping.
+#ifndef AE_OFFLINE_DETECTION_TIMEOUT_MS
+#  define AE_OFFLINE_DETECTION_TIMEOUT_MS 1000
 #endif
 
 // window size for safe stream response time statistics

@@ -19,7 +19,6 @@
 
 #include <algorithm>
 #include <cassert>
-#include <cmath>
 #include <cstddef>
 #include <type_traits>
 
@@ -29,6 +28,8 @@ DISABLE_WARNING_PUSH()
 IGNORE_IMPLICIT_CONVERSION()
 #include <etl/circular_buffer.h>
 DISABLE_WARNING_POP()
+
+#include "ae-numeric/percentile.h"
 
 #include "aether-miscpp/format/format.h"
 #include "aether-miscpp/serialization/binary_archive.h"
@@ -81,21 +82,40 @@ class StatisticsCounter final {
   [[nodiscard]] TValue percentile() const {
     static_assert((Percentile >= 0) && (Percentile <= 100),
                   "Percentile must be in [0,100]% range");
+    return PercentileValue(Percentile);
+  }
 
-    if constexpr (Percentile == 0) {
+  /**
+   * \brief Runtime percentile accessor (0..100). Same semantics as the
+   * compile-time template overload. Integer-only rank (no float/ceil).
+   */
+  [[nodiscard]] TValue PercentileValue(std::size_t percentile) const {
+    assert(percentile <= 100);
+    assert(!value_buffer_.empty());
+    if (percentile == 0) {
       return min();
-    } else if constexpr (Percentile == 100) {
-      return max();
-    } else {
-      assert(!value_buffer_.empty());
-      auto sorted_list = value_buffer_;
-      std::sort(std::begin(sorted_list), std::end(sorted_list), Comparator{});
-
-      auto index = static_cast<typename decltype(sorted_list)::size_type>(  //
-          std::ceil(static_cast<double>(sorted_list.size() - 1) * Percentile /
-                    100.0));
-      return sorted_list[index];
     }
+    if (percentile == 100) {
+      return max();
+    }
+    auto sorted_list = value_buffer_;
+    std::sort(std::begin(sorted_list), std::end(sorted_list), Comparator{});
+    auto const index = PercentileIndexInteger(sorted_list.size(), percentile);
+    return sorted_list[index];
+  }
+
+  /**
+   * \brief Percentile accessor. Rank uses integer/fixed tail math only.
+   */
+  [[nodiscard]] TValue PercentileValue(Percentile percentile) const {
+    assert(!value_buffer_.empty());
+    if (percentile.IsExactHundred()) {
+      return max();
+    }
+    auto sorted_list = value_buffer_;
+    std::sort(std::begin(sorted_list), std::end(sorted_list), Comparator{});
+    auto const index = PercentileIndex(sorted_list.size(), percentile);
+    return sorted_list[index];
   }
 
   std::size_t size() const { return value_buffer_.size(); }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2026 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,24 @@
  * limitations under the License.
  */
 
-#include "aether/work_cloud_api/work_server_api/authorized_api.h"
+#ifndef AETHER_WORK_CLOUD_API_CLIENT_TIMING_H_
+#define AETHER_WORK_CLOUD_API_CLIENT_TIMING_H_
+
+#include <cstdint>
+
+#include "aether-miscpp/reflect/reflect.h"
 
 namespace ae {
-AuthorizedApi::AuthorizedApi(ProtocolContext& protocol_context)
-    : ApiClass{protocol_context},
-      ping{protocol_context},
-      send_message{protocol_context},
-      send_messages{protocol_context},
-      check_access_for_send_message{protocol_context},
-      resolver_servers{protocol_context},
-      resolver_clouds{protocol_context},
-      send_telemetry{protocol_context},
-      get_client_timing{protocol_context},
-      report_applied_config{protocol_context} {}
+
+// Wire DTO for AuthorizedApi.get_client_timing. Field order matches ADSL:
+// nextPingDeltaMs then lastConnectDeltaMs. Do not change wire layout here.
+struct ClientTiming {
+  AE_REFLECT_MEMBERS(next_ping_delta_ms, last_connect_delta_ms)
+
+  std::int64_t next_ping_delta_ms{};
+  std::int64_t last_connect_delta_ms{};
+};
+
 }  // namespace ae
+
+#endif  // AETHER_WORK_CLOUD_API_CLIENT_TIMING_H_

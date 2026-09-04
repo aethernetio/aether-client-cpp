@@ -73,18 +73,23 @@ void ProtocolContext::DestroyPending(PendingEntry const& entry) {
 }
 
 void ProtocolContext::PreparePendingResponseSlot(RequestId request_id) {
-  // ensure there is one pending response for request_id
+  // Replace any existing pending response for this request id first.
   auto existing_entry = TakePending(request_id);
   if (existing_entry.response != nullptr) {
     EvictPending(existing_entry);
-    return;
   }
 
-  // ensure there is enough in pool for new pending response
-  // oldest pending should be evicted
-  if (pending_responses_.full()) {
-    auto oldest_entry = TakeOldestPending();
-    EvictPending(oldest_entry);
+  // Free a registry/pool slot for the new entry. OnEvicted handlers may
+  // re-enter CreatePendingResponse and refill the slot we just freed, so
+  // keep draining until both the registry and the pool have capacity.
+  auto spins = kMaxPendingResponses * 2U;
+  while ((pending_responses_.full() ||
+          pending_response_pool_.available() == 0U) &&
+         spins != 0U) {
+    assert(!pending_responses_.empty() &&
+           "Pending response pool exhausted with empty registry");
+    EvictPending(TakeOldestPending());
+    --spins;
   }
 
   assert(!pending_responses_.full() &&

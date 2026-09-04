@@ -57,7 +57,8 @@ list(APPEND aether_srcs
             "ae_actions/ping.cpp"
             "ae_actions/check_access_for_send_message.cpp"
             "ae_actions/telemetry.cpp"
-            "ae_actions/select_client.cpp")
+            "ae_actions/select_client.cpp"
+            "ae_actions/query_peer_presence.cpp")
 
 list(APPEND aether_srcs
             "registration/api/client_reg_api_safe.cpp"
@@ -179,6 +180,7 @@ list(APPEND aether_srcs
             "cloud_connections/cloud_server_connection.cpp"
             "cloud_connections/cloud_server_connections.cpp"
             "cloud_connections/ping_cloud_servers.cpp"
+            "cloud_connections/local_presence_machine.cpp"
             "cloud_connections/cloud_subscription.cpp"
             "cloud_connections/cloud_request.cpp")
 

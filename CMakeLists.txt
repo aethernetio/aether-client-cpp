@@ -62,6 +62,7 @@ option(AE_BUILD_TOOLS "Build tools" ${AE_ROOT_PORJECT})
 option(AE_BUILD_EXAMPLES "Build examples" ${AE_ROOT_PORJECT})
 option(AE_BUILD_TESTS "Build tests" ${AE_ROOT_PORJECT})
 option(AE_BUILD_ANDROID_SMOKE "Build Android NDK smoke shared library and runner" Off)
+option(AE_ENABLE_PRIVILEGED_NETWORK_TESTS "Enable Administrator/network live tests" Off)
 option(AE_ADDRESS_SANITIZE "Enable address sanitizer" Off)
 
 set(UTM_ID "0" CACHE STRING "User Tracking Measurement ID, must be a uint32 value")
@@ -134,7 +135,7 @@ CPMAddPackage(
 CPMAddPackage(
   NAME ae-numeric
   GIT_REPOSITORY "https://github.com/aethernetio/aethernet-numeric.git"
-  GIT_TAG "main"
+  GIT_TAG "3ab9e7310a2f8e6240931261c07c3a0c39771ec2"
   OPTIONS "AE_NUMERIC_INSTALL ${AE_INSTALL}" "AE_BUILD_TESTS OFF"
   EXCLUDE_FROM_ALL FALSE
 )
@@ -320,6 +321,7 @@ target_compile_options(${TARGET_NAME} PRIVATE
       /w15262 #implisitfallthrough
       /wd4388 #Wno-sign-compare
       /wd4389 #Wno-sign-compare
+      /wd4702 # unreachable in ae-numeric FixedPoint/Exponential templates
       /Zc:preprocessor
       >
 )
@@ -344,6 +346,7 @@ if(AE_BUILD_EXAMPLES)
   add_subdirectory(examples/common)
   add_subdirectory(examples/cloud)
   add_subdirectory(examples/a_b_message_exchange)
+  add_subdirectory(examples/remote_presence_live)
   add_subdirectory(examples/message_server)
   add_subdirectory(examples/capi/oddity)
   add_subdirectory(examples/benches/send_message_delays)
