@@ -18,6 +18,7 @@
 #if AE_SUPPORT_MODEMS && AE_ENABLE_THINGY91X
 
 #  include <bitset>
+#  include <chrono>
 #  include <string_view>
 
 #  include "aether-miscpp/misc/override.h"
@@ -30,6 +31,8 @@
 #  include "aether/modems/modems_tele.h"
 
 namespace ae {
+using namespace std::chrono_literals;
+
 static constexpr auto kWaitOk = at::Wait{"OK"};
 
 namespace thingy91x_modem_internal {
@@ -352,7 +355,7 @@ class ModemStartOperation final : public ModemOperation {
            ex::with_timeout(ae_context_, 60s) | CheckSimStatus() |
            ex::let_value([&]() noexcept {
              auto setup_sim = [this]() noexcept {
-               return ex::just() | SetupSim(modem_init_.use_pin);
+               return ex::just() | SetupSim(modem_init_.pin);
              };
              using res =
                  ex::variant_sender<std::invoke_result_t<decltype(ex::just)>,

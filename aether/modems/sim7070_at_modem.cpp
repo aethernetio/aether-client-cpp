@@ -17,6 +17,7 @@
 #include "aether/modems/sim7070_at_modem.h"
 #if AE_SUPPORT_MODEMS && AE_ENABLE_SIM7070
 
+#  include <chrono>
 #  include <string_view>
 
 #  include "aether-miscpp/misc/override.h"
@@ -28,6 +29,8 @@
 #  include "aether/modems/modems_tele.h"
 
 namespace ae {
+using namespace std::chrono_literals;
+
 static constexpr auto kWaitOk = at::Wait{"OK"};
 
 namespace sim7070_modem_internal {
@@ -372,7 +375,7 @@ auto ModemStartOperation::Pipeline() {
              }) |
          CheckSimStatus() | ex::let_value([&]() noexcept {
            auto setup_sim = [this]() noexcept {
-             return ex::just() | SetupSim(modem_init_.use_pin);
+             return ex::just() | SetupSim(modem_init_.pin);
            };
            using res =
                ex::variant_sender<std::invoke_result_t<decltype(ex::just)>,

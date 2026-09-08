@@ -264,9 +264,10 @@ struct ModemBaseStation {
 };
 
 struct ModemInit {
-  AE_REFLECT_MEMBERS(serial_init, psp, bs, pin, use_pin, operator_name,
-                     apn_name, apn_user, apn_pass, modem_mode, auth_type,
-                     use_auth, auth_user, auth_pass, ssl_cert, use_ssl)
+  AE_REFLECT_MEMBERS(serial_init, psp, bs, pin, use_pin, modem_mode,
+                     operator_code, operator_name, apn_name, apn_user, 
+                     apn_pass, auth_type, use_auth, auth_user, auth_pass, 
+                     ssl_cert, use_ssl)
   SerialInit serial_init;
   ModemPowerSaveParam psp;
   ModemBaseStation bs;

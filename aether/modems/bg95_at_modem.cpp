@@ -17,6 +17,7 @@
 #include "aether/modems/bg95_at_modem.h"
 #if AE_SUPPORT_MODEMS && AE_ENABLE_BG95
 
+#  include <chrono>
 #  include <string_view>
 
 #  include "aether-miscpp/misc/override.h"
@@ -28,6 +29,8 @@
 #  include "aether/modems/modems_tele.h"
 
 namespace ae {
+using namespace std::chrono_literals;
+
 static constexpr auto kWaitOk = at::Wait{"OK"};
 
 namespace bg95_modem_internal {
@@ -331,14 +334,14 @@ auto ModemStartOperation::SetupNetwork(
          ex::with_timeout(ae_context_, 120s) |
          at::MakeRequest(at_support_,
                          R"(AT+CGDCONT=1,"IP",")" + apn_name + "\"", kWaitOk) |
-         ex::with_timeout(ae_context_, 1s) |
+         ex::with_timeout(ae_context_, 30s) |
          at::MakeRequest(at_support_,
                          "AT+CNCFG=1,0,\"" + apn_name + "\",\"" + apn_user +
                              "\",\"" + apn_pass + "\"," + type,
                          kWaitOk) |
-         ex::with_timeout(ae_context_, 1s) |
+         ex::with_timeout(ae_context_, 30s) |
          at::MakeRequest(at_support_, "AT+CREG=1;+CGREG=1;+CEREG=1", kWaitOk) |
-         ex::with_timeout(ae_context_, 1s);
+         ex::with_timeout(ae_context_, 30s);
 }
 
 auto ModemStartOperation::CheckSimStatus() {
@@ -380,7 +383,7 @@ auto ModemStartOperation::Pipeline() {
              }) |
          CheckSimStatus() | ex::let_value([&]() noexcept {
            auto setup_sim = [this]() noexcept {
-             return ex::just() | SetupSim(modem_init_.use_pin);
+             return ex::just() | SetupSim(modem_init_.pin);
            };
            using res =
                ex::variant_sender<std::invoke_result_t<decltype(ex::just)>,
