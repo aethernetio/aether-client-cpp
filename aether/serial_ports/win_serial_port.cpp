@@ -39,51 +39,52 @@ WinSerialPort::WinSerialPort(AeContext const& ae_context,
 WinSerialPort::~WinSerialPort() { Close(); }
 
 void WinSerialPort::Write(std::span<std::uint8_t const> data) {
-  DWORD dwWrite, dwErr, dwRes;
-  BOOL fSuccess{FALSE};
-
-  overlapped_wr_.hEvent = CreateEventA(NULL, true, true, NULL);
-  if (overlapped_wr_.hEvent == NULL) {
-    dwErr = GetLastError();
-    AE_TELED_DEBUG("Error write to serial port {}", dwErr);
+  auto lock = std::lock_guard{fd_lock_};
+  if (fd_ == INVALID_HANDLE_VALUE) {
+    AE_TELE_ERROR(kAdapterSerialNotOpen, "Port is not open");
     return;
   }
 
-  fSuccess = WriteFile(fd_, data.data(), static_cast<DWORD>(data.size()),
-                       &dwWrite, &overlapped_wr_);
-  dwErr = GetLastError();
-  if (!fSuccess) {
-    if (dwErr != ERROR_IO_PENDING) {
-      AE_TELED_ERROR("WriteFile error {}", dwErr);
-    } else {
-      dwRes = WaitForSingleObject(overlapped_wr_.hEvent, INFINITE);
-      dwErr = GetLastError();
-      switch (dwRes) {
-        case WAIT_OBJECT_0:
-          if (!GetOverlappedResult(fd_, &overlapped_wr_, &dwWrite, FALSE)) {
-            dwErr = GetLastError();
-            AE_TELED_ERROR("GetOverlappedResult error {}", dwErr);
-          } else {
-            fSuccess = FALSE;
-          }
-          break;
-        default:
-          fSuccess = TRUE;
-          break;
-      }
-    }
-  } else {
-    fSuccess = FALSE;
+  DWORD bytes_written{0};
+  bool success{false};
+
+  overlapped_wr_ = {};
+  overlapped_wr_.hEvent = CreateEventA(nullptr, TRUE, FALSE, nullptr);
+  if (overlapped_wr_.hEvent == NULL) {
+    AE_TELED_ERROR("Unable to create serial write event {}", GetLastError());
+    return;
   }
 
-  if (overlapped_wr_.hEvent != NULL) CloseHandle(overlapped_wr_.hEvent);
-
-  if (fSuccess == TRUE) {
-    AE_TELED_ERROR("Write to com port filed!");
+  auto write_result =
+      WriteFile(fd_, data.data(), static_cast<DWORD>(data.size()),
+                &bytes_written, &overlapped_wr_);
+  if (write_result != FALSE) {
+    success = true;
   } else {
-    if (dwWrite > 0) {
-      AE_TELED_DEBUG("Serial data write {} bytes", dwWrite);
+    auto error = GetLastError();
+    if (error != ERROR_IO_PENDING) {
+      AE_TELED_ERROR("WriteFile error {}", error);
+    } else {
+      auto wait_result = WaitForSingleObject(overlapped_wr_.hEvent, INFINITE);
+      if (wait_result == WAIT_OBJECT_0) {
+        success = GetOverlappedResult(fd_, &overlapped_wr_, &bytes_written,
+                                      FALSE) != FALSE;
+        if (!success) {
+          AE_TELED_ERROR("GetOverlappedResult error {}", GetLastError());
+        }
+      } else {
+        AE_TELED_ERROR("Wait for serial write error {}", GetLastError());
+      }
     }
+  }
+
+  CloseHandle(overlapped_wr_.hEvent);
+  overlapped_wr_.hEvent = nullptr;
+
+  if (!success) {
+    AE_TELED_ERROR("Write to COM port failed");
+  } else if (bytes_written > 0) {
+    AE_TELED_DEBUG("Serial data write {} bytes", bytes_written);
   }
 }
 
@@ -93,67 +94,79 @@ WinSerialPort::DataReadEvent::Subscriber WinSerialPort::read_event() {
 
 bool WinSerialPort::IsOpen() { return fd_ != INVALID_HANDLE_VALUE; }
 
-void WinSerialPort::PollEvent(LPOVERLAPPED) { HandleRead(); }
+void WinSerialPort::PollEvent(LPOVERLAPPED overlapped) {
+  if (overlapped == &overlapped_rd_) {
+    HandleRead();
+  }
+}
 
 void WinSerialPort::RequestRead() {
-  DWORD dwErr, dwRead;
-  BOOL fRes;
-
+  auto lock = std::lock_guard{fd_lock_};
   if (fd_ == INVALID_HANDLE_VALUE) {
-    AE_TELE_ERROR(kAdapterSerialNotOpen, "Port is not open");
     return;
   }
 
-  auto lock = std::lock_guard{fd_lock_};
-
-  fRes = ::ReadFile(fd_, read_buffer_.data(),
-                    static_cast<DWORD>(read_buffer_.size()), &dwRead,
-                    &overlapped_rd_);
-  if (!fRes) {
-    dwErr = GetLastError();
-    if (dwErr != ERROR_IO_PENDING) {
-      AE_TELED_ERROR("Read err {}", dwErr);
+  DWORD bytes_read{0};
+  auto read_result =
+      ::ReadFile(fd_, read_buffer_.data(),
+                 static_cast<DWORD>(read_buffer_.size()), &bytes_read,
+                 &overlapped_rd_);
+  if (read_result == FALSE) {
+    auto error = GetLastError();
+    if (error != ERROR_IO_PENDING) {
+      AE_TELED_ERROR("Read err {}", error);
       return;
     }
   }
 }
 
 void WinSerialPort::HandleRead() {
-  DWORD dwErr;
-  DWORD dwRead;
+  bool schedule_emit{false};
+  {
+    auto lock = std::scoped_lock{fd_lock_};
+    if (fd_ == INVALID_HANDLE_VALUE) {
+      return;
+    }
 
-  auto lock = std::scoped_lock{fd_lock_};
+    DWORD bytes_read{0};
+    if (!::GetOverlappedResult(fd_, &overlapped_rd_, &bytes_read, FALSE)) {
+      auto error = GetLastError();
+      if (error != ERROR_OPERATION_ABORTED) {
+        AE_TELED_ERROR("GetOverlappedResult err {}", error);
+      }
+      return;
+    }
 
-  if (!::GetOverlappedResult(fd_, &overlapped_rd_, &dwRead, FALSE)) {
-    dwErr = GetLastError();
-    AE_TELED_ERROR("GetOverlappedResult err {}", dwErr);
-    return;
-  }
+    if (bytes_read > 0) {
+      DataBuffer data(static_cast<std::size_t>(bytes_read));
+      std::copy(read_buffer_.begin(), read_buffer_.begin() + bytes_read,
+                data.begin());
+      AE_TELED_DEBUG("Serial data read {} bytes", data.size());
 
-  if (dwRead > 0) {
-    DataBuffer data(static_cast<std::size_t>(dwRead));
-    std::copy(read_buffer_.begin(), read_buffer_.begin() + dwRead,
-              data.begin());
-    AE_TELED_DEBUG("Serial data read {} bytes", data.size());
-
-    buffers_.emplace_back(std::move(data));
-
-    if (!read_flag_.exchange(true)) {
-      scheduler_sub_ = ae_context_.scheduler().Task([this]() noexcept {
-        auto lock = std::scoped_lock{fd_lock_};
-        EmitData();
-        read_flag_ = false;
-      });
+      buffers_.emplace_back(std::move(data));
+      schedule_emit = !read_flag_.exchange(true);
     }
   }
+
+  if (schedule_emit) {
+    scheduler_sub_ =
+        ae_context_.scheduler().Task([this]() noexcept { EmitData(); });
+  }
+
   RequestRead();
 }
 
 void WinSerialPort::EmitData() {
-  for (auto const& b : buffers_) {
+  std::list<DataBuffer> buffers;
+  {
+    auto lock = std::scoped_lock{fd_lock_};
+    buffers.swap(buffers_);
+    read_flag_ = false;
+  }
+
+  for (auto const& b : buffers) {
     read_event_.Emit(b);
   }
-  buffers_.clear();
 }
 
 void* WinSerialPort::OpenPort(SerialInit const& serial_init) {
@@ -216,7 +229,18 @@ bool WinSerialPort::SetOptions(void* fd, SerialInit const& serial_init) {
 }
 
 void WinSerialPort::Close() {
-  if (fd_ != INVALID_HANDLE_VALUE) {
+  scheduler_sub_.Reset();
+
+  auto fd = fd_;
+  if (fd == INVALID_HANDLE_VALUE) {
+    return;
+  }
+
+  poller_->Remove({fd});
+
+  auto lock = std::lock_guard{fd_lock_};
+  if (fd_ == fd) {
+    CancelIoEx(fd_, nullptr);
     CloseHandle(fd_);
     fd_ = INVALID_HANDLE_VALUE;
   }

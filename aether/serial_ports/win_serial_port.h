@@ -67,7 +67,7 @@ class WinSerialPort final : public ISerialPort {
   DataReadEvent read_event_;
 
   std::list<DataBuffer> buffers_;
-  std::atomic_bool read_flag_;
+  std::atomic_bool read_flag_{false};
   TaskSubscription scheduler_sub_;
 
   DataBuffer read_buffer_;
