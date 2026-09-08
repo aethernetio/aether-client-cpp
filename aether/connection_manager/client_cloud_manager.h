@@ -20,8 +20,6 @@
 #include <map>
 #include <optional>
 
-#include "aether/config.h"
-
 #include "aether-objects/obj/obj.h"
 #include "aether-objects/ptr/ptr.h"
 #include "aether/actions/action_pool.h"
@@ -74,11 +72,6 @@ class ClientCloudManager : public Obj {
   ClientCloudManager() = default;
 
  public:
-  static constexpr auto kGetCloudActionPoolCapacity =
-      AE_CLOUD_GET_CLOUD_ACTION_POOL_CAPACITY;
-  static constexpr auto kGetServersActionPoolCapacity =
-      AE_CLOUD_GET_SERVERS_ACTION_POOL_CAPACITY;
-
   using CloudUpdateEvent =
       Event<void(Uid const& uid, Result<Cloud::ptr const&, int>)>;
 
@@ -86,9 +79,8 @@ class ClientCloudManager : public Obj {
       ActionPool<AeContext,
                  std::variant<client_cloud_manager_internal::GetCloudFromCache,
                               GetCloudFromAether>,
-                 kGetCloudActionPoolCapacity>;
-  using GetServersPool =
-      ActionPool<AeContext, GetServersAction, kGetServersActionPoolCapacity>;
+                 5>;
+  using GetServersPool = ActionPool<AeContext, GetServersAction, 5>;
 
   explicit ClientCloudManager(ObjProp prop, ObjPtr<Aether> aether,
                               ObjPtr<Client> client);

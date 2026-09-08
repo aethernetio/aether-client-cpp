@@ -21,20 +21,24 @@
 
 #if AE_SUPPORT_MODEMS
 #  define MODEM_TRANSPORT_ENABLED 1
-#  include <optional>
 #  include <variant>
+#  include <optional>
 
 #  include "aether/ae_context.h"
 #  include "aether/events/multi_subscription.h"
 
-#  include "aether/modems/imodem_driver.h"
 #  include "aether/stream_api/istream.h"
-#  include "aether/transport/data_packet_collector.h"
-#  include "aether/transport/packet_queue_manager.h"
+#  include "aether/modems/imodem_driver.h"
 #  include "aether/transport/packet_send_action.h"
+#  include "aether/transport/packet_queue_manager.h"
+#  include "aether/transport/data_packet_collector.h"
 #  include "aether/write_action/failed_write_action.h"
 
 namespace ae {
+
+// TODO: add config
+static constexpr std::size_t kTcpSendQueueSize = 10;
+
 class ModemTransport final : public ByteIStream {
   class ModemSend : public PacketSendAction {
    public:
@@ -78,17 +82,9 @@ class ModemTransport final : public ByteIStream {
     Subscription send_sub_;
   };
 
-  static constexpr auto kTcpPacketQueueCapacity =
-      AE_MODEM_TCP_PACKET_QUEUE_SIZE;
-  static constexpr auto kUdpPacketQueueCapacity =
-      AE_MODEM_UDP_PACKET_QUEUE_SIZE;
-
-  using ModemTcpPacketQueueManager =
-      PacketQueueManager<SendTcpAction, kTcpPacketQueueCapacity>;
-  using ModemUdpPacketQueueManager =
-      PacketQueueManager<SendUdpAction, kUdpPacketQueueCapacity>;
   using PacketQueueManagerVar =
-      std::variant<ModemTcpPacketQueueManager, ModemUdpPacketQueueManager>;
+      std::variant<PacketQueueManager<SendTcpAction, kTcpSendQueueSize>,
+                   PacketQueueManager<SendUdpAction, kTcpSendQueueSize>>;
 
  public:
   ModemTransport(AeContext const& ae_context, IModemDriver& modem_driver,

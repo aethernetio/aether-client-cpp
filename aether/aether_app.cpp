@@ -33,6 +33,7 @@
 #include "aether/poller/kqueue_poller.h"
 #include "aether/poller/win_poller.h"
 #include "aether/registration_cloud.h"
+#include "aether/escaped_io_stream_trap.h"
 
 #include "aether/dns/dns_c_ares.h"
 #include "aether/dns/esp32_dns_resolve.h"
@@ -50,14 +51,14 @@ void AetherAppContext::TelemetryInit() {
 #  if AE_TELE_LOG_CONSOLE && AE_TELE_LOG_TO_STATISTICS
     // telemetry to both console and statistics
     tele_statistics_trap_is_set = true;
-    auto trap = std::make_shared<
-        ae::tele::ProxyTrap<ae::tele::IoStreamTrap, ae::TeleStatisticsTrap>>(
-        std::make_shared<ae::tele::IoStreamTrap>(std::cout),
+    auto trap = std::make_shared<ae::tele::ProxyTrap<
+        ae::tele::EscapedIoStreamTrap, ae::TeleStatisticsTrap>>(
+        std::make_shared<ae::tele::EscapedIoStreamTrap>(std::cout),
         std::make_shared<ae::TeleStatisticsTrap>());
 
 #  elif AE_TELE_LOG_CONSOLE
     // telemetry to console only
-    auto trap = std::make_shared<ae::tele::IoStreamTrap>(std::cout);
+    auto trap = std::make_shared<ae::tele::EscapedIoStreamTrap>(std::cout);
 #  elif AE_TELE_LOG_TO_STATISTICS
     // telemetry to statistics only
     tele_statistics_trap_is_set = true;
@@ -90,7 +91,8 @@ void AetherAppContext::TeleStatisticsInit(
 #    if AE_TELE_LOG_CONSOLE && AE_TELE_LOG_TO_STATISTICS
   // if proxy trap is used
   auto proxy = std::static_pointer_cast<
-      ae::tele::ProxyTrap<ae::tele::IoStreamTrap, ae::TeleStatisticsTrap>>(
+      ae::tele::ProxyTrap<ae::tele::EscapedIoStreamTrap,
+                          ae::TeleStatisticsTrap>>(
       trap);
   auto const& current_statistics = proxy->second;
   tele_statistics->trap()->MergeStatistics(*current_statistics);

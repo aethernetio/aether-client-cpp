@@ -25,7 +25,7 @@
 #  else
 
 namespace ae::examples {
-static constexpr std::string_view kSerialPortModem = "COM1";
+static constexpr std::string_view kSerialPortModem = "COM28";
 SerialInit serial_init_modem = {std::string(kSerialPortModem),
                                 kBaudRate::kBaudRate115200};
 
@@ -35,11 +35,11 @@ static ae::ModemInit const modem_init{serial_init_modem,
                                       1111,
                                       false,
                                       ae::kModemMode::kModeNbIot,
-                                      "00001",
+                                      "25001",
                                       "",
-                                      "internet",
-                                      "user",
-                                      "password",
+                                      "internet.mts.ru",
+                                      "mts",
+                                      "mts",
                                       ae::kAuthType::kAuthTypeNone,
                                       false,
                                       "",

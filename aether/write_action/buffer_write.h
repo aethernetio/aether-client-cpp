@@ -71,7 +71,7 @@ class BufferedWriteAction final : public WriteAction {
 /**
  * \brief Buffers write requests until gate is not ready to accept them.
  */
-template <typename T, std::size_t MaxSize>
+template <typename T, std::size_t MaxSize = 10>
 class BufferWrite {
   struct BufferEntry {
     BufferedWriteAction wa;

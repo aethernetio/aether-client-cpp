@@ -31,7 +31,7 @@
 namespace ae {
 using namespace std::chrono_literals;
 
-static constexpr auto kWaitOk = at::Wait{"OK"};
+static const auto kWaitOk = at::Wait{"OK"};
 
 namespace bg95_modem_internal {
 OpenNetworkOperationImpl::OpenNetworkOperationImpl(AeContext const& ae_context,
@@ -334,14 +334,14 @@ auto ModemStartOperation::SetupNetwork(
          ex::with_timeout(ae_context_, 120s) |
          at::MakeRequest(at_support_,
                          R"(AT+CGDCONT=1,"IP",")" + apn_name + "\"", kWaitOk) |
-         ex::with_timeout(ae_context_, 30s) |
+         ex::with_timeout(ae_context_, 180s) |
          at::MakeRequest(at_support_,
                          "AT+CNCFG=1,0,\"" + apn_name + "\",\"" + apn_user +
                              "\",\"" + apn_pass + "\"," + type,
                          kWaitOk) |
-         ex::with_timeout(ae_context_, 30s) |
+         ex::with_timeout(ae_context_, 180s) |
          at::MakeRequest(at_support_, "AT+CREG=1;+CGREG=1;+CEREG=1", kWaitOk) |
-         ex::with_timeout(ae_context_, 30s);
+         ex::with_timeout(ae_context_, 180s);
 }
 
 auto ModemStartOperation::CheckSimStatus() {

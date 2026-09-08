@@ -33,7 +33,7 @@
 namespace ae {
 using namespace std::chrono_literals;
 
-static constexpr auto kWaitOk = at::Wait{"OK"};
+static const auto kWaitOk = at::Wait{"OK"};
 
 namespace thingy91x_modem_internal {
 OpenNetworkOperationImpl::OpenNetworkOperationImpl(AeContext const& ae_context,
@@ -291,14 +291,14 @@ class ModemStartOperation final : public ModemOperation {
     });
 
     return at::MakeRequest(at_support_, std::move(cmd), at::Wait{"OK"}) |
-           ex::with_timeout(ae_context_, std::chrono::seconds{120}) |
+           ex::with_timeout(ae_context_, 120s) |
            at::MakeRequest(at_support_,
                            R"(AT+CGDCONT=0,"IP",")" + apn_name + "\"",
                            kWaitOk) |
-           ex::with_timeout(ae_context_, 1s) |
+           ex::with_timeout(ae_context_, 180s) |
            at::MakeRequest(at_support_,
                            R"(AT+CEREG=1,"IP",")" + apn_name + "\"", kWaitOk) |
-           ex::with_timeout(ae_context_, 1s);
+           ex::with_timeout(ae_context_, 180s);
   }
 
   auto CheckSimStatus() {
@@ -352,7 +352,7 @@ class ModemStartOperation final : public ModemOperation {
            // registration
            at::MakeRequest(at_support_, "AT+CFUN=1", kWaitOk,
                            at::Wait{"+CEREG: 2"}, at::Wait{"+CEREG: 1"}) |
-           ex::with_timeout(ae_context_, 60s) | CheckSimStatus() |
+           ex::with_timeout(ae_context_, 180s) | CheckSimStatus() |
            ex::let_value([&]() noexcept {
              auto setup_sim = [this]() noexcept {
                return ex::just() | SetupSim(modem_init_.pin);

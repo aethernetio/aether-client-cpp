@@ -18,6 +18,7 @@
 
 #include <cassert>
 #include <utility>
+#include <vector>
 
 namespace ae {
 AtDispatcher::AtDispatcher(AtBuffer& buffer)
@@ -27,13 +28,14 @@ AtDispatcher::AtDispatcher(AtBuffer& buffer)
 
 void AtDispatcher::Listen(std::string command, IAtObserver* observer) {
   // there should be only one observer for one command use last
-  observers_.insert_or_assign(std::move(command), observer);
+  observers_.insert_or_assign(
+      std::move(command), ObserverEntry{observer, next_generation_++});
 }
 
 void AtDispatcher::Remove(IAtObserver* observer) {
-  for (auto& [_, o] : observers_) {
-    if (o == observer) {
-      o = nullptr;
+  for (auto& [_, entry] : observers_) {
+    if (entry.observer == observer) {
+      entry.observer = nullptr;
     }
   }
   // remove_guard used to prevent observers_ modification during
@@ -45,17 +47,32 @@ void AtDispatcher::Remove(IAtObserver* observer) {
 
 void AtDispatcher::BufferUpdate(AtBuffer::iterator pos) {
   remove_guard_ = true;
-  for (auto const& [command, observer] : observers_) {
-    if (observer == nullptr) {
+  // A callback may remove its listener and synchronously install another one
+  // for the same command.  Only listeners that existed when this buffer update
+  // started are allowed to observe its data.
+  auto snapshot = std::vector<std::pair<std::string, ObserverEntry>>{};
+  snapshot.reserve(observers_.size());
+  for (auto const& entry : observers_) {
+    snapshot.push_back(entry);
+  }
+
+  for (auto const& [command, entry] : snapshot) {
+    if (entry.observer == nullptr) {
       continue;
     }
     auto search = pos;
     while (search != buffer_->end()) {
+      auto current = observers_.find(command);
+      if (current == observers_.end() ||
+          current->second.observer != entry.observer ||
+          current->second.generation != entry.generation) {
+        break;
+      }
       auto res = buffer_->FindPattern(command, search);
       if (res == buffer_->end()) {
         break;
       }
-      observer->Observe(*buffer_, res);
+      entry.observer->Observe(*buffer_, res);
       search = ++res;
     }
   }
@@ -66,8 +83,9 @@ void AtDispatcher::BufferUpdate(AtBuffer::iterator pos) {
 
 void AtDispatcher::CleanupObservers() {
   remove_guard_ = false;
-  std::erase_if(observers_,
-                [](auto const& co) { return co.second == nullptr; });
+  std::erase_if(observers_, [](auto const& co) {
+    return co.second.observer == nullptr;
+  });
 }
 
 }  // namespace ae

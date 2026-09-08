@@ -54,6 +54,7 @@ class OpenNetworkOperationImpl final : public OpenNetworkOperation {
   std::string host_;
   std::uint16_t port_;
   std::int32_t handle_{-1};
+  std::int32_t open_result_{-1};
 };
 
 class CloseNetworkOperationImpl final : public ModemOperation {
@@ -118,6 +119,10 @@ class ModemStartOperation final : public ModemOperation {
   Sim7070AtModem* self_;
   ModemInit modem_init_;
   AtSupport& at_support_;
+  bool network_registered_{false};
+  bool pdp_active_{false};
+  std::set<ConnectionIndex> stale_connections_;
+  std::optional<AtListener> socket_state_listener_;
 };
 
 class ModemStoppedAlreadyOperation final : public ModemOperation {
@@ -196,21 +201,6 @@ class Sim7070AtModem final : public IModemDriver {
   ModemOperation* PowerOff() override;
 
  private:
-  static constexpr auto kNetworkOpActionPoolCapacity =
-      AE_MODEM_NETWORK_OP_ACTION_POOL_CAPACITY;
-  static constexpr auto kWriteActionPoolCapacity =
-      AE_MODEM_WRITE_ACTION_POOL_CAPACITY;
-
-  using OpenNetworkActionPool =
-      ActionPool<AeContext, sim7070_modem_internal::OpenNetworkOperationImpl,
-                 kNetworkOpActionPoolCapacity>;
-  using CloseNetworkActionPool =
-      ActionPool<AeContext, sim7070_modem_internal::CloseNetworkOperationImpl,
-                 kNetworkOpActionPoolCapacity>;
-  using WriteActionPool =
-      ActionPool<AeContext, sim7070_modem_internal::WriteOperationImpl,
-                 kWriteActionPoolCapacity>;
-
   void Init();
   void SetupPoll();
   void PollEvent(std::int32_t handle);
@@ -221,21 +211,25 @@ class Sim7070AtModem final : public IModemDriver {
   AtSupport at_support_;
   ActionsQueue operation_queue_;
   std::set<ConnectionIndex> connections_;
-  ConnectionIndex next_connection_index_{0};
+  std::set<ConnectionIndex> opening_connections_;
   DataEvent data_event_;
   std::optional<AtListener> poll_listener_;
+  std::optional<AtListener> buffer_full_listener_;
 
   std::unique_ptr<ModemOperation> modem_start_operation_;
   std::unique_ptr<ModemOperation> modem_stop_operation_;
   std::unique_ptr<ModemOperation> modem_set_psp_operation_;
   std::unique_ptr<ModemOperation> modem_poweroff_operation_;
-  OpenNetworkActionPool open_network_pool_;
-  CloseNetworkActionPool close_network_pool_;
-  WriteActionPool write_pool_;
+  ActionPool<AeContext, sim7070_modem_internal::OpenNetworkOperationImpl, 10>
+      open_network_pool_;
+  ActionPool<AeContext, sim7070_modem_internal::CloseNetworkOperationImpl, 10>
+      close_network_pool_;
+  ActionPool<AeContext, sim7070_modem_internal::WriteOperationImpl, 10>
+      write_pool_;
 
   bool initiated_;
   bool started_;
-  int recv_in_queue_ = 0;
+  std::set<ConnectionIndex> recv_in_queue_;
 };
 
 } /* namespace ae */

@@ -21,12 +21,12 @@
 #include "aether/all.h"
 
 #define AE_EXAMPLE_LORA_MODULE 0
-#define AE_EXAMPLE_MODEM 0
+#define AE_EXAMPLE_MODEM 1
 
 #if defined ESP_PLATFORM
-#  define AE_EXAMPLE_ESP_WIFI 1
+#  define AE_EXAMPLE_ESP_WIFI 0
 #else
-#  define AE_EXAMPLE_ETHERNET 1
+#  define AE_EXAMPLE_ETHERNET 0
 #endif
 
 // IWYU pragma: begin_keeps
