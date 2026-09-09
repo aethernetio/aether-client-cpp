@@ -282,12 +282,10 @@ void ModemTransport::OnConnectionFailed() {
 }
 
 void ModemTransport::Disconnect() {
-  if (connection_ == kInvalidConnectionIndex) {
-    return;
+  if (connection_ != kInvalidConnectionIndex) {
+    modem_driver_->CloseNetwork(connection_);
+    connection_ = kInvalidConnectionIndex;
   }
-
-  modem_driver_->CloseNetwork(connection_);
-  connection_ = kInvalidConnectionIndex;
 
   stream_update_event_.Emit();
 }

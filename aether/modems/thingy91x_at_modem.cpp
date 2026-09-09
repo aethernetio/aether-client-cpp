@@ -57,24 +57,31 @@ auto OpenNetworkOperationImpl::Pipeline() {
   return ex::just() |
          at::MakeRequest(at_support_,
                          "AT#XSOCKET=1," + std::to_string(socket_type) + ",0",
+                         kWaitOk,
                          at::Wait{"#XSOCKET: ",
                                   [this](auto&, auto pos) {
                                     return at_support::ParseResponse(
-                                               *pos, "#XSOCKET:", handle_)
+                                               *pos, "#XSOCKET", handle_)
                                         .has_value();
                                   }}) |
-         ex::with_timeout(ae_context_, 2s) |
-         at::MakeRequest(at_support_,
-                         "AT#XSOCKETSELECT=" + std::to_string(handle_),
-                         kWaitOk) |
-         ex::with_timeout(ae_context_, 1s) |
-         at::MakeRequest(at_support_, "AT#XSOCKETOPT=1,20,30", kWaitOk) |
-         ex::with_timeout(ae_context_, 1s) |
-         at::MakeRequest(
-             at_support_,
-             "AT#XCONNECT=\"" + host_ + "\"," + std::to_string(port_),
-             kWaitOk) |
-         ex::with_timeout(ae_context_, 10s);
+         ex::with_timeout(ae_context_, 2s) | ex::let_value([this]() noexcept {
+           return at::MakeRequest(ex::just(), at_support_,
+                                  "AT#XSOCKETSELECT=" + std::to_string(handle_),
+                                  kWaitOk) |
+                  ex::with_timeout(ae_context_, 1s);
+         }) |
+         ex::let_value([this]() noexcept {
+           return at::MakeRequest(ex::just(), at_support_,
+                                  "AT#XSOCKETOPT=1,20,30", kWaitOk) |
+                  ex::with_timeout(ae_context_, 1s);
+         }) |
+         ex::let_value([this]() noexcept {
+           return at::MakeRequest(
+                      ex::just(), at_support_,
+                      "AT#XCONNECT=\"" + host_ + "\"," + std::to_string(port_),
+                      kWaitOk) |
+                  ex::with_timeout(ae_context_, 10s);
+         });
 }
 
 void OpenNetworkOperationImpl::RunPipeline() {
@@ -87,6 +94,7 @@ void OpenNetworkOperationImpl::RunPipeline() {
            }) |
            ex::upon_error(Override{
                [&](ex::TimeoutError) noexcept {
+                 AE_TELED_ERROR("Open modem connection timeout");
                  SetResult(Error{static_cast<ModemError>(-2)});
                },
                [&](std::exception_ptr) noexcept {
@@ -216,7 +224,10 @@ class ModemStartedAlreadyOperation final : public ModemOperation {
 class ModemStartOperation final : public ModemOperation {
  public:
   ModemStartOperation(AeContext const& ae_context, Thingy91xAtModem& self)
-      : ae_context_{ae_context}, self_{&self}, at_support_{self.at_support_} {
+      : ae_context_{ae_context},
+        self_{&self},
+        modem_init_{self.modem_init_},
+        at_support_{self.at_support_} {
     RunPipeline();
   }
 
@@ -293,17 +304,20 @@ class ModemStartOperation final : public ModemOperation {
     return at::MakeRequest(at_support_, std::move(cmd), at::Wait{"OK"}) |
            ex::with_timeout(ae_context_, 120s) |
            at::MakeRequest(at_support_,
-                           R"(AT+CGDCONT=0,"IP",")" + apn_name + "\"",
+                           R"(AT+CEREG=1)",
                            kWaitOk) |
            ex::with_timeout(ae_context_, 180s) |
            at::MakeRequest(at_support_,
-                           R"(AT+CEREG=1,"IP",")" + apn_name + "\"", kWaitOk) |
+                           R"(AT+CGDCONT=1,"IP",")" + apn_name + "\"", kWaitOk) |
            ex::with_timeout(ae_context_, 180s);
   }
 
   auto CheckSimStatus() {
-    return at::MakeRequest(at_support_, "AT+CPIN?", kWaitOk) |
-           ex::with_timeout(ae_context_, 1s);
+    // Start the SIM timeout after the preceding network registration finishes.
+    return ex::let_value([this]() noexcept {
+      return at::MakeRequest(ex::just(), at_support_, "AT+CPIN?", kWaitOk) |
+             ex::with_timeout(ae_context_, 1s);
+    });
   }
 
   auto SetupSim(std::uint16_t pin) {
@@ -351,7 +365,13 @@ class ModemStartOperation final : public ModemOperation {
            // Enabling full functionality and waiting for network
            // registration
            at::MakeRequest(at_support_, "AT+CFUN=1", kWaitOk,
-                           at::Wait{"+CEREG: 2"}, at::Wait{"+CEREG: 1"}) |
+                           at::Wait{"+CEREG:",
+                                    [](AtBuffer&, auto pos) noexcept {
+                                      std::int32_t status{};
+                                      return at_support::ParseResponse(
+                                                 *pos, "+CEREG", status) &&
+                                             (status == 1 || status == 5);
+                                    }}) |
            ex::with_timeout(ae_context_, 180s) | CheckSimStatus() |
            ex::let_value([&]() noexcept {
              auto setup_sim = [this]() noexcept {
