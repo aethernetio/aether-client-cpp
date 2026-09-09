@@ -36,12 +36,6 @@ list(APPEND aether_srcs
             "types/address.cpp")
 
 list(APPEND aether_srcs
-            "events/event_list.cpp"
-            "events/event_deleter.cpp"
-            "events/event_subscription.cpp"
-            "events/multi_subscription.cpp")
-
-list(APPEND aether_srcs
             "poller/epoll_poller.cpp"
             "poller/kqueue_poller.cpp"
             "poller/freertos_poller.cpp"
