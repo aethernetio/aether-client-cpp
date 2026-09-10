@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
+#include <chrono>
 #include <cstdint>
+#include <memory>
+#include <optional>
 #include <vector>
 
 #include <unity.h>
@@ -29,6 +32,8 @@
 #  include "aether/adapter_registry.h"
 #  include "aether/ae_context.h"
 #  include "aether/aether.h"
+#  include "aether/channels/channel.h"
+#  include "aether/clock.h"
 #  include "aether/registration/root_server_select_stream.h"
 #  include "aether/registration_cloud.h"
 #  include "aether/server.h"
@@ -48,6 +53,54 @@ struct RootServerSelectStreamTestAccess {
 };
 
 namespace test_registration_root_server_select {
+
+class RegistrationTestStream final : public ByteIStream {
+ public:
+  explicit RegistrationTestStream(int& destroyed) : destroyed_{&destroyed} {}
+  ~RegistrationTestStream() override { ++*destroyed_; }
+  WriteAction& Write(DataBuffer&&) override { return write_; }
+  StreamInfo stream_info() const override {
+    return StreamInfo{512, 1024, true, LinkState::kLinked, true};
+  }
+  StreamUpdateEvent::Subscriber stream_update_event() override {
+    return EventSubscriber{updates_};
+  }
+  OutDataEvent::Subscriber out_data_event() override {
+    return EventSubscriber{data_};
+  }
+  void Restream() override {}
+
+ private:
+  int* destroyed_;
+  WriteAction write_;
+  StreamUpdateEvent updates_;
+  OutDataEvent data_;
+};
+
+class RegistrationTestChannel final : public Channel {
+  AE_OBJECT(RegistrationTestChannel, Channel, 0)
+
+ protected:
+  RegistrationTestChannel() = default;
+
+ public:
+  RegistrationTestChannel(ObjProp prop, int& destroyed)
+      : Channel{prop}, destroyed_{&destroyed} {}
+  AE_OBJECT_REFLECT()
+
+  TransportBuildSender TransportBuilder() override {
+    return ex::just(std::unique_ptr<ByteIStream>{
+        std::make_unique<RegistrationTestStream>(*destroyed_)});
+  }
+  Duration TransportBuildTimeout() const override {
+    return std::chrono::seconds{1};
+  }
+  Duration ResponseTimeout() const override { return std::chrono::seconds{1}; }
+  std::optional<Endpoint> endpoint() const override { return std::nullopt; }
+
+ private:
+  int* destroyed_{};
+};
 
 struct TestContext {
   AeCtx ToAeContext() const {
@@ -119,6 +172,30 @@ void test_RegistrationServersFailOverByNextPriority() {
   TEST_ASSERT_EQUAL_INT(1, cloud_errors);
 }
 
+void test_DisconnectReleasesTransportWhileRegistrationStreamLives() {
+  int destroyed = 0;
+  Fixture f;
+  auto server = f.AddServer(ServerId{0}, 0);
+  auto channel =
+      RegistrationTestChannel::ptr::Create(CreateWith{f.domain}, destroyed);
+  server->channels.emplace_back(channel);
+  RootServerSelectStream stream{f.ae_context, f.cloud.Load()};
+  for (int i = 0; i < 8; ++i) {
+    f.context.scheduler.Update(Now());
+  }
+  TEST_ASSERT_TRUE(stream.stream_info().is_writable);
+  TEST_ASSERT_EQUAL_INT(0, destroyed);
+
+  stream.Disconnect();
+  TEST_ASSERT_EQUAL_INT(1, destroyed);
+  TEST_ASSERT_FALSE(stream.stream_info().is_writable);
+  stream.Disconnect();
+  for (int i = 0; i < 8; ++i) {
+    f.context.scheduler.Update(Now());
+  }
+  TEST_ASSERT_EQUAL_INT(1, destroyed);
+}
+
 }  // namespace test_registration_root_server_select
 }  // namespace ae
 
@@ -128,6 +205,7 @@ int run_test_registration_root_server_select() {
   UNITY_BEGIN();
   RUN_TEST(test_SingleRegistrationServerSelectsPriorityZero);
   RUN_TEST(test_RegistrationServersFailOverByNextPriority);
+  RUN_TEST(test_DisconnectReleasesTransportWhileRegistrationStreamLives);
   return UNITY_END();
 }
 

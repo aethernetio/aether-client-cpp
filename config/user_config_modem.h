@@ -17,4 +17,6 @@
 #include "config/user_config_hydrogen.h"
 
 #define AE_SUPPORT_MODEMS 1
-#define AE_ENABLE_THINGY91X 1
+#define AE_ENABLE_THINGY91X 0
+#define AE_ENABLE_SIM7070 1
+#define AE_ENABLE_BG95 0

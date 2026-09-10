@@ -25,6 +25,7 @@
 #include "aether/access_points/access_point.h"
 
 namespace ae {
+class Action;
 /**
  * \brief The interface to control network adapter.
  * It must configure interface and provide list of access points.
@@ -45,6 +46,10 @@ class Adapter : public Obj {
   AE_OBJECT_REFLECT()
 
   virtual std::vector<AccessPoint::ptr> access_points() = 0;
+
+  // Stop runtime network resources. The adapter owns the returned action and
+  // keeps it alive until destruction. nullptr means no asynchronous work.
+  virtual Action* Stop();
 
   virtual NewAccessPoint::Subscriber new_access_point();
 

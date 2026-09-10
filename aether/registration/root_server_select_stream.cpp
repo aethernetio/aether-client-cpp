@@ -57,6 +57,14 @@ void RootServerSelectStream::Restream() {
   CloudError();
 }
 
+void RootServerSelectStream::Disconnect() {
+  buffer_write_.buffer_on();
+  buffer_write_.Drop();
+  server_connection_.reset();
+  buffer_write_.buffer_off();
+  stream_update_event_.Emit();
+}
+
 RootServerSelectStream::ServerChangedEvent::Subscriber
 RootServerSelectStream::server_changed_event() {
   return server_changed_event_;

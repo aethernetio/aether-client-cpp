@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2026 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,16 +14,17 @@
  * limitations under the License.
  */
 
-#include "aether/adapters/adapter.h"
+#ifndef AETHER_CHANNELS_MODEM_CHANNEL_INTERNAL_H_
+#define AETHER_CHANNELS_MODEM_CHANNEL_INTERNAL_H_
 
-namespace ae {
-Action* Adapter::Stop() { return nullptr; }
+#include "aether/config.h"
+#if AE_SUPPORT_MODEMS
+#  include <memory>
+#  include "aether/channels/channel.h"
 
-#ifdef AE_DISTILLATION
-Adapter::Adapter(ObjProp prop) : Obj{prop} {}
-#endif  // AE_DISTILLATION
+namespace ae::modem_channel_internal {
+TransportBuildSender ConnectTransport(std::unique_ptr<ByteIStream> transport);
+}  // namespace ae::modem_channel_internal
+#endif
 
-Adapter::NewAccessPoint::Subscriber Adapter::new_access_point() {
-  return EventSubscriber{new_access_point_event_};
-}
-}  // namespace ae
+#endif  // AETHER_CHANNELS_MODEM_CHANNEL_INTERNAL_H_

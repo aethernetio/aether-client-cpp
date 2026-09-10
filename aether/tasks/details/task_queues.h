@@ -99,8 +99,6 @@ class TaskQueue : TaskQueueBase<ITask, Capacity, Pool> {
   using base::ReclaimInactive;
 
   bool Add(ITask* p) {
-    // this is contract, p should not be null
-    assert(p != nullptr);
     if (base::list_.size() == base::list_.max_size()) {
       return false;
     }
@@ -141,8 +139,6 @@ class DelayedTaskQueue : TaskQueueBase<IDelayedTask<TP>, Capacity, Pool> {
   using base::ReclaimInactive;
 
   bool Add(IDelayedTask<TP>* p) {
-    // this is contract, p should not be null
-    assert(p != nullptr);
     if (base::list_.size() == base::list_.max_size()) {
       return false;
     }

@@ -13,6 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+/**
+ * @file modems_tele.h
+ * @brief Telemetry include shared by modem driver implementations.
+ */
 #ifndef AETHER_MODEMS_MODEMS_TELE_H_
 #define AETHER_MODEMS_MODEMS_TELE_H_
 

@@ -21,6 +21,7 @@
 #include <cassert>
 #include <optional>
 #include <type_traits>
+#include <vector>
 
 #include "aether-objects/obj/domain.h"
 #include "aether-objects/ptr/ptr.h"
@@ -156,14 +157,9 @@ class AetherApp {
 
   ~AetherApp();
 
-  /**
-   * \brief Mark application as exited
-   */
-  void Exit(int code = 0) {
-    exit_code_ = code;
-    // wake up the task thread
-    aether_->task_scheduler->Task([]() {});
-  }
+  // Stop adapters, then mark the application as exited. Keep updating the
+  // scheduler until IsExited() becomes true.
+  void Exit(int code = 0);
 
   bool IsExited() const { return exit_code_.has_value(); }
   int ExitCode() const {
@@ -221,12 +217,17 @@ class AetherApp {
 
  private:
   AetherApp() = default;
+  void CheckShutdown();
 
   std::unique_ptr<IDomainStorage> domain_facility_;
   std::unique_ptr<Domain> domain_;
   Aether::ptr aether_;
 
   std::optional<int> exit_code_;
+  std::optional<int> requested_exit_code_;
+  std::vector<Adapter::ptr> stopping_adapters_;
+  std::vector<Action*> stop_actions_;
+  TaskSubscription shutdown_task_;
 };
 
 }  // namespace ae

@@ -93,6 +93,9 @@ class Operation {
     // task_sub controls if task reset or no
     op_base_.task_sub = ac_.scheduler().DelayedTask(
         [&]() noexcept {
+          if (op_base_.is_reset()) {
+            return;
+          }
           op_base_.Reset();
           stdexec::set_error(std::move(op_base_.recv), TimeoutError{});
         },

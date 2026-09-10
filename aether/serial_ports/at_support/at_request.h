@@ -79,10 +79,16 @@ class AtRequestOp {
         [&](auto&&... ws) {
           MakeWaits(ListenerArgs{
               std::move(ws.trigger),
-              [&, h_{std::move(ws.handler)}](auto&&... args) mutable noexcept {
+              [&, matched = false,
+               h_{std::move(ws.handler)}](auto&&... args) mutable noexcept {
+                if (completed_ || matched) {
+                  return;
+                }
                 if (std::invoke(h_, std::forward<decltype(args)>(args)...)) {
+                  matched = true;
                   // setup set value if all waits triggered
                   if (--waits_counter_ == 0) {
+                    completed_ = true;
                     ex::set_value(std::move(receiver_));
                   }
                 }
@@ -93,7 +99,12 @@ class AtRequestOp {
 
     error_listener_.emplace(
         state_.at_support.dispatcher(), "ERROR",
-        [&](auto&&...) noexcept { ex::set_error(std::move(receiver_), -1); });
+        [&](auto&&...) noexcept {
+          if (!completed_) {
+            completed_ = true;
+            ex::set_error(std::move(receiver_), -1);
+          }
+        });
 
     using CommandType = decltype(state_.command);
     auto res = std::invoke([&]() noexcept {
@@ -103,9 +114,11 @@ class AtRequestOp {
         return std::invoke(state_.command);
       }
     });
-    if (!res) {
+    if (!res && !completed_) {
+      completed_ = true;
       ex::set_error(std::move(receiver_), res.error());
-    } else if (waits_counter_ == 0) {
+    } else if (waits_counter_ == 0 && !completed_) {
+      completed_ = true;
       ex::set_value(std::move(receiver_));
     }
   }
@@ -128,6 +141,7 @@ class AtRequestOp {
   R receiver_;
   StateType state_;
   std::size_t waits_counter_ = kWaitsCount;
+  bool completed_{false};
   std::array<std::optional<AtListener>, kWaitsCount> listeners_;
   std::optional<AtListener> error_listener_;
 };

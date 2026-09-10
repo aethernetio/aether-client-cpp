@@ -226,7 +226,6 @@ int AetherCloudExample() {
     if ((received_count == messages.size()) &&
         (confirmed_count == messages.size())) {
       aether_app->Exit(0);
-      continue;
     }
     // Wait for next event or timeout
     auto current_time = ae::Now();
