@@ -177,8 +177,9 @@ void* WinSerialPort::OpenPort(SerialInit const& serial_init) {
                    OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
 
   if (fd == INVALID_HANDLE_VALUE) {
-    AE_TELE_ERROR(kAdapterSerialNotOpen, "Failed to open port: {}",
-                  GetLastError());
+    auto const error = GetLastError();
+    AE_TELE_ERROR(kAdapterSerialNotOpen, "Failed to open port '{}': error {}",
+                  full_name, error);
     return INVALID_HANDLE_VALUE;
   }
 

@@ -21,17 +21,17 @@
 
 #if AE_SUPPORT_MODEMS
 #  define MODEM_TRANSPORT_ENABLED 1
-#  include <variant>
 #  include <optional>
+#  include <variant>
 
 #  include "aether/ae_context.h"
 #  include "aether/events/multi_subscription.h"
 
-#  include "aether/stream_api/istream.h"
 #  include "aether/modems/imodem_driver.h"
-#  include "aether/transport/packet_send_action.h"
-#  include "aether/transport/packet_queue_manager.h"
+#  include "aether/stream_api/istream.h"
 #  include "aether/transport/data_packet_collector.h"
+#  include "aether/transport/packet_queue_manager.h"
+#  include "aether/transport/packet_send_action.h"
 #  include "aether/write_action/failed_write_action.h"
 
 namespace ae {
@@ -101,7 +101,8 @@ class ModemTransport final : public ByteIStream {
   void Connect();
   void OnConnected(ConnectionIndex connection_index);
   void OnConnectionFailed();
-  void Disconnect();
+  void ScheduleConnectionFailure();
+  void Disconnect(bool notify = true);
 
   void DataReceived(ConnectionIndex connection, DataBuffer const& data_in);
   void DataReceivedTcp(DataBuffer const& data_in);
@@ -134,6 +135,7 @@ class ModemTransport final : public ByteIStream {
   MultiSubscription send_action_subs_;
   Subscription connection_sub_;
   Subscription read_packet_sub_;
+  TaskSubscription connection_failure_task_;
 };
 }  // namespace ae
 

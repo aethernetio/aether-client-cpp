@@ -18,6 +18,8 @@
 
 #if MODEM_TRANSPORT_ENABLED
 
+#  include <cassert>
+
 #  include "aether/vector_buffer.h"
 #  include "aether/write_action/failed_write_action.h"
 
@@ -151,7 +153,7 @@ ModemTransport::ModemTransport(AeContext const& ae_context,
   Connect();
 }
 
-ModemTransport::~ModemTransport() { Disconnect(); }
+ModemTransport::~ModemTransport() { Disconnect(false); }
 
 ModemTransport::StreamUpdateEvent::Subscriber
 ModemTransport::stream_update_event() {
@@ -205,7 +207,7 @@ WriteAction& ModemTransport::WriteTcp(DataBuffer&& in_data) {
       send_action->status_event().Subscribe([this](auto status) {
         if (status == WriteAction::Status::kFail) {
           AE_TELED_ERROR("Send error, disconnect!");
-          OnConnectionFailed();
+          ScheduleConnectionFailure();
         }
       });
   return *send_action;
@@ -225,7 +227,7 @@ WriteAction& ModemTransport::WriteUdp(DataBuffer&& in_data) {
       send_action->status_event().Subscribe([this](auto status) {
         if (status == WriteAction::Status::kFail) {
           AE_TELED_ERROR("Send error, disconnect!");
-          OnConnectionFailed();
+          ScheduleConnectionFailure();
         }
       });
   return *send_action;
@@ -281,13 +283,32 @@ void ModemTransport::OnConnectionFailed() {
   Disconnect();
 }
 
-void ModemTransport::Disconnect() {
+void ModemTransport::ScheduleConnectionFailure() {
+  // The write action belongs to this transport. Notify its owner only after
+  // WriteAction::SetStatus has returned and finished the action: the owner may
+  // destroy the transport in the stream update callback.
+  if (!connection_failure_task_) {
+    connection_failure_task_ =
+        ae_context_.scheduler().Task([this]() { OnConnectionFailed(); });
+    if (!connection_failure_task_) {
+      AE_TELED_ERROR("Failed to schedule modem transport disconnection");
+      assert(false && "Task allocation failed");
+    }
+  }
+}
+
+void ModemTransport::Disconnect(bool notify) {
+  stream_info_.is_writable = false;
+  connection_sub_.Reset();
+  read_packet_sub_.Reset();
   if (connection_ != kInvalidConnectionIndex) {
     modem_driver_->CloseNetwork(connection_);
     connection_ = kInvalidConnectionIndex;
   }
 
-  stream_update_event_.Emit();
+  if (notify) {
+    stream_update_event_.Emit();
+  }
 }
 
 void ModemTransport::DataReceived(ConnectionIndex connection,

@@ -16,6 +16,7 @@
 
 #include <unity.h>
 #include <iostream>
+#include <string_view>
 
 #include "aether/tele.h"
 
@@ -31,8 +32,16 @@ extern int test_at_dispatcher();
 extern int test_at_listener();
 extern int test_at_request();
 extern int test_at_stages();
+extern int test_thingy91x();
+extern int test_sim7070();
+extern int test_app_shutdown();
+extern int test_modem_transport_shutdown();
 
-int main() {
+int main(int argc, char* argv[]) {
+  if (argc == 2 && std::string_view{argv[1]} == "--modem-shutdown") {
+    return test_thingy91x() + test_sim7070() + test_app_shutdown() +
+           test_modem_transport_shutdown();
+  }
   int res = 0;
   res += test_at_support();
   res += test_at_buffer();
@@ -40,5 +49,9 @@ int main() {
   res += test_at_listener();
   res += test_at_request();
   res += test_at_stages();
+  res += test_thingy91x();
+  res += test_sim7070();
+  res += test_app_shutdown();
+  res += test_modem_transport_shutdown();
   return res;
 }

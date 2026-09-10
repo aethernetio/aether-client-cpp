@@ -22,6 +22,10 @@ list(APPEND test_srcs
   test-at-listener.cpp
   test-at-request.cpp
   test-at-stages.cpp
+  test-thingy91x.cpp
+  test-sim7070.cpp
+  test-app-shutdown.cpp
+  test-modem-transport-shutdown.cpp
 )
 
 if(NOT CM_PLATFORM)
@@ -36,6 +40,8 @@ if(NOT CM_PLATFORM)
   target_link_libraries(${PROJECT_NAME} PRIVATE aether unity)
 
   add_test(NAME ${PROJECT_NAME} COMMAND $<TARGET_FILE:${PROJECT_NAME}>)
+  add_test(NAME test-modem-shutdown
+           COMMAND $<TARGET_FILE:${PROJECT_NAME}> --modem-shutdown)
 else()
   message(WARNING "Not implemented for ${CM_PLATFORM}")
 endif()

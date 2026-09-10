@@ -16,6 +16,7 @@
 
 #include "aether/aether_app.h"
 
+#include <chrono>
 #include <cstdlib>
 #include <iostream>
 
@@ -27,13 +28,13 @@
 #include "aether/adapters/wifi_adapter.h"
 #include "aether/crypto.h"
 #include "aether/crypto/key.h"
+#include "aether/escaped_io_stream_trap.h"
 #include "aether/global_ids.h"
 #include "aether/poller/epoll_poller.h"
 #include "aether/poller/freertos_poller.h"
 #include "aether/poller/kqueue_poller.h"
 #include "aether/poller/win_poller.h"
 #include "aether/registration_cloud.h"
-#include "aether/escaped_io_stream_trap.h"
 
 #include "aether/dns/dns_c_ares.h"
 #include "aether/dns/esp32_dns_resolve.h"
@@ -51,10 +52,11 @@ void AetherAppContext::TelemetryInit() {
 #  if AE_TELE_LOG_CONSOLE && AE_TELE_LOG_TO_STATISTICS
     // telemetry to both console and statistics
     tele_statistics_trap_is_set = true;
-    auto trap = std::make_shared<ae::tele::ProxyTrap<
-        ae::tele::EscapedIoStreamTrap, ae::TeleStatisticsTrap>>(
-        std::make_shared<ae::tele::EscapedIoStreamTrap>(std::cout),
-        std::make_shared<ae::TeleStatisticsTrap>());
+    auto trap =
+        std::make_shared<ae::tele::ProxyTrap<ae::tele::EscapedIoStreamTrap,
+                                             ae::TeleStatisticsTrap>>(
+            std::make_shared<ae::tele::EscapedIoStreamTrap>(std::cout),
+            std::make_shared<ae::TeleStatisticsTrap>());
 
 #  elif AE_TELE_LOG_CONSOLE
     // telemetry to console only
@@ -90,10 +92,8 @@ void AetherAppContext::TeleStatisticsInit(
   // trap is set to something different
 #    if AE_TELE_LOG_CONSOLE && AE_TELE_LOG_TO_STATISTICS
   // if proxy trap is used
-  auto proxy = std::static_pointer_cast<
-      ae::tele::ProxyTrap<ae::tele::EscapedIoStreamTrap,
-                          ae::TeleStatisticsTrap>>(
-      trap);
+  auto proxy = std::static_pointer_cast<ae::tele::ProxyTrap<
+      ae::tele::EscapedIoStreamTrap, ae::TeleStatisticsTrap>>(trap);
   auto const& current_statistics = proxy->second;
   tele_statistics->trap()->MergeStatistics(*current_statistics);
   proxy->second = tele_statistics->trap();
@@ -383,6 +383,12 @@ std::unique_ptr<AetherApp> AetherApp::Construct(AetherAppContext context) {
 }
 
 AetherApp::~AetherApp() {
+  if (aether_) {
+    Exit();
+    while (!IsExited()) {
+      WaitUntil(Update(Now()));
+    }
+  }
   // save aether_ state on exit
   if (aether_) {
     aether_.Save();
@@ -391,6 +397,47 @@ AetherApp::~AetherApp() {
   // reset telemetry before delete all objects
   TELE_SINK::Instance().SetTrap(nullptr);
   aether_.Reset();
+}
+
+void AetherApp::Exit(int code) {
+  if (requested_exit_code_) {
+    return;
+  }
+  requested_exit_code_ = code;
+  // Defer shutdown out of the callback that requested exit.
+  shutdown_task_ = aether_->task_scheduler->Task([this]() {
+    auto registry = aether_->adapter_registry;
+    if (registry) {
+      registry.Load();
+      stopping_adapters_ = registry->adapters();
+      for (auto& adapter : stopping_adapters_) {
+        adapter.Load();
+        if (auto* action = adapter->Stop(); action != nullptr) {
+          stop_actions_.push_back(action);
+        }
+      }
+    }
+    CheckShutdown();
+  });
+  if (!shutdown_task_) {
+    AE_TELED_ERROR("Failed to schedule application shutdown");
+    assert(false && "Task allocation failed");
+  }
+}
+
+void AetherApp::CheckShutdown() {
+  for (auto* action : stop_actions_) {
+    if (!action->is_finished()) {
+      shutdown_task_ = aether_->task_scheduler->DelayedTask(
+          [this]() { CheckShutdown(); }, Now() + std::chrono::milliseconds{10});
+      if (!shutdown_task_) {
+        AE_TELED_ERROR("Failed to schedule application shutdown check");
+        assert(false && "Task allocation failed");
+      }
+      return;
+    }
+  }
+  exit_code_ = requested_exit_code_;
 }
 
 }  // namespace ae

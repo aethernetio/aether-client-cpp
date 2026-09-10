@@ -64,5 +64,9 @@ IModemDriver& ModemAdapter::modem_driver() {
   return *modem_driver_;
 }
 
+Action* ModemAdapter::Stop() {
+  return modem_driver_ ? modem_driver_->Stop() : nullptr;
+}
+
 }  // namespace ae
 #endif

@@ -307,7 +307,7 @@
 
 // default value for connection modem
 #ifndef AE_MODEM_CONNECTION_TIMEOUT_MS
-#  define AE_MODEM_CONNECTION_TIMEOUT_MS 15000
+#  define AE_MODEM_CONNECTION_TIMEOUT_MS 60000
 #endif
 
 // Maximal number of server connections

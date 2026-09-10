@@ -49,6 +49,8 @@ class RootServerSelectStream final : public ByteIStream {
   StreamUpdateEvent::Subscriber stream_update_event() override;
   OutDataEvent::Subscriber out_data_event() override;
   void Restream() override;
+  // Release the registration transport after the operation completes.
+  void Disconnect();
 
   ServerChangedEvent::Subscriber server_changed_event();
   CloudErrorEvent::Subscriber cloud_error_event();

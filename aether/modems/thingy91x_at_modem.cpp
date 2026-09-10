@@ -21,12 +21,12 @@
 #  include <chrono>
 #  include <string_view>
 
-#  include "aether-miscpp/misc/override.h"
 #  include "aether-miscpp/misc/from_chars.h"
+#  include "aether-miscpp/misc/override.h"
 #  include "aether/executors/executors.h"
+#  include "aether/serial_ports/at_support/at_request.h"
 #  include "aether/serial_ports/at_support/at_stage.h"
 #  include "aether/serial_ports/serial_port_factory.h"
-#  include "aether/serial_ports/at_support/at_request.h"
 
 #  include "aether/modems/modems_tele.h"
 
@@ -86,22 +86,40 @@ auto OpenNetworkOperationImpl::Pipeline() {
 
 void OpenNetworkOperationImpl::RunPipeline() {
   self_->operation_queue_.Push(at::Stage(ae_context_, [this]() {
+    auto fail = [this](ModemError error) -> ex::AnySender<ex::set_value_t()> {
+      if (handle_ < 0) {
+        return ex::just() |
+               ex::then([this, error]() noexcept { SetResult(Error{error}); });
+      }
+      // Roll back within this stage, before another operation selects a socket.
+      return at::MakeRequest(ex::just(), at_support_,
+                             "AT#XSOCKETSELECT=" + std::to_string(handle_),
+                             kWaitOk) |
+             ex::with_timeout(ae_context_, 1s) |
+             at::MakeRequest(at_support_, "AT#XSOCKET=0", kWaitOk) |
+             ex::with_timeout(ae_context_, 10s) |
+             ex::upon_error([this](auto&&) noexcept {
+               AE_TELED_ERROR(
+                   "Failed to close modem socket {} after open error", handle_);
+             }) |
+             ex::then([this, error]() noexcept { SetResult(Error{error}); });
+    };
     return Pipeline() | ex::then([this]() noexcept {
              AE_TELED_DEBUG("Opened connection {}", handle_);
              self_->connections_.emplace(static_cast<ConnectionIndex>(handle_));
 
              SetResult(Ok{static_cast<ConnectionIndex>(handle_)});
            }) |
-           ex::upon_error(Override{
-               [&](ex::TimeoutError) noexcept {
+           ex::let_error(Override{
+               [fail](ex::TimeoutError) noexcept {
                  AE_TELED_ERROR("Open modem connection timeout");
-                 SetResult(Error{static_cast<ModemError>(-2)});
+                 return fail(static_cast<ModemError>(-2));
                },
-               [&](std::exception_ptr) noexcept {
-                 SetResult(Error{static_cast<ModemError>(-3)});
+               [fail](std::exception_ptr) noexcept {
+                 return fail(static_cast<ModemError>(-3));
                },
-               [&](auto err) noexcept {
-                 SetResult(Error{static_cast<ModemError>(err)});
+               [fail](auto err) noexcept {
+                 return fail(static_cast<ModemError>(err));
                },
            });
   }));
@@ -303,12 +321,11 @@ class ModemStartOperation final : public ModemOperation {
 
     return at::MakeRequest(at_support_, std::move(cmd), at::Wait{"OK"}) |
            ex::with_timeout(ae_context_, 120s) |
-           at::MakeRequest(at_support_,
-                           R"(AT+CEREG=1)",
-                           kWaitOk) |
+           at::MakeRequest(at_support_, R"(AT+CEREG=1)", kWaitOk) |
            ex::with_timeout(ae_context_, 180s) |
            at::MakeRequest(at_support_,
-                           R"(AT+CGDCONT=1,"IP",")" + apn_name + "\"", kWaitOk) |
+                           R"(AT+CGDCONT=1,"IP",")" + apn_name + "\"",
+                           kWaitOk) |
            ex::with_timeout(ae_context_, 180s);
   }
 
@@ -419,98 +436,65 @@ class ModemStartOperation final : public ModemOperation {
   AtSupport& at_support_;
 };
 
-class ModemStoppedAlreadyOperation final : public ModemOperation {
- public:
-  explicit ModemStoppedAlreadyOperation() { SetResult(Ok{kIgnore}); }
-};
-
 class ModemStopOperation final : public ModemOperation {
  public:
-  ModemStopOperation(AeContext const& ae_context, Thingy91xAtModem& self,
-                     std::uint8_t res_mode)
-      : ae_context_{ae_context},
-        self_{&self},
-        at_support_{self_->at_support_},
-        res_mode_{res_mode} {
-    RunPipeline();
+  ModemStopOperation(AeContext const& ae_context, Thingy91xAtModem& self)
+      : ae_context_{ae_context}, self_{&self}, at_support_{self.at_support_} {
+    self_->operation_queue_.Push(at::Stage(ae_context_, [this]() {
+      // Take the snapshot after all previously queued opens/closes have
+      // finished.
+      remaining_ = self_->connections_;
+      return CloseSockets() | ex::let_value([this]() noexcept {
+               return at::MakeRequest(ex::just(), at_support_, "AT+CFUN=0",
+                                      kWaitOk) |
+                      ex::with_timeout(ae_context_, 30s);
+             }) |
+             ex::then([this]() noexcept { self_->connections_.clear(); }) |
+             ex::upon_error([this](auto&&) noexcept {
+               AE_TELED_ERROR("Thingy91x network deactivation failed");
+               failed_ = true;
+             }) |
+             ex::then([this]() noexcept {
+               self_->started_ = false;
+               if (failed_) {
+                 SetResult(Error{static_cast<ModemError>(-1)});
+                 return;
+               }
+               SetResult(Ok{kIgnore});
+             });
+    }));
   }
 
  private:
-  auto Pipeline() {
-    return ex::create<ex::set_value_t(), ex::set_error_t(int)>(
-               [&](auto& ctx) noexcept {
-                 // Modem must be started
-                 if (!self_->started_) {
-                   ex::set_error(std::move(ctx.receiver), -1);
-                   return;
-                 }
-                 // Valid reset modes: 0 (hard) or 1 (soft)
-                 if (res_mode_ >= 2) {
-                   ex::set_error(std::move(ctx.receiver), -2);
-                   return;
-                 }
-                 ex::set_value(std::move(ctx.receiver));
-               }) |
-           // Disabling full functionality
-           at::MakeRequest(at_support_, "AT+CFUN=0", kWaitOk) |
-           ex::with_timeout(ae_context_, 1s) |
-           /**
-            * Performs a factory reset of the modem using the specified reset
-            * mode.
-            * This function sends an AT%XFACTORYRESET command with the
-            * specified mode parameter to perform a factory reset operation on
-            * the modem. The command execution is verified by checking for "OK"
-            * response within a 2-second timeout.
-            *
-            * @param[in] mode Reset operation mode. Valid values are:
-            *                 - 1: Soft reset (preserves some settings)
-            *                 - 0: Hard reset (full factory defaults)
-            *
-            * @return kModemError indicating operation status:
-            *         - kModemError::kNoError: Reset command executed
-            * successfully
-            *         - kModemError::kResetMode: Invalid mode parameter (?2)
-            *         - Other kModemError codes: Communication error or missing
-            * "OK" response
-            *
-            * @note
-            * - The function will return kResetMode error immediately for
-            * invalid modes (?2)
-            * - Actual modem behavior depends on modem firmware implementation
-            * - Hard reset (mode 1) will erase all user configurations
-            * - Device may reboot after successful execution
-            * - Uses 2000ms response timeout for command verification
-            */
-           at::MakeRequest(at_support_,
-                           "AT%XFACTORYRESET=" + std::to_string(res_mode_),
-                           kWaitOk) |
-           ex::with_timeout(ae_context_, 2s);
-  }
-
-  void RunPipeline() {
-    self_->operation_queue_.Push(at::Stage(ae_context_, [this]() {
-      return Pipeline() | ex::then([&]() noexcept {
-               self_->started_ = false;
-               SetResult(Ok{kIgnore});
-             }) |
-             ex::upon_error(Override{
-                 [&](ex::TimeoutError) noexcept {
-                   SetResult(Error{static_cast<ModemError>(-2)});
-                 },
-                 [&](std::exception_ptr const&) noexcept {
-                   SetResult(Error{static_cast<ModemError>(-3)});
-                 },
-                 [&](auto err) noexcept {
-                   SetResult(Error{static_cast<ModemError>(err)});
-                 },
-             });
-    }));
+  ex::AnySender<ex::set_value_t()> CloseSockets() {
+    if (remaining_.empty()) {
+      return ex::AnySender<ex::set_value_t()>{ex::just()};
+    }
+    auto connection = *remaining_.begin();
+    remaining_.erase(remaining_.begin());
+    return ex::AnySender<ex::set_value_t()>{
+        at::MakeRequest(ex::just(), at_support_,
+                        "AT#XSOCKETSELECT=" + std::to_string(connection),
+                        kWaitOk) |
+        ex::with_timeout(ae_context_, 1s) |
+        at::MakeRequest(at_support_, "AT#XSOCKET=0", kWaitOk) |
+        ex::with_timeout(ae_context_, 10s) |
+        ex::then([this, connection]() noexcept {
+          self_->connections_.erase(connection);
+        }) |
+        ex::upon_error([this, connection](auto&&) noexcept {
+          AE_TELED_ERROR("Thingy91x failed to close socket {} during shutdown",
+                         connection);
+          failed_ = true;
+        }) |
+        ex::let_value([this]() noexcept { return CloseSockets(); })};
   }
 
   AeContext ae_context_;
   Thingy91xAtModem* self_;
   AtSupport& at_support_;
-  std::uint8_t res_mode_;
+  std::set<ConnectionIndex> remaining_;
+  bool failed_{false};
 };
 
 class ModemSetPowerSaveParamOperation final : public ModemOperation {
@@ -723,10 +707,16 @@ class ModemPowerOffOperation final : public ModemOperation {
 Thingy91xAtModem::Thingy91xAtModem(AeContext const& ae_context,
                                    IPoller::ptr const& poller,
                                    ModemInit modem_init)
+    : Thingy91xAtModem{ae_context, modem_init,
+                       SerialPortFactory::CreatePort(ae_context, poller,
+                                                     modem_init.serial_init)} {}
+
+Thingy91xAtModem::Thingy91xAtModem(AeContext const& ae_context,
+                                   ModemInit modem_init,
+                                   std::unique_ptr<ISerialPort> serial)
     : ae_context_{ae_context},
       modem_init_{std::move(modem_init)},
-      serial_{SerialPortFactory::CreatePort(ae_context_, poller,
-                                            modem_init_.serial_init)},
+      serial_{std::move(serial)},
       at_support_{*serial_},
       operation_queue_{},
       open_network_pool_{ae_context_},
@@ -758,6 +748,9 @@ void Thingy91xAtModem::Init() {
 }
 
 ModemOperation* Thingy91xAtModem::Start() {
+  if (stopping_) {
+    return nullptr;
+  }
   if (!modem_start_operation_ || modem_start_operation_->is_finished()) {
     if (started_) {
       modem_start_operation_ = std::make_unique<
@@ -773,23 +766,22 @@ ModemOperation* Thingy91xAtModem::Start() {
 }
 
 ModemOperation* Thingy91xAtModem::Stop() {
-  if (!modem_stop_operation_ || modem_stop_operation_->is_finished()) {
-    if (!started_) {
-      modem_stop_operation_ = std::make_unique<
-          thingy91x_modem_internal::ModemStoppedAlreadyOperation>();
-    } else {
-      modem_stop_operation_ =
-          std::make_unique<thingy91x_modem_internal::ModemStopOperation>(
-              ae_context_, *this, 1);
-    }
+  if (!modem_stop_operation_) {
+    stopping_ = true;
+    poll_listener_.reset();
+    poll_task_.reset();
+    modem_stop_operation_ =
+        std::make_unique<thingy91x_modem_internal::ModemStopOperation>(
+            ae_context_, *this);
   }
-
   return modem_stop_operation_.get();
 }
-
 OpenNetworkOperation* Thingy91xAtModem::OpenNetwork(Protocol protocol,
                                                     std::string const& host,
                                                     std::uint16_t port) {
+  if (stopping_) {
+    return nullptr;
+  }
   // setup polling on demund
   if (!poll_listener_) {
     SetupPoll();
@@ -801,12 +793,18 @@ OpenNetworkOperation* Thingy91xAtModem::OpenNetwork(Protocol protocol,
 }
 
 ModemOperation* Thingy91xAtModem::CloseNetwork(ConnectionIndex connect_index) {
+  if (stopping_) {
+    return modem_stop_operation_.get();
+  }
   auto* op = close_network_pool_.Create(ae_context_, *this, connect_index);
   return op;
 }
 
 WriteOperation* Thingy91xAtModem::WritePacket(
     ConnectionIndex connect_index, std::span<std::uint8_t const> data) {
+  if (stopping_) {
+    return nullptr;
+  }
   if (data.size() > kModemMTU) {
     assert(false);
     return nullptr;
@@ -822,6 +820,9 @@ Thingy91xAtModem::DataEvent::Subscriber Thingy91xAtModem::data_event() {
 
 ModemOperation* Thingy91xAtModem::SetPowerSaveParam(
     ModemPowerSaveParam const& psp) {
+  if (stopping_) {
+    return nullptr;
+  }
   if (!modem_set_psp_operation_ || modem_set_psp_operation_->is_finished()) {
     modem_set_psp_operation_ = std::make_unique<
         thingy91x_modem_internal::ModemSetPowerSaveParamOperation>(ae_context_,
@@ -831,6 +832,9 @@ ModemOperation* Thingy91xAtModem::SetPowerSaveParam(
 }
 
 ModemOperation* Thingy91xAtModem::PowerOff() {
+  if (stopping_) {
+    return nullptr;
+  }
   if (!modem_poweroff_operation_ || modem_poweroff_operation_->is_finished()) {
     modem_poweroff_operation_ =
         std::make_unique<thingy91x_modem_internal::ModemPowerOffOperation>(
@@ -842,6 +846,9 @@ ModemOperation* Thingy91xAtModem::PowerOff() {
 // ============================private members=============================== //
 
 void Thingy91xAtModem::SetupPoll() {
+  if (stopping_) {
+    return;
+  }
   poll_listener_.emplace(
       at_support_.dispatcher(), "#XPOLL: ", [this](auto&, auto pos) {
         // read event flags from POLL answer
@@ -888,6 +895,9 @@ void Thingy91xAtModem::SetupPoll() {
 }
 
 void Thingy91xAtModem::PollEvent(std::int32_t handle, std::string_view flags) {
+  if (stopping_) {
+    return;
+  }
   // get connection index
   auto it = connections_.find(static_cast<ConnectionIndex>(handle));
   if (it == std::end(connections_)) {

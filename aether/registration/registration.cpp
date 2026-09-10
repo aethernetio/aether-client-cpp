@@ -52,7 +52,7 @@ Registration::Registration(AeContext const& ae_context,
       // TODO: add configuration
       response_timeout_{std::chrono::seconds(20)},
       sign_pk_{Crypto::ptr{ae_context_.aether().crypto}
-                   ->signs_pk_[kDefaultSignatureMethod]} {
+               -> signs_pk_[kDefaultSignatureMethod]} {
   AE_TELE_INFO(RegisterStarted);
 
   // parent uid must not be empty
@@ -345,12 +345,23 @@ void Registration::Run() {
             return ex::just_error(-1);
           }});
 
-  waiter_.emplace(ae_context_, std::move(s),
-                  [&](std::optional<Result<ClientConfig, int>>&& res) noexcept {
-                    assert(res);
-                    registration_event_.Emit(std::move(res).value());
-                    Finish();
-                  });
+  waiter_.emplace(
+      ae_context_, std::move(s),
+      [&](std::optional<Result<ClientConfig, int>>&& res) noexcept {
+        assert(res);
+        completed_result_ = std::move(res);
+        // Leave the incoming-data callback before destroying its
+        // transport and notifying registration consumers.
+        completion_sub_ = ae_context_.scheduler().Task([this]() {
+          root_server_select_stream_.Disconnect();
+          registration_event_.Emit(std::move(*completed_result_));
+          Finish();
+        });
+        if (!completion_sub_) {
+          AE_TELED_ERROR("Failed to schedule registration completion");
+          assert(false && "Task allocation failed");
+        }
+      });
 }
 }  // namespace ae
 #endif

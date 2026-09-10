@@ -19,16 +19,16 @@
 
 #include "aether/config.h"
 #if AE_SUPPORT_MODEMS && AE_ENABLE_THINGY91X
-#  include <set>
 #  include <memory>
+#  include <set>
 
-#  include "aether/ae_context.h"
-#  include "aether/poller/poller.h"
 #  include "aether/actions/action_pool.h"
 #  include "aether/actions/actions_queue.h"
 #  include "aether/actions/repeatable_task.h"
-#  include "aether/serial_ports/iserial_port.h"
+#  include "aether/ae_context.h"
+#  include "aether/poller/poller.h"
 #  include "aether/serial_ports/at_support/at_support.h"
+#  include "aether/serial_ports/iserial_port.h"
 
 #  include "aether/modems/imodem_driver.h"
 
@@ -123,6 +123,10 @@ class Thingy91xAtModem final : public IModemDriver {
   ModemOperation* PowerOff() override;
 
  private:
+  friend struct Thingy91xAtModemTestAccess;
+  Thingy91xAtModem(AeContext const& ae_context, ModemInit modem_init,
+                   std::unique_ptr<ISerialPort> serial);
+
   void Init();
   void SetupPoll();
   void PollEvent(std::int32_t handle, std::string_view flags);
@@ -150,6 +154,7 @@ class Thingy91xAtModem final : public IModemDriver {
   std::optional<AtListener> poll_listener_;
   bool initiated_;
   bool started_;
+  bool stopping_{false};
   int poll_in_queue_ = 0;
   int recv_in_queue_ = 0;
 };

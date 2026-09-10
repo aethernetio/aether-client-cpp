@@ -21,22 +21,23 @@
 
 #if AE_SUPPORT_REGISTRATION
 
-#  include <vector>
 #  include <optional>
+#  include <vector>
 
-#  include "aether/types/uid.h"
+#  include "aether-miscpp/types/small_function.h"
 #  include "aether/crypto/key.h"
 #  include "aether/events/events.h"
-#  include "aether/types/server_id.h"
-#  include "aether/types/client_config.h"
 #  include "aether/executors/executors.h"
-#  include "aether-miscpp/types/small_function.h"
+#  include "aether/tasks/details/task_subsctiption.h"
+#  include "aether/types/client_config.h"
+#  include "aether/types/server_id.h"
+#  include "aether/types/uid.h"
 
-#  include "aether/registration_cloud.h"
 #  include "aether/registration/api/client_reg_api_unsafe.h"
 #  include "aether/registration/api/registration_root_api.h"
-#  include "aether/registration/root_server_select_stream.h"
 #  include "aether/registration/registration_crypto_provider.h"
+#  include "aether/registration/root_server_select_stream.h"
+#  include "aether/registration_cloud.h"
 
 namespace ae {
 class Registration : Action {
@@ -83,6 +84,8 @@ class Registration : Action {
   std::optional<ex::AnyWaiter<ex::set_value_t(ClientConfig),
                               ex::set_error_t(int), ex::set_stopped_t()>>
       waiter_;
+  std::optional<Result<ClientConfig, int>> completed_result_;
+  TaskSubscription completion_sub_;
   RegistrationEvent registration_event_;
 };
 }  // namespace ae

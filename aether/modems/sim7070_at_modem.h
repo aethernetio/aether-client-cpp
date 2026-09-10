@@ -27,6 +27,7 @@
 #  include "aether/actions/actions_queue.h"
 #  include "aether/actions/repeatable_task.h"
 #  include "aether/ae_context.h"
+#  include "aether/executors/any_sender.h"
 #  include "aether/poller/poller.h"
 #  include "aether/serial_ports/at_support/at_support.h"
 #  include "aether/serial_ports/iserial_port.h"
@@ -125,23 +126,22 @@ class ModemStartOperation final : public ModemOperation {
   std::optional<AtListener> socket_state_listener_;
 };
 
-class ModemStoppedAlreadyOperation final : public ModemOperation {
- public:
-  explicit ModemStoppedAlreadyOperation() { SetResult(Ok{kIgnore}); };
-};
-
 class ModemStopOperation final : public ModemOperation {
  public:
   explicit ModemStopOperation(AeContext const& ae_context,
                               Sim7070AtModem& self);
 
  private:
+  ex::AnySender<stdexec::set_value_t()> CloseSockets();
   auto Pipeline();
   void RunPipeline();
 
   AeContext ae_context_;
   Sim7070AtModem* self_;
   AtSupport& at_support_;
+  std::set<ConnectionIndex> remaining_;
+  bool failed_{false};
+  bool pdp_active_{true};
 };
 
 class ModemSetPowerSaveParamOperation final : public ModemOperation {
@@ -201,6 +201,10 @@ class Sim7070AtModem final : public IModemDriver {
   ModemOperation* PowerOff() override;
 
  private:
+  friend struct Sim7070AtModemTestAccess;
+  Sim7070AtModem(AeContext const& ae_context, ModemInit modem_init,
+                 std::unique_ptr<ISerialPort> serial);
+
   void Init();
   void SetupPoll();
   void PollEvent(std::int32_t handle);
@@ -229,6 +233,7 @@ class Sim7070AtModem final : public IModemDriver {
 
   bool initiated_;
   bool started_;
+  bool stopping_{false};
   std::set<ConnectionIndex> recv_in_queue_;
 };
 
