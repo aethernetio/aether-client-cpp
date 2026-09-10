@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
+/**
+ * @file thingy91x_at_modem.cpp
+ * @brief Thingy91X AT command pipelines, socket polling, and shutdown.
+ */
+
 #include "aether/modems/thingy91x_at_modem.h"
 #if AE_SUPPORT_MODEMS && AE_ENABLE_THINGY91X
 
@@ -234,11 +239,17 @@ void WriteOperationImpl::RunPipeline() {
   }));
 }
 
+/**
+ * @brief Immediately successful result for an already started modem.
+ */
 class ModemStartedAlreadyOperation final : public ModemOperation {
  public:
   explicit ModemStartedAlreadyOperation() { SetResult(Ok{kIgnore}); }
 };
 
+/**
+ * @brief Configure the modem and establish network service.
+ */
 class ModemStartOperation final : public ModemOperation {
  public:
   ModemStartOperation(AeContext const& ae_context, Thingy91xAtModem& self)
@@ -436,6 +447,9 @@ class ModemStartOperation final : public ModemOperation {
   AtSupport& at_support_;
 };
 
+/**
+ * @brief Run the modem-specific network shutdown sequence.
+ */
 class ModemStopOperation final : public ModemOperation {
  public:
   ModemStopOperation(AeContext const& ae_context, Thingy91xAtModem& self)
@@ -497,6 +511,9 @@ class ModemStopOperation final : public ModemOperation {
   bool failed_{false};
 };
 
+/**
+ * @brief Run the modem-specific power-saving configuration operation.
+ */
 class ModemSetPowerSaveParamOperation final : public ModemOperation {
  public:
   ModemSetPowerSaveParamOperation(AeContext const& ae_context,
@@ -671,6 +688,9 @@ class ModemSetPowerSaveParamOperation final : public ModemOperation {
   ModemPowerSaveParam psp_;
 };
 
+/**
+ * @brief Run the modem-specific power-down command sequence.
+ */
 class ModemPowerOffOperation final : public ModemOperation {
  public:
   ModemPowerOffOperation(AeContext const& ae_context, Thingy91xAtModem& self)

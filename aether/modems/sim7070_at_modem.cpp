@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
+/**
+ * @file sim7070_at_modem.cpp
+ * @brief SIM7070 startup retries, socket I/O, and orderly modem shutdown.
+ */
+
 #include "aether/modems/sim7070_at_modem.h"
 #if AE_SUPPORT_MODEMS && AE_ENABLE_SIM7070
 
@@ -40,6 +45,13 @@ namespace sim7070_modem_internal {
 using CleanupSender = ex::AnySender<ex::set_value_t(), ex::set_error_t(int),
                                     ex::set_error_t(ex::TimeoutError)>;
 
+/**
+ * @brief Query SIM readiness with delayed retries after AT command errors.
+ * @param context Runtime context that must outlive the sender operation.
+ * @param at_support Dispatcher used for the AT requests.
+ * @param retries Number of retries allowed after the first failed request.
+ * @return A sender bounded by a 15-second timeout, including retry delays.
+ */
 CleanupSender WaitForSim(AeContext const& context, AtSupport& at_support,
                          int retries) {
   return CleanupSender{
@@ -70,6 +82,14 @@ CleanupSender WaitForSim(AeContext const& context, AtSupport& at_support,
       ex::with_timeout(context, 15s)};
 }
 
+/**
+ * @brief Retry operator selection while the modem finishes waking up.
+ * @param context Runtime context that must outlive the sender operation.
+ * @param at_support Dispatcher used for the AT requests.
+ * @param command Complete operator-selection AT command.
+ * @param retries Number of retries allowed after the first failed request.
+ * @return A sender bounded by a 180-second timeout, including retry delays.
+ */
 CleanupSender SelectOperator(AeContext const& context, AtSupport& at_support,
                              std::string command, int retries) {
   return CleanupSender{
@@ -98,6 +118,13 @@ CleanupSender SelectOperator(AeContext const& context, AtSupport& at_support,
       ex::with_timeout(context, 180s)};
 }
 
+/**
+ * @brief Close stale connections sequentially before completing startup.
+ * @param ae_context Runtime context that must outlive the sender operation.
+ * @param at_support Dispatcher used for the AT requests.
+ * @param stale_connections Connection set consumed by the cleanup sequence.
+ * @return A sender that completes when cleanup ends or a request fails.
+ */
 CleanupSender CleanupConnections(AeContext const& ae_context,
                                  AtSupport& at_support,
                                  std::set<ConnectionIndex>& stale_connections) {

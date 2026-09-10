@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
+/**
+ * @file modem_factory.cpp
+ * @brief Compile-time selection and construction of an AT modem driver.
+ */
+
 #include "aether/modems/modem_factory.h"
 #if AE_SUPPORT_MODEMS
 

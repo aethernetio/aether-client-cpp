@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
+/**
+ * @file sim7070_at_modem.h
+ * @brief SIM7070 AT driver and its queued asynchronous operations.
+ */
+
 #ifndef AETHER_MODEMS_SIM7070_AT_MODEM_H_
 #define AETHER_MODEMS_SIM7070_AT_MODEM_H_
 
@@ -38,6 +43,9 @@ namespace ae {
 class Sim7070AtModem;
 
 namespace sim7070_modem_internal {
+/**
+ * @brief Queue a modem socket open request and publish its connection index.
+ */
 class OpenNetworkOperationImpl final : public OpenNetworkOperation {
  public:
   explicit OpenNetworkOperationImpl(AeContext const& ae_context,
@@ -58,6 +66,9 @@ class OpenNetworkOperationImpl final : public OpenNetworkOperation {
   std::int32_t open_result_{-1};
 };
 
+/**
+ * @brief Queue closure of a modem socket and publish the outcome.
+ */
 class CloseNetworkOperationImpl final : public ModemOperation {
  public:
   explicit CloseNetworkOperationImpl(AeContext const& ae_context,
@@ -74,6 +85,9 @@ class CloseNetworkOperationImpl final : public ModemOperation {
   ConnectionIndex connect_index_;
 };
 
+/**
+ * @brief Queue transmission of borrowed data on a modem socket.
+ */
 class WriteOperationImpl final : public WriteOperation {
  public:
   explicit WriteOperationImpl(AeContext const& ae_context, Sim7070AtModem& self,
@@ -91,11 +105,17 @@ class WriteOperationImpl final : public WriteOperation {
   std::span<std::uint8_t const> data_;
 };
 
+/**
+ * @brief Immediately successful result for an already started modem.
+ */
 class ModemStartedAlreadyOperation final : public ModemOperation {
  public:
   explicit ModemStartedAlreadyOperation() { SetResult(Ok{kIgnore}); };
 };
 
+/**
+ * @brief Configure the modem and establish network service.
+ */
 class ModemStartOperation final : public ModemOperation {
  public:
   explicit ModemStartOperation(AeContext const& ae_context,
@@ -126,6 +146,9 @@ class ModemStartOperation final : public ModemOperation {
   std::optional<AtListener> socket_state_listener_;
 };
 
+/**
+ * @brief Run the modem-specific network shutdown sequence.
+ */
 class ModemStopOperation final : public ModemOperation {
  public:
   explicit ModemStopOperation(AeContext const& ae_context,
@@ -144,6 +167,9 @@ class ModemStopOperation final : public ModemOperation {
   bool pdp_active_{true};
 };
 
+/**
+ * @brief Run the modem-specific power-saving configuration operation.
+ */
 class ModemSetPowerSaveParamOperation final : public ModemOperation {
  public:
   explicit ModemSetPowerSaveParamOperation(AeContext const& ae_context,
@@ -159,6 +185,9 @@ class ModemSetPowerSaveParamOperation final : public ModemOperation {
   ModemPowerSaveParam psp_;
 };
 
+/**
+ * @brief Run the modem-specific power-down command sequence.
+ */
 class ModemPowerOffOperation final : public ModemOperation {
  public:
   explicit ModemPowerOffOperation(AeContext const& ae_context,
@@ -174,6 +203,15 @@ class ModemPowerOffOperation final : public ModemOperation {
 };
 }  // namespace sim7070_modem_internal
 
+/**
+ * @brief SIM7070 AT driver and its queued asynchronous operations.
+ *
+ * Owns the serial port, AT dispatcher, operation queue, and action pools.
+ * Construction schedules serial initialization. Call Start() to establish
+ * network service, and drive the scheduler until Stop() finishes before
+ * releasing the driver.
+ * @see IModemDriver
+ */
 class Sim7070AtModem final : public IModemDriver {
   friend class sim7070_modem_internal::OpenNetworkOperationImpl;
   friend class sim7070_modem_internal::CloseNetworkOperationImpl;
@@ -185,19 +223,59 @@ class Sim7070AtModem final : public IModemDriver {
   static constexpr std::uint16_t kModemMTU{1520};
 
  public:
+  /**
+   * @brief Create the driver and schedule serial initialization.
+   * @param ae_context Non-owning runtime context that must outlive the driver.
+   * @param poller Poller used by the serial port implementation.
+   * @param modem_init Configuration copied or moved into the driver.
+   */
   explicit Sim7070AtModem(AeContext const& ae_context,
                           IPoller::ptr const& poller, ModemInit modem_init);
 
+  /**
+   * @copydoc IModemDriver::Start
+   */
   ModemOperation* Start() override;
+  /**
+   * @brief Stop polling, close tracked sockets, and disable network service.
+   *
+   * Shutdown is queued after pending operations. Socket cleanup continues after
+   * individual close failures; the final operation reports cleanup errors.
+   * The driver deactivates PDP context 0 before sending AT+CFUN=0.
+   * @return The same driver-owned stop operation on repeated calls. It remains
+   * available until driver destruction.
+   * @note Stop is terminal for this instance. New start, open, write,
+   * power-save, and power-off requests are rejected once stopping begins.
+   */
   ModemOperation* Stop() override;
+  /**
+   * @copydoc IModemDriver::OpenNetwork
+   */
   OpenNetworkOperation* OpenNetwork(Protocol protocol, std::string const& host,
                                     std::uint16_t port) override;
+  /**
+   * @copydoc IModemDriver::CloseNetwork
+   */
   ModemOperation* CloseNetwork(ConnectionIndex connect_index) override;
+  /**
+   * @copydoc IModemDriver::WritePacket
+   */
   WriteOperation* WritePacket(ConnectionIndex connect_index,
                               std::span<std::uint8_t const> data) override;
+  /**
+   * @copydoc IModemDriver::data_event
+   */
   DataEvent::Subscriber data_event() override;
 
+  /**
+   * @copydoc IModemDriver::SetPowerSaveParam
+   * @note Currently returns success without applying the requested parameters.
+   */
   ModemOperation* SetPowerSaveParam(ModemPowerSaveParam const& psp) override;
+  /**
+   * @copydoc IModemDriver::PowerOff
+   * @note Sends AT+CFUN=1 followed by AT+CPOWD=1.
+   */
   ModemOperation* PowerOff() override;
 
  private:

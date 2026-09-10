@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
+/**
+ * @file thingy91x_at_modem.h
+ * @brief Thingy91X AT driver and its asynchronous socket operations.
+ */
+
 #ifndef AETHER_MODEMS_THINGY91X_AT_MODEM_H_
 #define AETHER_MODEMS_THINGY91X_AT_MODEM_H_
 
@@ -36,6 +41,9 @@ namespace ae {
 class Thingy91xAtModem;
 
 namespace thingy91x_modem_internal {
+/**
+ * @brief Queue a modem socket open request and publish its connection index.
+ */
 class OpenNetworkOperationImpl final : public OpenNetworkOperation {
  public:
   OpenNetworkOperationImpl(AeContext const& ae_context, Thingy91xAtModem& self,
@@ -55,6 +63,9 @@ class OpenNetworkOperationImpl final : public OpenNetworkOperation {
   std::int32_t handle_{-1};
 };
 
+/**
+ * @brief Queue closure of a modem socket and publish the outcome.
+ */
 class CloseNetworkOperationImpl final : public ModemOperation {
  public:
   CloseNetworkOperationImpl(AeContext const& ae_context, Thingy91xAtModem& self,
@@ -70,6 +81,9 @@ class CloseNetworkOperationImpl final : public ModemOperation {
   ConnectionIndex connect_index_;
 };
 
+/**
+ * @brief Queue transmission of borrowed data on a modem socket.
+ */
 class WriteOperationImpl final : public WriteOperation {
  public:
   WriteOperationImpl(AeContext const& ae_context, Thingy91xAtModem& self,
@@ -93,6 +107,15 @@ class ModemSetPowerSaveParamOperation;
 class ModemPowerOffOperation;
 }  // namespace thingy91x_modem_internal
 
+/**
+ * @brief Thingy91X AT driver and its asynchronous socket operations.
+ *
+ * Owns the serial port, AT dispatcher, operation queue, and action pools.
+ * Construction schedules serial initialization. Call Start() to establish
+ * network service, and drive the scheduler until Stop() finishes before
+ * releasing the driver.
+ * @see IModemDriver
+ */
 class Thingy91xAtModem final : public IModemDriver {
   friend class thingy91x_modem_internal::OpenNetworkOperationImpl;
   friend class thingy91x_modem_internal::CloseNetworkOperationImpl;
@@ -105,21 +128,63 @@ class Thingy91xAtModem final : public IModemDriver {
   static constexpr std::uint16_t kModemMTU{1024};
 
  public:
+  /**
+   * @brief Create the driver and schedule serial initialization.
+   * @param ae_context Non-owning runtime context that must outlive the driver.
+   * @param poller Poller used by the serial port implementation.
+   * @param modem_init Configuration copied or moved into the driver.
+   */
   explicit Thingy91xAtModem(AeContext const& ae_context,
                             IPoller::ptr const& poller, ModemInit modem_init);
 
+  /**
+   * @copydoc IModemDriver::Start
+   */
   ModemOperation* Start() override;
+  /**
+   * @brief Stop polling, close tracked sockets, and disable network service.
+   *
+   * Shutdown is queued after pending operations. Socket cleanup continues after
+   * individual close failures; the final operation reports cleanup errors.
+   * The driver selects and closes each socket before sending AT+CFUN=0.
+   * @return The same driver-owned stop operation on repeated calls. It remains
+   * available until driver destruction.
+   * @note Stop is terminal for this instance. New start, open, write,
+   * power-save, and power-off requests are rejected once stopping begins.
+   */
   ModemOperation* Stop() override;
+  /**
+   * @copydoc IModemDriver::OpenNetwork
+   */
   OpenNetworkOperation* OpenNetwork(ae::Protocol protocol,
                                     std::string const& host,
                                     std::uint16_t port) override;
+  /**
+   * @copydoc IModemDriver::CloseNetwork
+   */
   ModemOperation* CloseNetwork(ConnectionIndex connect_index) override;
 
+  /**
+   * @copydoc IModemDriver::WritePacket
+   */
   WriteOperation* WritePacket(ConnectionIndex connect_index,
                               std::span<std::uint8_t const> data) override;
+  /**
+   * @copydoc IModemDriver::data_event
+   */
   DataEvent::Subscriber data_event() override;
 
+  /**
+   * @copydoc IModemDriver::SetPowerSaveParam
+   * @note Applies supported radio and power-saving settings through AT
+   * commands.
+   */
   ModemOperation* SetPowerSaveParam(ModemPowerSaveParam const& psp) override;
+  /**
+   * @copydoc IModemDriver::PowerOff
+   * @note Sends AT+CFUN=0 to enter minimum functionality; board power remains
+   * on.
+   */
   ModemOperation* PowerOff() override;
 
  private:
