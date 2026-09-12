@@ -42,6 +42,7 @@ Checks:
   - -bugprone-assert-side-effect
   - -readability-named-parameter
   - -readability-identifier-length
+  - -readability-redundant-member-init
 
 CheckOptions:
   performance-move-const-arg.CheckTriviallyCopyableMove: false
