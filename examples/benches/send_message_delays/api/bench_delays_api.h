@@ -19,48 +19,42 @@
 
 #include <array>
 
+#include "aether/api_protocol/api_protocol.h"
 #include "aether/events/events.h"
-#include "aether/api_protocol/api_method.h"
-#include "aether/api_protocol/api_class_impl.h"
 
 namespace ae::bench {
-class BenchDelaysApi : public ApiClassImpl<BenchDelaysApi> {
+class BenchDelaysApi : public DeclareApi<BenchDelaysApi> {
  public:
+  virtual ~BenchDelaysApi() = default;
+
   template <std::size_t N>
   using Payload = std::array<std::uint8_t, N>;
 
-  explicit BenchDelaysApi(ProtocolContext& protocol_context);
+  virtual void WarmUp(std::uint16_t id, Payload<98> const& payload);
+  virtual void TwoBytes(std::uint16_t id);
+  virtual void TenBytes(std::uint16_t id, Payload<8> const& payload);
+  virtual void HundredBytes(std::uint16_t id, Payload<98> const& payload);
+  virtual void ThousandBytes(std::uint16_t id, Payload<998> const& payload);
 
-  Method<0x03, void(std::uint16_t id, Payload<98> payload)> warm_up;
-  Method<0x04, void(std::uint16_t id)> two_bytes;
-  Method<0x05, void(std::uint16_t id, Payload<8>)> ten_bytes;
-  Method<0x06, void(std::uint16_t id, Payload<98>)> hundred_bytes;
-  Method<0x08, void(std::uint16_t id, Payload<998>)> thousand_bytes;
+  API_LIST(METHOD(0x03, WarmUp), METHOD(0x04, TwoBytes), METHOD(0x05, TenBytes),
+           METHOD(0x06, HundredBytes), METHOD(0x08, ThousandBytes))
+};
 
-  void WarmUpImpl(std::uint16_t id, Payload<98> payload);
-  void TwoBytesImpl(std::uint16_t id);
-  void TenBytesImpl(std::uint16_t id, Payload<8> payload);
-  void HundredBytesImpl(std::uint16_t id, Payload<98> payload);
-  void ThousandBytesImpl(std::uint16_t id, Payload<998> payload);
+class BenchDelaysApiServer : public BenchDelaysApi {
+ public:
+  explicit BenchDelaysApiServer(EventSystem& es);
 
-  EventSubscriber<void(std::uint16_t, Payload<98>)> warm_up_event();
-  EventSubscriber<void(std::uint16_t)> two_bytes_event();
-  EventSubscriber<void(std::uint16_t, Payload<8>)> ten_bytes_event();
-  EventSubscriber<void(std::uint16_t, Payload<98>)> hundred_bytes_event();
-  EventSubscriber<void(std::uint16_t, Payload<998>)> thousand_bytes_event();
+  void WarmUp(std::uint16_t id, Payload<98> const& payload) override;
+  void TwoBytes(std::uint16_t id) override;
+  void TenBytes(std::uint16_t id, Payload<8> const& payload) override;
+  void HundredBytes(std::uint16_t id, Payload<98> const& payload) override;
+  void ThousandBytes(std::uint16_t id, Payload<998> const& payload) override;
 
-  AE_METHODS(RegMethod<0x03, &BenchDelaysApi::WarmUpImpl>,
-             RegMethod<0x04, &BenchDelaysApi::TwoBytesImpl>,
-             RegMethod<0x05, &BenchDelaysApi::TenBytesImpl>,
-             RegMethod<0x06, &BenchDelaysApi::HundredBytesImpl>,
-             RegMethod<0x08, &BenchDelaysApi::ThousandBytesImpl>);
-
- private:
-  Event<void(std::uint16_t, Payload<98>)> warm_up_event_;
-  Event<void(std::uint16_t)> two_bytes_event_;
-  Event<void(std::uint16_t, Payload<8>)> ten_bytes_event_;
-  Event<void(std::uint16_t, Payload<98>)> hundred_bytes_event_;
-  Event<void(std::uint16_t, Payload<998>)> thousand_bytes_event_;
+  Event<void(std::uint16_t, Payload<98> const&)> warm_up_event;
+  Event<void(std::uint16_t)> two_bytes_event;
+  Event<void(std::uint16_t, Payload<8> const&)> ten_bytes_event;
+  Event<void(std::uint16_t, Payload<98> const&)> hundred_bytes_event;
+  Event<void(std::uint16_t, Payload<998> const&)> thousand_bytes_event;
 };
 
 }  // namespace ae::bench

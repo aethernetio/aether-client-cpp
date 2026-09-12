@@ -19,6 +19,8 @@
 
 #include <cstddef>
 
+#include "aether-miscpp/types/result.h"
+
 #include "aether/ae_context.h"
 #include "aether/events/events.h"
 
@@ -34,15 +36,13 @@ class TimedReceiver {
   static constexpr auto kWaitTimeout = std::chrono::seconds{30};
 
  public:
-  using ResultTimesEvent = Event<void(TimeTable const& message_times)>;
+  using ResultTimesEvent = Event<void(Result<TimeTable, int>)>;
   using ReceivedEvent = Event<void(bool last)>;
-  using TimeoutEvent = Event<void()>;
 
   TimedReceiver(AeContext const& ae_context, std::size_t wait_count);
 
-  ResultTimesEvent::Subscriber message_times_event();
-  ReceivedEvent::Subscriber on_received();
-  TimeoutEvent::Subscriber on_timeout();
+  ResultTimesEvent const& message_times_event();
+  ReceivedEvent const& on_received();
 
   void Receive(std::uint16_t id);
 
@@ -57,7 +57,6 @@ class TimedReceiver {
 
   ResultTimesEvent result_event_;
   ReceivedEvent received_event_;
-  TimeoutEvent timeout_event_;
   TaskSubscription scheduler_sub_;
 };
 }  // namespace ae::bench

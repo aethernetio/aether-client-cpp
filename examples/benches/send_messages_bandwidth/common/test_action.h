@@ -22,7 +22,6 @@
 
 #include "aether-miscpp/types/result.h"
 #include "aether/ae_context.h"
-#include "aether/events/event_subscription.h"
 #include "aether/events/events.h"
 #include "aether/executors/executors.h"
 
@@ -40,13 +39,12 @@ class TestAction {
              std::size_t test_message_count)
       : ae_context_{ae_context},
         agent_{&agent},
-        test_message_count_{test_message_count} {
+        test_message_count_{test_message_count},
+        result_event_{ae_context_} {
     TestPipeline();
   }
 
-  ResultEvent::Subscriber result_event() {
-    return EventSubscriber{result_event_};
-  }
+  ResultEvent const& result_event() { return result_event_; }
 
  private:
   auto Connect() {

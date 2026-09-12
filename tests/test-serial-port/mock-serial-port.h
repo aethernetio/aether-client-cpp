@@ -26,7 +26,8 @@
 namespace ae::tests {
 class MockSerialPort final : public ISerialPort {
  public:
-  MockSerialPort() = default;
+  explicit MockSerialPort(EventContext auto const& context)
+      : read_event_{context}, write_event_{context} {}
 
   bool IsOpen() override { return is_open_; }
 
@@ -34,15 +35,13 @@ class MockSerialPort final : public ISerialPort {
     write_event_.Emit(data);
   }
 
-  DataReadEvent::Subscriber read_event() override {
-    return EventSubscriber{read_event_};
-  }
+  DataReadEvent const& read_event() override { return read_event_; }
 
   // calls read_event
   void WriteOut(std::span<std::uint8_t const> data) { read_event_.Emit(data); }
 
-  Event<void(std::span<std::uint8_t const> data)>::Subscriber write_event() {
-    return EventSubscriber{write_event_};
+  Event<void(std::span<std::uint8_t const> data)> const& write_event() {
+    return write_event_;
   }
 
   void close() { is_open_ = false; }

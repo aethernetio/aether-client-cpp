@@ -19,11 +19,10 @@
 
 #include <memory>
 
-#include "aether/client.h"
-#include "aether/memory.h"
 #include "aether/ae_context.h"
+#include "aether/client.h"
 #include "aether/events/events.h"
-#include "aether/events/event_subscription.h"
+#include "aether/memory.h"
 
 #include "send_messages_bandwidth/common/bandwidth.h"
 #include "send_messages_bandwidth/common/bandwidth_api.h"
@@ -34,14 +33,14 @@ class Receiver {
  public:
   Receiver(AeContext const& ae_context, Client::ptr client);
 
-  EventSubscriber<void()> error_event();
+  Event<void()> const& error_event();
 
   void Connect();
   void Disconnect();
-  EventSubscriber<void()> Handshake();
+  Event<void()> const& Handshake();
 
-  EventSubscriber<void(Bandwidth const&)> TestMessages(
-      std::size_t message_count, std::size_t message_size);
+  Event<void(Bandwidth const&)> const& TestMessages(std::size_t message_count,
+                                                    std::size_t message_size);
 
  private:
   MessageReceiver CreateTestAction(std::size_t message_count);
@@ -51,7 +50,7 @@ class Receiver {
   AeContext ae_context_;
   Client::ptr client_;
   ProtocolContext protocol_context_;
-  BandwidthApi bandwidth_api_;
+  BandwidthApiServer bandwidth_api_;
 
   std::shared_ptr<ae::ByteIStream> message_stream_;
 

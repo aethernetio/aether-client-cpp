@@ -21,19 +21,21 @@
 namespace ae::bench {
 TimedSender::TimedSender(AeContext const& ae_context,
                          std::function<void(std::uint16_t id)> send_proc)
-    : ae_context_{ae_context}, send_proc_{std::move(send_proc)} {
+    : ae_context_{ae_context},
+      send_proc_{std::move(send_proc)},
+      result_time_event_{ae_context_} {
   AE_TELED_DEBUG("TimedSender");
   // send on next scheduler update
   scheduler_sub_ = ae_context_.scheduler().Task([this]() { Send(); });
 }
 
-TimedSender::ResultTimesEvent::Subscriber TimedSender::message_times_event() {
-  return EventSubscriber{result_time_event_};
+TimedSender::ResultTimesEvent const& TimedSender::result_event() {
+  return result_time_event_;
 }
 
 void TimedSender::Stop() {
   AE_TELED_DEBUG("Stop sending");
-  result_time_event_.Emit(message_times_);
+  result_time_event_.Emit(Ok{std::move(message_times_)});
 }
 
 void TimedSender::Sync() {

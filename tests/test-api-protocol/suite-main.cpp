@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2026 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,13 @@
 
 #include <unity.h>
 
+#ifndef API_PROTOCOL_SUITE
+#  error "API_PROTOCOL_SUITE must name the suite entry point"
+#endif
+
 void setUp() {}
 void tearDown() {}
 
-extern int test_tied_gates();
+extern int API_PROTOCOL_SUITE();
 
-int main() {
-  int res = 0;
-  res += test_tied_gates();
-  return res;
-}
+int main() { return API_PROTOCOL_SUITE(); }

@@ -16,7 +16,6 @@ cmake_minimum_required( VERSION 3.18 )
 
 list(APPEND test_srcs
   main.cpp
-  templated-streams/test_templated_streams.cpp
   test-tied-gates.cpp
 )
 

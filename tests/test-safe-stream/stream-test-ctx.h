@@ -20,24 +20,27 @@
 #include "aether/ae_context.h"
 
 namespace ae {
-struct TestContext {
-  AeCtx ToAeContext() const {
-    static constexpr auto table =
-        AeCtxTable{nullptr, [](void* obj) -> TaskScheduler& {
-                     return static_cast<TestContext*>(obj)->sched;
-                   }};
-    return AeCtx{
-        const_cast<TestContext*>(this),  // NOLINT
-        &table,
-    };
-  }
-
+struct TestContext : public Env {
   template <typename... A>
   decltype(auto) Update(A&&... a) {
     return sched.Update(std::forward<A>(a)...);
   }
 
-  TaskScheduler sched;
+  void* find_component(EnvId id) noexcept override {
+    if (id == EnvTypeId<TaskScheduler>::value) {
+      return &sched;
+    }
+    if (id == EnvTypeId<EventSystem>::value) {
+      return &event_system_;
+    }
+    return nullptr;
+  }
+
+  TaskScheduler& scheduler() const { return sched; }
+  EventSystem& event_system() const { return event_system_; }
+
+  mutable TaskScheduler sched;
+  mutable EventSystem event_system_;
 };
 }  // namespace ae
 

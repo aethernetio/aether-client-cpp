@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2026 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,15 +14,20 @@
  * limitations under the License.
  */
 
-#include <unity.h>
+#ifndef TEST_TEST_SERIAL_PORT_MOCK_TEST_CONTEXT_H_
+#define TEST_TEST_SERIAL_PORT_MOCK_TEST_CONTEXT_H_
 
-void setUp() {}
-void tearDown() {}
+#include <cstdlib>
 
-extern int test_tied_gates();
+#include "aether/env.h"
 
-int main() {
-  int res = 0;
-  res += test_tied_gates();
-  return res;
-}
+namespace ae::tests {
+struct PrintLifetime {
+  PrintLifetime() { printf("TestContext construction\n"); }
+  virtual ~PrintLifetime() { printf("TestContext destruction\n"); }
+};
+
+struct TestContext : PrintLifetime, public AeEnv {};
+}  // namespace ae::tests
+
+#endif  // TEST_TEST_SERIAL_PORT_MOCK_TEST_CONTEXT_H_

@@ -24,7 +24,6 @@
 #include "aether/aether.h"
 #include "aether/aether_app.h"
 #include "aether/events/events.h"
-#include "aether/events/multi_subscription.h"
 
 #include "registrator/registrator_config.h"
 
@@ -43,8 +42,8 @@ class RegistratorAction : public Action {
       ae::AeContext const& ae_context, ae::AetherApp& aether_app,
       std::vector<reg::ClientConfig> const& client_configs);
 
-  RegisteredEvent::Subscriber registered_event();
-  FailedEvent::Subscriber failed_event();
+  RegisteredEvent const& registered_event();
+  FailedEvent const& failed_event();
 
  private:
   void RegisterClients(ae::Aether::ptr const& aether,

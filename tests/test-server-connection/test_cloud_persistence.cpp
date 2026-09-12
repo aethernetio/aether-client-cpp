@@ -36,16 +36,24 @@
 
 namespace ae {
 namespace test_cloud_persistence {
-struct TestContext {
-  AeCtx ToAeContext() const {
-    static constexpr auto table =
-        AeCtxTable{nullptr, [](void* obj) -> TaskScheduler& {
-                     return static_cast<TestContext*>(obj)->sched;
-                   }};
-    return AeCtx{const_cast<TestContext*>(this), &table};  // NOLINT
+struct TestContext : public Env {
+  template <typename... A>
+  decltype(auto) Update(A&&... a) {
+    return sched.Update(std::forward<A>(a)...);
+  }
+
+  void* find_component(EnvId id) noexcept override {
+    if (id == EnvTypeId<TaskScheduler>::value) {
+      return &sched;
+    }
+    if (id == EnvTypeId<EventSystem>::value) {
+      return &event_system;
+    }
+    return nullptr;
   }
 
   TaskScheduler sched;
+  EventSystem event_system;
 };
 
 class CountingNullFactory final : public IServerConnectionFactory {
@@ -62,7 +70,7 @@ struct CloudFixture {
   CloudFixture(std::unique_ptr<IServerConnectionFactory> factory,
                IServerConnectionFactory* raw)
       : ae_ctx{ctx},
-        domain{storage},
+        domain{storage, &ctx},
         registry{AdapterRegistry::ptr::Create(CreateWith{domain})},
         server{Server::ptr::Create(CreateWith{domain}, ServerId{7},
                                    std::vector<Endpoint>{}, registry)},
@@ -85,8 +93,9 @@ struct CloudFixture {
 };
 
 void test_CloudSetServersReplacesEntries() {
+  TestContext ctx;
   RamDomainStorage storage;
-  Domain domain{storage};
+  Domain domain{storage, &ctx};
   auto registry = AdapterRegistry::ptr::Create(CreateWith{domain});
   auto first = Server::ptr::Create(CreateWith{domain}, ServerId{7},
                                    std::vector<Endpoint>{}, registry);
@@ -181,8 +190,9 @@ void test_CloudServerConnectionServerReferencesCloudMapEntry() {
 }
 
 void test_CloudServerConnectionPriorityRoundTripsAndRestoresSelectionOrder() {
+  TestContext ctx;
   RamDomainStorage storage;
-  Domain domain{storage};
+  Domain domain{storage, &ctx};
   auto registry = AdapterRegistry::ptr::Create(CreateWith{domain});
   auto first = Server::ptr::Create(CreateWith{domain}, ServerId{10},
                                    std::vector<Endpoint>{}, registry);

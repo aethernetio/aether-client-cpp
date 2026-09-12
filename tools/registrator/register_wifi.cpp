@@ -33,7 +33,7 @@ std::vector<AccessPoint::ptr> RegisterWifiAdapter::access_points() {
   return ethernet_adapter_->access_points();
 }
 
-RegisterWifiAdapter::NewAccessPoint::Subscriber
+RegisterWifiAdapter::NewAccessPoint const&
 RegisterWifiAdapter::new_access_point() {
   return ethernet_adapter_->new_access_point();
 }

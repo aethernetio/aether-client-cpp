@@ -32,7 +32,8 @@ float RandomPercent() {
 
 bool IsHitTheRate(float hit_rate) { return RandomPercent() < hit_rate; }
 
-DoneStreamWriteAction::DoneStreamWriteAction(AeContext const& ae_context) {
+DoneStreamWriteAction::DoneStreamWriteAction(AeContext const& ae_context)
+    : WriteAction{ae_context} {
   ae_context.scheduler().Task([&]() { SetStatus(Status::kSuccess); });
 }
 
@@ -40,7 +41,7 @@ DoneStreamWriteAction::DoneStreamWriteAction(AeContext const& ae_context) {
 
 LostPacketsStream::LostPacketsStream(AeContext const& ae_context,
                                      float loss_rate)
-    : ae_context_{ae_context}, loss_rate_{loss_rate} {}
+    : ByteStream{ae_context}, ae_context_{ae_context}, loss_rate_{loss_rate} {}
 
 WriteAction& LostPacketsStream::Write(DataBuffer&& data_buffer) {
   if (bad_streams_internal::IsHitTheRate(loss_rate_)) {
@@ -58,13 +59,17 @@ WriteAction& LostPacketsStream::Write(DataBuffer&& data_buffer) {
 
 void LostPacketsStream::LinkOut(ByteIStream& out) {
   out_ = &out;
-  out_data_sub_ = out_->out_data_event().Subscribe(out_data_event_);
+  out_data_sub_ = out_->out_data_event().Subscribe(
+      MethodPtr<&OutDataEvent::Emit>{&out_data_event_});
   stream_update_event_.Emit();
 }
 
 PacketDelayStream::PacketDelayStream(AeContext const& ae_context,
                                      float delay_rate, Duration max_delay)
-    : ae_context_{ae_context}, delay_rate_{delay_rate}, max_delay_{max_delay} {}
+    : ByteStream{ae_context},
+      ae_context_{ae_context},
+      delay_rate_{delay_rate},
+      max_delay_{max_delay} {}
 
 WriteAction& PacketDelayStream::Write(DataBuffer&& data_buffer) {
   assert(out_);
@@ -95,7 +100,8 @@ WriteAction& PacketDelayStream::Write(DataBuffer&& data_buffer) {
 
 void PacketDelayStream::LinkOut(ByteIStream& out) {
   out_ = &out;
-  out_data_sub_ = out_->out_data_event().Subscribe(out_data_event_);
+  out_data_sub_ = out_->out_data_event().Subscribe(
+      MethodPtr<&OutDataEvent::Emit>{&out_data_event_});
   stream_update_event_.Emit();
 }
 

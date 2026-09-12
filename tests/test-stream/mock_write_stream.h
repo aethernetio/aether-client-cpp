@@ -18,8 +18,6 @@
 #define TESTS_TEST_STREAM_MOCK_WRITE_STREAM_H_
 
 #include <cstddef>
-#include <utility>
-
 #include "aether/ae_context.h"
 #include "aether/events/events.h"
 #include "aether/stream_api/istream.h"
@@ -27,7 +25,8 @@
 namespace ae {
 class MockStreamWriteAction : public WriteAction {
  public:
-  explicit MockStreamWriteAction(AeContext const& context) {
+  explicit MockStreamWriteAction(AeContext const& context)
+      : WriteAction{context} {
     context.scheduler().Task(
         [&]() { WriteAction::SetStatus(Status::kSuccess); });
   }
@@ -38,30 +37,38 @@ class MockStreamWriteAction : public WriteAction {
 class MockWriteStream : public ByteStream {
  public:
   explicit MockWriteStream(AeContext const& context, std::size_t max_data_size)
-      : context_{context},
-        stream_info_{max_data_size, max_data_size, {}, {}, {}} {}
+      : ByteStream{context},
+        context_{context},
+        stream_info_{max_data_size, max_data_size, {}, {}, {}},
+        on_write_{context_},
+        out_data_event_{context_},
+        stream_update_event_{context_} {}
 
   WriteAction& Write(DataBuffer&& buffer) override {
-    on_write_.Emit(std::move(buffer));
+    on_write_.Emit(buffer);
     return last_action_.emplace(context_);
   }
 
   StreamInfo stream_info() const override { return stream_info_; }
-  StreamUpdateEvent::Subscriber stream_update_event() override {
-    return EventSubscriber{stream_update_event_};
+  StreamUpdateEvent const& stream_update_event() override {
+    return stream_update_event_;
   }
-  OutDataEvent::Subscriber out_data_event() override {
-    return EventSubscriber{out_data_event_};
-  }
+  OutDataEvent const& out_data_event() override { return out_data_event_; }
 
-  EventSubscriber<void(DataBuffer&&)> on_write_event() { return on_write_; }
+  /**
+   * \brief Written data transferred to a handler.
+   *
+   * This event must have exactly one subscriber. This is a usage contract and
+   * is not enforced at runtime.
+   */
+  Event<void(DataBuffer&)> const& on_write_event() { return on_write_; }
 
   void WriteOut(DataBuffer const& buffer) { out_data_event_.Emit(buffer); }
 
  private:
   AeContext context_;
   StreamInfo stream_info_;
-  Event<void(DataBuffer&&)> on_write_;
+  Event<void(DataBuffer&)> on_write_;
   OutDataEvent out_data_event_;
   StreamUpdateEvent stream_update_event_;
   std::optional<MockStreamWriteAction> last_action_;

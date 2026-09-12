@@ -28,6 +28,7 @@
 #include "aether/serial_ports/at_support/at_support.h"
 
 #include "tests/test-serial-port/mock-serial-port.h"
+#include "tests/test-serial-port/mock-test-context.h"
 
 namespace ae::test_at_request {
 
@@ -38,8 +39,9 @@ struct TestContext {
 };
 
 void test_AtRequestStringCommand0WaitsSuccess() {
-  tests::MockSerialPort mock_serial{};
-  auto at_support = AtSupport{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  auto at_support = AtSupport{context, mock_serial};
 
   DataBuffer received;
   mock_serial.write_event().Subscribe([&](auto data) {
@@ -55,8 +57,9 @@ void test_AtRequestStringCommand0WaitsSuccess() {
 }
 
 void test_AtRequestStringCommand0WaitsError() {
-  tests::MockSerialPort mock_serial{};
-  auto at_support = AtSupport{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  auto at_support = AtSupport{context, mock_serial};
 
   DataBuffer received;
   mock_serial.write_event().Subscribe([&](auto data) {
@@ -77,8 +80,9 @@ void test_AtRequestStringCommand0WaitsError() {
 }
 
 void test_AtRequestStringCommand1WaitSuccess() {
-  tests::MockSerialPort mock_serial{};
-  auto at_support = AtSupport{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  auto at_support = AtSupport{context, mock_serial};
 
   // Create AtRequest with string command and 1 wait for "OK"
   auto at_request = at::MakeRequest(ex::just(), at_support, std::string{"AT"},
@@ -118,8 +122,9 @@ struct AtReceiver {
 void test_AtRequestStringCommand1WaitErrorTimeout() {
   TaskScheduler scheduler;
 
-  tests::MockSerialPort mock_serial{};
-  auto at_support = AtSupport{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  auto at_support = AtSupport{context, mock_serial};
 
   DataBuffer received;
   mock_serial.write_event().Subscribe([&](auto data) {
@@ -152,8 +157,9 @@ void test_AtRequestStringCommand1WaitErrorTimeout() {
 }
 
 void test_AtRequestStringCommand1WaitErrorResponse() {
-  tests::MockSerialPort mock_serial{};
-  auto at_support = AtSupport{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  auto at_support = AtSupport{context, mock_serial};
 
   // Create AtRequest with string command and 1 wait
   auto at_request =
@@ -176,8 +182,9 @@ void test_AtRequestStringCommand1WaitErrorResponse() {
 }
 
 void test_AtRequestStringCommand2WaitsSuccess() {
-  tests::MockSerialPort mock_serial{};
-  auto at_support = AtSupport{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  auto at_support = AtSupport{context, mock_serial};
 
   // Create AtRequest with string command and 2 waits
   auto at_request =
@@ -210,8 +217,9 @@ void test_AtRequestStringCommand2WaitsSuccess() {
 
 void test_AtRequestStringCommand2WaitsErrorPartial() {
   TaskScheduler scheduler;
-  tests::MockSerialPort mock_serial{};
-  auto at_support = AtSupport{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  auto at_support = AtSupport{context, mock_serial};
 
   // Create AtRequest with string command and 2 waits with short timeout
   auto at_request = at::MakeRequest(ex::just(), at_support, "AT",
@@ -241,8 +249,9 @@ void test_AtRequestStringCommand2WaitsErrorPartial() {
 }
 
 void test_AtRequestStringCommand5WaitsSuccess() {
-  tests::MockSerialPort mock_serial{};
-  auto at_support = AtSupport{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  auto at_support = AtSupport{context, mock_serial};
 
   // Create AtRequest with string command and 5 waits
   auto at_request =
@@ -271,8 +280,9 @@ void test_AtRequestStringCommand5WaitsSuccess() {
 
 void test_AtRequestStringCommand5WaitsErrorTimeout() {
   TaskScheduler scheduler;
-  tests::MockSerialPort mock_serial{};
-  auto at_support = AtSupport{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  auto at_support = AtSupport{context, mock_serial};
 
   // Create AtRequest with string command and 5 waits with short timeout
   auto at_request =
@@ -308,8 +318,9 @@ void test_AtRequestStringCommand5WaitsErrorTimeout() {
 }
 
 void test_AtRequestCommandMaker0WaitsSuccess() {
-  tests::MockSerialPort mock_serial{};
-  auto at_support = AtSupport{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  auto at_support = AtSupport{context, mock_serial};
 
   // Create AtRequest with command maker function and 0 waits
   auto at_request = at::MakeRequest(
@@ -322,8 +333,9 @@ void test_AtRequestCommandMaker0WaitsSuccess() {
 }
 
 void test_AtRequestCommandMaker0WaitsError() {
-  tests::MockSerialPort mock_serial{};
-  auto at_support = AtSupport{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  auto at_support = AtSupport{context, mock_serial};
 
   // Create AtRequest with command maker function and 0 waits
   auto at_request = at::MakeRequest(
@@ -339,8 +351,9 @@ void test_AtRequestCommandMaker0WaitsError() {
 }
 
 void test_AtRequestCommandMaker2WaitsSuccess() {
-  tests::MockSerialPort mock_serial{};
-  auto at_support = AtSupport{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  auto at_support = AtSupport{context, mock_serial};
 
   // Create AtRequest with command maker and 2 waits
   auto at_request = at::MakeRequest(
@@ -372,8 +385,9 @@ void test_AtRequestCommandMaker2WaitsSuccess() {
 }
 
 void test_AtRequestWithWaitHandler() {
-  tests::MockSerialPort mock_serial{};
-  auto at_support = AtSupport{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  auto at_support = AtSupport{context, mock_serial};
 
   // Create AtRequest with command maker and 2 waits
   auto at_request = at::MakeRequest(

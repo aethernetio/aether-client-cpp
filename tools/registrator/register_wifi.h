@@ -20,8 +20,8 @@
 #include "aether/config.h"
 #if AE_SUPPORT_WIFIS
 
-#  include "aether/adapters/parent_wifi.h"
 #  include "aether/adapters/ethernet.h"
+#  include "aether/adapters/parent_wifi.h"
 #  include "aether/wifi/wifi_driver_types.h"
 
 namespace ae::reg {
@@ -37,7 +37,7 @@ class RegisterWifiAdapter : public ParentWifiAdapter {
   AE_OBJECT_REFLECT(AE_MMBR(ethernet_adapter_))
 
   std::vector<AccessPoint::ptr> access_points() override;
-  NewAccessPoint::Subscriber new_access_point() override;
+  NewAccessPoint const& new_access_point() override;
 
  private:
   // whose doing all job

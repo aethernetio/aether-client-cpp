@@ -16,7 +16,7 @@
 
 #include "send_messages_bandwidth/sender/sender.h"
 
-#include "aether/api_protocol/api_context.h"
+#include "aether/api_protocol/api_protocol.h"
 #include "aether/client_messages/p2p_message_stream.h"
 #include "aether/stream_api/api_call_adapter.h"
 
@@ -27,9 +27,15 @@ Sender::Sender(AeContext const& ae_context, Client::ptr client, Uid destination)
     : ae_context_{ae_context},
       client_{std::move(client)},
       destination_{destination},
-      bandwidth_api_{protocol_context_} {}
+      protocol_context_(ae_context_),
+      bandwidth_api_{},
+      test_finished_event_{ae_context_},
+      handshake_made_{ae_context_},
+      test_started_event_{ae_context_},
+      test_stopped_event_{ae_context_},
+      error_event_{ae_context_} {}
 
-EventSubscriber<void()> Sender::error_event() { return error_event_; }
+Event<void()> const& Sender::error_event() { return error_event_; }
 
 void Sender::Connect() {
   auto handle = client_->message_stream_manager().CreatePort(destination_);
@@ -42,10 +48,10 @@ void Sender::Connect() {
 
 void Sender::Disconnect() { message_stream_.reset(); }
 
-EventSubscriber<void()> Sender::Handshake() {
-  auto api = ApiCallAdapter{ApiContext{bandwidth_api_}, *message_stream_};
+Event<void()> const& Sender::Handshake() {
+  auto api = ApiCallAdapter{bandwidth_api_, *message_stream_};
 
-  auto res = api->handshake();
+  auto res = api->Handshake();
   handshake_sub_ = res.Subscribe([this](auto const& res) {
     AE_TELED_DEBUG("Handshake received");
     if (res && res.value()) {
@@ -61,7 +67,7 @@ EventSubscriber<void()> Sender::Handshake() {
   return handshake_made_;
 }
 
-EventSubscriber<void(Bandwidth const&)> Sender::TestMessages(
+Event<void(Bandwidth const&)> const& Sender::TestMessages(
     std::size_t message_count, std::size_t message_size) {
   // Start test
   // Make test
@@ -72,9 +78,8 @@ EventSubscriber<void(Bandwidth const&)> Sender::TestMessages(
     message_sender_ = std::make_unique<MessageSender>(
         ae_context_,
         [this, payload_size](std::uint16_t id) -> decltype(auto) {
-          auto api =
-              ApiCallAdapter{ApiContext{bandwidth_api_}, *message_stream_};
-          api->message(id, DataBuffer(payload_size));
+          auto api = ApiCallAdapter{bandwidth_api_, *message_stream_};
+          api->Message(id, DataBuffer(payload_size));
           return api.Flush();
         },
         message_count);
@@ -97,14 +102,14 @@ EventSubscriber<void(Bandwidth const&)> Sender::TestMessages(
   return test_finished_event_;
 }
 
-EventSubscriber<void()> Sender::StartTest() {
+Event<void()> const& Sender::StartTest() {
   start_test_action_.emplace(
       ae_context_,
       [this]() {
         AE_TELED_DEBUG("Sending start test request");
-        auto api = ApiCallAdapter{ApiContext{bandwidth_api_}, *message_stream_};
+        auto api = ApiCallAdapter{bandwidth_api_, *message_stream_};
 
-        sync_subs_ += api->start_test().Subscribe([this](auto const& res) {
+        sync_subs_ += api->StartTest().Subscribe([this](auto const& res) {
           if (res.IsOk()) {
             start_test_action_->Stop();
             test_started_event_.Emit();
@@ -121,14 +126,14 @@ EventSubscriber<void()> Sender::StartTest() {
   return test_started_event_;
 }
 
-EventSubscriber<void()> Sender::StopTest() {
+Event<void()> const& Sender::StopTest() {
   stop_test_action_.emplace(
       ae_context_,
       [this]() {
         AE_TELED_DEBUG("Sending stop test request");
-        auto api = ApiCallAdapter{ApiContext{bandwidth_api_}, *message_stream_};
+        auto api = ApiCallAdapter{bandwidth_api_, *message_stream_};
 
-        sync_subs_ += api->stop_test().Subscribe([this](auto const& res) {
+        sync_subs_ += api->StopTest().Subscribe([this](auto const& res) {
           if (res.IsOk()) {
             stop_test_action_->Stop();
             test_stopped_event_.Emit();

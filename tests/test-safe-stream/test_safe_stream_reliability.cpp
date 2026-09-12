@@ -56,13 +56,14 @@ void TestSendPackets(TestContext& ctx, SafeStream<kCapacity>& sender,
   int sent_messages = 0;
   int failed_messages = 0;
   std::size_t received_size = 0;
+  MultiSubscription subscriptions;
 
   // send messages periodically
   auto task = RepeatableTask{
       AeContext{ctx},
       [&]() {
         auto& sent_action = sender.Write(ToDataBuffer(test_data));
-        sent_action.status_event().Subscribe([&](auto status) {
+        subscriptions += sent_action.status_event().Subscribe([&](auto status) {
           if (status != WriteAction::Status::kSuccess) {
             failed_messages++;
           }
@@ -73,7 +74,7 @@ void TestSendPackets(TestContext& ctx, SafeStream<kCapacity>& sender,
       std::chrono::milliseconds{50}, wait_messages};
 
   // count received messages
-  receiver.out_data_event().Subscribe([&](auto const& d) {
+  subscriptions += receiver.out_data_event().Subscribe([&](auto const& d) {
     AE_TELED_DEBUG("Received message size {}", d.size());
     received_size += d.size();
   });
@@ -100,10 +101,11 @@ void test_SafeStreamLostPackets() {
   auto r_packet_loss = LostPacketsStream{ctx, 0.2};
   auto s_mock_stream = MockWriteStream{ctx, 1024};
   auto r_mock_stream = MockWriteStream{ctx, 1024};
+  MultiSubscription subscriptions;
 
-  s_mock_stream.on_write_event().Subscribe(
+  subscriptions += s_mock_stream.on_write_event().Subscribe(
       [&](auto&& data) { r_mock_stream.WriteOut(data); });
-  r_mock_stream.on_write_event().Subscribe(
+  subscriptions += r_mock_stream.on_write_event().Subscribe(
       [&](auto&& data) { s_mock_stream.WriteOut(data); });
 
   auto sender = SafeStream<kCapacity>{ctx, config};
@@ -126,10 +128,11 @@ void test_SafeStreamPacketsReordered() {
       PacketDelayStream{ctx, 0.2, std::chrono::milliseconds{50}};
   auto s_mock_stream = MockWriteStream{ctx, 1024};
   auto r_mock_stream = MockWriteStream{ctx, 1024};
+  MultiSubscription subscriptions;
 
-  s_mock_stream.on_write_event().Subscribe(
+  subscriptions += s_mock_stream.on_write_event().Subscribe(
       [&](auto&& data) { r_mock_stream.WriteOut(data); });
-  r_mock_stream.on_write_event().Subscribe(
+  subscriptions += r_mock_stream.on_write_event().Subscribe(
       [&](auto&& data) { s_mock_stream.WriteOut(data); });
 
   auto sender = SafeStream<kCapacity>{ctx, config};
@@ -156,10 +159,11 @@ void test_SafeStreamPacketsLostAndReordered() {
 
   auto s_mock_stream = MockWriteStream{ctx, 1024};
   auto r_mock_stream = MockWriteStream{ctx, 1024};
+  MultiSubscription subscriptions;
 
-  s_mock_stream.on_write_event().Subscribe(
+  subscriptions += s_mock_stream.on_write_event().Subscribe(
       [&](auto&& data) { r_mock_stream.WriteOut(data); });
-  r_mock_stream.on_write_event().Subscribe(
+  subscriptions += r_mock_stream.on_write_event().Subscribe(
       [&](auto&& data) { s_mock_stream.WriteOut(data); });
 
   auto sender = SafeStream<kCapacity>{ctx, config};

@@ -19,11 +19,21 @@
 void setUp() {}
 void tearDown() {}
 
-extern int test_method_call();
+extern int test_api_protocol_method_call();
+extern int test_api_protocol_packet();
+extern int test_api_protocol_pending_responses();
+extern int test_api_protocol_registration();
+extern int test_api_protocol_request_response();
+extern int test_api_protocol_sender_lifecycle();
 
 int main() {
   int res = 0;
-  res += test_method_call();
+  res += test_api_protocol_packet();
+  res += test_api_protocol_method_call();
+  res += test_api_protocol_request_response();
+  res += test_api_protocol_pending_responses();
+  res += test_api_protocol_sender_lifecycle();
+  res += test_api_protocol_registration();
 
   return res;
 }
