@@ -17,4 +17,38 @@
 #ifndef AETHER_ENV_H_
 #define AETHER_ENV_H_
 
+#include "aether-objects/env/env.h"
+#include "aether-objects/obj/obj_ptr.h"
+#include "aether-objects/ptr/ptr_view.h"
+
+#include "aether/events/events.h"
+#include "aether/tasks/manual_task_scheduler.h"
+
+namespace ae {
+class Aether;
+
+/**
+ * \brief Aether environment object
+ * It's possible to extend this type and provide your components through it.
+ * Or provide your own type \see aether_app
+ */
+class AeEnv : public Env {
+ public:
+  AeEnv();
+
+  void SetAether(ObjPtr<Aether> const& aether) noexcept;
+
+  TaskScheduler& scheduler() const noexcept;
+  EventSystem& event_system() const noexcept;
+
+ protected:
+  void* find_component(EnvId id) noexcept override;
+
+  mutable TaskScheduler scheduler_;
+  mutable EventSystem event_system_;
+  PtrView<Aether> aether_;
+};
+
+}  // namespace ae
+
 #endif  // AETHER_ENV_H_

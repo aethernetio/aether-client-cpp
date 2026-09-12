@@ -26,7 +26,9 @@ list(APPEND aether_srcs
             "server.cpp"
             "server_keys.cpp"
             "socket_initializer.cpp"
-            "tele_statistics.cpp")
+            "tele_statistics.cpp"
+            "env.cpp"
+            )
 
 list(APPEND aether_srcs
             "aether_c/c_uid.cpp"
