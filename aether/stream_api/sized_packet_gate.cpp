@@ -47,8 +47,7 @@ void SizedPacketGate::WriteOut(DataBuffer const& buffer) {
 
 std::size_t SizedPacketGate::Overhead() const { return kSizedPacketOverhead; }
 
-EventSubscriber<void(DataBuffer const& data)>
-SizedPacketGate::out_data_event() {
-  return EventSubscriber{out_data_event_};
+Event<void(DataBuffer const& data)> const& SizedPacketGate::out_data_event() {
+  return out_data_event_;
 }
 }  // namespace ae

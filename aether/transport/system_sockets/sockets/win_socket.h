@@ -20,14 +20,13 @@
 #if defined _WIN32
 #  define WIN_SOCKET_ENABLED 1
 
-#  include <mutex>
 #  include <atomic>
 #  include <cstddef>
+#  include <mutex>
 
 #  include "aether/poller/win_poller.h"
-#  include "aether/types/data_buffer.h"
 #  include "aether/socket_initializer.h"
-#  include "aether/events/event_subscription.h"
+#  include "aether/types/data_buffer.h"
 
 #  include "aether/transport/system_sockets/sockets/isocket.h"
 

@@ -17,10 +17,10 @@
 #ifndef AETHER_STREAM_API_TIED_GATES_H_
 #define AETHER_STREAM_API_TIED_GATES_H_
 
-#include "aether/events/event_subscription.h"
+#include "aether/events/events.h"
 
-#include "aether/type_traits.h"
 #include "aether/stream_api/gate_trait.h"
+#include "aether/type_traits.h"
 
 namespace ae {
 namespace gates_internal {

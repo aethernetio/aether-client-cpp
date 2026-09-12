@@ -20,9 +20,9 @@
 #include <memory>
 
 #include "aether-miscpp/serialization/binary_archive.h"
-#include "aether-tele/traps/statistics_trap.h"
 
 #include "aether-objects/obj/obj.h"
+#include "aether/aether_tele.h"
 #include "aether/config.h"
 #include "aether/types/packed_size.h"
 
@@ -51,12 +51,11 @@ class TeleStatistics : public Obj {
 #endif
 
 #if AE_TELE_ENABLED && AE_TELE_LOG_TO_STATISTICS
-  using Trap = tele::StatisticsTrap<AE_STATISTICS_MAX_SIZE>;
-
-  std::shared_ptr<Trap> const& trap();
+  std::shared_ptr<TeleStatisticsTrap> const& trap();
 
  private:
-  std::shared_ptr<Trap> trap_ = std::make_shared<Trap>();
+  std::shared_ptr<TeleStatisticsTrap> trap_ =
+      std::make_shared<TeleStatisticsTrap>();
 #endif
 };
 

@@ -19,8 +19,8 @@
 
 #include "aether/types/uid.h"
 
-#include "aether/events/events.h"
 #include "aether/api_protocol/api_protocol.h"
+#include "aether/events/events.h"
 
 #include "aether/work_cloud_api/ae_message.h"
 #include "aether/work_cloud_api/cloud_configs.h"
@@ -98,15 +98,13 @@ class ClientApiSafe : public ApiClassImpl<ClientApiSafe> {
              RegMethod<21, &ClientApiSafe::SendCLoudConfig>,
              ExtApi<&ClientApiSafe::return_result>);
 
-  auto send_message_event() { return EventSubscriber{send_message_event_}; }
-  auto send_cloud_event() { return EventSubscriber{send_cloud_event_}; }
-  auto send_server_descriptor_event() {
-    return EventSubscriber{send_server_descriptor_event_};
+  auto const& send_message_event() { return send_message_event_; }
+  auto const& send_cloud_event() { return send_cloud_event_; }
+  auto const& send_server_descriptor_event() {
+    return send_server_descriptor_event_;
   }
-  auto request_telemetry_event() {
-    return EventSubscriber{request_telemetry_event_};
-  }
-  auto send_cloud_configs() { return EventSubscriber{send_cloud_configs_}; }
+  auto const& request_telemetry_event() { return request_telemetry_event_; }
+  auto const& send_cloud_configs() { return send_cloud_configs_; }
 
  private:
   Event<void(AeMessage const& message)> send_message_event_;

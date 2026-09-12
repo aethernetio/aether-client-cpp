@@ -25,7 +25,13 @@
 namespace ae {
 
 ClientApiSafe::ClientApiSafe(ProtocolContext& protocol_context)
-    : ApiClassImpl{protocol_context}, return_result{protocol_context} {}
+    : ApiClassImpl{protocol_context},
+      return_result{protocol_context},
+      send_message_event_{protocol_context},
+      send_server_descriptor_event_{protocol_context},
+      send_cloud_event_{protocol_context},
+      request_telemetry_event_{protocol_context},
+      send_cloud_configs_{protocol_context} {}
 
 void ClientApiSafe::ChangeParent([[maybe_unused]] Uid const& uid) {
   AE_TELED_DEBUG("ChangeParent");

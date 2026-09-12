@@ -23,10 +23,10 @@
 
 #if AE_SUPPORT_GATEWAY
 
-#  include "aether/types/server_id.h"
-#  include "aether/stream_api/istream.h"
 #  include "aether/gateway_api/server_endpoints.h"
+#  include "aether/stream_api/istream.h"
 #  include "aether/transport/gateway/gateway_device.h"
+#  include "aether/types/server_id.h"
 
 namespace ae {
 class GatewayTransport : public ByteIStream {
@@ -38,9 +38,9 @@ class GatewayTransport : public ByteIStream {
   AE_CLASS_NO_COPY_MOVE(GatewayTransport)
 
   ActionPtr<WriteAction> Write(DataBuffer&& in_data) override;
-  StreamUpdateEvent::Subscriber stream_update_event() override;
+  StreamUpdateEvent const& stream_update_event() override;
   StreamInfo stream_info() const override;
-  OutDataEvent::Subscriber out_data_event() override;
+  OutDataEvent const& out_data_event() override;
   void Restream() override;
 
  private:

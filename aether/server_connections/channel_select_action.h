@@ -47,13 +47,19 @@ class ChannelSelectAction final : public Action {
   };
 
  public:
-  using ResultEvent = Event<void(Result<std::unique_ptr<ByteIStream>, int>)>;
+  using ResultType = Result<std::unique_ptr<ByteIStream>, int>;
+
+  // Although backed by a multicast Event, this result has exactly one
+  // consuming subscriber. Dispatch is synchronous; the subscriber may move
+  // the successful value during the callback and must not retain the reference.
+  // Do not add another subscriber.
+  using ResultEvent = Event<void(ResultType&)>;
 
   ChannelSelectAction(AeContext const& ae_context,
                       ChannelEntry& attempted_channel) noexcept;
 
   void Start();
-  ResultEvent::Subscriber result_event() noexcept;
+  ResultEvent const& result_event() noexcept;
   ChannelEntry& attempted_channel() noexcept;
 
  private:

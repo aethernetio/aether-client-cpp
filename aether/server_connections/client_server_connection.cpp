@@ -121,7 +121,7 @@ WriteAction& BufferedServerConnection::Write(DataBuffer&& in_data) {
   return buffer_write.Write(std::move(in_data));
 }
 
-BufferedServerConnection::StreamUpdateEvent::Subscriber
+BufferedServerConnection::StreamUpdateEvent const&
 BufferedServerConnection::stream_update_event() {
   return server_connection.stream_update_event();
 }
@@ -130,7 +130,7 @@ StreamInfo BufferedServerConnection::stream_info() const {
   return server_connection.stream_info();
 }
 
-BufferedServerConnection::OutDataEvent::Subscriber
+BufferedServerConnection::OutDataEvent const&
 BufferedServerConnection::out_data_event() {
   return server_connection.out_data_event();
 }
@@ -149,6 +149,7 @@ ClientServerConnection::ClientServerConnection(AeContext const& ae_context,
       crypto_provider_{std::make_unique<
           client_server_connection_internal::ClientCryptoProvider>(
           client, server->server_id)},
+      protocol_context_{ae_context},
       client_api_unsafe_{protocol_context_, *crypto_provider_->decryptor()},
       login_api_{protocol_context_, *crypto_provider_->encryptor()},
       server_connection_{ae_context_, server} {
@@ -172,7 +173,7 @@ StreamInfo ClientServerConnection::stream_info() const {
   return server_connection_.stream_info();
 }
 
-ByteIStream::StreamUpdateEvent::Subscriber
+ByteIStream::StreamUpdateEvent const&
 ClientServerConnection::stream_update_event() {
   return server_connection_.stream_update_event();
 }

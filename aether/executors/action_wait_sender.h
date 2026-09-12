@@ -33,7 +33,6 @@ IGNORE_IMPLICIT_CONVERSION()
 DISABLE_WARNING_POP()
 
 #include "aether/actions/action.h"
-#include "aether/events/event_subscription.h"
 #include "aether/events/events.h"
 
 namespace ae::ex {
@@ -41,14 +40,12 @@ namespace action_wait_sender_internal {
 
 template <typename E>
 struct IsResultEvent : std::false_type {};
-template <typename Ok, typename Err>
-struct IsResultEvent<Event<void(Result<Ok, Err>)>> : std::true_type {};
-template <typename Ok, typename Err>
-struct IsResultEvent<EventSubscriber<void(Result<Ok, Err>)>> : std::true_type {
-};
+template <typename Es, typename Ok, typename Err>
+struct IsResultEvent<events::EventObject<Es, void(Result<Ok, Err>)>>
+    : std::true_type {};
 
 template <typename E>
-concept ResultEvent = IsResultEvent<E>::value;
+concept ResultEvent = IsResultEvent<std::decay_t<E>>::value;
 
 template <typename A>
 concept ActionResultEvent = requires(A& a) {
@@ -58,16 +55,15 @@ concept ActionResultEvent = requires(A& a) {
 template <typename E>
 struct ResultEventTrait {};
 
-template <typename Ok, typename Err>
-struct ResultEventTrait<Event<void(Result<Ok, Err>)>> {
+template <typename Es, typename Ok, typename Err>
+struct ResultEventTrait<events::EventObject<Es, void(Result<Ok, Err>)>> {
   using type = Ok;
   using error = Err;
 };
 
 template <ActionResultEvent A, stdexec::receiver R>
 class OpState {
-  using ResultEvent =
-      typename decltype(std::declval<A>().result_event())::EventType;
+  using ResultEvent = std::decay_t<decltype(std::declval<A>().result_event())>;
   using EventTrait = ResultEventTrait<ResultEvent>;
   using ResultType =
       Result<typename EventTrait::type, typename EventTrait::error>;
@@ -147,9 +143,7 @@ class OpState {
 
 template <ActionResultEvent A>
 class Sender {
-  using ResultEvent =
-      typename decltype(std::declval<A>().result_event())::EventType;
-
+  using ResultEvent = std::decay_t<decltype(std::declval<A>().result_event())>;
   using EventTrait = ResultEventTrait<ResultEvent>;
 
  public:

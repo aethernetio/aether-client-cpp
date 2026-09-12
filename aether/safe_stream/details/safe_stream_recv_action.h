@@ -47,7 +47,13 @@ class SafeStreamRecvAction {
   using IndexRangeType = CircularBufferImpl::index_range_type;
   using ReceiveChunkListImpl = ReceiveChunkList<IndexType>;
 
-  using ReceiveEvent = Event<void(DataBuffer&& data)>;
+  /**
+   * \brief Received data transferred to a handler.
+   *
+   * This event must have exactly one subscriber. This is a usage contract and
+   * is not enforced at runtime.
+   */
+  using ReceiveEvent = Event<void(DataBuffer& data)>;
 
   SafeStreamRecvAction(AeContext const& ae_context,
                        ISendAckRepeat& send_ack_repeat,
@@ -56,7 +62,8 @@ class SafeStreamRecvAction {
         send_ack_repeat_{&send_ack_repeat},
         send_ack_timeout_{config.send_ack_timeout},
         send_repeat_timeout_{config.send_repeat_timeout},
-        window_size_{config.window_size} {
+        window_size_{config.window_size},
+        receive_event_{ae_context_} {
     assert((window_size_ < Capacity / 2) &&
            "Window size should be less than half of capacity");
   }
@@ -92,9 +99,7 @@ class SafeStreamRecvAction {
     HandleData(received_index, data_message.repeat_count, data_message.data);
   }
 
-  ReceiveEvent::Subscriber receive_event() {
-    return EventSubscriber{receive_event_};
-  }
+  ReceiveEvent const& receive_event() { return receive_event_; }
 
  private:
   void HandleData(IndexType received_index, std::uint8_t repeat_count,
@@ -202,7 +207,7 @@ class SafeStreamRecvAction {
       AE_TELED_DEBUG(
           "Emitted received data range: {}-{} size: {}, last_emitted_: {}",
           recv_range.left, recv_range.right, data_buffer.size(), last_emitted_);
-      receive_event_.Emit(std::move(data_buffer));
+      receive_event_.Emit(data_buffer);
 
       chunks_->Acknowledge(recv_range.right);
       buffer_.Erase(recv_range.right + 1);

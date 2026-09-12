@@ -117,7 +117,7 @@ class Thingy91xAtModem final : public IModemDriver {
 
   WriteOperation* WritePacket(ConnectionIndex connect_index,
                               std::span<std::uint8_t const> data) override;
-  DataEvent::Subscriber data_event() override;
+  DataEvent const& data_event() override;
 
   ModemOperation* SetPowerSaveParam(ModemPowerSaveParam const& psp) override;
   ModemOperation* PowerOff() override;

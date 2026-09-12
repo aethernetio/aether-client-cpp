@@ -22,8 +22,8 @@
 
 #  include "aether-miscpp/misc/defer.h"
 #  include "aether-miscpp/misc/from_chars.h"
-#  include "aether/actions/pipeline.h"
 #  include "aether/actions/gen_action.h"
+#  include "aether/actions/pipeline.h"
 #  include "aether/mstream_buffers.h"
 #  include "aether/serial_ports/serial_port_factory.h"
 
@@ -73,9 +73,8 @@ EbyteE22LoraModule::CloseNetwork(ae::ConnectionLoraIndex /*connect_index*/) {
 // void EbyteE22LoraModule::CloseNetwork(
 //    ae::ConnectionLoraIndex /*connect_index*/){};
 
-ActionPtr<EbyteE22LoraModule::WriteOperation>
-EbyteE22LoraModule::WritePacket(ae::ConnectionLoraIndex /*connect_index*/,
-                                   ae::DataBuffer const& /*data*/) {
+ActionPtr<EbyteE22LoraModule::WriteOperation> EbyteE22LoraModule::WritePacket(
+    ae::ConnectionLoraIndex /*connect_index*/, ae::DataBuffer const& /*data*/) {
   return {};
 }
 // void EbyteE22LoraModule::WritePacket(ae::ConnectionLoraIndex
@@ -93,9 +92,8 @@ ActionPtr<IPipeline> EbyteE22LoraModule::ReadPacket(
 //   return data;
 // };
 
-EbyteE22LoraModule::DataEvent::Subscriber
-EbyteE22LoraModule::data_event() {
-  return EventSubscriber{data_event_};
+EbyteE22LoraModule::DataEvent const& EbyteE22LoraModule::data_event() {
+  return data_event_;
 }
 
 ActionPtr<EbyteE22LoraModule::LoraModuleOperation>

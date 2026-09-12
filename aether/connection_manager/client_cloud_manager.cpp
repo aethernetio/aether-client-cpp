@@ -20,6 +20,7 @@
 #include <optional>
 #include <utility>
 
+#include "aether/ae_context.h"
 #include "aether/aether.h"
 #include "aether/client.h"
 #include "aether/work_cloud.h"
@@ -32,16 +33,18 @@ constexpr int kGetServersRequestError = 1;
 
 GetCloudFromCache::GetCloudFromCache(AeContext const& ae_context,
                                      Cloud::ptr cloud)
-    : cloud_{std::move(cloud)} {
+    : GetCloudAction{ae_context},
+      cloud_{std::move(cloud)},
+      result_event_{ae_context} {
   ae_context.scheduler().Task([this]() {
     result_event_.Emit(Ok{std::move(cloud_)});
     Finish();
   });
 }
 
-GetCloudFromCache::ResultEvent::Subscriber
+GetCloudFromCache::ResultEvent const&
 GetCloudFromCache::result_event() noexcept {
-  return EventSubscriber{result_event_};
+  return result_event_;
 }
 
 void BuildNewServers(Aether::ptr const& aether,
@@ -149,7 +152,10 @@ auto SortNewServers(std::vector<ServerId> const& sids) {
 
 ClientCloudManager::ClientCloudManager(ObjProp prop, ObjPtr<Aether> aether,
                                        ObjPtr<Client> client)
-    : Obj{prop}, aether_{std::move(aether)}, client_{std::move(client)} {
+    : Obj{prop},
+      aether_{std::move(aether)},
+      client_{std::move(client)},
+      cloud_update_event_{std::in_place, AeContext{*this}} {
   // save cloud cache for current client
   [[maybe_unused]] auto const cache_initialized =
       client_.WithLoaded([&](auto const& obj) {
@@ -164,9 +170,10 @@ ClientCloudManager::ClientCloudManager(ObjProp prop, ObjPtr<Aether> aether,
   assert(cache_initialized && "Client did not load");
 }
 
-ClientCloudManager::CloudUpdateEvent::Subscriber
+ClientCloudManager::CloudUpdateEvent const&
 ClientCloudManager::cloud_update_event() {
-  return EventSubscriber{cloud_update_event_};
+  assert(!!cloud_update_event_);
+  return *cloud_update_event_;
 }
 
 GetCloudAction& ClientCloudManager::GetCloud(Uid client_uid) {
@@ -234,6 +241,10 @@ auto ClientCloudManager::MakeServersSender(std::vector<ServerId> const& sids) {
          SortNewServers(sids);
 }
 
+void ClientCloudManager::Loaded() {
+  cloud_update_event_.emplace(AeContext{*this});
+}
+
 void ClientCloudManager::CloudConfigs(std::vector<CloudConfig> const& configs) {
   for (auto const& conf : configs) {
     AE_TELED_DEBUG("Got cloud config update subject:{}, ver:{}, cloud:[{}]",
@@ -288,12 +299,12 @@ void ClientCloudManager::FinalizeCloudConfig(CloudConfig const& conf) {
             if (res->IsOk()) {
               auto cloud =
                   RegisterCloud(conf.subject_uid, std::move(*res).value());
-              cloud_update_event_.Emit(conf.subject_uid,
-                                       Ok<Cloud::ptr const&>{cloud});
+              cloud_update_event_->Emit(conf.subject_uid,
+                                        Ok<Cloud::ptr const&>{cloud});
             } else {
               AE_TELED_ERROR("Cloud resolve failed!, Error {}", res->error());
               // TODO: how to handle such error?
-              cloud_update_event_.Emit(conf.subject_uid, Error{res->error()});
+              cloud_update_event_->Emit(conf.subject_uid, Error{res->error()});
             }
           }));
 }

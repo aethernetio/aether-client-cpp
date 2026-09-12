@@ -44,8 +44,8 @@ class P2pSafeStream final : public ByteIStream {
 
   WriteAction& Write(DataBuffer&& data) override;
   StreamInfo stream_info() const override;
-  StreamUpdateEvent::Subscriber stream_update_event() override;
-  OutDataEvent::Subscriber out_data_event() override;
+  StreamUpdateEvent const& stream_update_event() override;
+  OutDataEvent const& out_data_event() override;
   void Restream() override;
 
  private:

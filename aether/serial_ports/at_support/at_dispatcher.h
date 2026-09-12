@@ -20,7 +20,7 @@
 #include <map>
 #include <string>
 
-#include "aether/events/event_subscription.h"
+#include "aether/events/events.h"
 #include "aether/serial_ports/at_support/at_buffer.h"
 
 namespace ae {

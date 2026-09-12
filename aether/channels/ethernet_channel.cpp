@@ -19,7 +19,7 @@
 #include <limits>
 #include <utility>
 
-#include "aether/events/event_subscription.h"
+#include "aether/events/events.h"
 #include "aether/memory.h"
 
 #include "aether/aether.h"

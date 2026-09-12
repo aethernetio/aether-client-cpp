@@ -29,13 +29,21 @@ IGNORE_IMPLICIT_CONVERSION()
 #include <etl/vector.h>
 DISABLE_WARNING_POP()
 
-#include "aether/api_protocol/request_id.h"
 #include "aether/config.h"
+
+#include "aether/actions/action_context.h"
+#include "aether/events/events.h"
+#include "aether/tasks/manual_task_scheduler.h"
+
+#include "aether/api_protocol/request_id.h"
 
 namespace ae {
 class PacketStack;
 class ApiParser;
 class ApiPacker;
+
+using TaskScheduler = ManualTaskScheduler<
+    TaskManagerConf<AE_TASK_MAX_COUNT, AE_TASK_MAX_SIZE, AE_TASK_ALIGN>>;
 
 class ProtocolContext {
  public:
@@ -67,11 +75,19 @@ class ProtocolContext {
       kMaxParserPackerDepth > 0,
       "AE_API_PROTOCOL_MAX_PARSER_PACKER_DEPTH must be greater than 0");
 
-  ProtocolContext();
+  explicit ProtocolContext(ActionContext auto const& context)
+      : ProtocolContext{
+            context.scheduler(),
+            context.event_system(),
+        } {}
+  ProtocolContext(TaskScheduler& scheduler, EventSystem& event_system);
   ~ProtocolContext();
 
-  template <typename Entry>
-  Entry& CreatePendingResponse(RequestId request_id) {
+  TaskScheduler& scheduler() const;
+  EventSystem& event_system() const;
+
+  template <typename Entry, typename... Args>
+  Entry& CreatePendingResponse(RequestId request_id, Args&&... args) {
     static_assert(sizeof(Entry) <= kPendingResponseMaxSize,
                   "Pending response entry exceeds "
                   "AE_API_PROTOCOL_PENDING_RESPONSE_MAX_SIZE");
@@ -81,7 +97,8 @@ class ProtocolContext {
 
     PreparePendingResponseSlot(request_id);
 
-    auto* entry_ptr = pending_response_pool_.template create<Entry>();
+    auto* entry_ptr = pending_response_pool_.template create<Entry>(
+        std::forward<Args>(args)...);
     assert(entry_ptr != nullptr &&
            "Pending response pool allocation failed after slot preparation");
     pending_responses_.emplace_back(PendingEntry{request_id, entry_ptr});
@@ -124,6 +141,9 @@ class ProtocolContext {
   void PreparePendingResponseSlot(RequestId request_id);
   PendingEntry TakePending(RequestId request_id);
   PendingEntry TakeOldestPending();
+
+  TaskScheduler* scheduler_;
+  EventSystem* event_system_;
 
   PendingResponsePool pending_response_pool_;
   PendingList pending_responses_;

@@ -17,12 +17,12 @@
 #ifndef AETHER_API_PROTOCOL_MAKE_API_CALL_SENDER_H_
 #define AETHER_API_PROTOCOL_MAKE_API_CALL_SENDER_H_
 
-#include <utility>
 #include <cassert>
+#include <utility>
 
-#include "aether/executors/executors.h"
 #include "aether/api_protocol/api_context.h"
-#include "aether/events/event_subscription.h"
+#include "aether/events/events.h"
+#include "aether/executors/executors.h"
 #include "aether/write_action/write_action.h"
 
 namespace ae {
@@ -117,7 +117,10 @@ class Operation final : public OpBase<R> {
         });
   }
 
-  void Reset() noexcept override { sub_.Reset(); is_reset_ = true; }
+  void Reset() noexcept override {
+    sub_.Reset();
+    is_reset_ = true;
+  }
   bool is_reset() const noexcept override { return is_reset_; }
 
  private:

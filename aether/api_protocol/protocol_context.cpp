@@ -25,13 +25,19 @@
 #include "aether/tele.h"
 
 namespace ae {
-ProtocolContext::ProtocolContext() = default;
+ProtocolContext::ProtocolContext(TaskScheduler& scheduler,
+                                 EventSystem& event_system)
+    : scheduler_{&scheduler}, event_system_{&event_system} {}
+
 ProtocolContext::~ProtocolContext() {
   while (!pending_responses_.empty()) {
     auto entry = TakeOldestPending();
     DestroyPending(entry);
   }
 }
+
+TaskScheduler& ProtocolContext::scheduler() const { return *scheduler_; }
+EventSystem& ProtocolContext::event_system() const { return *event_system_; }
 
 void ProtocolContext::SetSendResultResponse(RequestId request_id) {
   auto entry = TakePending(request_id);

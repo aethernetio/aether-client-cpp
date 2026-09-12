@@ -16,12 +16,21 @@
 
 #include "aether/adapters/adapter.h"
 
+#include <cassert>
+
+#include "aether/ae_context.h"
+
 namespace ae {
 #ifdef AE_DISTILLATION
-Adapter::Adapter(ObjProp prop) : Obj{prop} {}
+Adapter::Adapter(ObjProp prop)
+    : Obj{prop}, new_access_point_event_{AeContext{*this}} {}
 #endif  // AE_DISTILLATION
 
-Adapter::NewAccessPoint::Subscriber Adapter::new_access_point() {
-  return EventSubscriber{new_access_point_event_};
+Adapter::NewAccessPoint const& Adapter::new_access_point() {
+  assert(!!new_access_point_event_);
+  return *new_access_point_event_;
 }
+
+void Adapter::Loaded() { new_access_point_event_.emplace(AeContext{*this}); }
+
 }  // namespace ae

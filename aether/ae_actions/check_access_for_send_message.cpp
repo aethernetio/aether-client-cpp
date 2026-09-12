@@ -23,11 +23,12 @@ CheckAccessForSendMessage::CheckAccessForSendMessage(
     AeContext const& ae_context, Uid destination,
     CloudServerConnections& cloud_connection,
     RequestPolicy::Variant request_policy)
-    : destination_{destination},
+    : Action{ae_context},
+      destination_{destination},
       cloud_request_{
           ae_context,
           ApiRequestHandler{[this](ApiContext<AuthorizedApi>& auth_api, auto*,
-                                auto* request) {
+                                   auto* request) {
             wait_check_sub_ =
                 auth_api->check_access_for_send_message(destination_)
                     .Subscribe([&](auto const& res) {
@@ -42,11 +43,12 @@ CheckAccessForSendMessage::CheckAccessForSendMessage(
           }},
           cloud_connection,
           request_policy,
-      } {}
+      },
+      result_event_{ae_context} {}
 
-CheckAccessForSendMessage::ResultEvent::Subscriber
-CheckAccessForSendMessage::result_event() noexcept {
-  return EventSubscriber{result_event_};
+auto CheckAccessForSendMessage::result_event() const noexcept
+    -> ResultEvent const& {
+  return result_event_;
 }
 
 void CheckAccessForSendMessage::ResponseReceived() {

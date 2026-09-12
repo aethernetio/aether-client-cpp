@@ -19,7 +19,6 @@
 
 #include <cstdint>
 #include <type_traits>
-#include <utility>
 
 #include "aether-miscpp/meta/ignore_t.h"
 #include "aether-miscpp/types/result.h"
@@ -37,6 +36,9 @@ class PendingResponseEntry final : public ProtocolContext::PendingResponse {
  public:
   using value_type = std::conditional_t<std::is_void_v<Value>, Ignore, Value>;
   using result_type = Result<value_type, Error>;
+
+  explicit PendingResponseEntry(EventContext auto const& context)
+      : event{context} {}
 
   void OnResult(ApiParser& parser) override {
     if constexpr (std::is_void_v<Value>) {
@@ -73,9 +75,10 @@ class ApiPromise {
   template <typename Fn>
   constexpr decltype(auto) Subscribe(Fn&& fn) {
     using Entry = api_promise_internal::PendingResponseEntry<Value, Error>;
-    auto& entry =
-        protocol_context_->template CreatePendingResponse<Entry>(request_id_);
-    return EventSubscriber{entry.event}.Subscribe(std::forward<Fn>(fn));
+    auto const& entry =
+        protocol_context_->template CreatePendingResponse<Entry>(
+            request_id_, *protocol_context_);
+    return entry.event.Subscribe(std::forward<Fn>(fn));
   }
 
  private:

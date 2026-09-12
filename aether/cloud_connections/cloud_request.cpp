@@ -32,14 +32,16 @@ CloudRequest::CloudRequest(AeContext const& ae_context,
                            CloudServerConnections& cloud_server_connections,
                            RequestPolicy::Variant policy,
                            std::size_t max_retries, Duration request_timeout)
-    : ae_context_{ae_context},
+    : Action{ae_context},
+      ae_context_{ae_context},
       request_{std::move(api_call)},
       cloud_scs_{&cloud_server_connections},
       policy_{policy},
       max_retries_{max_retries},
       request_timeout_{request_timeout},
       server_changed_sub_{cloud_scs_->servers_update_event().Subscribe(
-          MethodPtr<&CloudRequest::ServersUpdated>{this})} {
+          MethodPtr<&CloudRequest::ServersUpdated>{this})},
+      result_event_{ae_context_} {
   PrefillServerRequests();
   EnqueueMakeRequest();
 }
@@ -49,14 +51,16 @@ CloudRequest::CloudRequest(AeContext const& ae_context,
                            CloudServerConnections& cloud_server_connections,
                            RequestPolicy::Variant policy,
                            std::size_t max_retries, Duration request_timeout)
-    : ae_context_{ae_context},
+    : Action{ae_context},
+      ae_context_{ae_context},
       request_{std::move(api_request)},
       cloud_scs_{&cloud_server_connections},
       policy_{policy},
       max_retries_{max_retries},
       request_timeout_{request_timeout},
       server_changed_sub_{cloud_scs_->servers_update_event().Subscribe(
-          MethodPtr<&CloudRequest::ServersUpdated>{this})} {
+          MethodPtr<&CloudRequest::ServersUpdated>{this})},
+      result_event_{ae_context_} {
   PrefillServerRequests();
   EnqueueMakeRequest();
 }
@@ -71,8 +75,8 @@ void CloudRequest::Failed() {
   result_event_.Emit(false);
 }
 
-CloudRequest::ResultEvent::Subscriber CloudRequest::result_event() {
-  return EventSubscriber{result_event_};
+CloudRequest::ResultEvent const& CloudRequest::result_event() {
+  return result_event_;
 }
 
 void CloudRequest::PrefillServerRequests() {

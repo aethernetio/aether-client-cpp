@@ -38,13 +38,17 @@ class P2pReceivePort;
 
 class P2pMessageStreamManager {
  public:
-  using NewPortEvent = Event<void(P2pPortHandle)>;
+  // A port handle transfers its receive-port ownership to exactly one
+  // subscriber. Ownership transfer is synchronous: the subscriber must move
+  // the handle during dispatch. This usage contract is not enforced at
+  // runtime.
+  using NewPortEvent = Event<void(P2pPortHandle&)>;
 
   P2pMessageStreamManager(AeContext const& ae_context,
                           Ptr<Client> const& client);
 
   P2pPortHandle CreatePort(Uid const& destination);
-  NewPortEvent::Subscriber new_port_event();
+  NewPortEvent const& new_port_event();
 
  private:
   void NewMessageReceived(AeMessage const& message);

@@ -19,7 +19,6 @@
 
 #include <type_traits>
 
-#include "aether/type_traits.h"
 #include "aether/events/events.h"
 
 namespace ae {
@@ -83,7 +82,7 @@ template <typename Es>
 struct EventSubscriberTraits;
 
 template <typename Arg>
-struct EventSubscriberTraits<EventSubscriber<void(Arg const&)>> {
+struct EventSubscriberTraits<Event<void(Arg const&)>> {
   using OutType = Arg;
 };
 
@@ -94,8 +93,8 @@ struct OutDataEventTraits {
 
 template <typename T>
 struct OutDataEventTraits<T, std::enable_if_t<HasOutDataEvent<T>::value>> {
-  using OutType = typename EventSubscriberTraits<
-      decltype(std::declval<T>().out_data_event())>::OutType;
+  using OutType = typename EventSubscriberTraits<std::remove_cvref_t<
+      decltype(std::declval<T>().out_data_event())>>::OutType;
 };
 
 }  // namespace _trait_internal

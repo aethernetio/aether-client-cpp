@@ -39,8 +39,10 @@ namespace ae {
 Registration::Registration(AeContext const& ae_context,
                            Ptr<RegistrationCloud> const& reg_cloud,
                            Uid parent_uid)
-    : ae_context_{ae_context},
+    : Action{ae_context},
+      ae_context_{ae_context},
       parent_uid_{std::move(parent_uid)},
+      protocol_context_{ae_context_},
       root_crypto_provider_{},
       global_crypto_provider_{},
       client_root_api_{protocol_context_, *root_crypto_provider_.decryptor(),
@@ -52,7 +54,8 @@ Registration::Registration(AeContext const& ae_context,
       // TODO: add configuration
       response_timeout_{std::chrono::seconds(20)},
       sign_pk_{Crypto::ptr{ae_context_.aether().crypto}
-                   ->signs_pk_[kDefaultSignatureMethod]} {
+                   ->signs_pk_[kDefaultSignatureMethod]},
+      registration_event_{ae_context_} {
   AE_TELE_INFO(RegisterStarted);
 
   // parent uid must not be empty
@@ -64,8 +67,8 @@ Registration::Registration(AeContext const& ae_context,
 
 Registration::~Registration() { AE_TELED_DEBUG("~Registration"); }
 
-Registration::RegistrationEvent::Subscriber Registration::registration() {
-  return EventSubscriber{registration_event_};
+Registration::RegistrationEvent const& Registration::registration() {
+  return registration_event_;
 }
 
 void Registration::InitConnection() {
@@ -99,7 +102,7 @@ auto Registration::GetKeys() {
                              auto& r) mutable noexcept {
         AE_TELE_INFO(RegisterGetKeys, "GetKeys");
         s = api_call->get_asymmetric_public_key(kDefaultCryptoLibProfile)
-                .Subscribe([&](auto&& res) mutable noexcept {
+                .Subscribe([&](auto&& res) noexcept {
                   if (!res) {
                     ex::set_error(std::move(r), res.error());
                     return;
@@ -148,7 +151,7 @@ auto Registration::RequestPowParams() {
               s = server_api
                       ->request_proof_of_work_data(parent_uid_,
                                                    PowMethod::kBCryptCrc32)
-                      .Subscribe([&](auto&& res) mutable noexcept {
+                      .Subscribe([&](auto&& res) noexcept {
                         if (!res) {
                           ex::set_error(std::move(r), res.error());
                           return;
@@ -211,8 +214,7 @@ auto Registration::MakeRegistration() {
                     // set master key and wait for confirmation
                     global_api->set_master_key(master_key_);
                     s = global_api->finish().Subscribe(
-                        [&, r{std::forward<decltype(r)>(r)}](
-                            auto&& res) mutable noexcept {
+                        [&](auto&& res) noexcept {
                           if (!res) {
                             ex::set_error(std::move(r), res.error());
                             return;

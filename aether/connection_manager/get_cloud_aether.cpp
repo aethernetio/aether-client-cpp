@@ -25,7 +25,8 @@ GetCloudFromAether::GetCloudFromAether(AeContext const& ae_context,
                                        ClientCloudManager& client_cloud_manager,
                                        CloudServerConnections& cloud_connection,
                                        Uid const& client_uid)
-    : ae_context_{ae_context},
+    : GetCloudAction{ae_context},
+      ae_context_{ae_context},
       client_uid_{client_uid},
       cloud_connection_{cloud_connection},
       cloud_request_{
@@ -46,7 +47,8 @@ GetCloudFromAether::GetCloudFromAether(AeContext const& ae_context,
           RequestPolicy::All{},
       },
       cloud_update_sub_{client_cloud_manager.cloud_update_event().Subscribe(
-          MethodPtr<&GetCloudFromAether::CloudUpdate>{this})} {
+          MethodPtr<&GetCloudFromAether::CloudUpdate>{this})},
+      result_event_{ae_context_} {
   cloud_request_result_sub_ =
       cloud_request_.result_event().Subscribe([this](bool success) {
         if (!success) {
@@ -57,9 +59,9 @@ GetCloudFromAether::GetCloudFromAether(AeContext const& ae_context,
       });
 }
 
-GetCloudFromAether::ResultEvent::Subscriber
+GetCloudFromAether::ResultEvent const&
 GetCloudFromAether::result_event() noexcept {
-  return EventSubscriber{result_event_};
+  return result_event_;
 }
 
 void GetCloudFromAether::CloudUpdate(

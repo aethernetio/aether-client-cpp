@@ -17,20 +17,21 @@
 #ifndef AETHER_SERIAL_PORTS_AT_SUPPORT_AT_SUPPORT_H_
 #define AETHER_SERIAL_PORTS_AT_SUPPORT_AT_SUPPORT_H_
 
-#include <string>
 #include <cstddef>
 #include <optional>
+#include <string>
 #include <string_view>
 
-#include "aether-miscpp/types/result.h"
 #include "aether-miscpp/misc/from_chars.h"
+#include "aether-miscpp/types/result.h"
 
+#include "aether/ae_context.h"
 #include "aether/serial_ports/iserial_port.h"
 
 // IWYU pragma: begin_exports
 #include "aether/serial_ports/at_support/at_buffer.h"
-#include "aether/serial_ports/at_support/at_listener.h"
 #include "aether/serial_ports/at_support/at_dispatcher.h"
+#include "aether/serial_ports/at_support/at_listener.h"
 // IWYU pragma: end_exports
 
 namespace ae {
@@ -87,7 +88,7 @@ static std::optional<std::size_t> ParseResponse(
 
 class AtSupport {
  public:
-  explicit AtSupport(ISerialPort& serial) noexcept;
+  explicit AtSupport(AeContext const& ae_context, ISerialPort& serial) noexcept;
 
   Result<std::size_t, int> SendATCommand(std::string_view command);
 

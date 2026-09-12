@@ -74,9 +74,7 @@ class StateMachine {
   /**
    * \brief Event that is called when state is changed
    */
-  EventSubscriber<void(TEnum)> changed_event() const {
-    return EventSubscriber{changed_event_};
-  }
+  Event<void(TEnum)> const& changed_event() const { return changed_event_; }
 
  private:
   bool changed_;

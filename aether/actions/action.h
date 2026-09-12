@@ -25,7 +25,8 @@ class Action {
  public:
   using FinishedEvent = Event<void()>;
 
-  Action() noexcept = default;
+  template <EventContext Ec>
+  explicit Action(Ec const& ec) noexcept : finished_event_{ec} {}
   virtual ~Action() noexcept = default;
 
   AE_CLASS_MOVE_ONLY(Action)
@@ -35,9 +36,7 @@ class Action {
     finished_event_.Emit();
   }
 
-  FinishedEvent::Subscriber finished_event() noexcept {
-    return EventSubscriber{finished_event_};
-  }
+  FinishedEvent const& finished_event() noexcept { return finished_event_; }
 
   bool is_finished() const noexcept { return is_finished_; }
 

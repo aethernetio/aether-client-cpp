@@ -29,14 +29,16 @@
 namespace ae {
 ModemConnectAction::ModemConnectAction(AeContext const& ae_context,
                                        IModemDriver& driver)
-    : driver_{&driver},
+    : Action{ae_context},
+      driver_{&driver},
+      connection_event_{ae_context},
       task_sub_{ae_context.scheduler().Task([&]() noexcept { Start(); })} {
   AE_TELED_DEBUG("ModemConnectAction created");
 }
 
-ModemConnectAction::ConnectionEvent::Subscriber
+ModemConnectAction::ConnectionEvent const&
 ModemConnectAction::connection_event() {
-  return EventSubscriber{connection_event_};
+  return connection_event_;
 }
 
 void ModemConnectAction::Start() {

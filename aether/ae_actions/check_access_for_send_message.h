@@ -17,14 +17,15 @@
 #ifndef AETHER_AE_ACTIONS_CHECK_ACCESS_FOR_SEND_MESSAGE_H_
 #define AETHER_AE_ACTIONS_CHECK_ACCESS_FOR_SEND_MESSAGE_H_
 
-#include "aether/common.h"
-#include "aether/types/uid.h"
 #include "aether-miscpp/types/result.h"
-#include "aether/events/events.h"
+
 #include "aether/actions/action.h"
 #include "aether/cloud_connections/cloud_request.h"
-#include "aether/cloud_connections/request_policy.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
+#include "aether/cloud_connections/request_policy.h"
+#include "aether/common.h"
+#include "aether/events/events.h"
+#include "aether/types/uid.h"
 
 namespace ae {
 class CloudServerConnections;
@@ -39,7 +40,7 @@ class CheckAccessForSendMessage final : public Action {
 
   AE_CLASS_NO_COPY_MOVE(CheckAccessForSendMessage)
 
-  ResultEvent::Subscriber result_event() noexcept;
+  ResultEvent const& result_event() const noexcept;
 
  private:
   void ResponseReceived();

@@ -35,7 +35,8 @@ template <ex::sender RequestSender>
 class AtStageAction final : public Action {
  public:
   AtStageAction(AeContext const& ae_context, RequestSender&& sender)
-      : waiter_{ae_context, std::move(sender), ActionFinishCb{.self = this}} {}
+      : Action{ae_context},
+        waiter_{ae_context, std::move(sender), ActionFinishCb{.self = this}} {}
 
   AE_CLASS_MOVE_ONLY(AtStageAction)
 

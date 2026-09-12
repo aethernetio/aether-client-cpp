@@ -19,8 +19,8 @@
 
 #include "aether-miscpp/types/result.h"
 
-#include "aether/events/events.h"
 #include "aether/actions/action.h"
+#include "aether/events/events.h"
 
 #include "aether/cloud.h"
 
@@ -30,9 +30,11 @@ namespace ae {
  */
 class GetCloudAction : public Action {
  public:
+  explicit GetCloudAction(EventContext auto const& context) : Action{context} {}
+
   using ResultEvent = Event<void(Result<Cloud::ptr, int>)>;
 
-  virtual ResultEvent::Subscriber result_event() noexcept = 0;
+  virtual ResultEvent const& result_event() noexcept = 0;
 };
 }  // namespace ae
 

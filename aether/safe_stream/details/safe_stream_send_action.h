@@ -23,7 +23,6 @@
 #include "aether/common.h"
 #include "aether/config.h"
 #include "aether/events/events.h"
-#include "aether/events/multi_subscription.h"
 #include "aether/safe_stream/details/circular_buffer.h"
 #include "aether/safe_stream/details/safe_stream_data_message.h"
 #include "aether/safe_stream/details/sending_chunk_list.h"
@@ -82,7 +81,10 @@ class SafeStreamSendAction {
         sending_buffer_{
             safe_stream_send_action_internal::RandomOffset<std::size_t>()},
         sending_chunks_{sending_buffer_.begin()},
-        last_sent_{sending_buffer_.begin()} {
+        last_sent_{sending_buffer_.begin()},
+        acknowledged_event_{ae_context_},
+        stopped_event_{ae_context_},
+        send_failed_event_{ae_context_} {
     assert((window_size_ < Capacity / 2) &&
            "Window size should be less than half of capacity");
     // set first response timeout
@@ -169,15 +171,9 @@ class SafeStreamSendAction {
     EnqueueSend();
   }
 
-  AcknowledgedEvent::Subscriber acknowledged_event() {
-    return EventSubscriber{acknowledged_event_};
-  }
-  StoppedEvent::Subscriber stopped_event() {
-    return EventSubscriber{stopped_event_};
-  }
-  SendFailedEvent::Subscriber send_failed_event() {
-    return EventSubscriber{send_failed_event_};
-  }
+  AcknowledgedEvent const& acknowledged_event() { return acknowledged_event_; }
+  StoppedEvent const& stopped_event() { return stopped_event_; }
+  SendFailedEvent const& send_failed_event() { return send_failed_event_; }
 
  private:
   void EnqueueSend() {

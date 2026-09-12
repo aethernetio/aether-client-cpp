@@ -96,9 +96,9 @@ class ModemTransport final : public ByteIStream {
   ~ModemTransport() override;
 
   WriteAction& Write(DataBuffer&& in_data) override;
-  StreamUpdateEvent::Subscriber stream_update_event() override;
+  StreamUpdateEvent const& stream_update_event() override;
   StreamInfo stream_info() const override;
-  OutDataEvent::Subscriber out_data_event() override;
+  OutDataEvent const& out_data_event() override;
   void Restream() override;
 
  private:

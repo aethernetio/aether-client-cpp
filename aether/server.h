@@ -17,14 +17,14 @@
 #ifndef AETHER_SERVER_H_
 #define AETHER_SERVER_H_
 
+#include <optional>
 #include <vector>
 
-#include "aether/types/address.h"
-#include "aether/events/events.h"
-#include "aether/types/server_id.h"
-#include "aether/channels/channel.h"
 #include "aether/adapter_registry.h"
-#include "aether/events/multi_subscription.h"
+#include "aether/channels/channel.h"
+#include "aether/events/events.h"
+#include "aether/types/address.h"
+#include "aether/types/server_id.h"
 
 namespace ae {
 class Server : public Obj {
@@ -41,31 +41,21 @@ class Server : public Obj {
 
   AE_OBJECT_REFLECT(AE_MMBRS(server_id, endpoints, adapter_registry_, channels))
 
-  template<typename Dnv>
-  void Load(CurrentVersion, Dnv& dnv){
-    dnv(base_);
-    dnv(server_id, endpoints, adapter_registry_, channels);
-    if (!subscribed_) {
-      subscribed_ = true;
-      UpdateSubscription();
-    }
-  }
-
-
-  ChannelsChanged::Subscriber channels_changed();
+  ChannelsChanged const& channels_changed();
+  void Register();
 
   ServerId server_id{};
   std::vector<Endpoint> endpoints;
   std::vector<Channel::ptr> channels;
 
  private:
-  void Register();
+  void Loaded();
   void UpdateSubscription();
   void AddChannels(AccessPoint::ptr const& access_point);
 
   AdapterRegistry::ptr adapter_registry_;
   MultiSubscription access_point_added_;
-  ChannelsChanged channels_changed_;
+  std::optional<ChannelsChanged> channels_changed_;
   bool subscribed_{false};
 };
 }  // namespace ae

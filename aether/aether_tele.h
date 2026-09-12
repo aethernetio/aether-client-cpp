@@ -22,6 +22,8 @@
 #include "aether-tele/levels.h"
 #include "aether-tele/sink.h"
 #include "aether-tele/tags.h"
+#include "aether-tele/traps/statistics_trap.h"
+
 #include "aether/config.h"
 
 namespace ae {
@@ -128,6 +130,11 @@ struct AetherTeleConfig {
     };
   };
 };
+
+static constexpr auto kStatisticsMaxSize =
+    static_cast<std::size_t>(AE_STATISTICS_MAX_SIZE);
+using TeleStatisticsTrap = ae::tele::StatisticsTrap<kStatisticsMaxSize>;
+
 }  // namespace ae
 
 // Main module for aether and tags

@@ -37,17 +37,19 @@ void ChannelSelectAction::CbHandle::operator()(
     channel->channel_statistics().AddConnectionTime(build_time);
   }
 
-  // emit the res, but convert all errors to int
+  // Emit the result, but convert all errors to int.
   constexpr int kStopped = -2;
-  self->result_event_.Emit(
+  auto result =
       std::move(res)
           .value_or(Error<std::variant<int, ex::TimeoutError>>(kStopped))
-          .Else([&](auto&& verr) noexcept
-                    -> Result<std::unique_ptr<ByteIStream>, int> {
+          // This callback is part of the no-exceptions completion path.
+          // NOLINTNEXTLINE(bugprone-exception-escape)
+          .Else([&](auto&& verr) noexcept -> ResultType {
             return std::visit(
                 [&](auto const& e) noexcept { return Error{HandleError(e)}; },
                 std::forward<decltype(verr)>(verr));
-          }));
+          });
+  self->result_event_.Emit(result);
   self->Finish();
 }
 
@@ -64,7 +66,10 @@ int ChannelSelectAction::CbHandle::HandleError(int e) noexcept {
 
 ChannelSelectAction::ChannelSelectAction(
     AeContext const& ae_context, ChannelEntry& attempted_channel) noexcept
-    : ae_context_{ae_context}, attempted_channel_{&attempted_channel} {}
+    : Action{ae_context},
+      ae_context_{ae_context},
+      attempted_channel_{&attempted_channel},
+      result_event_{ae_context_} {}
 
 void ChannelSelectAction::Start() {
   auto channel = attempted_channel_->channel.Lock();
@@ -77,8 +82,8 @@ void ChannelSelectAction::Start() {
                         CbHandle{.self = this, .start_time = Now()});
 }
 
-auto ChannelSelectAction::result_event() noexcept -> ResultEvent::Subscriber {
-  return EventSubscriber{result_event_};
+auto ChannelSelectAction::result_event() noexcept -> ResultEvent const& {
+  return result_event_;
 }
 
 ChannelEntry& ChannelSelectAction::attempted_channel() noexcept {

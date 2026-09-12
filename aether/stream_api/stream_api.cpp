@@ -18,18 +18,22 @@
 
 #include <cstddef>
 
+#include "aether-miscpp/types/method_ptr.h"
+
 #include "aether/types/packed_size.h"
 
 namespace ae {
 StreamApiImpl::StreamApiImpl(ProtocolContext& protocol_context)
-    : ApiClass{protocol_context}, stream{protocol_context} {}
+    : ApiClass{protocol_context},
+      stream{protocol_context},
+      stream_event_{protocol_context} {}
 
 void StreamApiImpl::Stream(StreamId stream_id, DataBuffer data) {
   stream_event_.Emit(stream_id, data);
 }
 
-StreamApiImpl::StreamEvent::Subscriber StreamApiImpl::stream_event() {
-  return EventSubscriber{stream_event_};
+StreamApiImpl::StreamEvent const& StreamApiImpl::stream_event() {
+  return stream_event_;
 }
 
 std::uint8_t StreamIdGenerator::GetNextClientStreamId() {
@@ -54,7 +58,8 @@ StreamApiGate::StreamApiGate(StreamApiImpl& stream_api, StreamId stream_id)
     : stream_id_{stream_id},
       stream_api_{&stream_api},
       read_subscription_{stream_api_->stream_event().Subscribe(
-          MethodPtr<&StreamApiGate::OnStream>{this})} {}
+          MethodPtr<&StreamApiGate::OnStream>{this})},
+      out_data_event_{stream_api_->protocol_context()} {}
 
 DataBuffer StreamApiGate::WriteIn(DataBuffer&& buffer) {
   auto api_call = ApiContext{*stream_api_};
@@ -66,8 +71,8 @@ void StreamApiGate::WriteOut(DataBuffer const& buffer) {
   out_data_event_.Emit(buffer);
 }
 
-EventSubscriber<void(DataBuffer const& data)> StreamApiGate::out_data_event() {
-  return EventSubscriber{out_data_event_};
+Event<void(DataBuffer const& data)> const& StreamApiGate::out_data_event() {
+  return out_data_event_;
 }
 
 std::size_t StreamApiGate::Overhead() const { return kStreamMessageOverhead; }

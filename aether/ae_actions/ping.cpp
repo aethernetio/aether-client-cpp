@@ -67,7 +67,8 @@ Ping::Ping(AeContext const& ae_context,
       next_ping_hint_{next_ping_hint},
       rx_window_{rx_window},
       timeout_{timeout},
-      server_id_{cloud_server_connection_->server_id()} {
+      server_id_{cloud_server_connection_->server_id()},
+      result_event_{ae_context_} {
   AE_TELE_INFO(
       kPing,
       "Ping action created to server id: {}, interval: {:%S}s, rx_window: "
@@ -75,7 +76,7 @@ Ping::Ping(AeContext const& ae_context,
       server_id_, next_ping_hint_, rx_window_, timeout_);
 }
 
-Ping::ResultEvent::Subscriber Ping::result_event() { return result_event_; }
+Ping::ResultEvent const& Ping::result_event() const { return result_event_; }
 
 void Ping::Start(TimePoint current_time) {
   auto* cc = cloud_server_connection_->client_connection();

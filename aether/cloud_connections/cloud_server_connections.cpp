@@ -46,14 +46,15 @@ static constexpr auto kCloudServerQuarantineTime =
     std::chrono::milliseconds{AE_CLOUD_SERVER_QUARANTINE_TIME_MS};
 
 cloud_server_connections_internal::EmptyConnectionsWA::EmptyConnectionsWA(
-    AeContext const& ae_context) {
+    AeContext const& ae_context)
+    : WriteAction{ae_context} {
   ae_context.scheduler().Task(
       [&]() { WriteAction::SetStatus(WriteAction::Status::kFail); });
 }
 
 cloud_server_connections_internal::ReplicaWA::ReplicaWA(
-    std::vector<WriteAction*>&& swas) noexcept
-    : swas_{std::move(swas)} {
+    AeContext const& ae_context, std::vector<WriteAction*>&& swas) noexcept
+    : WriteAction{ae_context}, swas_{std::move(swas)} {
   assert(!swas_.empty());
   for (auto* action : swas_) {
     subs_ +=
@@ -88,22 +89,25 @@ CloudServerConnections::CloudServerConnections(
     : ae_context_{ae_context},
       cloud_{cloud},
       connection_factory_{std::move(connection_factory)},
-      max_connections_{max_connections} {
+      max_connections_{max_connections},
+      servers_update_event_{ae_context_},
+      server_quarantined_event_{ae_context_},
+      server_quarantine_release_event_{ae_context_} {
   InitServerConnections();
   if (max_connections_ != 0) {
     ReconcileServers();
   }
 }
 
-CloudServerConnections::ServersUpdate::Subscriber
+CloudServerConnections::ServersUpdate const&
 CloudServerConnections::servers_update_event() {
   return servers_update_event_;
 }
-CloudServerConnections::ServerQuarantineEvent::Subscriber
+CloudServerConnections::ServerQuarantineEvent const&
 CloudServerConnections::server_quarantined_event() {
   return server_quarantined_event_;
 }
-CloudServerConnections::ServerQuarantineEvent::Subscriber
+CloudServerConnections::ServerQuarantineEvent const&
 CloudServerConnections::server_quarantine_release_event() {
   return server_quarantine_release_event_;
 }
@@ -274,9 +278,10 @@ void CloudServerConnections::ReconcileServers() {
   if (selected_servers_.size() >= max_connections_) {
     return;
   }
-  // Vacancy-fill model: keep the current selected list stable and only append
-  // usable servers to fill available slots. The selected prefix is skipped;
-  // failed candidates move to the quarantined suffix, so retry the same index.
+  // Vacancy-fill model: keep the current selected list stable and only
+  // append usable servers to fill available slots. The selected prefix is
+  // skipped; failed candidates move to the quarantined suffix, so retry the
+  // same index.
   AE_TELED_DEBUG("Reconcile servers vacancy={} selected_count={}",
                  max_connections_ - selected_servers_.size(),
                  selected_servers_.size());
@@ -361,7 +366,7 @@ WriteAction& CloudServerConnections::EmptyWriteAction() {
 }
 WriteAction& CloudServerConnections::ReplicaWriteAction(
     std::vector<WriteAction*>&& swas) {
-  return replica_was_.emplace_back(std::move(swas));
+  return replica_was_.emplace_back(ae_context_, std::move(swas));
 }
 
 }  // namespace ae

@@ -22,9 +22,12 @@
 #include <map>
 #include <utility>
 
+#include "aether/ae_context.h"
+
 namespace ae {
 
-Cloud::Cloud(ObjProp prop) : Obj{prop} {}
+Cloud::Cloud(ObjProp prop)
+    : Obj{prop}, cloud_updated_{std::in_place, AeContext{*this}} {}
 
 void Cloud::AddServer(Server::ptr server) {
   [[maybe_unused]] auto const server_loaded =
@@ -55,7 +58,7 @@ void Cloud::AddServer(Server::ptr server) {
         servers_.emplace(server_id, CloudServer{priority, std::move(server)});
       });
   assert(server_loaded && "cloud server must load");
-  cloud_updated_.Emit();
+  cloud_updated_->Emit();
 }
 
 void Cloud::SetServers(std::vector<Server::ptr> const& servers) {
@@ -79,7 +82,7 @@ void Cloud::SetServers(std::vector<Server::ptr> const& servers) {
             .second;
     assert(inserted && "cloud server must not duplicate");
   }
-  cloud_updated_.Emit();
+  cloud_updated_->Emit();
 }
 
 std::map<ServerId, CloudServer>& Cloud::servers() { return servers_; }
@@ -88,8 +91,14 @@ std::map<ServerId, CloudServer> const& Cloud::servers() const {
   return servers_;
 }
 
-EventSubscriber<void()> Cloud::cloud_updated() {
-  return EventSubscriber{cloud_updated_};
+Event<void()> const& Cloud::cloud_updated() {
+  assert(!!cloud_updated_);
+  return *cloud_updated_;
+}
+
+void Cloud::Loaded() {
+  // init cloud_updated_ event after loaded
+  cloud_updated_.emplace(AeContext{*this});
 }
 
 }  // namespace ae

@@ -17,12 +17,11 @@
 #ifndef AETHER_STREAM_API_STREAM_API_H_
 #define AETHER_STREAM_API_STREAM_API_H_
 
+#include "aether/api_protocol/api_class_impl.h"
+#include "aether/api_protocol/api_method.h"
+#include "aether/api_protocol/api_protocol.h"
 #include "aether/events/events.h"
 #include "aether/types/data_buffer.h"
-#include "aether/api_protocol/api_method.h"
-#include "aether/events/event_subscription.h"
-#include "aether/api_protocol/api_protocol.h"
-#include "aether/api_protocol/api_class_impl.h"
 
 namespace ae {
 using StreamId = std::uint8_t;
@@ -39,7 +38,7 @@ class StreamApiImpl : public ApiClass {
 
   Method<02, void(StreamId stream_id, DataBuffer data)> stream;
 
-  StreamEvent::Subscriber stream_event();
+  StreamEvent const& stream_event();
 
  private:
   StreamEvent stream_event_;
@@ -59,7 +58,7 @@ class StreamApiGate {
   void WriteOut(DataBuffer const& buffer);
   std::size_t Overhead() const;
 
-  EventSubscriber<void(DataBuffer const& data)> out_data_event();
+  Event<void(DataBuffer const& data)> const& out_data_event();
 
  private:
   void OnStream(StreamId stream_id, DataBuffer const& data);
