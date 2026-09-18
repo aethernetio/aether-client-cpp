@@ -17,8 +17,6 @@
 #include "aether/adapters/adapter.h"
 
 namespace ae {
-Action* Adapter::Stop() { return nullptr; }
-
 #ifdef AE_DISTILLATION
 Adapter::Adapter(ObjProp prop) : Obj{prop} {}
 #endif  // AE_DISTILLATION

@@ -283,6 +283,11 @@ class Sim7070AtModem final : public IModemDriver {
   Sim7070AtModem(AeContext const& ae_context, ModemInit modem_init,
                  std::unique_ptr<ISerialPort> serial);
 
+  static constexpr auto kNetworkOpActionPoolCapacity =
+      AE_MODEM_NETWORK_OP_ACTION_POOL_CAPACITY;
+  static constexpr auto kWriteActionPoolCapacity =
+      AE_MODEM_WRITE_ACTION_POOL_CAPACITY;
+
   void Init();
   void SetupPoll();
   void PollEvent(std::int32_t handle);
@@ -302,11 +307,14 @@ class Sim7070AtModem final : public IModemDriver {
   std::unique_ptr<ModemOperation> modem_stop_operation_;
   std::unique_ptr<ModemOperation> modem_set_psp_operation_;
   std::unique_ptr<ModemOperation> modem_poweroff_operation_;
-  ActionPool<AeContext, sim7070_modem_internal::OpenNetworkOperationImpl, 10>
+  ActionPool<AeContext, sim7070_modem_internal::OpenNetworkOperationImpl,
+             kNetworkOpActionPoolCapacity>
       open_network_pool_;
-  ActionPool<AeContext, sim7070_modem_internal::CloseNetworkOperationImpl, 10>
+  ActionPool<AeContext, sim7070_modem_internal::CloseNetworkOperationImpl,
+             kNetworkOpActionPoolCapacity>
       close_network_pool_;
-  ActionPool<AeContext, sim7070_modem_internal::WriteOperationImpl, 10>
+  ActionPool<AeContext, sim7070_modem_internal::WriteOperationImpl,
+             kWriteActionPoolCapacity>
       write_pool_;
 
   bool initiated_;

@@ -17,6 +17,8 @@
 #ifndef AETHER_SERVER_CONNECTIONS_CLIENT_SERVER_CONNECTION_H_
 #define AETHER_SERVER_CONNECTIONS_CLIENT_SERVER_CONNECTION_H_
 
+#include "aether/config.h"
+
 #include "aether/ae_context.h"
 #include "aether/common.h"
 #include "aether/crypto/icrypto_provider.h"
@@ -35,9 +37,11 @@ class Server;
 class Channel;
 
 namespace client_server_connection_internal {
+static constexpr auto kBufferCapacity = AE_SERVER_CONNECTION_BUFFER_CAPACITY;
+
 class BufferedServerConnection : public ByteIStream {
  public:
-  static constexpr std::size_t kBufferCapacity = 10;
+  using Buffer = BufferWrite<DataBuffer, kBufferCapacity>;
 
   BufferedServerConnection(AeContext const& ae_context,
                            Ptr<Server> const& server);
@@ -48,7 +52,7 @@ class BufferedServerConnection : public ByteIStream {
   OutDataEvent::Subscriber out_data_event() override;
   void Restream() override;
 
-  BufferWrite<DataBuffer, kBufferCapacity> buffer_write;
+  Buffer buffer_write;
   ServerConnection server_connection;
 };
 }  // namespace client_server_connection_internal

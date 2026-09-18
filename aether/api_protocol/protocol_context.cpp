@@ -37,12 +37,6 @@ void ProtocolContext::SetSendResultResponse(RequestId request_id) {
   auto entry = TakePending(request_id);
   auto* p = parser();
   assert(p != nullptr && "Parser shouldn't be null");
-  if (p == nullptr) {
-    if (entry.response != nullptr) {
-      DestroyPending(entry);
-    }
-    return;
-  }
 
   if (entry.response == nullptr) {
     AE_TELED_DEBUG("No callback for request id {} cancel parse", request_id);
@@ -62,9 +56,7 @@ void ProtocolContext::SetSendErrorResponse(RequestId req_id,
     AE_TELED_DEBUG("No callback for error with request id {}", req_id);
     auto* p = parser();
     assert(p != nullptr && "Parser shouldn't be null");
-    if (p != nullptr) {
-      p->Cancel();
-    }
+    p->Cancel();
     return;
   }
 

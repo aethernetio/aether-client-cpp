@@ -33,7 +33,7 @@ class ShutdownTestAdapter final : public Adapter {
       : Adapter{prop}, scheduler_{&scheduler}, finished_{&finished} {}
   AE_OBJECT_REFLECT()
   std::vector<AccessPoint::ptr> access_points() override { return {}; }
-  Action* Stop() override {
+  IAdapterStop& Stop() override {
     ++stop_count;
     task_ = scheduler_->DelayedTask(
         [this]() {
@@ -41,14 +41,14 @@ class ShutdownTestAdapter final : public Adapter {
           action_.Finish();
         },
         Now() + std::chrono::milliseconds{20});
-    return &action_;
+    return action_;
   }
   int stop_count{};
 
  private:
   TaskScheduler* scheduler_{};
   int* finished_{};
-  Action action_;
+  IAdapterStop action_;
   TaskSubscription task_;
 };
 
@@ -94,6 +94,38 @@ void test_DestructorWaitsForAdapterShutdown() {
   app.reset();
   TEST_ASSERT_EQUAL_INT(1, finished);
 }
+
+void test_AdapterStopCompletesImmediatelyWithoutPendingWork() {
+  AdapterStop empty;
+  TEST_ASSERT_TRUE(empty.is_finished());
+  Action completed;
+  completed.Finish();
+  AdapterStop stop{completed};
+  TEST_ASSERT_TRUE(stop.is_finished());
+}
+
+void test_AdapterStopWaitsForDriverAndCompletesOnlyOnce() {
+  Action driver;
+  AdapterStop stop{driver};
+  int completions = 0;
+  Subscription sub = stop.finished_event().Subscribe([&]() { ++completions; });
+  TEST_ASSERT_FALSE(stop.is_finished());
+  driver.Finish();
+  TEST_ASSERT_TRUE(stop.is_finished());
+  TEST_ASSERT_EQUAL_INT(1, completions);
+  driver.Finish();
+  TEST_ASSERT_EQUAL_INT(1, completions);
+}
+
+void test_AdapterStopUnsubscribesWhenDestroyed() {
+  Action driver;
+  {
+    AdapterStop stop{driver};
+    TEST_ASSERT_FALSE(stop.is_finished());
+  }
+  driver.Finish();
+  TEST_ASSERT_TRUE(driver.is_finished());
+}
 }  // namespace ae::test_app_shutdown
 #endif
 int test_app_shutdown() {
@@ -102,6 +134,9 @@ int test_app_shutdown() {
   UNITY_BEGIN();
   RUN_TEST(test_ExitWaitsForAdapterAndKeepsOriginalExitCode);
   RUN_TEST(test_DestructorWaitsForAdapterShutdown);
+  RUN_TEST(test_AdapterStopCompletesImmediatelyWithoutPendingWork);
+  RUN_TEST(test_AdapterStopWaitsForDriverAndCompletesOnlyOnce);
+  RUN_TEST(test_AdapterStopUnsubscribesWhenDestroyed);
   return UNITY_END();
 #else
   return 0;

@@ -20,7 +20,6 @@
 #  include <utility>
 
 #  include "aether/aether.h"
-#  include "aether/channels/modem_channel_internal.h"
 #  include "aether/config.h"
 #  include "aether/executors/executors.h"
 #  include "aether/memory.h"
@@ -51,7 +50,10 @@ std::unique_ptr<ByteIStream> CreateTransport(AeContext const& ae_context,
       ae_context, access_point.modem_driver(), std::move(endpoint));
 }
 
-TransportBuildSender ConnectTransport(std::unique_ptr<ByteIStream> transport) {
+}  // namespace modem_channel_internal
+
+TransportBuildSender ModemChannel::ConnectTransport(
+    std::unique_ptr<ByteIStream> transport) {
   return ex::create<ex::set_value_t(std::unique_ptr<ByteIStream>),
                     ex::set_error_t(int)>(
       [t{std::move(transport)}, s{Subscription{}}](auto& ctx) mutable noexcept {
@@ -77,21 +79,6 @@ TransportBuildSender ConnectTransport(std::unique_ptr<ByteIStream> transport) {
         s = t->stream_update_event().Subscribe(complete);
       });
 }
-
-auto MakeTransportBuilderSender(AeContext const& ae_context,
-                                ModemAccessPoint& access_point,
-                                Endpoint endpoint) {
-  return EnsureModemConnected(access_point) |
-         ex::then([ae_context, &access_point,
-                   e{std::move(endpoint)}]() mutable noexcept {
-           return CreateTransport(ae_context, access_point, std::move(e));
-         }) |
-         ex::let_value([&](std::unique_ptr<ByteIStream>& t) noexcept {
-           return ConnectTransport(std::move(t));
-         });
-}
-
-}  // namespace modem_channel_internal
 
 ModemChannel::ModemChannel(ObjProp prop, ObjPtr<Aether> aether,
                            ModemAccessPoint::ptr access_point, Endpoint address)
@@ -122,8 +109,15 @@ ModemChannel::ModemChannel(ObjProp prop, ObjPtr<Aether> aether,
 TransportBuildSender ModemChannel::TransportBuilder() {
   auto ap = access_point_.Load();
   assert(ap && "Access point is not loaded");
-  return modem_channel_internal::MakeTransportBuilderSender(*aether_, *ap,
-                                                            address);
+  return modem_channel_internal::EnsureModemConnected(*ap) |
+         ex::then([context = AeContext{*aether_}, ap,
+                   endpoint = address]() mutable noexcept {
+           return modem_channel_internal::CreateTransport(context, *ap,
+                                                          std::move(endpoint));
+         }) |
+         ex::let_value([](std::unique_ptr<ByteIStream>& transport) noexcept {
+           return ConnectTransport(std::move(transport));
+         });
 }
 
 Duration ModemChannel::TransportBuildTimeout() const {

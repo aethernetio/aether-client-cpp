@@ -187,7 +187,7 @@ WriteAction& ModemTransport::Write(DataBuffer&& in_data) {
 
 WriteAction& ModemTransport::WriteTcp(DataBuffer&& in_data) {
   auto& send_queue_manager =
-      std::get<PacketQueueManager<SendTcpAction, kTcpSendQueueSize>>(
+      std::get<PacketQueueManager<SendTcpAction, kTcpPacketQueueCapacity>>(
           packet_queue_manager_);
 
   // Make TCP packet with its size at the beginning
@@ -214,7 +214,7 @@ WriteAction& ModemTransport::WriteTcp(DataBuffer&& in_data) {
 }
 WriteAction& ModemTransport::WriteUdp(DataBuffer&& in_data) {
   auto& send_queue_manager =
-      std::get<PacketQueueManager<SendUdpAction, kTcpSendQueueSize>>(
+      std::get<PacketQueueManager<SendUdpAction, kUdpPacketQueueCapacity>>(
           packet_queue_manager_);
 
   auto* send_action =
@@ -342,13 +342,13 @@ ModemTransport::PacketQueueManagerVar ModemTransport::MakePacketQueueManager(
     case Protocol::kTcp: {
       return PacketQueueManagerVar{
           std::in_place_type_t<
-              PacketQueueManager<SendTcpAction, kTcpSendQueueSize>>{},
+              PacketQueueManager<SendTcpAction, kTcpPacketQueueCapacity>>{},
           ae_context};
     }
     default: {
       return PacketQueueManagerVar{
           std::in_place_type_t<
-              PacketQueueManager<SendUdpAction, kTcpSendQueueSize>>{},
+              PacketQueueManager<SendUdpAction, kUdpPacketQueueCapacity>>{},
           ae_context};
     }
   }

@@ -20,9 +20,18 @@
 #include <utility>
 #include "aether/config.h"
 #if AE_SUPPORT_MODEMS
-#  include "aether/channels/modem_channel_internal.h"
+#  include "aether/channels/modem_channel.h"
 #  include "aether/clock.h"
 #  include "aether/transport/modems/modem_transport.h"
+
+namespace ae {
+struct ModemChannelTestAccess {
+  static TransportBuildSender ConnectTransport(
+      std::unique_ptr<ByteIStream> stream) {
+    return ModemChannel::ConnectTransport(std::move(stream));
+  }
+};
+}  // namespace ae
 
 namespace ae::test_modem_transport_shutdown {
 class ConnectingStream final : public ByteIStream {
@@ -72,7 +81,7 @@ void test_ConnectedTransportCanDisconnectWhileBuilderRemainsAlive() {
   raw->SetState(LinkState::kUnlinked);
   ConnectResult result;
   auto operation =
-      ex::connect(modem_channel_internal::ConnectTransport(std::move(stream)),
+      ex::connect(ModemChannelTestAccess::ConnectTransport(std::move(stream)),
                   ConnectReceiver{&result});
   ex::start(operation);
   raw->SetState(LinkState::kLinked);
@@ -91,7 +100,7 @@ void test_ConnectionErrorCompletesOnlyOnce() {
   raw->SetState(LinkState::kUnlinked);
   ConnectResult result;
   auto operation =
-      ex::connect(modem_channel_internal::ConnectTransport(std::move(stream)),
+      ex::connect(ModemChannelTestAccess::ConnectTransport(std::move(stream)),
                   ConnectReceiver{&result});
   ex::start(operation);
   raw->SetState(LinkState::kLinkError);
@@ -105,7 +114,7 @@ void test_AlreadyFailedTransportCompletesImmediately() {
   stream->SetState(LinkState::kLinkError);
   ConnectResult result;
   auto operation =
-      ex::connect(modem_channel_internal::ConnectTransport(std::move(stream)),
+      ex::connect(ModemChannelTestAccess::ConnectTransport(std::move(stream)),
                   ConnectReceiver{&result});
   ex::start(operation);
   TEST_ASSERT_EQUAL_INT(1, result.errors);

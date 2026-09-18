@@ -37,7 +37,7 @@ class Aether;
 struct RootServerSelectStreamTestAccess;
 class RootServerSelectStream final : public ByteIStream {
  public:
-  static constexpr std::size_t kBufferCapacity = 2;
+  static constexpr auto kBufferCapacity = AE_ROOT_REG_SERVER_BUFFER_CAPACITY;
   using ServerChangedEvent = Event<void()>;
   using CloudErrorEvent = Event<void()>;
 

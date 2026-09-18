@@ -412,9 +412,7 @@ void AetherApp::Exit(int code) {
       stopping_adapters_ = registry->adapters();
       for (auto& adapter : stopping_adapters_) {
         adapter.Load();
-        if (auto* action = adapter->Stop(); action != nullptr) {
-          stop_actions_.push_back(action);
-        }
+        stop_actions_.push_back(&adapter->Stop());
       }
     }
     CheckShutdown();

@@ -17,8 +17,8 @@
 #ifndef AETHER_EXECUTORS_WITH_TIMEOUT_H_
 #define AETHER_EXECUTORS_WITH_TIMEOUT_H_
 
-#include <utility>
 #include <cassert>
+#include <utility>
 
 #include <stdexec/execution.hpp>
 
@@ -93,9 +93,6 @@ class Operation {
     // task_sub controls if task reset or no
     op_base_.task_sub = ac_.scheduler().DelayedTask(
         [&]() noexcept {
-          if (op_base_.is_reset()) {
-            return;
-          }
           op_base_.Reset();
           stdexec::set_error(std::move(op_base_.recv), TimeoutError{});
         },

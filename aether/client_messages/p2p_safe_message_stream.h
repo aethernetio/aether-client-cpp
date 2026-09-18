@@ -17,23 +17,24 @@
 #ifndef AETHER_CLIENT_MESSAGES_P2P_SAFE_MESSAGE_STREAM_H_
 #define AETHER_CLIENT_MESSAGES_P2P_SAFE_MESSAGE_STREAM_H_
 
-#include "aether/common.h"
 #include "aether/ae_context.h"
-#include "aether/memory.h"
+#include "aether/common.h"
 #include "aether/config.h"
-#include "aether/actions/action_context.h"
+#include "aether/memory.h"
 
+#include "aether/safe_stream/safe_stream_config.h"
 #include "aether/stream_api/istream.h"
 #include "aether/stream_api/sized_packet_gate.h"
-#include "aether/safe_stream/safe_stream_config.h"
 
 namespace ae {
 template <std::size_t Capacity>
 class SafeStream;
 
+static constexpr inline std::size_t kP2pSafeStreamCapacity =
+    AE_SAFE_STREAM_CAPACITY;
 class P2pSafeStream final : public ByteIStream {
  public:
-  using SafeStreamImpl = SafeStream<AE_SAFE_STREAM_CAPACITY>;
+  using SafeStreamImpl = SafeStream<kP2pSafeStreamCapacity>;
 
   P2pSafeStream(AeContext const& ae_context, SafeStreamConfig const& config,
                 std::shared_ptr<ByteIStream> p2p_stream);
@@ -49,7 +50,6 @@ class P2pSafeStream final : public ByteIStream {
 
  private:
   SizedPacketGate sized_packet_gate_;
-  // TODO: add config
   std::unique_ptr<SafeStreamImpl> safe_stream_;
   std::shared_ptr<ByteIStream> p2p_stream_;
   OutDataEvent out_data_event_;

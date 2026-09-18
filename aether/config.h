@@ -87,6 +87,51 @@
 #  define AE_TCP_PACKET_QUEUE_SIZE 100
 #endif  // AE_TCP_PACKET_QUEUE_SIZE
 
+// Buffered server connection write buffer entry count.
+#ifndef AE_SERVER_CONNECTION_BUFFER_CAPACITY
+#  define AE_SERVER_CONNECTION_BUFFER_CAPACITY 10
+#endif
+
+// Root registration server selection stream write buffer entry count.
+#ifndef AE_ROOT_REG_SERVER_BUFFER_CAPACITY
+#  define AE_ROOT_REG_SERVER_BUFFER_CAPACITY 2
+#endif
+
+// Peer-to-peer message stream write buffer entry count.
+#ifndef AE_P2P_MESSAGE_STREAM_BUFFER_CAPACITY
+#  define AE_P2P_MESSAGE_STREAM_BUFFER_CAPACITY 10
+#endif
+
+// Cloud retrieval action pool entry count.
+#ifndef AE_CLOUD_GET_CLOUD_ACTION_POOL_CAPACITY
+#  define AE_CLOUD_GET_CLOUD_ACTION_POOL_CAPACITY 5
+#endif
+
+// Cloud server retrieval action pool entry count.
+#ifndef AE_CLOUD_GET_SERVERS_ACTION_POOL_CAPACITY
+#  define AE_CLOUD_GET_SERVERS_ACTION_POOL_CAPACITY 5
+#endif
+
+// Modem network operation action pool entry count.
+#ifndef AE_MODEM_NETWORK_OP_ACTION_POOL_CAPACITY
+#  define AE_MODEM_NETWORK_OP_ACTION_POOL_CAPACITY 10
+#endif
+
+// Modem write action pool entry count.
+#ifndef AE_MODEM_WRITE_ACTION_POOL_CAPACITY
+#  define AE_MODEM_WRITE_ACTION_POOL_CAPACITY 10
+#endif
+
+// Modem TCP packet queue entry count.
+#ifndef AE_MODEM_TCP_PACKET_QUEUE_SIZE
+#  define AE_MODEM_TCP_PACKET_QUEUE_SIZE 10
+#endif
+
+// Modem UDP packet queue entry count.
+#ifndef AE_MODEM_UDP_PACKET_QUEUE_SIZE
+#  define AE_MODEM_UDP_PACKET_QUEUE_SIZE 10
+#endif
+
 #ifndef AE_SUPPORT_WEBSOCKET
 #  define AE_SUPPORT_WEBSOCKET 1
 #endif  // AE_SUPPORT_WEBSOCKET

@@ -64,8 +64,16 @@ IModemDriver& ModemAdapter::modem_driver() {
   return *modem_driver_;
 }
 
-Action* ModemAdapter::Stop() {
-  return modem_driver_ ? modem_driver_->Stop() : nullptr;
+IAdapterStop& ModemAdapter::Stop() {
+  if (!stop_operation_) {
+    auto* operation = modem_driver_ ? modem_driver_->Stop() : nullptr;
+    if (operation != nullptr) {
+      stop_operation_.emplace(*operation);
+    } else {
+      stop_operation_.emplace();
+    }
+  }
+  return *stop_operation_;
 }
 
 }  // namespace ae

@@ -226,7 +226,7 @@ class AetherApp {
   std::optional<int> exit_code_;
   std::optional<int> requested_exit_code_;
   std::vector<Adapter::ptr> stopping_adapters_;
-  std::vector<Action*> stop_actions_;
+  std::vector<IAdapterStop*> stop_actions_;
   TaskSubscription shutdown_task_;
 };
 

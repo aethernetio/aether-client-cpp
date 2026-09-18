@@ -36,9 +36,6 @@
 
 namespace ae {
 
-// TODO: add config
-static constexpr std::size_t kTcpSendQueueSize = 10;
-
 class ModemTransport final : public ByteIStream {
   class ModemSend : public PacketSendAction {
    public:
@@ -82,9 +79,13 @@ class ModemTransport final : public ByteIStream {
     Subscription send_sub_;
   };
 
+  static constexpr auto kTcpPacketQueueCapacity =
+      AE_MODEM_TCP_PACKET_QUEUE_SIZE;
+  static constexpr auto kUdpPacketQueueCapacity =
+      AE_MODEM_UDP_PACKET_QUEUE_SIZE;
   using PacketQueueManagerVar =
-      std::variant<PacketQueueManager<SendTcpAction, kTcpSendQueueSize>,
-                   PacketQueueManager<SendUdpAction, kTcpSendQueueSize>>;
+      std::variant<PacketQueueManager<SendTcpAction, kTcpPacketQueueCapacity>,
+                   PacketQueueManager<SendUdpAction, kUdpPacketQueueCapacity>>;
 
  public:
   ModemTransport(AeContext const& ae_context, IModemDriver& modem_driver,
