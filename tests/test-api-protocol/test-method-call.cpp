@@ -142,6 +142,55 @@ void test_ReturnResult() {
   TEST_ASSERT(promise_get_value);
 }
 
+void CheckUnexpectedResponse(bool error, bool duplicate) {
+  ProtocolContext pc;
+  ApiLevel0 api{pc};
+  int completions = 0;
+  bool following_method_called = false;
+  Subscription method_sub = EventSubscriber{api.method_3_event}.Subscribe(
+      [&](int, std::string const&) { following_method_called = true; });
+  Subscription response_sub;
+  if (duplicate) {
+    auto promise = ApiPromise<Number>{pc, RequestId{42}};
+    response_sub = promise.Subscribe([&](auto const&) { ++completions; });
+  }
+
+  auto make_packet = [&]() {
+    auto context = ApiContext{api};
+    if (error) {
+      context->return_result_api.SendError(RequestId{42}, 0, 7);
+    } else {
+      context->return_result_api.SendResult(RequestId{42}, Number{78});
+    }
+    context->method_3(1, "must not run after an unexpected response");
+    return std::move(context).Pack();
+  };
+  if (duplicate) {
+    auto packet = make_packet();
+    ApiParser parser{pc, packet};
+    parser.Parse(api);
+    TEST_ASSERT_EQUAL_INT(1, completions);
+    TEST_ASSERT_TRUE(following_method_called);
+    following_method_called = false;
+  }
+  auto packet = make_packet();
+  ApiParser parser{pc, packet};
+  parser.Parse(api);
+  TEST_ASSERT_EQUAL_INT(duplicate ? 1 : 0, completions);
+  TEST_ASSERT_FALSE(following_method_called);
+}
+
+void test_UnknownResultCancelsParsing() {
+  CheckUnexpectedResponse(false, false);
+}
+void test_UnknownErrorCancelsParsing() { CheckUnexpectedResponse(true, false); }
+void test_DuplicateResultCancelsParsing() {
+  CheckUnexpectedResponse(false, true);
+}
+void test_DuplicateErrorCancelsParsing() {
+  CheckUnexpectedResponse(true, true);
+}
+
 void test_MethodWithSubApi() {
   ProtocolContext pc;
 
@@ -377,6 +426,10 @@ void test_PendingResponseDuplicateReplacementPreservesFifo() {
 int test_method_call() {
   UNITY_BEGIN();
   RUN_TEST(ae::test_method_call::test_ReturnResult);
+  RUN_TEST(ae::test_method_call::test_UnknownResultCancelsParsing);
+  RUN_TEST(ae::test_method_call::test_UnknownErrorCancelsParsing);
+  RUN_TEST(ae::test_method_call::test_DuplicateResultCancelsParsing);
+  RUN_TEST(ae::test_method_call::test_DuplicateErrorCancelsParsing);
   RUN_TEST(ae::test_method_call::test_MethodWithSubApi);
   RUN_TEST(ae::test_method_call::test_ProtocolContextStackAccess);
   RUN_TEST(ae::test_method_call::test_PendingResponseCapacityEvictsOldest);

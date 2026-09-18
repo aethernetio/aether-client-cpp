@@ -62,7 +62,8 @@ void test_RunAtStage() {
 
   ctx.Update();
 
-  TEST_ASSERT_EQUAL_STRING_LEN("AT\r\n", received.data(), 5);
+  TEST_ASSERT_EQUAL_UINT(4, received.size());
+  TEST_ASSERT_EQUAL_MEMORY("AT\r\n", received.data(), 4);
 }
 
 void test_RunMultipleStages() {
@@ -87,9 +88,13 @@ void test_RunMultipleStages() {
 
   ctx.Update();
 
-  TEST_ASSERT_EQUAL_STRING_LEN("AT\r\n", received[0].data(), 5);
-  TEST_ASSERT_EQUAL_STRING_LEN("MT\r\n", received[1].data(), 5);
-  TEST_ASSERT_EQUAL_STRING_LEN("UT\r\n", received[2].data(), 5);
+  TEST_ASSERT_EQUAL_UINT(3, received.size());
+  TEST_ASSERT_EQUAL_UINT(4, received[0].size());
+  TEST_ASSERT_EQUAL_MEMORY("AT\r\n", received[0].data(), 4);
+  TEST_ASSERT_EQUAL_UINT(4, received[1].size());
+  TEST_ASSERT_EQUAL_MEMORY("MT\r\n", received[1].data(), 4);
+  TEST_ASSERT_EQUAL_UINT(4, received[2].size());
+  TEST_ASSERT_EQUAL_MEMORY("UT\r\n", received[2].data(), 4);
 }
 
 void test_RunAtWithWaitStage() {
@@ -100,7 +105,8 @@ void test_RunAtWithWaitStage() {
   ActionsQueue queue;
 
   mock_serial.write_event().Subscribe([&](auto data) {
-    TEST_ASSERT_EQUAL_STRING_LEN("AT\r\n", data.data(), 5);
+    TEST_ASSERT_EQUAL_UINT(4, data.size());
+    TEST_ASSERT_EQUAL_MEMORY("AT\r\n", data.data(), 4);
   });
 
   bool executed = false;
@@ -129,7 +135,8 @@ void test_RunMultipleStagesWithWait() {
   ActionsQueue queue;
 
   mock_serial.write_event().Subscribe([&](auto data) {
-    TEST_ASSERT_EQUAL_STRING_LEN("AT\r\n", data.data(), 5);
+    TEST_ASSERT_EQUAL_UINT(4, data.size());
+    TEST_ASSERT_EQUAL_MEMORY("AT\r\n", data.data(), 4);
   });
 
   bool executed1 = false;

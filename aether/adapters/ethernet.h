@@ -47,8 +47,11 @@ class EthernetAdapter final : public Adapter {
   AE_OBJECT_REFLECT(AE_MMBRS(ethernet_access_point_))
 
   std::vector<AccessPoint::ptr> access_points() override;
+  // This adapter currently has no asynchronous shutdown sequence.
+  IAdapterStop& Stop() override { return stop_operation_; }
 
  private:
+  AdapterStop stop_operation_;
   EthernetAccessPoint::ptr ethernet_access_point_;
 };
 }  // namespace ae

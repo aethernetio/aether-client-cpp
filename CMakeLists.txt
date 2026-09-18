@@ -177,6 +177,10 @@ CPMAddPackage(
   EXCLUDE_FROM_ALL FALSE
 )
 
+if(MSVC)
+  target_compile_options(aether-objects PRIVATE /Zc:preprocessor)
+endif()
+
 add_library(${TARGET_NAME} STATIC )
 # collect sources
 add_subdirectory(aether)

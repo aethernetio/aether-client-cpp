@@ -51,7 +51,8 @@ void test_AtRequestStringCommand0WaitsSuccess() {
 
   auto res = ex::SyncWait(std::move(at_request));
 
-  TEST_ASSERT_EQUAL_STRING_LEN("AT\r\n", received.data(), 5);
+  TEST_ASSERT_EQUAL_UINT(4, received.size());
+  TEST_ASSERT_EQUAL_MEMORY("AT\r\n", received.data(), 4);
 }
 
 void test_AtRequestStringCommand0WaitsError() {
@@ -85,7 +86,8 @@ void test_AtRequestStringCommand1WaitSuccess() {
                                     at::Wait{"OK"});
 
   mock_serial.write_event().Subscribe([&](auto data) {
-    TEST_ASSERT_EQUAL_STRING_LEN("AT\r\n", data.data(), 5);
+    TEST_ASSERT_EQUAL_UINT(4, data.size());
+    TEST_ASSERT_EQUAL_MEMORY("AT\r\n", data.data(), 4);
     // Add expected response "OK" to trigger wait observer
     std::string_view ok_line{"OK\r\n"};
     mock_serial.WriteOut(std::span<std::uint8_t const>{
@@ -123,7 +125,8 @@ void test_AtRequestStringCommand1WaitErrorTimeout() {
 
   DataBuffer received;
   mock_serial.write_event().Subscribe([&](auto data) {
-    TEST_ASSERT_EQUAL_STRING_LEN("AT\r\n", data.data(), 5);
+    TEST_ASSERT_EQUAL_UINT(4, data.size());
+    TEST_ASSERT_EQUAL_MEMORY("AT\r\n", data.data(), 4);
     std::copy(std::begin(data), std::end(data), std::back_inserter(received));
   });
 

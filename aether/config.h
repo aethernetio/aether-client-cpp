@@ -17,10 +17,6 @@
 #ifndef AETHER_CONFIG_H_
 #define AETHER_CONFIG_H_
 
-// Defines Aether's compile-time configuration defaults. USER_CONFIG, when
-// defined, is included before these defaults so it can override them. Add new
-// options to aether/tele_compile_options.h for telemetry reporting.
-
 // IWYU pragma: begin_exports
 #include <cstddef>
 #include <cstdint>
@@ -208,17 +204,17 @@
  * Also choose one of the supported modem implementations.
  */
 #ifndef AE_SUPPORT_MODEMS
-#  define AE_SUPPORT_MODEMS 0
+#  define AE_SUPPORT_MODEMS 1
 #endif
 
 // Thingy91x modem implementation is enabled.
 #ifndef AE_ENABLE_THINGY91X
-#  define AE_ENABLE_THINGY91X 1
+#  define AE_ENABLE_THINGY91X 0
 #endif
 
 // SIM7070 modem implementation is enabled.
 #ifndef AE_ENABLE_SIM7070
-#  define AE_ENABLE_SIM7070 0
+#  define AE_ENABLE_SIM7070 1
 #endif
 
 // BG95 modem implementation is enabled.
@@ -331,7 +327,7 @@
 
 // default value used for ping timeout, until statistics are available
 #ifndef AE_DEFAULT_RESPONSE_TIMEOUT_MS
-#  define AE_DEFAULT_RESPONSE_TIMEOUT_MS 5000
+#  define AE_DEFAULT_RESPONSE_TIMEOUT_MS 15000
 #endif
 
 // Is periodic ping messages enabled
@@ -356,12 +352,12 @@
 
 // default value for connection modem
 #ifndef AE_MODEM_CONNECTION_TIMEOUT_MS
-#  define AE_MODEM_CONNECTION_TIMEOUT_MS 15000
+#  define AE_MODEM_CONNECTION_TIMEOUT_MS 60000
 #endif
 
 // Maximal number of server connections
 #ifndef AE_CLOUD_MAX_SERVER_CONNECTIONS
-#  define AE_CLOUD_MAX_SERVER_CONNECTIONS 3
+#  define AE_CLOUD_MAX_SERVER_CONNECTIONS 1
 #endif
 
 // Cloud server quarantine time
@@ -371,7 +367,7 @@
 
 // Cloud request per-server timeout in milliseconds
 #ifndef AE_CLOUD_REQUEST_TIMEOUT_MS
-#  define AE_CLOUD_REQUEST_TIMEOUT_MS 5000
+#  define AE_CLOUD_REQUEST_TIMEOUT_MS 30000
 #endif
 
 // Telemetry configuration

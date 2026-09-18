@@ -23,9 +23,9 @@
 
 #if AE_SUPPORT_WIFIS
 
-#  include "aether/wifi/wifi_driver.h"
-#  include "aether/adapters/parent_wifi.h"
 #  include "aether/access_points/wifi_access_point.h"
+#  include "aether/adapters/parent_wifi.h"
+#  include "aether/wifi/wifi_driver.h"
 
 namespace ae {
 
@@ -42,10 +42,13 @@ class WifiAdapter final : public ParentWifiAdapter {
   AE_OBJECT_REFLECT(AE_MMBRS(access_points_))
 
   std::vector<AccessPoint::ptr> access_points() override;
+  // This adapter currently has no asynchronous shutdown sequence.
+  IAdapterStop& Stop() override { return stop_operation_; }
 
   WifiDriver& driver();
 
  private:
+  AdapterStop stop_operation_;
   std::unique_ptr<WifiDriver> wifi_driver_;
   std::vector<AccessPoint::ptr> access_points_;
 };

@@ -24,9 +24,9 @@
 
 #  include "aether/events/events.h"
 
-#  include "aether/lora_modules/ilora_module_driver.h"
-#  include "aether/adapters/parent_lora_module.h"
 #  include "aether/access_points/access_point.h"
+#  include "aether/adapters/parent_lora_module.h"
+#  include "aether/lora_modules/ilora_module_driver.h"
 
 #  define LORA_MODULE_TCP_TRANSPORT_ENABLED 1
 
@@ -47,10 +47,13 @@ class LoraModuleAdapter : public ParentLoraModuleAdapter {
   AE_OBJECT_REFLECT(AE_MMBRS(access_point_))
 
   std::vector<AccessPoint::ptr> access_points() override;
+  // This adapter currently has no asynchronous shutdown sequence.
+  IAdapterStop& Stop() override { return stop_operation_; }
 
   ILoraModuleDriver& lora_module_driver();
 
  private:
+  AdapterStop stop_operation_;
   bool connected_{false};
 
   std::unique_ptr<ILoraModuleDriver> lora_module_driver_;

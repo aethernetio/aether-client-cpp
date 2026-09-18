@@ -20,6 +20,7 @@
 #include <cassert>
 #include <cstdint>
 #include <tuple>
+#include <vector>
 
 #include "aether-miscpp/serialization/serialization.h"
 

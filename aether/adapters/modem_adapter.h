@@ -20,8 +20,9 @@
 #include "aether/config.h"
 
 #if AE_SUPPORT_MODEMS
-#  include "aether/adapters/parent_modem.h"
+#  include <optional>
 #  include "aether/access_points/access_point.h"
+#  include "aether/adapters/parent_modem.h"
 
 namespace ae {
 class IModemDriver;
@@ -42,6 +43,7 @@ class ModemAdapter final : public ParentModemAdapter {
   AE_OBJECT_REFLECT(AE_MMBRS(access_point_))
 
   std::vector<AccessPoint::ptr> access_points() override;
+  IAdapterStop& Stop() override;
 
   IModemDriver& modem_driver();
 
@@ -50,6 +52,7 @@ class ModemAdapter final : public ParentModemAdapter {
 
   std::unique_ptr<IModemDriver> modem_driver_;
   AccessPoint::ptr access_point_;
+  std::optional<AdapterStop> stop_operation_;
 };
 
 }  // namespace ae

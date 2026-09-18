@@ -16,6 +16,8 @@
 
 #include "aether/serial_ports/at_support/at_buffer.h"
 
+#include <charconv>
+
 #include "aether/tele.h"
 
 namespace ae {
@@ -87,35 +89,85 @@ AtBuffer::iterator AtBuffer::erase(iterator first, iterator last) {
 
 void AtBuffer::DataRead(std::span<std::uint8_t const> data) {
   AE_TELED_DEBUG("AtBuffer receives packet {}", data);
-  auto data_str =
-      std::string_view{reinterpret_cast<const char*>(data.data()), data.size()};
+  pending_data_.insert(std::end(pending_data_), std::begin(data),
+                       std::end(data));
+
   auto start = std::end(data_lines_);
-  while (!data_str.empty()) {
-    auto line_end = data_str.find("\r\n");
-    if (line_end == std::string_view::npos) {
-      AE_TELED_ERROR("The line without \\r\\n {}", data_str);
-      line_end = data_str.size();
-    }
-    // skip \r\n
-    auto sub = data_str.substr(0, line_end);
-    // move to next line
-    data_str.remove_prefix((line_end == data_str.size()) ? data_str.size()
-                                                         : line_end + 2);
-
-    if (sub.empty()) {
-      continue;
+  auto add_line = [&](std::string_view line) {
+    if (line.empty()) {
+      return;
     }
 
-    AE_TELED_DEBUG("AtBuffer adds line {}", sub);
+    AE_TELED_DEBUG("AtBuffer adds line {}", line);
     auto it = data_lines_.emplace(
         std::end(data_lines_),
-        reinterpret_cast<std::uint8_t const*>(sub.data()),
-        reinterpret_cast<std::uint8_t const*>(sub.data()) + sub.size());
-
+        reinterpret_cast<std::uint8_t const*>(line.data()),
+        reinterpret_cast<std::uint8_t const*>(line.data()) + line.size());
     if (start == std::end(data_lines_)) {
       start = it;
     }
+  };
+
+  while (!pending_data_.empty()) {
+    auto data_str =
+        std::string_view{reinterpret_cast<char const*>(pending_data_.data()),
+                         pending_data_.size()};
+
+    if (data_str.starts_with("\r\n")) {
+      pending_data_.erase(std::begin(pending_data_),
+                          std::begin(pending_data_) + 2);
+      continue;
+    }
+
+    // +CARECV carries arbitrary binary data. Its payload may contain CR/LF,
+    // therefore frame it using the declared byte count instead of looking for
+    // the first line terminator.
+    static constexpr auto kCarecvPrefix = std::string_view{"+CARECV: "};
+    if (data_str.starts_with(kCarecvPrefix)) {
+      auto comma = data_str.find(',', kCarecvPrefix.size());
+      auto line_end = data_str.find("\r\n", kCarecvPrefix.size());
+      if (comma != std::string_view::npos &&
+          (line_end == std::string_view::npos || comma < line_end)) {
+        std::size_t payload_size{};
+        auto size_begin = data_str.data() + kCarecvPrefix.size();
+        auto size_end = data_str.data() + comma;
+        auto [parse_end, parse_error] =
+            std::from_chars(size_begin, size_end, payload_size);
+        if (parse_error == std::errc{} && parse_end == size_end) {
+          auto frame_size = comma + 1 + payload_size;
+          auto response_size = frame_size + 2;
+          if (data_str.size() < response_size) {
+            break;
+          }
+          if (data_str.substr(frame_size, 2) == "\r\n") {
+            add_line(data_str.substr(0, frame_size));
+            pending_data_.erase(std::begin(pending_data_),
+                                std::begin(pending_data_) +
+                                    static_cast<std::ptrdiff_t>(response_size));
+            continue;
+          }
+        }
+      }
+    }
+
+    auto line_end = data_str.find("\r\n");
+    if (line_end == std::string_view::npos) {
+      // The SIM7070 data-entry prompt is not terminated by CR/LF.
+      if (data_str == ">" || data_str == "> ") {
+        add_line(data_str);
+        pending_data_.clear();
+      }
+      break;
+    }
+
+    add_line(data_str.substr(0, line_end));
+    pending_data_.erase(
+        std::begin(pending_data_),
+        std::begin(pending_data_) + static_cast<std::ptrdiff_t>(line_end + 2));
   }
-  update_event_.Emit(start);
+
+  if (start != std::end(data_lines_)) {
+    update_event_.Emit(start);
+  }
 }
 }  // namespace ae

@@ -51,7 +51,7 @@ Result<std::size_t, int> AtSupport::SendATCommand(std::string_view command) {
 
   AE_TELED_DEBUG("AT command: {}", command);
 
-  static std::array<std::uint8_t, 1024> buffer;
+  std::array<std::uint8_t, 1024> buffer{};
   assert(command.size() + 2 < buffer.size());
 
   std::copy(command.begin(), command.end(), buffer.begin());
@@ -59,7 +59,8 @@ Result<std::size_t, int> AtSupport::SendATCommand(std::string_view command) {
   buffer[command.size() + 1] = '\n';
 
   // TODO: add serial error
-  serial_->Write(buffer);
+  serial_->Write(
+      std::span<std::uint8_t const>{buffer.data(), command.size() + 2});
 
   return Ok{command.size()};
 }

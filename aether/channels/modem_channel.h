@@ -20,6 +20,8 @@
 #include "aether/config.h"
 #if AE_SUPPORT_MODEMS
 
+#  include <memory>
+
 #  include "aether/access_points/modem_access_point.h"
 #  include "aether/channels/channel.h"
 #  include "aether/types/address.h"
@@ -46,6 +48,10 @@ class ModemChannel final : public Channel {
   Endpoint address;
 
  private:
+  friend struct ModemChannelTestAccess;
+  static TransportBuildSender ConnectTransport(
+      std::unique_ptr<ByteIStream> transport);
+
   ObjPtr<Aether> aether_;
   ModemAccessPoint::ptr access_point_;
 };

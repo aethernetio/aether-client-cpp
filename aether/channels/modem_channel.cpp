@@ -33,6 +33,7 @@ auto EnsureModemConnected(ModemAccessPoint& access_point) {
         auto& connect_action = access_point.Connect();
         s = connect_action.connection_event().Subscribe(
             [&](bool is_connected) noexcept {
+              s.Reset();
               if (is_connected) {
                 ex::set_value(std::move(ctx.receiver));
               } else {
@@ -49,39 +50,35 @@ std::unique_ptr<ByteIStream> CreateTransport(AeContext const& ae_context,
       ae_context, access_point.modem_driver(), std::move(endpoint));
 }
 
-auto ConnectTransport(std::unique_ptr<ByteIStream>&& transport) {
+}  // namespace modem_channel_internal
+
+TransportBuildSender ModemChannel::ConnectTransport(
+    std::unique_ptr<ByteIStream> transport) {
   return ex::create<ex::set_value_t(std::unique_ptr<ByteIStream>),
                     ex::set_error_t(int)>(
       [t{std::move(transport)}, s{Subscription{}}](auto& ctx) mutable noexcept {
-        if (t->stream_info().link_state == LinkState::kLinked) {
-          ex::set_value(std::move(ctx.receiver), std::move(t));
+        auto complete = [&]() noexcept {
+          auto const state = t->stream_info().link_state;
+          if (state == LinkState::kLinked) {
+            // The operation state can outlive completion. Stop observing the
+            // transport before transferring ownership to the receiver.
+            s.Reset();
+            ex::set_value(std::move(ctx.receiver), std::move(t));
+            return true;
+          }
+          if (state == LinkState::kLinkError) {
+            s.Reset();
+            ex::set_error(std::move(ctx.receiver), 2);
+            return true;
+          }
+          return false;
+        };
+        if (complete()) {
           return;
         }
-
-        s = t->stream_update_event().Subscribe([&]() {
-          if (t->stream_info().link_state == LinkState::kLinked) {
-            ex::set_value(std::move(ctx.receiver), std::move(t));
-          } else if (t->stream_info().link_state == LinkState::kLinkError) {
-            ex::set_error(std::move(ctx.receiver), 2);
-          }
-        });
+        s = t->stream_update_event().Subscribe(complete);
       });
 }
-
-auto MakeTransportBuilderSender(AeContext const& ae_context,
-                                ModemAccessPoint& access_point,
-                                Endpoint endpoint) {
-  return EnsureModemConnected(access_point) |
-         ex::then([ae_context, &access_point,
-                   e{std::move(endpoint)}]() mutable noexcept {
-           return CreateTransport(ae_context, access_point, std::move(e));
-         }) |
-         ex::let_value([&](std::unique_ptr<ByteIStream>& t) noexcept {
-           return ConnectTransport(std::move(t));
-         });
-}
-
-}  // namespace modem_channel_internal
 
 ModemChannel::ModemChannel(ObjProp prop, ObjPtr<Aether> aether,
                            ModemAccessPoint::ptr access_point, Endpoint address)
@@ -112,8 +109,15 @@ ModemChannel::ModemChannel(ObjProp prop, ObjPtr<Aether> aether,
 TransportBuildSender ModemChannel::TransportBuilder() {
   auto ap = access_point_.Load();
   assert(ap && "Access point is not loaded");
-  return modem_channel_internal::MakeTransportBuilderSender(*aether_, *ap,
-                                                            address);
+  return modem_channel_internal::EnsureModemConnected(*ap) |
+         ex::then([context = AeContext{*aether_}, ap,
+                   endpoint = address]() mutable noexcept {
+           return modem_channel_internal::CreateTransport(context, *ap,
+                                                          std::move(endpoint));
+         }) |
+         ex::let_value([](std::unique_ptr<ByteIStream>& transport) noexcept {
+           return ConnectTransport(std::move(transport));
+         });
 }
 
 Duration ModemChannel::TransportBuildTimeout() const {

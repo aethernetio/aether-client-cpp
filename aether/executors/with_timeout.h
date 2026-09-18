@@ -17,8 +17,8 @@
 #ifndef AETHER_EXECUTORS_WITH_TIMEOUT_H_
 #define AETHER_EXECUTORS_WITH_TIMEOUT_H_
 
-#include <utility>
 #include <cassert>
+#include <utility>
 
 #include <stdexec/execution.hpp>
 

@@ -35,6 +35,7 @@
 #  include "aether/write_action/failed_write_action.h"
 
 namespace ae {
+
 class ModemTransport final : public ByteIStream {
   class ModemSend : public PacketSendAction {
    public:
@@ -82,13 +83,9 @@ class ModemTransport final : public ByteIStream {
       AE_MODEM_TCP_PACKET_QUEUE_SIZE;
   static constexpr auto kUdpPacketQueueCapacity =
       AE_MODEM_UDP_PACKET_QUEUE_SIZE;
-
-  using ModemTcpPacketQueueManager =
-      PacketQueueManager<SendTcpAction, kTcpPacketQueueCapacity>;
-  using ModemUdpPacketQueueManager =
-      PacketQueueManager<SendUdpAction, kUdpPacketQueueCapacity>;
   using PacketQueueManagerVar =
-      std::variant<ModemTcpPacketQueueManager, ModemUdpPacketQueueManager>;
+      std::variant<PacketQueueManager<SendTcpAction, kTcpPacketQueueCapacity>,
+                   PacketQueueManager<SendUdpAction, kUdpPacketQueueCapacity>>;
 
  public:
   ModemTransport(AeContext const& ae_context, IModemDriver& modem_driver,
@@ -105,7 +102,8 @@ class ModemTransport final : public ByteIStream {
   void Connect();
   void OnConnected(ConnectionIndex connection_index);
   void OnConnectionFailed();
-  void Disconnect();
+  void ScheduleConnectionFailure();
+  void Disconnect(bool notify = true);
 
   void DataReceived(ConnectionIndex connection, DataBuffer const& data_in);
   void DataReceivedTcp(DataBuffer const& data_in);
@@ -138,6 +136,7 @@ class ModemTransport final : public ByteIStream {
   MultiSubscription send_action_subs_;
   Subscription connection_sub_;
   Subscription read_packet_sub_;
+  TaskSubscription connection_failure_task_;
 };
 }  // namespace ae
 

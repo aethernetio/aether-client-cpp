@@ -17,14 +17,14 @@
 #ifndef AETHER_SERIAL_PORTS_AT_SUPPORT_AT_BUFFER_H_
 #define AETHER_SERIAL_PORTS_AT_SUPPORT_AT_BUFFER_H_
 
+#include <cstddef>
 #include <list>
 #include <span>
-#include <cstddef>
 #include <string_view>
 
+#include "aether/events/event_subscription.h"
 #include "aether/events/events.h"
 #include "aether/types/data_buffer.h"
-#include "aether/events/event_subscription.h"
 
 #include "aether/serial_ports/iserial_port.h"
 
@@ -56,6 +56,7 @@ class AtBuffer {
   std::list<DataBuffer> data_lines_;
   UpdateEvent update_event_;
   Subscription data_read_sub_;
+  DataBuffer pending_data_;
 };
 }  // namespace ae
 #endif  // AETHER_SERIAL_PORTS_AT_SUPPORT_AT_BUFFER_H_

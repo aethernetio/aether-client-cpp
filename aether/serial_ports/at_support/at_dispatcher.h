@@ -18,6 +18,7 @@
 #define AETHER_SERIAL_PORTS_AT_SUPPORT_AT_DISPATCHER_H_
 
 #include <map>
+#include <cstddef>
 #include <string>
 
 #include "aether/events/event_subscription.h"
@@ -41,13 +42,19 @@ class AtDispatcher {
   void Remove(IAtObserver* observer);
 
  private:
+  struct ObserverEntry {
+    IAtObserver* observer;
+    std::size_t generation;
+  };
+
   void BufferUpdate(AtBuffer::iterator pos);
   void CleanupObservers();
 
   AtBuffer* buffer_;
-  std::map<std::string, IAtObserver*> observers_;
+  std::map<std::string, ObserverEntry> observers_;
   Subscription buffer_sub_;
   bool remove_guard_ = false;
+  std::size_t next_generation_ = 0;
 };
 }  // namespace ae
 
