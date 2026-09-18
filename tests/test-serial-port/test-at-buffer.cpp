@@ -72,6 +72,9 @@ void test_AtBufferMultipleCompleteLines() {
 void test_AtBufferIncompleteLine() {
   tests::MockSerialPort mock_serial{};
   AtBuffer buffer{mock_serial};
+  int updates = 0;
+  Subscription update_sub =
+      buffer.update_event().Subscribe([&](auto) { ++updates; });
 
   // Send incomplete line without \r\n
   DataBuffer data;
@@ -79,14 +82,21 @@ void test_AtBufferIncompleteLine() {
   data.insert(data.end(), line.begin(), line.end());
   mock_serial.WriteOut(data);
 
-  // Note: Current implementation stores incomplete lines
-  // Verify buffer contains the incomplete line
+  // Partial input must not be published before the entire CR/LF arrives.
+  TEST_ASSERT_TRUE(buffer.begin() == buffer.end());
+  TEST_ASSERT_EQUAL_INT(0, updates);
+  mock_serial.WriteOut(DataBuffer{'\r'});
+  TEST_ASSERT_TRUE(buffer.begin() == buffer.end());
+  TEST_ASSERT_EQUAL_INT(0, updates);
+  mock_serial.WriteOut(DataBuffer{'\n'});
   TEST_ASSERT_FALSE(buffer.begin() == buffer.end());
+  TEST_ASSERT_EQUAL_INT(1, updates);
   auto it = buffer.begin();
   TEST_ASSERT_EQUAL(2, it->size());  // "AT" without \r\n
   std::string_view line_content(reinterpret_cast<char const*>(it->data()),
                                 it->size());
   TEST_ASSERT_EQUAL_STRING_LEN("AT", line_content.data(), line_content.size());
+  TEST_ASSERT_TRUE(++it == buffer.end());
 }
 
 void test_AtBufferFindPatternBasic() {
