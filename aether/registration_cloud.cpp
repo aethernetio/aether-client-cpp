@@ -31,13 +31,21 @@ RegistrationCloud::RegistrationCloud(ObjProp prop, ObjPtr<Aether> aether)
 
 void RegistrationCloud::AddServerSettings(Endpoint address) {
   // don't care about server id for registration
-  auto server = aether_.WithLoaded([&](auto const& aether) {
-    return Server::ptr::Create(domain, ServerId{0},
-                               std::vector{std::move(address)},
-                               aether->adapter_registry);
+  auto sit = servers().find(ServerId{0});
+  if (sit == servers().end()) {
+    auto server = aether_.WithLoaded([&](auto const& aether) {
+      return Server::ptr::Create(domain, ServerId{0},
+                                 std::vector{std::move(address)},
+                                 aether->adapter_registry);
+    });
+    assert(server.has_value() && "Server must be created");
+    AddServer(server.value());
+    return;
+  }
+  sit->second.server.WithLoaded([&](auto const& s) {
+    s->endpoints.push_back(std::move(address));
+    s->Register();
   });
-  assert(server.has_value() && "Server must be created");
-  AddServer(server.value());
 }
 
 }  // namespace ae

@@ -19,32 +19,36 @@
 
 #include <vector>
 
-#include "aether/types/uid.h"
-#include "aether/types/server_id.h"
 #include "aether/api_protocol/api_protocol.h"
+#include "aether/types/server_id.h"
+#include "aether/types/uid.h"
 
 #include "aether/work_cloud_api/ae_message.h"
-#include "aether/work_cloud_api/telemetric.h"
 #include "aether/work_cloud_api/cloud_configs.h"
+#include "aether/work_cloud_api/telemetric.h"
 
 namespace ae {
 
-class AuthorizedApi : public ApiClass {
+class AuthorizedApi : public DeclareApi<AuthorizedApi> {
  public:
-  explicit AuthorizedApi(ProtocolContext& protocol_context);
+  AuthorizedApi() = default;
 
-  Method<4, ApiPromise<void>(std::uint64_t next_connect_ms_duration,
-                             std::uint64_t rx_window_ms)>
-      ping;
-  Method<6, void(AeMessage message)> send_message;
-  Method<7, void(std::vector<AeMessage> messages)> send_messages;
-  Method<11, ApiPromise<void>(Uid uid)> check_access_for_send_message;
-  Method<12, void(std::vector<ServerId> sids)> resolver_servers;
-  Method<13, void(std::vector<Uid> uids)> resolver_clouds;
+  ApiPromise<void> Ping(std::uint64_t next_connect_ms_duration,
+                        std::uint64_t rx_window_ms);
+  void SendMessage(AeMessage const& message);
+  void SendMessages(std::vector<AeMessage> const& messages);
+  ApiPromise<void> CheckAccessForSendMessage(Uid const& uid);
+  void ResolveServer(std::vector<ServerId> const& sids);
+  void ResolveClouds(std::vector<Uid> const& uids);
 
-  Method<18, void(Telemetric telemetric)> send_telemetry;
+  void SendTelemetry(Telemetric const& telemetric);
 
-  Method<38, void(std::vector<AppliedConfig> configs)> report_applied_config;
+  void ReportAppliedConfigs(std::vector<AppliedConfig> const& configs);
+
+  API_LIST(METHOD(4, Ping), METHOD(6, SendMessage), METHOD(7, SendMessages),
+           METHOD(11, CheckAccessForSendMessage), METHOD(12, ResolveServer),
+           METHOD(13, ResolveClouds), METHOD(18, SendTelemetry),
+           METHOD(38, ReportAppliedConfigs))
 };
 }  // namespace ae
 

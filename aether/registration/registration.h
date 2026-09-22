@@ -24,7 +24,6 @@
 #  include <optional>
 #  include <vector>
 
-#  include "aether-miscpp/types/small_function.h"
 #  include "aether/crypto/key.h"
 #  include "aether/events/events.h"
 #  include "aether/executors/executors.h"
@@ -79,6 +78,10 @@ class Registration : Action {
   Key master_key_;
   Uid client_uid_;
   Uid ephemeral_uid_;
+
+#  if DEBUG
+  Subscription get_my_ip_subscription_;
+#  endif
 
   std::optional<ex::AnyWaiter<ex::set_value_t(ClientConfig),
                               ex::set_error_t(int), ex::set_stopped_t()>>

@@ -65,7 +65,7 @@ class AtStageActionRunner {
       : storage_{std::move(std::get<Generator>(other.storage_))} {}
 
   ActionType* operator()() {
-    auto& generator = std::get<Generator>(storage_);
+    auto generator = std::get<Generator>(std::move(storage_));
     storage_.template emplace<ActionType>(generator.ae_context,
                                           std::invoke(generator.gen));
     return &std::get<ActionType>(storage_);

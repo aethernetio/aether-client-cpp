@@ -20,27 +20,22 @@
 #include "aether/config.h"
 #if AE_SUPPORT_REGISTRATION
 
-#  include "aether/crypto/icrypto_provider.h"
 #  include "aether/api_protocol/api_protocol.h"
+#  include "aether/crypto/icrypto_provider.h"
 
 #  include "aether/registration/api/client_reg_api_safe.h"
 #  include "aether/registration/api/global_reg_client_api.h"
 
 namespace ae {
-class ClientRegRootApi final : public ApiClassImpl<ClientRegRootApi> {
+class ClientRegRootApi final : public DeclareApi<ClientRegRootApi> {
  public:
-  explicit ClientRegRootApi(ProtocolContext& protocol_context,
-                            IDecryptProvider& root_decrypt_provider,
+  explicit ClientRegRootApi(IDecryptProvider& root_decrypt_provider,
                             IDecryptProvider& global_decrypt_provider);
 
-  void Enter(SubApiImpl<ClientRegApiSafe> sub_api);
-  void EnterGlobal(SubApiImpl<GlobalRegClientApi> sub_api);
+  void Enter(SubApi<ClientRegApiSafe> sub_api);
+  void EnterGlobal(SubApi<GlobalRegClientApi> sub_api);
 
-  ReturnResultApi return_result;
-
-  AE_METHODS(RegMethod<03, &ClientRegRootApi::Enter>,
-             RegMethod<04, &ClientRegRootApi::EnterGlobal>,
-             ExtApi<&ClientRegRootApi::return_result>);
+  API_LIST(METHOD(3, Enter), METHOD(4, EnterGlobal));
 
  private:
   IDecryptProvider* root_decrypt_provider_;

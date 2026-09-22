@@ -33,7 +33,7 @@ GetServersAction::GetServersAction(AeContext const& ae_context,
           ApiCallWithListener{
               ApiCall{[this](ApiContext<AuthorizedApi>& auth_api, auto*) {
                 AE_TELED_DEBUG("Resolve servers {}", server_ids_);
-                auth_api->resolver_servers(server_ids_);
+                auth_api->ResolveServer(server_ids_);
               }},
               ResponseSubscriber{
                   [this](ClientApiSafe& client_api, auto*, auto* request) {

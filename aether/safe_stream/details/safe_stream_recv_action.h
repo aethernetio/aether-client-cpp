@@ -21,7 +21,6 @@
 
 #include "aether/ae_context.h"
 #include "aether/common.h"
-#include "aether/events/events.h"
 #include "aether/safe_stream/details/circular_buffer.h"
 #include "aether/safe_stream/details/receiving_chunk_list.h"
 #include "aether/safe_stream/details/safe_stream_data_message.h"
@@ -30,12 +29,13 @@
 #include "aether/tele.h"
 
 namespace ae {
-class ISendAckRepeat {
+class ISafeStreamRecvActionDelegate {
  public:
-  virtual ~ISendAckRepeat() = default;
+  virtual ~ISafeStreamRecvActionDelegate() = default;
 
   virtual void SendAck(std::uint16_t index) = 0;
   virtual void SendRepeatRequest(std::uint16_t index) = 0;
+  virtual void ReceiveData(DataBuffer& data) = 0;
 };
 
 template <std::size_t Capacity>
@@ -47,23 +47,14 @@ class SafeStreamRecvAction {
   using IndexRangeType = CircularBufferImpl::index_range_type;
   using ReceiveChunkListImpl = ReceiveChunkList<IndexType>;
 
-  /**
-   * \brief Received data transferred to a handler.
-   *
-   * This event must have exactly one subscriber. This is a usage contract and
-   * is not enforced at runtime.
-   */
-  using ReceiveEvent = Event<void(DataBuffer& data)>;
-
   SafeStreamRecvAction(AeContext const& ae_context,
-                       ISendAckRepeat& send_ack_repeat,
+                       ISafeStreamRecvActionDelegate& delegate,
                        SafeStreamConfig const& config)
       : ae_context_{ae_context},
-        send_ack_repeat_{&send_ack_repeat},
+        delegate_{&delegate},
         send_ack_timeout_{config.send_ack_timeout},
         send_repeat_timeout_{config.send_repeat_timeout},
-        window_size_{config.window_size},
-        receive_event_{ae_context_} {
+        window_size_{config.window_size} {
     assert((window_size_ < Capacity / 2) &&
            "Window size should be less than half of capacity");
   }
@@ -98,8 +89,6 @@ class SafeStreamRecvAction {
         IndexType{static_cast<std::size_t>(index + data_message.delta_offset)};
     HandleData(received_index, data_message.repeat_count, data_message.data);
   }
-
-  ReceiveEvent const& receive_event() { return receive_event_; }
 
  private:
   void HandleData(IndexType received_index, std::uint8_t repeat_count,
@@ -207,7 +196,7 @@ class SafeStreamRecvAction {
       AE_TELED_DEBUG(
           "Emitted received data range: {}-{} size: {}, last_emitted_: {}",
           recv_range.left, recv_range.right, data_buffer.size(), last_emitted_);
-      receive_event_.Emit(data_buffer);
+      delegate_->ReceiveData(data_buffer);
 
       chunks_->Acknowledge(recv_range.right);
       buffer_.Erase(recv_range.right + 1);
@@ -223,7 +212,7 @@ class SafeStreamRecvAction {
   void HandleAcknowledgement() {
     auto ack_offset = static_cast<std::size_t>(last_emitted_);
     AE_TELED_DEBUG("Send acknowledgement for offset: {}", ack_offset);
-    send_ack_repeat_->SendAck(static_cast<std::uint16_t>(ack_offset));
+    delegate_->SendAck(static_cast<std::uint16_t>(ack_offset));
   }
 
   void HandleMissing() {
@@ -234,8 +223,7 @@ class SafeStreamRecvAction {
       AE_TELED_DEBUG("Send repeat request for offset range {}-{}", res->left,
                      res->right);
       auto request_offset = static_cast<std::size_t>(res->left);
-      send_ack_repeat_->SendRepeatRequest(
-          static_cast<std::uint16_t>(request_offset));
+      delegate_->SendRepeatRequest(static_cast<std::uint16_t>(request_offset));
       // enqueue again
       missing_timer_.Reset();
       EnqueueMissing();
@@ -243,7 +231,7 @@ class SafeStreamRecvAction {
   }
 
   AeContext ae_context_;
-  ISendAckRepeat* send_ack_repeat_;
+  ISafeStreamRecvActionDelegate* delegate_;
 
   Duration send_ack_timeout_;
   Duration send_repeat_timeout_;
@@ -257,8 +245,6 @@ class SafeStreamRecvAction {
   TaskSubscription recv_enqueued_;
   TaskSubscription ack_timer_;
   TaskSubscription missing_timer_;
-
-  ReceiveEvent receive_event_;
 };
 }  // namespace ae
 

@@ -47,8 +47,8 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
 
   WriteAction& Write(AeMessage&& message) override {
     return cloud_connection_->CallApi(
-        ApiCall{[&message](ApiContext<AuthorizedApi>& auth_api, auto*) {
-          auth_api->send_message(std::move(message));
+        ApiCall{[&](ApiContext<AuthorizedApi>& auth_api, auto*) {
+          auth_api->SendMessage(message);
         }},
         request_policy_);
   }

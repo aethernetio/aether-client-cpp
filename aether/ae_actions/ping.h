@@ -26,7 +26,7 @@
 #  include "aether-miscpp/types/result.h"
 
 #  include "aether/ae_context.h"
-#  include "aether/api_protocol/request_id.h"
+#  include "aether/api_protocol/api_protocol.h"
 #  include "aether/clock.h"
 #  include "aether/common.h"
 #  include "aether/events/events.h"

@@ -150,8 +150,9 @@ ClientServerConnection::ClientServerConnection(AeContext const& ae_context,
           client_server_connection_internal::ClientCryptoProvider>(
           client, server->server_id)},
       protocol_context_{ae_context},
-      client_api_unsafe_{protocol_context_, *crypto_provider_->decryptor()},
-      login_api_{protocol_context_, *crypto_provider_->encryptor()},
+      client_api_unsafe_{ae_context.event_system(),
+                         *crypto_provider_->decryptor()},
+      login_api_{*crypto_provider_->encryptor()},
       server_connection_{ae_context_, server} {
   AE_TELED_DEBUG("Client server connection from {}:e-{} to {}", uid_,
                  ephemeral_uid_, server->server_id);
@@ -179,17 +180,15 @@ ClientServerConnection::stream_update_event() {
 }
 
 WriteAction& ClientServerConnection::LoginApiCall(SubApi<LoginApi> login_api) {
-  auto packet = login_api(login_api_);
+  auto packet = std::move(login_api)(ApiContext{login_api_, protocol_context_});
   return server_connection_.Write(std::move(packet));
 }
 
 WriteAction& ClientServerConnection::AuthorizedApiCall(
     SubApi<AuthorizedApi> auth_api) {
-  auto api_call = ApiCallAdapter{ApiContext{login_api_}, server_connection_};
-  api_call->login_by_alias(ephemeral_uid_, std::move(auth_api));
-  // cppcheck reports false positive
-  // cppcheck-suppress returnReference
-  return api_call.Flush();
+  auto api_call = ApiContext{login_api_, protocol_context_};
+  api_call->LoginByAlias(ephemeral_uid_, std::move(auth_api));
+  return server_connection_.Write(std::move(api_call));
 }
 
 ClientApiSafe& ClientServerConnection::client_safe_api() {
@@ -202,7 +201,8 @@ ServerConnection& ClientServerConnection::server_connection() {
 
 void ClientServerConnection::OutData(DataBuffer const& data) {
   auto parser = ApiParser{protocol_context_, data};
-  parser.Parse(client_api_unsafe_);
+  [[maybe_unused]] auto res = parser.Parse(client_api_unsafe_);
+  assert(res && "Not all data parsed");
 }
 
 }  // namespace ae

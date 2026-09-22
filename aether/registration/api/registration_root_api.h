@@ -20,51 +20,29 @@
 #include "aether/config.h"
 
 #if AE_SUPPORT_REGISTRATION
-#  include "aether/crypto/signed_key.h"
 #  include "aether/crypto/crypto_definitions.h"
-
-#  include "aether/types/data_buffer.h"
 #  include "aether/crypto/icrypto_provider.h"
+#  include "aether/crypto/signed_key.h"
+
 #  include "aether/api_protocol/api_protocol.h"
-
-#  include "aether/work_cloud_api/info_ip.h"
-
 #  include "aether/registration/api/server_registration_api.h"
+#  include "aether/work_cloud_api/info_ip.h"
 
 namespace ae {
 
-class RegistrationRootApi : public ApiClass {
-  class EnterProc {
-   public:
-    explicit EnterProc(RegistrationRootApi& api) : api_{&api} {}
-
-    auto operator()(CryptoLib crypto_lib,
-                    SubApi<ServerRegistrationApi> const& sub_api) {
-      auto def_proc = DefaultArgProc{};
-      return def_proc(crypto_lib,
-                      api_->Encrypt(sub_api(api_->server_registration_api_)));
-    }
-
-   private:
-    RegistrationRootApi* api_;
-  };
-
+class RegistrationRootApi : public DeclareApi<RegistrationRootApi> {
  public:
-  RegistrationRootApi(ProtocolContext& protocol_context,
-                      IEncryptProvider& root_encrypt,
+  RegistrationRootApi(IEncryptProvider& root_encrypt,
                       IEncryptProvider& global_encrypt);
 
-  Method<03, ApiPromise<SignedKey>(CryptoLib crypto_lib)>
-      get_asymmetric_public_key;
-  Method<04, void(CryptoLib crypto_lib, SubApi<ServerRegistrationApi> sub_api),
-         EnterProc>
-      enter;
+  ApiPromise<SignedKey> GetPublicKey(CryptoLib crypto_lib);
+  void Enter(CryptoLib crypto_lib, SubApi<ServerRegistrationApi> sub_api);
 
-  Method<6, ApiPromise<InfoIp>()> get_my_ip;
+  ApiPromise<InfoIp> GetMyIp();
+
+  API_LIST(METHOD(3, GetPublicKey), METHOD(4, Enter), METHOD(6, GetMyIp))
 
  private:
-  DataBuffer Encrypt(DataBuffer const& data) const;
-
   IEncryptProvider* enc_provider_;
   ServerRegistrationApi server_registration_api_;
 };

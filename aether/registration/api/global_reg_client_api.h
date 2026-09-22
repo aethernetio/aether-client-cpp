@@ -23,12 +23,10 @@
 #  include "aether/api_protocol/api_protocol.h"
 
 namespace ae {
-class GlobalRegClientApi : public ApiClassImpl<GlobalRegClientApi> {
+class GlobalRegClientApi : public DeclareApi<GlobalRegClientApi> {
  public:
-  explicit GlobalRegClientApi(ProtocolContext& protocol_context);
-
-  ReturnResultApi return_result;
-  AE_METHODS(ExtApi<&GlobalRegClientApi::return_result>);
+  // Here only return result api implemented, which is default
+  API_LIST()
 };
 }  // namespace ae
 #endif
