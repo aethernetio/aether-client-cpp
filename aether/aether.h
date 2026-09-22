@@ -21,12 +21,10 @@
 #include <string>
 
 #include "aether-objects/obj/obj.h"
-#include "aether/clock.h"
-#include "aether/memory.h"
-#include "aether/types/client_config.h"
 
 #include "aether/ae_actions/select_client.h"
-#include "aether/ae_context.h"
+#include "aether/memory.h"
+#include "aether/types/client_config.h"
 
 namespace ae {
 class Server;
@@ -71,9 +69,6 @@ class Aether : public Obj {
         tele_statistics, poller, dns_resolver, adapter_registry);
   }
 
-  // AeContext protocol
-  AeCtx ToAeContext() const;
-
   ObjPtr<Client> CreateClient(ClientConfig const& config,
                               std::string const& client_id);
   SelectClientAction& SelectClient(Uid parent_uid,
@@ -92,8 +87,6 @@ class Aether : public Obj {
   ObjPtr<AdapterRegistry> adapter_registry;
 
   ObjPtr<TeleStatistics> tele_statistics;
-
-  std::unique_ptr<TaskScheduler> task_scheduler;
 
  private:
   ObjPtr<Client> FindClient(std::string const& client_id);
