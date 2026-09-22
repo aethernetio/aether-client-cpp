@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Aethernet Inc.
+ * Copyright 2026 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,19 +14,20 @@
  * limitations under the License.
  */
 
-#include "aether/api_protocol/return_result_api.h"
+#include "aether/api_protocol/details/packet_reader.h"
 
 namespace ae {
-ReturnResultApi::ReturnResultApi(ProtocolContext& protocol_context)
-    : ApiClass{protocol_context}, send_error_{protocol_context} {}
+PacketReader::PacketReader(DataBuffer const& buffer)
+    : archive{MessageBuffer{
+          const_cast<DataBuffer&>(buffer)  // NOLINT(*const-cast*)
+      }} {}
 
-void ReturnResultApi::SendResultImpl(RequestId request_id) {
-  protocol_context().SetSendResultResponse(request_id);
+void PacketReader::Cancel() { canceled_ = true; }
+
+bool PacketReader::canceled() const { return canceled_; }
+
+bool PacketReader::eof() const {
+  return archive.buffer().read_offset == archive.buffer().buff.size();
 }
 
-void ReturnResultApi::SendErrorImpl(RequestId request_id,
-                                    std::uint8_t error_type,
-                                    std::uint32_t error_code) {
-  protocol_context().SetSendErrorResponse(request_id, error_type, error_code);
-}
 }  // namespace ae

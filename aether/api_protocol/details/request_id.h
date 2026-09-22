@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_API_PROTOCOL_REQUEST_ID_H_
-#define AETHER_API_PROTOCOL_REQUEST_ID_H_
+#ifndef AETHER_API_PROTOCOL_DETAILS_REQUEST_ID_H_
+#define AETHER_API_PROTOCOL_DETAILS_REQUEST_ID_H_
 
 #include <cstdint>
 
@@ -24,11 +24,6 @@
 
 namespace ae {
 struct RequestId {
-  static auto GenRequestId() {
-    static RequestId request_id{1};
-    return request_id.id++;
-  }
-
   RequestId() = default;
   RequestId(std::uint32_t id) : id(id) {}
 
@@ -51,4 +46,4 @@ struct Formatter<RequestId> {
 };
 }  // namespace ae
 
-#endif  // AETHER_API_PROTOCOL_REQUEST_ID_H_
+#endif  // AETHER_API_PROTOCOL_DETAILS_REQUEST_ID_H_

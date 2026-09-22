@@ -56,9 +56,7 @@ list(APPEND aether_srcs
             "ae_actions/select_client.cpp")
 
 list(APPEND aether_srcs
-            "registration/api/client_reg_api_safe.cpp"
             "registration/api/client_reg_api_unsafe.cpp"
-            "registration/api/global_reg_client_api.cpp"
             "registration/api/global_reg_server_api.cpp"
             "registration/api/registration_root_api.cpp"
             "registration/api/server_registration_api.cpp"
@@ -139,7 +137,6 @@ list(APPEND aether_srcs
 
 list(APPEND aether_srcs
             "stream_api/sized_packet_gate.cpp"
-            "stream_api/stream_api.cpp"
 )
 
 list(APPEND aether_srcs
@@ -147,9 +144,10 @@ list(APPEND aether_srcs
 )
 
 list(APPEND aether_srcs
-            "api_protocol/protocol_context.cpp"
-            "api_protocol/api_pack_parser.cpp"
-            "api_protocol/return_result_api.cpp"
+            "api_protocol/details/protocol_context.cpp"
+            "api_protocol/details/api_packer.cpp"
+            "api_protocol/details/api_parser.cpp"
+            "api_protocol/details/packet_reader.cpp"
             )
 
 list(APPEND aether_srcs

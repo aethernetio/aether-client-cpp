@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_API_PROTOCOL_API_MESSAGE_H_
-#define AETHER_API_PROTOCOL_API_MESSAGE_H_
+#ifndef AETHER_API_PROTOCOL_DETAILS_API_MESSAGE_H_
+#define AETHER_API_PROTOCOL_DETAILS_API_MESSAGE_H_
 
 #include <cassert>
 #include <cstdint>
@@ -30,10 +30,15 @@ namespace ae {
 
 using MessageId = std::uint8_t;
 
-class ApiParser;
-class ApiPacker;
-
 using MessageBuffer = VectorBuffer<PackedSize>;
+
+template <MessageId id, typename Message>
+struct ApiMessage {
+  static constexpr MessageId kMessageId = id;
+  using message_type = Message;
+
+  message_type message;
+};
 
 /**
  * \brief A message formed from template parameters
@@ -41,14 +46,11 @@ using MessageBuffer = VectorBuffer<PackedSize>;
 template <typename... Ts>
 struct GenericMessage {
   explicit GenericMessage() = default;
-  explicit GenericMessage(Ts... args) : fields{std::forward<Ts>(args)...} {}
+  explicit GenericMessage(Ts... args)
+    requires(sizeof...(Ts) > 0)
+      : fields{std::forward<Ts>(args)...} {}
 
   [[no_unique_address]] std::tuple<Ts...> fields;
-};
-
-template <>
-struct GenericMessage<> {
-  explicit GenericMessage() = default;
 };
 
 namespace seri {
@@ -90,4 +92,4 @@ struct Serializer<A, GenericMessage<Ts...>> {
 
 }  // namespace ae
 
-#endif  // AETHER_API_PROTOCOL_API_MESSAGE_H_
+#endif  // AETHER_API_PROTOCOL_DETAILS_API_MESSAGE_H_

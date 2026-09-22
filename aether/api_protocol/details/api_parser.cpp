@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Aethernet Inc.
+ * Copyright 2024 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,22 +14,18 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_API_PROTOCOL_API_CLASS_H_
-#define AETHER_API_PROTOCOL_API_CLASS_H_
-
-#include "aether/api_protocol/protocol_context.h"
+#include "aether/api_protocol/details/api_parser.h"
 
 namespace ae {
-class ApiClass {
- public:
-  explicit ApiClass(ProtocolContext& protocol_context)
-      : protocol_context_{&protocol_context} {}
+ApiParser::ServerApiContextImpl::ServerApiContextImpl(ProtocolContext& pc,
+                                                      DataBuffer const& buffer)
+    : protocol_context_{pc}, reader_{buffer} {}
 
-  ProtocolContext& protocol_context() const { return *protocol_context_; }
+PacketReader& ApiParser::ServerApiContextImpl::reader() { return reader_; }
+ProtocolContext& ApiParser::ServerApiContextImpl::protocol_context() {
+  return protocol_context_;
+}
 
- private:
-  ProtocolContext* protocol_context_;
-};
+ApiParser::ApiParser(ProtocolContext& protocol_context, DataBuffer const& data)
+    : server_context_{protocol_context, data} {}
 }  // namespace ae
-
-#endif  // AETHER_API_PROTOCOL_API_CLASS_H_
