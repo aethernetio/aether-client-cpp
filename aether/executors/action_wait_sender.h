@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_EXECUTORS_EVENT_WAIT_SENDER_H_
-#define AETHER_EXECUTORS_EVENT_WAIT_SENDER_H_
+#ifndef AETHER_EXECUTORS_ACTION_WAIT_SENDER_H_
+#define AETHER_EXECUTORS_ACTION_WAIT_SENDER_H_
 
 #include <optional>
 #include <stop_token>
@@ -189,4 +189,4 @@ static constexpr inline auto action_wait =
 
 }  // namespace ae::ex
 
-#endif  // AETHER_EXECUTORS_EVENT_WAIT_SENDER_H_
+#endif  // AETHER_EXECUTORS_ACTION_WAIT_SENDER_H_
