@@ -18,15 +18,14 @@
 
 #include <vector>
 
-#include "aether/clock.h"
 #include "aether-miscpp/types/result.h"
+#include "aether/clock.h"
+#include "aether/events/events.h"
 #include "aether/executors/executors.h"
-#include "aether/events/cumulative_event.h"
-#include "aether/events/multi_subscription.h"
 
-#include "send_message_delays/sender.h"
-#include "send_message_delays/receiver.h"
 #include "send_message_delays/delay_statistics.h"
+#include "send_message_delays/receiver.h"
+#include "send_message_delays/sender.h"
 
 namespace ae::bench {
 
@@ -44,7 +43,7 @@ class SendMessageDelaysManager {
     TestAction(AeContext const& ae_context, Sender& sender, Receiver& receiver,
                SendMessageDelaysManagerConfig config);
 
-    ResultEvent::Subscriber result_event();
+    ResultEvent const& result_event();
 
    private:
     auto ConnectPeers();
@@ -70,8 +69,7 @@ class SendMessageDelaysManager {
     Receiver* receiver_;
     SendMessageDelaysManagerConfig config_;
 
-    std::unique_ptr<CumulativeEvent<TimeTable, 2>> res_event_;
-    MultiSubscription test_subscriptions_;
+    Subscription test_sync_sub_;
     std::unique_ptr<ex::AnyWaiter<ex::set_value_t(), ex::set_error_t(int)>>
         test_pipeline_;
 

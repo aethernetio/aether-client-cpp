@@ -19,15 +19,15 @@
 
 #include <memory>
 
-#include "aether/memory.h"
-#include "aether/client.h"
 #include "aether/ae_context.h"
-#include "aether/events/event_subscription.h"
+#include "aether/client.h"
 #include "aether/client_messages/p2p_message_stream.h"
 #include "aether/client_messages/p2p_safe_message_stream.h"
+#include "aether/events/events.h"
+#include "aether/memory.h"
 
-#include "send_message_delays/timed_receiver.h"
 #include "send_message_delays/api/bench_delays_api.h"
+#include "send_message_delays/timed_receiver.h"
 
 namespace ae::bench {
 class Receiver {
@@ -47,7 +47,7 @@ class Receiver {
 
  private:
   template <typename TEvent>
-  TimedReceiver& CreateBenchAction(TEvent event, std::size_t count);
+  TimedReceiver& CreateBenchAction(TEvent const& event, std::size_t count);
 
   void OnRecvData(DataBuffer const& data);
 
@@ -56,7 +56,7 @@ class Receiver {
   SafeStreamConfig safe_stream_config_;
 
   ProtocolContext protocol_context_;
-  BenchDelaysApi bench_delays_api_;
+  BenchDelaysApiServer bench_delays_api_;
 
   std::shared_ptr<ae::ByteIStream> receive_message_stream_;
   std::unique_ptr<P2pSafeStream> receive_message_safe_stream_;

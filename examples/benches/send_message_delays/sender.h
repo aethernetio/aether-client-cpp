@@ -19,15 +19,15 @@
 
 #include <memory>
 
-#include "aether/memory.h"
-#include "aether/client.h"
-#include "aether/types/uid.h"
 #include "aether/ae_context.h"
-#include "aether/events/multi_subscription.h"
+#include "aether/client.h"
 #include "aether/client_messages/p2p_safe_message_stream.h"
+#include "aether/events/events.h"
+#include "aether/memory.h"
+#include "aether/types/uid.h"
 
-#include "send_message_delays/timed_sender.h"
 #include "send_message_delays/api/bench_delays_api.h"
+#include "send_message_delays/timed_sender.h"
 
 namespace ae::bench {
 class Sender {

@@ -329,7 +329,7 @@ esp_err_t StartWifiConnection(
 }  // namespace esp_wifi_driver_internal
 
 EspWifiDriver::EspWifiDriver(AeContext const& ae_context)
-    : ae_context_{ae_context} {
+    : ae_context_{ae_context}, connect_res_event_{ae_context_} {
   esp_log_level_set(esp_wifi_driver_internal::kTag, ESP_LOG_DEBUG);
   Init();
 }
@@ -357,12 +357,13 @@ void EspWifiDriver::Connect(
   // the connection result will be handled in ConnectingEventHandler
   if (err != ESP_OK) {
     // Emitting the error, 2 for example.
-    connect_res_event_.Emit(Error(2));
+    auto result = Result<WiFiBaseStation, int>{Error(2)};
+    connect_res_event_.Emit(result);
   }
 }
 
-EspWifiDriver::ConnectResEvent::Subscriber EspWifiDriver::connect_res_event() {
-  return EventSubscriber{connect_res_event_};
+EspWifiDriver::ConnectResEvent const& EspWifiDriver::connect_res_event() {
+  return connect_res_event_;
 }
 
 std::optional<std::string> EspWifiDriver::connected_to() const {
@@ -464,7 +465,8 @@ void EspWifiDriver::ConnectingEventHandler(esp_event_base_t event_base,
           event_task_sub_ = ae_context_.scheduler().Task([&]() {
             Disconnect();
             // connection failed
-            connect_res_event_.Emit(Error(1));
+            auto result = Result<WiFiBaseStation, int>{Error(1)};
+            connect_res_event_.Emit(result);
           });
         }
         break;
@@ -496,8 +498,10 @@ void EspWifiDriver::ConnectingEventHandler(esp_event_base_t event_base,
                  static_cast<unsigned>(base_station.target_channel));
 
         connection_state_.state = State::kConnected;
-        event_task_sub_ = ae_context_.scheduler().Task(
-            [&]() { connect_res_event_.Emit(Ok{base_station}); });
+        event_task_sub_ = ae_context_.scheduler().Task([&, base_station]() {
+          auto result = Result<WiFiBaseStation, int>{Ok{base_station}};
+          connect_res_event_.Emit(result);
+        });
         break;
       }
       default:

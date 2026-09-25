@@ -153,14 +153,13 @@ ModemTransport::ModemTransport(AeContext const& ae_context,
 
 ModemTransport::~ModemTransport() { Disconnect(); }
 
-ModemTransport::StreamUpdateEvent::Subscriber
-ModemTransport::stream_update_event() {
+ModemTransport::StreamUpdateEvent const& ModemTransport::stream_update_event() {
   return stream_update_event_;
 }
 
 StreamInfo ModemTransport::stream_info() const { return stream_info_; }
 
-ModemTransport::OutDataEvent::Subscriber ModemTransport::out_data_event() {
+ModemTransport::OutDataEvent const& ModemTransport::out_data_event() {
   return out_data_event_;
 }
 

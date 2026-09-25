@@ -33,14 +33,15 @@ Receiver::Receiver(AeContext const& ae_context, Client::ptr client,
     : ae_context_{ae_context},
       client_{std::move(client)},
       safe_stream_config_{safe_stream_config},
-      bench_delays_api_{protocol_context_} {}
+      protocol_context_{ae_context_},
+      bench_delays_api_{ae_context_.event_system()} {}
 
 void Receiver::ConnectP2pStream() {
   AE_TELED_DEBUG("Receiver::ConnectP2pStream()");
 
   message_stream_subscription_ =
       client_->message_stream_manager().new_port_event().Subscribe(
-          [this](ae::P2pPortHandle handle) {
+          [this](ae::P2pPortHandle& handle) {
             AE_TELED_DEBUG("Receive new connection");
             auto dest = handle.destination();
             receive_message_stream_ = std::make_shared<P2pStream>(
@@ -64,7 +65,7 @@ void Receiver::ConnectP2pSafeStream() {
   } else {
     message_stream_subscription_ =
         client_->message_stream_manager().new_port_event().Subscribe(
-            [this](ae::P2pPortHandle handle) {
+            [this](ae::P2pPortHandle& handle) {
               AE_TELED_DEBUG("Receive new safe stream connection");
               auto dest = handle.destination();
               auto p2p_stream = std::make_shared<P2pStream>(
@@ -81,31 +82,32 @@ void Receiver::ConnectP2pSafeStream() {
 void Receiver::Disconnect() { AE_TELED_DEBUG("Receiver::Disconnect()"); }
 
 TimedReceiver& Receiver::WarmUp(std::size_t message_count) {
-  return CreateBenchAction(bench_delays_api_.warm_up_event(), message_count);
+  return CreateBenchAction(bench_delays_api_.warm_up_event, message_count);
 }
 
 TimedReceiver& Receiver::Receive2Bytes(std::size_t message_count) {
-  return CreateBenchAction(bench_delays_api_.two_bytes_event(), message_count);
+  return CreateBenchAction(bench_delays_api_.two_bytes_event, message_count);
 }
 
 TimedReceiver& Receiver::Receive10Bytes(std::size_t message_count) {
-  return CreateBenchAction(bench_delays_api_.ten_bytes_event(), message_count);
+  return CreateBenchAction(bench_delays_api_.ten_bytes_event, message_count);
 }
 
 TimedReceiver& Receiver::Receive100Bytes(std::size_t message_count) {
-  return CreateBenchAction(bench_delays_api_.hundred_bytes_event(),
+  return CreateBenchAction(bench_delays_api_.hundred_bytes_event,
                            message_count);
 }
 
 TimedReceiver& Receiver::Receive1000Bytes(std::size_t message_count) {
-  return CreateBenchAction(bench_delays_api_.thousand_bytes_event(),
+  return CreateBenchAction(bench_delays_api_.thousand_bytes_event,
                            message_count);
 }
 
 template <typename TEvent>
-TimedReceiver& Receiver::CreateBenchAction(TEvent event, std::size_t count) {
+TimedReceiver& Receiver::CreateBenchAction(TEvent const& event,
+                                           std::size_t count) {
   receiver_action_ = std::make_unique<TimedReceiver>(ae_context_, count);
-  api_recv_sub_ = event.Subscribe([this](auto&&... args) mutable {
+  api_recv_sub_ = event.Subscribe([this](auto&&... args) {
     if (receiver_action_) {
       receiver_action_->Receive(
           VarAt<0>(std::forward<decltype(args)>(args)...));

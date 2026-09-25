@@ -18,6 +18,8 @@
 
 #include <chrono>
 
+#include "aether/ae_context.h"
+
 namespace ae {
 
 namespace {
@@ -84,8 +86,14 @@ ClientConnectivityPolicy::ClientConnectivityPolicy()
 ClientConnectivityPolicy::ClientConnectivityPolicy(ObjProp prop)
     : Base{prop},
       rx_targets_{RequestPolicy::All{}},
-      rx_timings_{MakeDefaultRxTimings()} {}
+      rx_timings_{MakeDefaultRxTimings()},
+      suspend_allowed_event_{std::in_place, AeContext{*this}} {}
 #endif
+
+void ClientConnectivityPolicy::Loaded() {
+  suspend_allowed_event_.emplace(AeContext{*this});
+  ResetRuntimeState();
+}
 
 auto ClientConnectivityPolicy::ConfigureRxTimings(
     RequestPolicy::Variant targets) -> RxTimingConfig {
@@ -150,7 +158,7 @@ void ClientConnectivityPolicy::DecrementSuspendBlock() {
   --suspend_block_count_;
   can_suspend_ = suspend_block_count_ == 0;
   if (can_suspend_) {
-    suspend_allowed_event_.Emit();
+    suspend_allowed_event_->Emit();
   }
 }
 

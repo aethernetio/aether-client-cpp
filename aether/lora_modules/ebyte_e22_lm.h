@@ -21,15 +21,15 @@
 
 #if AE_SUPPORT_LORA && AE_ENABLE_EBYTE_E22_LM
 
-#  include <set>
 #  include <memory>
+#  include <set>
 
-#  include "aether/poller/poller.h"
-#  include "aether/actions/pipeline.h"
 #  include "aether/actions/actions_queue.h"
+#  include "aether/actions/pipeline.h"
 #  include "aether/actions/repeatable_task.h"
-#  include "aether/serial_ports/iserial_port.h"
+#  include "aether/poller/poller.h"
 #  include "aether/serial_ports/at_support/at_support.h"
+#  include "aether/serial_ports/iserial_port.h"
 
 #  include "aether/lora_modules/ilora_module_driver.h"
 
@@ -55,7 +55,7 @@ class EbyteE22LoraModule final : public ILoraModuleDriver {
       ae::ConnectionLoraIndex connect_index,
       ae::DataBuffer const& data) override;
 
-  DataEvent::Subscriber data_event() override;
+  DataEvent const& data_event() override;
 
   ActionPtr<LoraModuleOperation> SetPowerSaveParam(
       LoraPowerSaveParam const& psp) override;

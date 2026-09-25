@@ -25,7 +25,6 @@
 #include "aether-objects/ptr/ptr_view.h"
 #include "aether/ae_context.h"
 #include "aether/events/events.h"
-#include "aether/events/multi_subscription.h"
 #include "aether/write_action/write_action.h"
 
 #include "aether/cloud.h"
@@ -44,7 +43,8 @@ class EmptyConnectionsWA final : public WriteAction {
 
 class ReplicaWA final : public WriteAction {
  public:
-  explicit ReplicaWA(std::vector<WriteAction*>&& swas) noexcept;
+  explicit ReplicaWA(AeContext const& ae_context,
+                     std::vector<WriteAction*>&& swas) noexcept;
   void Stop() noexcept override;
 
  private:
@@ -69,9 +69,9 @@ class CloudServerConnections {
   /**
    * \brief The event then top list of the servers were updated.
    */
-  ServersUpdate::Subscriber servers_update_event();
-  ServerQuarantineEvent::Subscriber server_quarantined_event();
-  ServerQuarantineEvent::Subscriber server_quarantine_release_event();
+  ServersUpdate const& servers_update_event();
+  ServerQuarantineEvent const& server_quarantined_event();
+  ServerQuarantineEvent const& server_quarantine_release_event();
   /**
    * \brief List of currently selected servers in priority order
    */

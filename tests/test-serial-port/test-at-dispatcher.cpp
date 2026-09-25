@@ -19,13 +19,15 @@
 #include "aether/serial_ports/at_support/at_buffer.h"
 #include "aether/serial_ports/at_support/at_dispatcher.h"
 
-#include "tests/test-serial-port/mock-serial-port.h"
 #include "tests/test-serial-port/mock-at-observer.h"
+#include "tests/test-serial-port/mock-serial-port.h"
+#include "tests/test-serial-port/mock-test-context.h"
 
 namespace ae::test_at_dispatcher {
 void test_AtDispatcherRegisterSingleObserver() {
-  tests::MockSerialPort mock_serial{};
-  AtBuffer buffer{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  AtBuffer buffer{context, mock_serial};
   AtDispatcher dispatcher{buffer};
   tests::MockAtObserver observer{};
   int observation_count = 0;
@@ -63,8 +65,9 @@ void test_AtDispatcherRegisterSingleObserver() {
 }
 
 void test_AtDispatcherRegisterMultipleObservers() {
-  tests::MockSerialPort mock_serial{};
-  AtBuffer buffer{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  AtBuffer buffer{context, mock_serial};
   AtDispatcher dispatcher{buffer};
   tests::MockAtObserver observer1{};
   tests::MockAtObserver observer2{};
@@ -144,8 +147,9 @@ void test_AtDispatcherRegisterMultipleObservers() {
 }
 
 void test_AtDispatcherRegisterSameCommandMultipleTimes() {
-  tests::MockSerialPort mock_serial{};
-  AtBuffer buffer{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  AtBuffer buffer{context, mock_serial};
   AtDispatcher dispatcher{buffer};
   tests::MockAtObserver observer1{};
   tests::MockAtObserver observer2{};
@@ -189,8 +193,9 @@ void test_AtDispatcherRegisterSameCommandMultipleTimes() {
 }
 
 void test_AtDispatcherRemoveObserver() {
-  tests::MockSerialPort mock_serial{};
-  AtBuffer buffer{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  AtBuffer buffer{context, mock_serial};
   AtDispatcher dispatcher{buffer};
   tests::MockAtObserver observer{};
   int observation_count = 0;
@@ -215,8 +220,9 @@ void test_AtDispatcherRemoveObserver() {
 }
 
 void test_AtDispatcherRemoveObserverMultipleCommands() {
-  tests::MockSerialPort mock_serial{};
-  AtBuffer buffer{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  AtBuffer buffer{context, mock_serial};
   AtDispatcher dispatcher{buffer};
   tests::MockAtObserver observer{};
   int observation_count = 0;
@@ -242,8 +248,9 @@ void test_AtDispatcherRemoveObserverMultipleCommands() {
 }
 
 void test_AtDispatcherComplexPatternScenarios() {
-  tests::MockSerialPort mock_serial{};
-  AtBuffer buffer{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  AtBuffer buffer{context, mock_serial};
   AtDispatcher dispatcher{buffer};
 
   // Test overlapping and complex pattern scenarios

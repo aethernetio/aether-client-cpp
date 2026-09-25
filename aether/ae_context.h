@@ -19,54 +19,97 @@
 
 #include <concepts>
 
-#include "aether/config.h"
+#include "aether-objects/env/env.h"
+#include "aether-objects/obj/domain.h"
 
-// IWYU pragma: begin_exports
-#include "aether/tasks/manual_task_scheduler.h"
-// IWYU pragma: end_exports
+#include "aether/env.h"
 
 namespace ae {
-class Aether;
-using TaskScheduler = ManualTaskScheduler<
-    TaskManagerConf<AE_TASK_MAX_COUNT, AE_TASK_MAX_SIZE, AE_TASK_ALIGN>>;
-
-struct AeCtxTable {
-  Aether& (*aether_getter)(void* obj);
-  TaskScheduler& (*scheduler_getter)(void* obj);
+template <typename T>
+concept AeObject = requires(T const& t) {
+  requires std::same_as<std::decay_t<decltype(t.domain)>, Domain*>;
 };
 
-struct AeCtx {
-  bool operator==(AeCtx const&) const = default;
-
-  void const* obj;
-  AeCtxTable const* vtable;
+struct AeCtxTable {
+  Aether& (*aether_getter)(void const* obj);
+  TaskScheduler& (*scheduler_getter)(void const* obj);
+  EventSystem& (*event_system_getter)(void const* obj);
 };
 
 template <typename T>
-concept AeContextual = requires(T const& t) {
-  { t.ToAeContext() } -> std::same_as<AeCtx>;
+struct AeContextMaker;
+
+template <std::derived_from<Env> T>
+struct AeContextMaker<T> {
+  static constexpr auto value = AeCtxTable{
+      .aether_getter = [](void const* obj) -> decltype(auto) {
+        return static_cast<T*>(const_cast<void*>(obj))  // NOLINT(*const-cast*)
+            ->template get<Aether>();
+      },
+      .scheduler_getter = [](void const* obj) -> decltype(auto) {
+        return static_cast<T*>(const_cast<void*>(obj))  // NOLINT(*const-cast*)
+            ->template get<TaskScheduler>();
+      },
+      .event_system_getter = [](void const* obj) -> decltype(auto) {
+        return static_cast<T*>(const_cast<void*>(obj))  // NOLINT(*const-cast*)
+            ->template get<EventSystem>();
+      },
+  };
 };
+
+template <EnvProvider T>
+struct AeContextMaker<T> {
+  static constexpr auto value = AeCtxTable{
+      .aether_getter = [](void const* obj) -> decltype(auto) {
+        return get_env<Aether>(*static_cast<T const*>(obj));
+      },
+      .scheduler_getter = [](void const* obj) -> decltype(auto) {
+        return get_env<TaskScheduler>(*static_cast<T const*>(obj));
+      },
+      .event_system_getter = [](void const* obj) -> decltype(auto) {
+        return get_env<EventSystem>(*static_cast<T const*>(obj));
+      },
+  };
+};
+
+template <AeObject T>
+struct AeContextMaker<T> {
+  static constexpr auto value = AeCtxTable{
+      .aether_getter = [](void const* obj) -> decltype(auto) {
+        return get_env<Aether>(*static_cast<T const*>(obj)->domain);
+      },
+      .scheduler_getter = [](void const* obj) -> decltype(auto) {
+        return get_env<TaskScheduler>(*static_cast<T const*>(obj)->domain);
+      },
+      .event_system_getter = [](void const* obj) -> decltype(auto) {
+        return get_env<EventSystem>(*static_cast<T const*>(obj)->domain);
+      },
+  };
+};
+
+template <typename T>
+concept AeContextual =
+    std::same_as<decltype(&AeContextMaker<T>::value), AeCtxTable const*>;
 
 class AeContext {
  public:
   template <AeContextual T>
   constexpr AeContext(T const& obj)  // NOLINT(*explicit-constructor)
-      : ctx_{obj.ToAeContext()} {}
+      : obj_{&obj}, vtable_{&AeContextMaker<T>::value} {}
 
-  Aether& aether() const {
-    return ctx_.vtable->aether_getter(
-        const_cast<void*>(ctx_.obj));  // NOLINT(*const-cast)
-  }
-  TaskScheduler& scheduler() const {
-    return ctx_.vtable->scheduler_getter(
-        const_cast<void*>(ctx_.obj));  // NOLINT(*const-cast)
+  Aether& aether() const { return vtable_->aether_getter(obj_); }
+  TaskScheduler& scheduler() const { return vtable_->scheduler_getter(obj_); }
+  EventSystem& event_system() const {
+    return vtable_->event_system_getter(obj_);
   }
 
   bool operator==(AeContext const&) const = default;
 
  private:
-  AeCtx ctx_;
+  void const* obj_;
+  AeCtxTable const* vtable_;
 };
+
 }  // namespace ae
 
 #endif  // AETHER_AE_CONTEXT_H_

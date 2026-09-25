@@ -22,8 +22,8 @@
 
 #  include "aether-miscpp/misc/defer.h"
 #  include "aether-miscpp/misc/from_chars.h"
-#  include "aether/actions/pipeline.h"
 #  include "aether/actions/gen_action.h"
+#  include "aether/actions/pipeline.h"
 #  include "aether/mstream_buffers.h"
 #  include "aether/serial_ports/serial_port_factory.h"
 
@@ -284,9 +284,8 @@ ActionPtr<IPipeline> DxSmartLr02LoraModule::ReadPacket(
 //   return data;
 // };
 
-DxSmartLr02LoraModule::DataEvent::Subscriber
-DxSmartLr02LoraModule::data_event() {
-  return EventSubscriber{data_event_};
+DxSmartLr02LoraModule::DataEvent const& DxSmartLr02LoraModule::data_event() {
+  return data_event_;
 }
 
 ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>

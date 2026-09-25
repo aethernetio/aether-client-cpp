@@ -24,19 +24,18 @@
 #  include <string>
 #  include <vector>
 
-#  include "aether/types/uid.h"
-#  include "aether/crypto/key.h"
-#  include "aether/types/server_id.h"
-#  include "aether/crypto/crypto_definitions.h"
-
 #  include "aether-miscpp/reflect/reflect.h"
-#  include "aether/crypto/signed_key.h"
-#  include "aether/types/data_buffer.h"
-#  include "aether/crypto/icrypto_provider.h"
-#  include "aether/api_protocol/api_protocol.h"
-#  include "aether/work_cloud_api/server_descriptor.h"
 
+#  include "aether/crypto/crypto_definitions.h"
+#  include "aether/crypto/icrypto_provider.h"
+#  include "aether/crypto/key.h"
+#  include "aether/crypto/signed_key.h"
+#  include "aether/types/server_id.h"
+#  include "aether/types/uid.h"
+
+#  include "aether/api_protocol/api_protocol.h"
 #  include "aether/registration/api/global_reg_server_api.h"
+#  include "aether/work_cloud_api/server_descriptor.h"
 
 namespace ae {
 struct PowParams {
@@ -49,48 +48,26 @@ struct PowParams {
   SignedKey global_key;
 };
 
-class ServerRegistrationApi : public ApiClass {
-  class RegistrationProc {
-   public:
-    explicit RegistrationProc(ServerRegistrationApi& api) : api_{&api} {}
-
-    template <typename... Args>
-    auto operator()(std::string&& salt, std::string&& password_suffix,
-                    std::vector<uint32_t>&& passwords, Uid parent_uid_,
-                    SubApi<GlobalRegServerApi> const& sub_api) {
-      auto def_proc = DefaultArgProc{};
-      return def_proc(std::move(salt), std::move(password_suffix),
-                      std::move(passwords), std::move(parent_uid_),
-                      api_->Encrypt(sub_api(api_->global_reg_server_api_)));
-    }
-
-   private:
-    ServerRegistrationApi* api_;
-  };
-
+class ServerRegistrationApi : public DeclareApi<ServerRegistrationApi> {
  public:
-  ServerRegistrationApi(ProtocolContext& protocol_context,
-                        IEncryptProvider& encrypt_provider);
+  explicit ServerRegistrationApi(IEncryptProvider& encrypt_provider);
 
-  Method<3,
-         void(std::string salt, std::string password_suffix,
-              std::vector<uint32_t> passwords, Uid parent_uid_,
-              SubApi<GlobalRegServerApi> sub_api),
-         RegistrationProc>
-      registration;
+  void Registration(std::string const& salt, std::string const& password_suffix,
+                    std::vector<std::uint32_t> const& passwords,
+                    Uid const& parent_uid_, SubApi<GlobalRegServerApi> sub_api);
 
-  Method<4, ApiPromise<PowParams>(Uid parent_id, PowMethod pow_method)>
-      request_proof_of_work_data;
+  ApiPromise<PowParams> RequestProofOfWorkData(Uid const& parent_id,
+                                               PowMethod pow_method);
 
-  Method<5, ApiPromise<std::vector<ServerDescriptor>>(
-                std::vector<ServerId> servers)>
-      resolve_servers;
+  ApiPromise<std::vector<ServerDescriptor>> ResolveServers(
+      std::vector<ServerId> const& servers);
 
-  Method<6, void(Key key)> set_return_key;
+  void SetReturnKey(Key const& key);
+
+  API_LIST(METHOD(3, Registration), METHOD(4, RequestProofOfWorkData),
+           METHOD(5, ResolveServers), METHOD(6, SetReturnKey))
 
  private:
-  DataBuffer Encrypt(DataBuffer const& data) const;
-
   IEncryptProvider* encrypt_provider_;
   GlobalRegServerApi global_reg_server_api_;
 };

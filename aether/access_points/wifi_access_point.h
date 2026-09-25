@@ -46,7 +46,7 @@ class WifiConnectAction final : public Action {
                     std::optional<WiFiPowerSaveParam> psp,
                     std::optional<WiFiBaseStation> base_station);
 
-  ConnectionEvent::Subscriber connection_event();
+  ConnectionEvent const& connection_event();
 
  private:
   void EnsureConnected();

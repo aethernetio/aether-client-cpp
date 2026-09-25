@@ -60,7 +60,7 @@ class GetCloudFromCache final : public GetCloudAction {
  public:
   GetCloudFromCache(AeContext const& ae_context, Cloud::ptr cloud);
 
-  ResultEvent::Subscriber result_event() noexcept override;
+  ResultEvent const& result_event() noexcept override;
 
  private:
   Cloud::ptr cloud_;
@@ -95,7 +95,7 @@ class ClientCloudManager : public Obj {
 
   AE_CLASS_NO_COPY_MOVE(ClientCloudManager)
 
-  CloudUpdateEvent::Subscriber cloud_update_event();
+  CloudUpdateEvent const& cloud_update_event();
 
   /**
    * \brief Make request for cloud for client_uid.
@@ -113,6 +113,7 @@ class ClientCloudManager : public Obj {
   void StartListenForCloudUpdate();
 
  private:
+  void Loaded();
   void CloudConfigs(std::vector<CloudConfig> const& configs);
   void FinalizeCloudConfig(CloudConfig const& conf);
   auto MakeServersSender(std::vector<ServerId> const& sids);
@@ -124,7 +125,7 @@ class ClientCloudManager : public Obj {
   ObjPtr<Client> client_;
   std::map<Uid, client_cloud_manager_internal::CloudCache> cloud_cache_;
 
-  CloudUpdateEvent cloud_update_event_;
+  std::optional<CloudUpdateEvent> cloud_update_event_;
   CloudEventListener cloud_update_sub_;
   std::optional<GetCloudActionPool> cloud_actions_;
   std::optional<GetServersPool> get_servers_pool_;

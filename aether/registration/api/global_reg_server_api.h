@@ -22,11 +22,11 @@
 #if AE_SUPPORT_REGISTRATION
 #  include <vector>
 
-#  include "aether/types/uid.h"
-#  include "aether/crypto/key.h"
-#  include "aether/types/server_id.h"
 #  include "aether-miscpp/reflect/reflect.h"
 #  include "aether/api_protocol/api_protocol.h"
+#  include "aether/crypto/key.h"
+#  include "aether/types/server_id.h"
+#  include "aether/types/uid.h"
 
 namespace ae {
 
@@ -37,12 +37,14 @@ struct RegistrationResponse {
   std::vector<ServerId> cloud;
 };
 
-class GlobalRegServerApi : public ApiClass {
+class GlobalRegServerApi : public DeclareApi<GlobalRegServerApi> {
  public:
-  explicit GlobalRegServerApi(ProtocolContext& protocol_context);
+  GlobalRegServerApi() = default;
 
-  Method<03, void(Key key)> set_master_key;
-  Method<04, ApiPromise<RegistrationResponse>()> finish;
+  void SetMasterKey(Key const& key);
+  ApiPromise<RegistrationResponse> Finish();
+
+  API_LIST(METHOD(3, SetMasterKey), METHOD(4, Finish));
 };
 
 }  // namespace ae

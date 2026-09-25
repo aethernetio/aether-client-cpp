@@ -19,7 +19,7 @@
 #include <limits>
 #include <utility>
 
-#include "aether/events/event_subscription.h"
+#include "aether/events/events.h"
 #include "aether/memory.h"
 
 #include "aether/aether.h"
@@ -60,33 +60,51 @@ auto CreateTransport(AeContext const& context, PtrView<IPoller> const& poller,
   return EthernetTransportFactory::Create(context.aether(), poller_ptr, e);
 }
 
+struct TestAlive {
+  TestAlive() { printf("CREATED\n"); }
+  ~TestAlive() {
+    if (!moved) {
+      printf("DESTROYED\n");
+    }
+  }
+  TestAlive(TestAlive&& o) noexcept {
+    printf("MOVED\n");
+    o.moved = true;
+  }
+  bool moved = false;
+};
+
 ex::sender auto TransportConnect(std::unique_ptr<ByteIStream>&& stream) {
   return ex::create<ex::set_value_t(std::unique_ptr<ByteIStream>),
                     ex::set_error_t(int)>(
-      [&, s{std::move(stream)},
+      [s{std::move(stream)},
        link_sub{Subscription{}}](auto& ctx) mutable noexcept {
-        auto handle_link_state = [&]() noexcept {
+        // if already linked return stream
+        switch (s->stream_info().link_state) {
+          case LinkState::kLinked: {
+            return ex::set_value(std::move(ctx.receiver), std::move(s));
+          }
+          case LinkState::kLinkError: {
+            return ex::set_error(std::move(ctx.receiver), 1);
+          }
+          default:
+            break;
+        }
+
+        // wait till linked
+        link_sub = s->stream_update_event().Subscribe([&]() noexcept {
           link_sub.Reset();
           switch (s->stream_info().link_state) {
             case LinkState::kLinked: {
-              ex::set_value(std::move(ctx.receiver), std::move(s));
-              return true;
+              return ex::set_value(std::move(ctx.receiver), std::move(s));
             }
             case LinkState::kLinkError: {
-              ex::set_error(std::move(ctx.receiver), 1);
-              return true;
+              return ex::set_error(std::move(ctx.receiver), 1);
             }
             default:
-              return false;
+              break;
           }
-        };
-
-        // if already linked return stream
-        if (handle_link_state()) {
-          return;
-        }
-        // wait till linked
-        link_sub = s->stream_update_event().Subscribe(handle_link_state);
+        });
       });
 }
 
@@ -111,6 +129,18 @@ ex::sender auto MakeTransportBuilder(AeContext ae_context,
                                ex::then([&](auto const& e) noexcept {
                                  return CreateTransport(c, p, e);
                                }) |
+                               // check if transport created
+                               ex::let_value(
+                                   [](auto& s) noexcept
+                                       -> ex::variant_sender<
+                                           decltype(ex::just_error(1)),
+                                           decltype(ex::just(std::unique_ptr<
+                                                             ByteIStream>{}))> {
+                                     if (!s) {
+                                       return ex::just_error(1);
+                                     }
+                                     return ex::just(std::move(s));
+                                   }) |
                                ex::let_value([](auto& s) noexcept {
                                  return TransportConnect(std::move(s));
                                }) |

@@ -47,9 +47,9 @@ class BufferedServerConnection : public ByteIStream {
                            Ptr<Server> const& server);
 
   WriteAction& Write(DataBuffer&& in_data) override;
-  StreamUpdateEvent::Subscriber stream_update_event() override;
+  StreamUpdateEvent const& stream_update_event() override;
   StreamInfo stream_info() const override;
-  OutDataEvent::Subscriber out_data_event() override;
+  OutDataEvent const& out_data_event() override;
   void Restream() override;
 
   Buffer buffer_write;
@@ -70,7 +70,7 @@ class ClientServerConnection {
 
   void Restream();
   StreamInfo stream_info() const;
-  ByteIStream::StreamUpdateEvent::Subscriber stream_update_event();
+  ByteIStream::StreamUpdateEvent const& stream_update_event();
 
   WriteAction& LoginApiCall(SubApi<LoginApi> login_api);
   WriteAction& AuthorizedApiCall(SubApi<AuthorizedApi> auth_api);

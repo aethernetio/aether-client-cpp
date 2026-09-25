@@ -20,12 +20,10 @@
 #include <memory>
 #include <optional>
 
-#include "aether/client.h"
-#include "aether/ae_context.h"
-#include "aether/events/events.h"
 #include "aether/actions/repeatable_task.h"
-#include "aether/events/event_subscription.h"
-#include "aether/events/multi_subscription.h"
+#include "aether/ae_context.h"
+#include "aether/client.h"
+#include "aether/events/events.h"
 
 #include "send_messages_bandwidth/common/bandwidth.h"
 #include "send_messages_bandwidth/common/bandwidth_api.h"
@@ -37,19 +35,19 @@ class Sender {
  public:
   Sender(AeContext const& ae_context, Client::ptr client, Uid destination);
 
-  EventSubscriber<void()> error_event();
+  Event<void()> const& error_event();
 
   void Connect();
   void Disconnect();
 
-  EventSubscriber<void()> Handshake();
+  Event<void()> const& Handshake();
 
-  EventSubscriber<void(Bandwidth const&)> TestMessages(
-      std::size_t message_count, std::size_t message_size);
+  Event<void(Bandwidth const&)> const& TestMessages(std::size_t message_count,
+                                                    std::size_t message_size);
 
  private:
-  EventSubscriber<void()> StartTest();
-  EventSubscriber<void()> StopTest();
+  Event<void()> const& StartTest();
+  Event<void()> const& StopTest();
 
   void OnRecvData(DataBuffer const& data);
 

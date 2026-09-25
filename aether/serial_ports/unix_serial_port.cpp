@@ -19,8 +19,8 @@
 #if defined UNIX_SERIAL_PORT_ENABLED
 
 #  include <fcntl.h>
-#  include <unistd.h>
 #  include <termios.h>
+#  include <unistd.h>
 
 #  include "aether-miscpp/misc/defer.h"
 #  include "aether/serial_ports/serial_ports_tele.h"
@@ -32,7 +32,8 @@ UnixSerialPort::UnixSerialPort(AeContext const& ae_context,
     : ae_context_{ae_context},
       serial_init_{std::move(serial_init)},
       poller_fd_{OpenPort(serial_init_), poller->Native(),
-                 MethodPtr<&UnixSerialPort::PolleEvent>{this}} {
+                 MethodPtr<&UnixSerialPort::PolleEvent>{this}},
+      read_event_{ae_context_} {
   poller_fd_.Events(EventType::kRead | EventType::kError);
 }
 
@@ -56,8 +57,8 @@ void UnixSerialPort::Write(std::span<std::uint8_t const> data) {
   }
 }
 
-UnixSerialPort::DataReadEvent::Subscriber UnixSerialPort::read_event() {
-  return EventSubscriber{read_event_};
+UnixSerialPort::DataReadEvent const& UnixSerialPort::read_event() {
+  return read_event_;
 }
 
 bool UnixSerialPort::IsOpen() { return *poller_fd_.fd() != kInvalidDescriptor; }

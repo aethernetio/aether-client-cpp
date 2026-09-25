@@ -190,7 +190,7 @@ class Sim7070AtModem final : public IModemDriver {
   ModemOperation* CloseNetwork(ConnectionIndex connect_index) override;
   WriteOperation* WritePacket(ConnectionIndex connect_index,
                               std::span<std::uint8_t const> data) override;
-  DataEvent::Subscriber data_event() override;
+  DataEvent const& data_event() override;
 
   ModemOperation* SetPowerSaveParam(ModemPowerSaveParam const& psp) override;
   ModemOperation* PowerOff() override;

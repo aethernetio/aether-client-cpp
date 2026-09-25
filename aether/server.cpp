@@ -18,6 +18,10 @@
 
 #include <utility>
 
+#include "aether-miscpp/types/method_ptr.h"
+
+#include "aether/ae_context.h"
+
 namespace ae {
 Server::Server(ObjProp prop, ServerId server_id,
                std::vector<Endpoint> endpoints,
@@ -26,11 +30,25 @@ Server::Server(ObjProp prop, ServerId server_id,
       server_id{server_id},
       endpoints{std::move(endpoints)},
       adapter_registry_{std::move(adapter_registry)},
-      subscribed_{} {
+      channels_changed_{std::in_place, AeContext{*this}} {
   Register();
 }
 
+void Server::Loaded() {
+  channels_changed_.emplace(AeContext{*this});
+  if (!subscribed_) {
+    subscribed_ = true;
+    UpdateSubscription();
+  }
+}
+
+Server::ChannelsChanged const& Server::channels_changed() {
+  assert(!!channels_changed_);
+  return *channels_changed_;
+}
+
 void Server::Register() {
+  channels.clear();
   UpdateSubscription();
 
   for (auto const& adapter : adapter_registry_->adapters()) {
@@ -41,11 +59,8 @@ void Server::Register() {
   subscribed_ = true;
 }
 
-Server::ChannelsChanged::Subscriber Server::channels_changed() {
-  return EventSubscriber{channels_changed_};
-}
-
 void Server::UpdateSubscription() {
+  access_point_added_.Reset();
   assert(adapter_registry_.is_valid());
   adapter_registry_.WithLoaded([&](auto const& ar) {
     for (auto const& adapter : ar->adapters()) {
@@ -53,7 +68,7 @@ void Server::UpdateSubscription() {
           MethodPtr<&Server::AddChannels>{this});
     }
   });
-  channels_changed_.Emit();
+  channels_changed_->Emit();
 }
 
 void Server::AddChannels(AccessPoint::ptr const& access_point) {
@@ -61,7 +76,7 @@ void Server::AddChannels(AccessPoint::ptr const& access_point) {
   auto new_channels = access_point->GenerateChannels(server_ptr);
   channels.insert(std::end(channels), std::begin(new_channels),
                   std::end(new_channels));
-  channels_changed_.Emit();
+  channels_changed_->Emit();
 }
 
 }  // namespace ae

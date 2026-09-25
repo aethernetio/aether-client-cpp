@@ -33,10 +33,13 @@ namespace ae {
 namespace p2p_stream_internal {
 class MessageSendStream final : public IStream<AeMessage, AeMessage> {
  public:
-  explicit MessageSendStream(CloudServerConnections& cloud_connection,
+  explicit MessageSendStream(EventContext auto const& context,
+                             CloudServerConnections& cloud_connection,
                              RequestPolicy::Variant request_policy)
       : cloud_connection_{&cloud_connection},
         request_policy_{request_policy},
+        out_data_event_{context},
+        stream_update_event_{context},
         servers_update_sub_{cloud_connection_->servers_update_event().Subscribe(
             MethodPtr<&MessageSendStream::UpdateServers>{this})} {
     UpdateServers();
@@ -44,15 +47,15 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
 
   WriteAction& Write(AeMessage&& message) override {
     return cloud_connection_->CallApi(
-        ApiCall{[&message](ApiContext<AuthorizedApi>& auth_api, auto*) {
-          auth_api->send_message(std::move(message));
+        ApiCall{[&](ApiContext<AuthorizedApi>& auth_api, auto*) {
+          auth_api->SendMessage(message);
         }},
         request_policy_);
   }
 
   StreamInfo stream_info() const override { return stream_info_; }
-  OutDataEvent::Subscriber out_data_event() override { return out_data_event_; }
-  StreamUpdateEvent::Subscriber stream_update_event() override {
+  OutDataEvent const& out_data_event() override { return out_data_event_; }
+  StreamUpdateEvent const& stream_update_event() override {
     return stream_update_event_;
   }
 
@@ -154,7 +157,9 @@ P2pStream::P2pStream(AeContext const& ae_context, Ptr<Client> const& client,
       client_{client},
       destination_{std::move(destination)},
       handle_{std::move(handle)},
-      buffer_write_{ae_context_, MethodPtr<&P2pStream::OnWrite>{this}} {
+      buffer_write_{ae_context_, MethodPtr<&P2pStream::OnWrite>{this}},
+      out_data_event_{ae_context_},
+      stream_update_event_{ae_context_} {
   AE_TELE_DEBUG(kP2pMessageStreamNew, "P2pStream created for {}", destination_);
   assert(!destination_.empty());
 
@@ -173,7 +178,7 @@ WriteAction& P2pStream::Write(DataBuffer&& data) {
   return buffer_write_.Write(std::move(message_data));
 }
 
-P2pStream::StreamUpdateEvent::Subscriber P2pStream::stream_update_event() {
+P2pStream::StreamUpdateEvent const& P2pStream::stream_update_event() {
   return stream_update_event_;
 }
 
@@ -184,7 +189,7 @@ StreamInfo P2pStream::stream_info() const {
   return {};
 }
 
-P2pStream::OutDataEvent::Subscriber P2pStream::out_data_event() {
+P2pStream::OutDataEvent const& P2pStream::out_data_event() {
   return out_data_event_;
 }
 
@@ -225,9 +230,9 @@ void P2pStream::ConnectSend() {
                                 .GetServerConnectionFactory());
           message_send_stream_ =
               std::make_unique<p2p_stream_internal::MessageSendStream>(
-                  *dest_cloud_conn_, RequestPolicy::MainServer{});
+                  ae_context_, *dest_cloud_conn_, RequestPolicy::MainServer{});
           message_send_stream_->stream_update_event().Subscribe(
-              stream_update_event_);
+              MethodPtr<&StreamUpdateEvent::Emit>{&stream_update_event_});
           AE_TELED_DEBUG("Send connected");
           buffer_write_.buffer_off();
           stream_update_event_.Emit();

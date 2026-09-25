@@ -52,9 +52,9 @@ class P2pStream final : public ByteIStream {
   AE_CLASS_NO_COPY_MOVE(P2pStream);
 
   WriteAction& Write(DataBuffer&& data) override;
-  StreamUpdateEvent::Subscriber stream_update_event() override;
+  StreamUpdateEvent const& stream_update_event() override;
   StreamInfo stream_info() const override;
-  OutDataEvent::Subscriber out_data_event() override;
+  OutDataEvent const& out_data_event() override;
   void Restream() override;
 
   void WriteOut(DataBuffer const& data);

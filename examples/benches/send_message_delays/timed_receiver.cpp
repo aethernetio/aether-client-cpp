@@ -21,21 +21,20 @@
 namespace ae::bench {
 TimedReceiver::TimedReceiver(AeContext const& ae_context,
                              std::size_t wait_count)
-    : ae_context_{ae_context}, wait_count_{wait_count} {
+    : ae_context_{ae_context},
+      wait_count_{wait_count},
+      result_event_{ae_context_},
+      received_event_{ae_context_} {
   AE_TELED_INFO("TimedReceiver waiting {} messages", wait_count);
   last_message_time_ = Now();
   ScheduleTimeout();
 }
 
-TimedReceiver::ResultTimesEvent::Subscriber
-TimedReceiver::message_times_event() {
-  return EventSubscriber{result_event_};
+TimedReceiver::ResultTimesEvent const& TimedReceiver::message_times_event() {
+  return result_event_;
 }
-TimedReceiver::ReceivedEvent::Subscriber TimedReceiver::on_received() {
-  return EventSubscriber{received_event_};
-}
-TimedReceiver::TimeoutEvent::Subscriber TimedReceiver::on_timeout() {
-  return EventSubscriber{timeout_event_};
+TimedReceiver::ReceivedEvent const& TimedReceiver::on_received() {
+  return received_event_;
 }
 
 void TimedReceiver::Receive(std::uint16_t id) {
@@ -55,7 +54,7 @@ void TimedReceiver::Receive(std::uint16_t id) {
     ScheduleTimeout();
   } else {
     scheduler_sub_.Reset();
-    result_event_.Emit(message_times_);
+    result_event_.Emit(Ok{std::move(message_times_)});
   }
 }
 
@@ -68,7 +67,7 @@ void TimedReceiver::ScheduleTimeout() {
           auto diff = last_message_time_ - current_time;
           if (diff > kWaitTimeout) {
             AE_TELED_ERROR("Receive message timeout");
-            timeout_event_.Emit();
+            result_event_.Emit(Error{1});
           }
           scheduler_sub_.Reset();
         },

@@ -29,7 +29,7 @@
 #    include <optional>
 
 #    include "aether/ae_context.h"
-#    include "aether/events/multi_subscription.h"
+#    include "aether/events/events.h"
 
 #    include "aether/poller/poller.h"
 #    include "aether/stream_api/istream.h"
@@ -46,7 +46,8 @@ class SendAction final : public PacketSendAction {
  public:
   SendAction(AeContext const& ae_context, Socket& socket,
              DataBuffer&& data_buffer)
-      : ae_context_{ae_context},
+      : PacketSendAction{ae_context},
+        ae_context_{ae_context},
         socket_{&socket},
         data_{std::move(data_buffer)} {}
 
@@ -103,9 +104,9 @@ class UdpBase : public ByteIStream {
  public:
   UdpBase(AeContext const& ae_context, AddressPort endpoint);
 
-  StreamUpdateEvent::Subscriber stream_update_event() override;
+  StreamUpdateEvent const& stream_update_event() override;
   StreamInfo stream_info() const override;
-  OutDataEvent::Subscriber out_data_event() override;
+  OutDataEvent const& out_data_event() override;
   void Restream() override;
 
  protected:

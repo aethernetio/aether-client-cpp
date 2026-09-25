@@ -23,10 +23,13 @@
 namespace ae {
 class SizedPacketGate {
  public:
+  explicit SizedPacketGate(EventContext auto const& context)
+      : out_data_event_{context} {}
+
   DataBuffer WriteIn(DataBuffer&& buffer);
   void WriteOut(DataBuffer const& buffer);
   std::size_t Overhead() const;
-  EventSubscriber<void(DataBuffer const& data)> out_data_event();
+  Event<void(DataBuffer const& data)> const& out_data_event();
 
  private:
   void DataReceived(DataBuffer const& buffer);

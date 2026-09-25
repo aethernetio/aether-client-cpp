@@ -17,156 +17,76 @@
 #ifndef AETHER_EVENTS_EVENTS_H_
 #define AETHER_EVENTS_EVENTS_H_
 
-#include <algorithm>
-#include <cassert>
-#include <memory>
-#include <type_traits>
-#include <utility>
+#include "aether/config.h"
 
-#include "aether-miscpp/types/small_function.h"
-#include "aether/events/event_deleter.h"
-#include "aether/events/event_handler.h"
-#include "aether/events/event_list.h"
-#include "aether/events/event_subscription.h"
+// IWYU pragma: begin_exports
+#include "aether/events/details/event_handler.h"
+#include "aether/events/details/event_multi_subscription.h"
+#include "aether/events/details/event_object.h"
+#include "aether/events/details/event_subscription.h"
+#include "aether/events/details/event_system.h"
+#include "aether/events/details/generic_event_handler.h"
+// IWYU pragma: end_exports
 
 namespace ae {
-template <typename TSignature>
-class Event;
+/**
+ * \brief Maximum number of simultaneously registered events.
+ *
+ * The default EventSystem has independent fixed capacities for event keys and
+ * handlers. Event construction fails fast when this capacity is exhausted.
+ */
+static constexpr inline std::size_t kEventsCapacity =
+    static_cast<std::size_t>(AE_EVENTS_MAX_COUNT);
+/** \brief Maximum number of handlers in the default EventSystem pool. */
+static constexpr inline std::size_t kEventsHandlerCapacity =
+    static_cast<std::size_t>(AE_EVENTS_MAX_COUNT * 1.2);
+/** \brief Maximum user-provided handler size in the default handler pool. */
+static constexpr inline std::size_t kEventHandlerMaxSize =
+    static_cast<std::size_t>(AE_EVENT_HANDLER_MAX_SIZE);
+/** \brief Required alignment for user-provided handlers in the default pool. */
+static constexpr inline std::size_t kEventHandlerAlign =
+    static_cast<std::size_t>(AE_EVENT_HANDLER_ALIGN);
 
-template <typename TSignature>
-class EventSubscriber;
+/** \brief The fixed-capacity event system used by the public event types. */
+using EventSystem =
+    events::EventSystem<kEventsCapacity, kEventsHandlerCapacity,
+                        kEventHandlerMaxSize, kEventHandlerAlign>;
 
 /**
- * \brief Storage for handlers to some event
+ * \brief A multicast event backed by the default EventSystem.
+ *
+ * Emit() synchronously invokes a snapshot of eligible handlers. A by-value
+ * argument must be copyable; each handler receives its own equivalent copy.
+ * Reference arguments remain references during synchronous dispatch, so all
+ * handlers observe the same object and must not retain its reference. Rvalue
+ * reference arguments and move-only by-value arguments are unsupported.
  */
-template <typename... TArgs>
-class Event<void(TArgs...)> {
- public:
-  using CallbackSignature = void(TArgs...);
-  using Subscriber = EventSubscriber<CallbackSignature>;
-  using List = EventHandlersList;
-
-  explicit Event() : events_list_{std::make_shared<List>()} {}
-
-  ~Event() = default;
-
-  AE_CLASS_MOVE_ONLY(Event)
-
-  /**
-   * \brief Invoke all handlers to this event.
-   * Some handlers may call this recursively and either unsubscribe or make new
-   * subscriptions.
-   */
-  void Emit(TArgs... args) {
-    std::shared_ptr<List> list_life_extander = events_list_;
-    EmitImpl(list_life_extander, std::forward<TArgs>(args)...);
-  }
-
-  /**
-   * \brief Add new subscription to this event
-   * Users should use EventSubscriber.
-   * returns event deleter
-   */
-  auto Add(EventHandler<CallbackSignature>&& handler) {
-    auto index = events_list_->Insert(std::move(handler));
-    return EventHandlerDeleter{events_list_, index};
-  }
-
- private:
-  /**
-   * \brief Invoke handler to this event.
-   * Separate static emitter is used to handle self destruction while handler
-   * invoking.
-   */
-  static void EmitImpl(std::shared_ptr<List> const& events_list,
-                       TArgs&&... args) {
-    auto iterate_list = events_list->Iterator();
-    for (auto it = std::begin(iterate_list); it != std::end(iterate_list);
-         ++it) {
-      auto* handler = it.get<CallbackSignature>();
-      assert((handler != nullptr) && "Handler is null");
-      handler->Invoke(std::forward<TArgs>(args)...);
-    }
-  }
-
-  std::shared_ptr<List> events_list_;
-};
+template <typename Signature>
+using Event = events::EventObject<EventSystem, Signature>;
 
 /**
- * \brief Helper class to make event subscriptions.
- * It is designed to be constructed implicitly from Event<T> and to be returned
- * from getter to Event<T> in classes
+ * \brief A lightweight, non-RAII handler registration.
+ *
+ * Discarding this token does not unsubscribe the handler. Transfer each token
+ * returned by Subscribe() to exactly one Subscription or MultiSubscription to
+ * give the registration an owner. RegEventHandler remains copyable as an
+ * aggregate, but copies must not be retained by multiple owners; doing so is
+ * unsupported misuse.
  */
-template <typename... TArgs>
-class EventSubscriber<void(TArgs...)> {
- public:
-  using Signature = void(TArgs...);
-  using Subscription = ae::Subscription;
-  using EventType = Event<Signature>;
+using RegEventHandler = events::RegHandler<EventSystem>;
 
-  template <typename TCallback>
-  static constexpr bool kIsInvocable =
-      std::is_invocable_r_v<void, std::decay_t<TCallback>, TArgs...>;
+/** \brief RAII owner for one event registration. */
+using Subscription = events::SubscriptionObject<EventSystem>;
+/**
+ * \brief RAII owner for several registrations using dynamic std::vector
+ * storage.
+ *
+ * This compatibility type can allocate while growing. Use
+ * events::MultiSubscriptionObjectFix when fixed-capacity storage is required.
+ */
+using MultiSubscription = events::MultiSubscriptionObjectDyn<EventSystem>;
 
-  EventSubscriber(EventType& event) : event_{&event} {}
-
-  /**
-   * \brief Create new subscription to event with callback to Event's signature.
-   *
-   * \return EventHandlerDeleter to remove handler after it does not needed
-   * anymore \see Subscription for RAII wrapper
-   */
-  template <typename TCallback>
-  auto Subscribe(TCallback&& cb) {
-    static_assert(std::is_invocable_v<std::decay_t<TCallback>, TArgs...>,
-                  "TCallable must have same signature");
-    return event_->Add(EventHandler<Signature>{std::forward<TCallback>(cb)});
-  }
-
-  /**
-   * \brief Create new subscription to event with pointer to member function.
-   *
-   * \return EventHandlerDeleter to remove handler after it does not needed
-   * anymore \see Subscription for RAII wrapper
-   */
-  template <auto Method>
-  auto Subscribe(MethodPtr<Method> method) {
-    static_assert(std::is_invocable_v<decltype(Method),
-                                      decltype(method.instance), TArgs...>,
-                  "Method must have same signature");
-    return event_->Add(EventHandler<Signature>{method});
-  }
-
-  /**
-   * \brief Create new subscription to event with pointer to free function.
-   *
-   * \return EventHandlerDeleter to remove handler after it does not needed
-   * anymore \see Subscription for RAII wrapper
-   */
-  auto Subscribe(void (*method)(TArgs...)) {
-    static_assert(std::is_invocable_v<decltype(method), TArgs...>,
-                  "method must have same signature");
-    return event_->Add(EventHandler<Signature>{method});
-  }
-
-  /**
-   * \brief Create new subscription to event with different event with same
-   * signature.
-   *
-   * \return EventHandlerDeleter to remove handler after it does not needed
-   * anymore \see Subscription for RAII wrapper
-   */
-  auto Subscribe(Event<void(TArgs...)>& event) {
-    return event_->Add(EventHandler<Signature>{
-        MethodPtr<&Event<void(TArgs...)>::Emit>{&event}});
-  }
-
- private:
-  EventType* event_;
-};
-
-template <typename... TArgs>
-EventSubscriber(Event<void(TArgs...)>&) -> EventSubscriber<void(TArgs...)>;
+using events::EventContext;
 
 }  // namespace ae
 

@@ -17,45 +17,27 @@
 #ifndef AETHER_WORK_CLOUD_API_WORK_SERVER_API_LOGIN_API_H_
 #define AETHER_WORK_CLOUD_API_WORK_SERVER_API_LOGIN_API_H_
 
-#include "aether/types/uid.h"
-#include "aether/types/data_buffer.h"
-#include "aether/crypto/icrypto_provider.h"
 #include "aether/api_protocol/api_protocol.h"
+#include "aether/crypto/icrypto_provider.h"
+#include "aether/types/uid.h"
 
 #include "aether/work_cloud_api/info_ip.h"
 #include "aether/work_cloud_api/work_server_api/authorized_api.h"
 
 namespace ae {
-class LoginApi : public ApiClass {
-  class LoginProc {
-   public:
-    explicit LoginProc(LoginApi& login_api) : login_api_{&login_api} {}
-
-    auto operator()(Uid uid, SubApi<AuthorizedApi> sub_api) {
-      auto def_proc = DefaultArgProc{};
-      return def_proc(uid, login_api_->Encrypt(sub_api(login_api_->auth_api_)));
-    }
-
-   private:
-    LoginApi* login_api_;
-  };
-
+class LoginApi : public DeclareApi<LoginApi> {
  public:
-  explicit LoginApi(ProtocolContext& protocol_context,
-                    IEncryptProvider& encrypt_provider);
+  explicit LoginApi(IEncryptProvider& encrypt_provider);
 
-  Method<4, void(Uid uid, SubApi<AuthorizedApi> sub_api), LoginProc>
-      login_by_uid;
-  Method<5, void(Uid alias, SubApi<AuthorizedApi> sub_api), LoginProc>
-      login_by_alias;
+  void LoginByUid(Uid const& uid, SubApi<AuthorizedApi> sub_api);
+  void LoginByAlias(Uid const& alias, SubApi<AuthorizedApi> sub_api);
+  ApiPromise<InfoIp> GetMyIp();
 
-  Method<6, ApiPromise<InfoIp>()> get_my_ip;
+  API_LIST(METHOD(4, LoginByUid), METHOD(5, LoginByAlias), METHOD(6, GetMyIp))
 
   AuthorizedApi& authorized_api() { return auth_api_; }
 
  private:
-  DataBuffer Encrypt(DataBuffer const& data);
-
   IEncryptProvider* encrypt_provider_;
   AuthorizedApi auth_api_;
 };

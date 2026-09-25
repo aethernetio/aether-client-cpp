@@ -15,14 +15,11 @@
 cmake_minimum_required( VERSION 3.16 )
 
 list(APPEND test_events_srcs
-  ${ROOT_DIR}/aether/events/event_list.cpp
-  ${ROOT_DIR}/aether/events/event_deleter.cpp
-  ${ROOT_DIR}/aether/events/event_subscription.cpp
-  ${ROOT_DIR}/aether/events/multi_subscription.cpp
-
   main.cpp
   test-events.cpp
-  test-events-mt.cpp
+  test-events-key-registry.cpp
+  test-event-handler-map.cpp
+  test-event-system.cpp
 )
 
 if(NOT CM_PLATFORM)

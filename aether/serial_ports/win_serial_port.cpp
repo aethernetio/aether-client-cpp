@@ -29,6 +29,7 @@ WinSerialPort::WinSerialPort(AeContext const& ae_context,
       serial_init_{std::move(serial_init)},
       poller_{std::static_pointer_cast<IoCpPoller>(poller->Native())},
       fd_{OpenPort(serial_init_)},
+      read_event_{ae_context_},
       read_buffer_(kReadBufSize) {
   if (fd_ != INVALID_HANDLE_VALUE) {
     poller_->Add({fd_}, MethodPtr<&WinSerialPort::PollEvent>{this});
@@ -87,8 +88,8 @@ void WinSerialPort::Write(std::span<std::uint8_t const> data) {
   }
 }
 
-WinSerialPort::DataReadEvent::Subscriber WinSerialPort::read_event() {
-  return EventSubscriber{read_event_};
+WinSerialPort::DataReadEvent const& WinSerialPort::read_event() {
+  return read_event_;
 }
 
 bool WinSerialPort::IsOpen() { return fd_ != INVALID_HANDLE_VALUE; }

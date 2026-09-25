@@ -16,11 +16,19 @@
 
 #ifndef AETHER_TASKS_MANUAL_TASK_SCHEDULER_H_
 #define AETHER_TASKS_MANUAL_TASK_SCHEDULER_H_
+
+#include "aether/config.h"
+
 // IWYU pragma: begin_exports
+#include "aether/tasks/details/manual_task_scheduler.h"
 #include "aether/tasks/details/task.h"
 #include "aether/tasks/details/task_manager.h"
 #include "aether/tasks/details/task_subsctiption.h"
-#include "aether/tasks/details/manual_task_scheduler.h"
 // IWYU pragma: end_exports
+
+namespace ae {
+using TaskScheduler = ManualTaskScheduler<
+    TaskManagerConf<AE_TASK_MAX_COUNT, AE_TASK_MAX_SIZE, AE_TASK_ALIGN>>;
+}
 
 #endif  // AETHER_TASKS_MANUAL_TASK_SCHEDULER_H_

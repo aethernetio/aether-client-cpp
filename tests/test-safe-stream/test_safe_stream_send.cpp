@@ -16,15 +16,16 @@
 
 #include <unity.h>
 
+#include <functional>
 #include <optional>
 
-#include "aether/config.h"
 #include "aether/ae_context.h"
-#include "aether/safe_stream/safe_stream_config.h"
+#include "aether/config.h"
 #include "aether/safe_stream/details/safe_stream_send_action.h"
+#include "aether/safe_stream/safe_stream_config.h"
 
-#include "tests/test-stream/to_data_buffer.h"
 #include "tests/test-safe-stream/stream-test-ctx.h"
+#include "tests/test-stream/to_data_buffer.h"
 
 namespace ae::test_safe_stream_send {
 constexpr auto kTick = std::chrono::milliseconds{5};
@@ -43,7 +44,7 @@ using Sender = SafeStreamSendAction<kCapacity>;
 using IndexType = RingIndex<kCapacity>;
 using IndexRangeType = RingIndexRange<IndexType>;
 
-class MockSendDataPush final : public ISendDataPush {
+class MockSendDataPush final : public ISafeStreamSendActionDelegate<kCapacity> {
  public:
   struct SendData {
     std::uint16_t index;
@@ -52,7 +53,8 @@ class MockSendDataPush final : public ISendDataPush {
 
   class MockStreamWriteAction final : public WriteAction {
    public:
-    explicit MockStreamWriteAction(AeContext const& context) {
+    explicit MockStreamWriteAction(AeContext const& context)
+        : WriteAction{context} {
       context.scheduler().Task(
           [&]() { WriteAction::SetStatus(Status::kSuccess); });
     }
@@ -70,9 +72,30 @@ class MockSendDataPush final : public ISendDataPush {
     return *wa_;
   }
 
+  void WriteAcknowledged(IndexType buffer_begin, IndexType ack_index) override {
+    if (on_acknowledged) {
+      on_acknowledged(buffer_begin, ack_index);
+    }
+  }
+
+  void WriteStopped(IndexType buffer_begin, IndexType stop_index) override {
+    if (on_stopped) {
+      on_stopped(buffer_begin, stop_index);
+    }
+  }
+
+  void WriteFailed(IndexType buffer_begin, IndexType failed_index) override {
+    if (on_failed) {
+      on_failed(buffer_begin, failed_index);
+    }
+  }
+
   AeContext context_;
   std::optional<SendData> send_data;
   std::optional<MockStreamWriteAction> wa_;
+  std::function<void(IndexType, IndexType)> on_acknowledged;
+  std::function<void(IndexType, IndexType)> on_stopped;
+  std::function<void(IndexType, IndexType)> on_failed;
 };
 
 // Creative test data strings for improved tests (under 200 bytes)
@@ -125,16 +148,16 @@ void test_SendActionCreateAndSend() {
   IndexRangeType expected_range{};
 
   auto sender = Sender{ctx, send_data_push, config};
-  sender.acknowledged_event().Subscribe([&](auto, auto index) {
+  send_data_push.on_acknowledged = [&](auto, auto index) {
     if (expected_range.right == index) {
       is_sent = true;
     }
-  });
-  sender.send_failed_event().Subscribe([&](auto, auto index) {
+  };
+  send_data_push.on_failed = [&](auto, auto index) {
     if (expected_range.right == index) {
       is_error = true;
     }
-  });
+  };
   sender.SetMaxPayload(config.max_packet_size);
 
   auto send_data = sender.SendData(ToSpan(packet_poetry));
@@ -182,16 +205,16 @@ void test_SendActionRepeatOnTimeout() {
   IndexRangeType expected_range{};
 
   auto sender = Sender{ctx, send_data_push, config};
-  sender.acknowledged_event().Subscribe([&](auto, auto index) {
+  send_data_push.on_acknowledged = [&](auto, auto index) {
     if (expected_range.right == index) {
       is_sent = true;
     }
-  });
-  sender.send_failed_event().Subscribe([&](auto, auto index) {
+  };
+  send_data_push.on_failed = [&](auto, auto index) {
     if (expected_range.right == index) {
       is_error = true;
     }
-  });
+  };
   sender.SetMaxPayload(config.max_packet_size);
 
   auto send_data = sender.SendData(ToSpan(retry_humor));
@@ -238,16 +261,16 @@ void test_SendActionErrorOnMaxRepeatExceeded() {
   IndexRangeType expected_range{};
 
   auto sender = Sender{ctx, send_data_push, config};
-  sender.acknowledged_event().Subscribe([&](auto, auto index) {
+  send_data_push.on_acknowledged = [&](auto, auto index) {
     if (expected_range.right == index) {
       is_sent = true;
     }
-  });
-  sender.send_failed_event().Subscribe([&](auto, auto index) {
+  };
+  send_data_push.on_failed = [&](auto, auto index) {
     if (expected_range.right == index) {
       is_error = true;
     }
-  });
+  };
   sender.SetMaxPayload(config.max_packet_size);
 
   auto send_data = sender.SendData(ToSpan(confirmation_comedy));
@@ -470,22 +493,22 @@ void test_SendActionMultipleDataQueueing() {
   IndexRangeType expected_range2{};
 
   auto sender = Sender{ctx, send_data_push, config};
-  sender.acknowledged_event().Subscribe([&](auto buffer_begin, auto index) {
+  send_data_push.on_acknowledged = [&](auto buffer_begin, auto index) {
     if (IndexComparable{expected_range1.right, buffer_begin} <= index) {
       sent1 = true;
     }
     if (IndexComparable{expected_range2.right, buffer_begin} <= index) {
       sent2 = true;
     }
-  });
-  sender.send_failed_event().Subscribe([&](auto buffer_begin, auto index) {
+  };
+  send_data_push.on_failed = [&](auto buffer_begin, auto index) {
     if (IndexComparable{expected_range1.right, buffer_begin} <= index) {
       error1 = true;
     }
     if (IndexComparable{expected_range2.right, buffer_begin} <= index) {
       error2 = true;
     }
-  });
+  };
   sender.SetMaxPayload(config.max_packet_size);
 
   // Send multiple data chunks rapidly
@@ -539,16 +562,16 @@ void test_SendDataBiggerThanMaxPacketSize() {
   IndexRangeType expected_range{};
 
   auto sender = Sender{ctx, send_data_push, config};
-  sender.acknowledged_event().Subscribe([&](auto, auto index) {
+  send_data_push.on_acknowledged = [&](auto, auto index) {
     if (expected_range.right == index) {
       sent = true;
     }
-  });
-  sender.send_failed_event().Subscribe([&](auto, auto index) {
+  };
+  send_data_push.on_failed = [&](auto, auto index) {
     if (expected_range.right == index) {
       error = true;
     }
-  });
+  };
   sender.SetMaxPayload(max_packet_size);
 
   // Send data bigger than max packet size
@@ -622,21 +645,21 @@ void test_SendDataAndStop() {
   IndexRangeType expected_range{};
 
   auto sender = Sender{ctx, send_data_push, config};
-  sender.acknowledged_event().Subscribe([&](auto, auto index) {
+  send_data_push.on_acknowledged = [&](auto, auto index) {
     if (expected_range.right == index) {
       sent = true;
     }
-  });
-  sender.send_failed_event().Subscribe([&](auto, auto index) {
+  };
+  send_data_push.on_failed = [&](auto, auto index) {
     if (expected_range.right == index) {
       error = true;
     }
-  });
-  sender.stopped_event().Subscribe([&](auto, auto index) {
+  };
+  send_data_push.on_stopped = [&](auto, auto index) {
     if (expected_range.right == index) {
       stopped = true;
     }
-  });
+  };
   sender.SetMaxPayload(max_packet_size);
 
   auto send_range0 = sender.SendData(ToSpan(packet_poetry));

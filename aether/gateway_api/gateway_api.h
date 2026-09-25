@@ -23,12 +23,12 @@
 
 #  include <cstdint>
 
+#  include "aether/api_protocol/api_class_impl.h"
+#  include "aether/api_protocol/api_method.h"
 #  include "aether/events/events.h"
-#  include "aether/types/server_id.h"
 #  include "aether/types/client_id.h"
 #  include "aether/types/data_buffer.h"
-#  include "aether/api_protocol/api_method.h"
-#  include "aether/api_protocol/api_class_impl.h"
+#  include "aether/types/server_id.h"
 
 #  include "aether/gateway_api/server_endpoints.h"
 
@@ -52,7 +52,7 @@ class GatewayClientApi : public ApiClassImpl<GatewayClientApi> {
 
   AE_METHODS(RegMethod<3, &GatewayClientApi::FromServer>);
 
-  auto from_server_event() { return EventSubscriber{from_server_event_}; }
+  auto from_server_event() { return from_server_event_; }
 
  private:
   Event<void(ClientId client_id, DataBuffer const& data)> from_server_event_;

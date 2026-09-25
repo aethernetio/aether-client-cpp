@@ -20,12 +20,12 @@
 #  include <bitset>
 #  include <string_view>
 
-#  include "aether-miscpp/misc/override.h"
 #  include "aether-miscpp/misc/from_chars.h"
+#  include "aether-miscpp/misc/override.h"
 #  include "aether/executors/executors.h"
+#  include "aether/serial_ports/at_support/at_request.h"
 #  include "aether/serial_ports/at_support/at_stage.h"
 #  include "aether/serial_ports/serial_port_factory.h"
-#  include "aether/serial_ports/at_support/at_request.h"
 
 #  include "aether/modems/modems_tele.h"
 
@@ -793,8 +793,8 @@ WriteOperation* Thingy91xAtModem::WritePacket(
   return op;
 }
 
-Thingy91xAtModem::DataEvent::Subscriber Thingy91xAtModem::data_event() {
-  return EventSubscriber{data_event_};
+Thingy91xAtModem::DataEvent const& Thingy91xAtModem::data_event() {
+  return data_event_;
 }
 
 ModemOperation* Thingy91xAtModem::SetPowerSaveParam(

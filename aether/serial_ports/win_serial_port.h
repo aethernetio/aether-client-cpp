@@ -21,16 +21,16 @@
 
 #  define WIN_SERIAL_PORT_ENABLED 1
 
+#  include <atomic>
 #  include <list>
 #  include <mutex>
-#  include <atomic>
 
 #  include "aether/ae_context.h"
 #  include "aether/poller/poller.h"
-#  include "aether/types/data_buffer.h"
 #  include "aether/poller/win_poller.h"
 #  include "aether/serial_ports/iserial_port.h"
 #  include "aether/serial_ports/serial_port_types.h"
+#  include "aether/types/data_buffer.h"
 
 #  include <Windows.h>
 
@@ -43,7 +43,7 @@ class WinSerialPort final : public ISerialPort {
 
   void Write(std::span<std::uint8_t const> data) override;
 
-  DataReadEvent::Subscriber read_event() override;
+  DataReadEvent const& read_event() override;
 
   bool IsOpen() override;
 

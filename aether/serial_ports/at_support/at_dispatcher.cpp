@@ -19,6 +19,8 @@
 #include <cassert>
 #include <utility>
 
+#include "aether-miscpp/types/method_ptr.h"
+
 namespace ae {
 AtDispatcher::AtDispatcher(AtBuffer& buffer)
     : buffer_{&buffer},

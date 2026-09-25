@@ -16,15 +16,16 @@
 
 #include <unity.h>
 
-#include <vector>
+#include <functional>
 #include <optional>
+#include <vector>
 
 #include "aether/config.h"
-#include "aether/safe_stream/safe_stream_config.h"
 #include "aether/safe_stream/details/safe_stream_recv_action.h"
+#include "aether/safe_stream/safe_stream_config.h"
 
-#include "tests/test-stream/to_data_buffer.h"
 #include "tests/test-safe-stream/stream-test-ctx.h"
+#include "tests/test-stream/to_data_buffer.h"
 
 namespace ae::test_safe_stream_recv {
 constexpr auto kTick = std::chrono::milliseconds{5};
@@ -54,7 +55,7 @@ using Receiver = SafeStreamRecvAction<kCapacity>;
 using IndexType = RingIndex<kCapacity>;
 using IndexRangeType = RingIndexRange<IndexType>;
 
-class MockSendConfirmRepeat final : public ISendAckRepeat {
+class MockSendConfirmRepeat final : public ISafeStreamRecvActionDelegate {
  public:
   struct AckData {
     std::uint16_t index;
@@ -70,6 +71,12 @@ class MockSendConfirmRepeat final : public ISendAckRepeat {
     repeat_request_data = RepeatRequestData{index};
   }
 
+  void ReceiveData(DataBuffer& data) override {
+    if (on_receive) {
+      on_receive(data);
+    }
+  }
+
   void Reset() {
     ack_data.reset();
     repeat_request_data.reset();
@@ -77,6 +84,7 @@ class MockSendConfirmRepeat final : public ISendAckRepeat {
 
   std::optional<AckData> ack_data;
   std::optional<RepeatRequestData> repeat_request_data;
+  std::function<void(DataBuffer&)> on_receive;
 };
 
 // Creative test data strings
@@ -124,8 +132,9 @@ void test_RecvActionCreateAndReceive() {
 
   // Track received data
   std::vector<DataBuffer> received_data;
-  auto recv_sub = receiver.receive_event().Subscribe(
-      [&](DataBuffer&& data) { received_data.push_back(std::move(data)); });
+  mock_sender.on_receive = [&](DataBuffer& data) {
+    received_data.push_back(std::move(data));
+  };
 
   auto message = CreateDataMessage(quantum_data, 0);
   receiver.PushData(begin_offset, message);
@@ -160,8 +169,9 @@ void test_RecvActionInOrderDataChain() {
   auto receiver = Receiver{ctx, mock_sender, config};
 
   std::vector<DataBuffer> received_data;
-  auto recv_sub = receiver.receive_event().Subscribe(
-      [&](DataBuffer&& data) { received_data.push_back(std::move(data)); });
+  mock_sender.on_receive = [&](DataBuffer& data) {
+    received_data.push_back(std::move(data));
+  };
 
   // Create data chunks using DataChunk structure
   auto message1 = CreateDataMessage(network_poetry, 0);
@@ -200,8 +210,9 @@ void test_RecvActionOutOfOrderDataChain() {
   auto receiver = Receiver{ctx, mock_sender, config};
 
   std::vector<DataBuffer> received_data;
-  auto recv_sub = receiver.receive_event().Subscribe(
-      [&](DataBuffer&& data) { received_data.push_back(std::move(data)); });
+  mock_sender.on_receive = [&](DataBuffer& data) {
+    received_data.push_back(std::move(data));
+  };
 
   // Create data chunks using DataChunk structure
   auto message1 = CreateDataMessage(protocol_haiku, 0);
@@ -251,8 +262,9 @@ void test_RecvActionSendConfirmOnTimeout() {
   auto receiver = Receiver{ctx, mock_sender, config};
 
   std::vector<DataBuffer> received_data;
-  auto recv_sub = receiver.receive_event().Subscribe(
-      [&](DataBuffer&& data) { received_data.push_back(std::move(data)); });
+  mock_sender.on_receive = [&](DataBuffer& data) {
+    received_data.push_back(std::move(data));
+  };
 
   // Send some data using DataChunk
   auto message = CreateDataMessage(network_poetry, 0);
@@ -286,8 +298,9 @@ void test_RecvActionRequestRepeatOnMissing() {
   auto receiver = Receiver{ctx, mock_sender, config};
 
   std::vector<DataBuffer> received_data;
-  auto recv_sub = receiver.receive_event().Subscribe(
-      [&](DataBuffer&& data) { received_data.push_back(std::move(data)); });
+  mock_sender.on_receive = [&](DataBuffer& data) {
+    received_data.push_back(std::move(data));
+  };
 
   // Create chunks with a gap
   auto message1 = CreateDataMessage(dev_wisdom, 0);
@@ -328,8 +341,9 @@ void test_RecvActionRepeatDataHandling() {
   auto receiver = Receiver{ctx, mock_sender, config};
 
   std::vector<DataBuffer> received_data;
-  auto recv_sub = receiver.receive_event().Subscribe(
-      [&](DataBuffer&& data) { received_data.push_back(std::move(data)); });
+  mock_sender.on_receive = [&](DataBuffer& data) {
+    received_data.push_back(std::move(data));
+  };
 
   auto message = CreateDataMessage(protocol_haiku, 0);
 
@@ -368,8 +382,9 @@ void test_RecvActionDuplicateDataHandling() {
   auto receiver = Receiver{ctx, mock_sender, config};
 
   std::vector<DataBuffer> received_data;
-  auto recv_sub = receiver.receive_event().Subscribe(
-      [&](DataBuffer&& data) { received_data.push_back(std::move(data)); });
+  mock_sender.on_receive = [&](DataBuffer& data) {
+    received_data.push_back(std::move(data));
+  };
 
   auto message = CreateDataMessage(protocol_haiku, 0);
 
@@ -399,8 +414,9 @@ void test_RecvActionRepeatOverlappingDataHandling() {
   auto receiver = Receiver{ctx, mock_sender, config};
 
   std::vector<DataBuffer> received_data;
-  auto recv_sub = receiver.receive_event().Subscribe(
-      [&](DataBuffer&& data) { received_data.push_back(std::move(data)); });
+  mock_sender.on_receive = [&](DataBuffer& data) {
+    received_data.push_back(std::move(data));
+  };
 
   // two messages: part of bug_report and full bug_report
   auto message1 = DataMessage{
@@ -440,8 +456,9 @@ void test_RecvActionInOrderCombinedDataChain() {
   auto receiver = Receiver{ctx, mock_sender, config};
 
   std::vector<DataBuffer> received_data;
-  auto recv_sub = receiver.receive_event().Subscribe(
-      [&](DataBuffer&& data) { received_data.push_back(std::move(data)); });
+  mock_sender.on_receive = [&](DataBuffer& data) {
+    received_data.push_back(std::move(data));
+  };
 
   // Create multiple small contiguous chunks that should be combined
   auto message1 = CreateDataMessage("Part1:", 0);
@@ -480,8 +497,9 @@ void test_RecvActionWindowSizeLimit() {
   auto receiver = Receiver{ctx, mock_sender, config};
 
   std::vector<DataBuffer> received_data;
-  auto recv_sub = receiver.receive_event().Subscribe(
-      [&](DataBuffer&& data) { received_data.push_back(std::move(data)); });
+  mock_sender.on_receive = [&](DataBuffer& data) {
+    received_data.push_back(std::move(data));
+  };
 
   // Send first chunk
   auto message1 = CreateDataMessage("First chunk: ", 0);

@@ -18,12 +18,12 @@
 
 #include <map>
 
-#include "aether/common.h"
-#include "aether/ae_context.h"
 #include "aether/actions/action.h"
-#include "aether/cloud_connections/request_policy.h"
+#include "aether/ae_context.h"
 #include "aether/cloud_connections/cloud_callbacks.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
+#include "aether/cloud_connections/request_policy.h"
+#include "aether/common.h"
 
 namespace ae {
 /**
@@ -67,7 +67,7 @@ class CloudRequest final : public Action {
   void Succeeded();
   void Failed();
 
-  ResultEvent::Subscriber result_event();
+  ResultEvent const& result_event();
 
  private:
   void MakeRequest();

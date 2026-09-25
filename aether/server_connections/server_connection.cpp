@@ -19,6 +19,8 @@
 #include <algorithm>
 #include <cassert>
 
+#include "aether-miscpp/types/method_ptr.h"
+
 #include "aether/aether.h"
 #include "aether/channels/channel.h"
 #include "aether/server.h"
@@ -32,7 +34,11 @@ ServerConnection::ServerConnection(AeContext const& ae_context,
     : ae_context_{ae_context},
       server_{server},
       full_connected_{false},
-      top_channel_{nullptr} {
+      top_channel_{nullptr},
+      out_data_event_{ae_context_},
+      stream_update_event_{ae_context_},
+      server_error_{ae_context_},
+      channel_changed_{ae_context_} {
   InitChannels();
   SelectChannel();
 }
@@ -47,15 +53,15 @@ WriteAction& ServerConnection::Write(DataBuffer&& in_data) {
   return stream_->Write(std::move(in_data));
 }
 
-ServerConnection::StreamUpdateEvent::Subscriber
+ServerConnection::StreamUpdateEvent const&
 ServerConnection::stream_update_event() {
-  return EventSubscriber{stream_update_event_};
+  return stream_update_event_;
 }
 
 StreamInfo ServerConnection::stream_info() const { return stream_info_; }
 
-ServerConnection::OutDataEvent::Subscriber ServerConnection::out_data_event() {
-  return EventSubscriber{out_data_event_};
+ServerConnection::OutDataEvent const& ServerConnection::out_data_event() {
+  return out_data_event_;
 }
 
 void ServerConnection::Restream() {
@@ -63,14 +69,14 @@ void ServerConnection::Restream() {
   ChannelError();
 }
 
-ServerConnection::ServerErrorEvent::Subscriber
+ServerConnection::ServerErrorEvent const&
 ServerConnection::server_error_event() {
-  return EventSubscriber{server_error_};
+  return server_error_;
 }
 
-ServerConnection::ChannelChangedEvent::Subscriber
+ServerConnection::ChannelChangedEvent const&
 ServerConnection::channel_changed_event() {
-  return EventSubscriber{channel_changed_};
+  return channel_changed_;
 }
 
 Ptr<Channel> ServerConnection::current_channel() const {
@@ -149,16 +155,17 @@ void ServerConnection::SelectChannel() {
   stream_update_event_.Emit();
 
   channel_select_action_.emplace(ae_context_, *top);
-  channel_select_action_->result_event().Subscribe([this](auto&& res) noexcept {
-    if (res) {
-      ChannelUpdated(channel_select_action_->attempted_channel(),
-                     std::forward<decltype(res)>(res).value());
-    } else {
-      // Mark the channel that was actually being built. top_channel_ is only
-      // set after a successful build and must not be used here.
-      ChannelBuildFailed(channel_select_action_->attempted_channel());
-    }
-  });
+  channel_select_action_->result_event().Subscribe(
+      [this](ChannelSelectAction::ResultType& res) noexcept {
+        if (res) {
+          ChannelUpdated(channel_select_action_->attempted_channel(),
+                         std::move(res).value());
+        } else {
+          // Mark the channel that was actually being built. top_channel_ is
+          // only set after a successful build and must not be used here.
+          ChannelBuildFailed(channel_select_action_->attempted_channel());
+        }
+      });
   // Subscribe before Start so a synchronous TransportBuilder result is not
   // lost.
   channel_select_action_->Start();

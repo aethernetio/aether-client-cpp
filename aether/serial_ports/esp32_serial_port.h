@@ -60,7 +60,7 @@ class Esp32SerialPort : public ISerialPort {
 
   void Write(DataBuffer const& data) override;
 
-  DataReadEvent::Subscriber read_event() override;
+  DataReadEvent const& read_event() override;
 
   bool IsOpen() override;
 

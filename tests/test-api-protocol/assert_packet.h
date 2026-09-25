@@ -23,9 +23,10 @@
 #include <vector>
 
 #include "aether-miscpp/serialization/binary_archive.h"
+#include "aether-miscpp/serialization/serialization.h"
 
-#include "aether/api_protocol/api_message.h"
 #include "aether/types/packed_size.h"  // IWYU pragma: export
+#include "aether/vector_buffer.h"
 
 #if defined(__clang__) || defined(__GNUC__)
 #  define FUNCTION_NAME __PRETTY_FUNCTION__

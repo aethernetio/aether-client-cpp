@@ -24,7 +24,8 @@ MessageSender::MessageSender(AeContext const& ae_context, SendProc send_proc,
                              std::size_t send_count)
     : ae_context_{ae_context},
       send_proc_{std::move(send_proc)},
-      send_count_{send_count} {
+      send_count_{send_count},
+      result_event_{ae_context_} {
   AE_TELED_INFO("MessageSender created");
   send_sub_ = ae_context_.scheduler().Task([this]() {
     first_send_time_ = HighResTimePoint::clock::now();
@@ -32,8 +33,8 @@ MessageSender::MessageSender(AeContext const& ae_context, SendProc send_proc,
   });
 }
 
-MessageSender::ResultEvent::Subscriber MessageSender::result_event() {
-  return EventSubscriber{result_event_};
+MessageSender::ResultEvent const& MessageSender::result_event() {
+  return result_event_;
 }
 
 void MessageSender::Stop() {

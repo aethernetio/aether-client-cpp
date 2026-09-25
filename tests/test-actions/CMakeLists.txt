@@ -14,13 +14,6 @@
 
 cmake_minimum_required( VERSION 3.18 )
 
-list(APPEND action_srcs
-  ${ROOT_DIR}/aether/events/event_list.cpp
-  ${ROOT_DIR}/aether/events/event_deleter.cpp
-  ${ROOT_DIR}/aether/events/event_subscription.cpp
-  ${ROOT_DIR}/aether/events/multi_subscription.cpp
-)
-
 list(APPEND test_srcs
   main.cpp
   test-actions-queue.cpp
@@ -31,7 +24,7 @@ if(NOT CM_PLATFORM)
   project(test-actions LANGUAGES CXX)
 
   add_executable(${PROJECT_NAME})
-  target_sources(${PROJECT_NAME} PRIVATE ${action_srcs} ${test_srcs})
+  target_sources(${PROJECT_NAME} PRIVATE ${test_srcs})
   # for aether
   target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
   target_link_libraries(${PROJECT_NAME} PRIVATE unity etl aether::miscpp)

@@ -21,10 +21,12 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 
 #include "aether-objects/obj/obj.h"
 
 #include "aether/clock.h"
+#include "aether/common.h"
 #include "aether/config.h"
 #include "aether/events/events.h"
 
@@ -111,11 +113,6 @@ class ClientConnectivityPolicy : public Obj {
   AE_CLASS_NO_COPY_MOVE(ClientConnectivityPolicy);
 
   AE_OBJECT_REFLECT(AE_MMBRS(rx_targets_, rx_timings_))
-  template <typename Dnv>
-  void Load(CurrentVersion, Dnv& dnv) {
-    dnv(base_, rx_targets_, rx_timings_);
-    ResetRuntimeState();
-  }
 
   RxTimingConfig ConfigureRxTimings(
       RequestPolicy::Variant targets = RequestPolicy::All{});
@@ -127,8 +124,8 @@ class ClientConnectivityPolicy : public Obj {
       const noexcept {
     return rx_timings_;
   }
-  Event<void()>::Subscriber suspend_allowed_event() noexcept {
-    return EventSubscriber{suspend_allowed_event_};
+  Event<void()> const& suspend_allowed_event() noexcept {
+    return *suspend_allowed_event_;
   }
 
   ConnectivityStatus GetStatus() const noexcept;
@@ -138,6 +135,7 @@ class ClientConnectivityPolicy : public Obj {
   void ReportNextServiceTime(std::size_t priority, TimePoint next_service_time);
 
  private:
+  void Loaded();
   void ResetRuntimeState();
   void IncrementSuspendBlock();
   void DecrementSuspendBlock();
@@ -148,7 +146,7 @@ class ClientConnectivityPolicy : public Obj {
   bool can_suspend_{true};
   std::uint8_t suspend_block_count_{};
 
-  Event<void()> suspend_allowed_event_;
+  std::optional<Event<void()>> suspend_allowed_event_;
 };
 
 }  // namespace ae

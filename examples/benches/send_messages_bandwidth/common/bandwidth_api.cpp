@@ -17,44 +17,39 @@
 #include "send_messages_bandwidth/common/bandwidth_api.h"
 
 namespace ae::bench {
-BandwidthApi::BandwidthApi(ProtocolContext& protocol_context)
-    : ApiClassImpl{protocol_context},
-      handshake{protocol_context},
-      start_test{protocol_context},
-      stop_test{protocol_context},
-      message{protocol_context},
-      return_result{protocol_context} {}
-
-void BandwidthApi::HandshakeImpl(PromiseResult<bool> res) {
-  handshake_event_.Emit(res.request_id);
+ApiPromise<bool> BandwidthApi::Handshake() {
+  return ClientMethod<&BandwidthApi::Handshake>();
+}
+ApiPromise<bool> BandwidthApi::StartTest() {
+  return ClientMethod<&BandwidthApi::StartTest>();
+}
+ApiPromise<bool> BandwidthApi::StopTest() {
+  return ClientMethod<&BandwidthApi::StopTest>();
+}
+void BandwidthApi::Message(std::uint16_t id, PayloadData const& data) {
+  ClientMethod<&BandwidthApi::Message>(id, data);
 }
 
-void BandwidthApi::StartTestImpl(PromiseResult<bool> res) {
-  start_test_event_.Emit(res.request_id);
+BandwidthApiServer::BandwidthApiServer(EventSystem& es)
+    : handshake_event{es},
+      start_test_event{es},
+      stop_test_event{es},
+      message_event{es} {}
+
+ApiPromise<bool> BandwidthApiServer::Handshake() {
+  handshake_event.Emit(server_context().request_id());
+  return {};
+}
+ApiPromise<bool> BandwidthApiServer::StartTest() {
+  start_test_event.Emit(server_context().request_id());
+  return {};
+}
+ApiPromise<bool> BandwidthApiServer::StopTest() {
+  stop_test_event.Emit(server_context().request_id());
+  return {};
+}
+void BandwidthApiServer::Message(std::uint16_t id, PayloadData const& data) {
+  message_event.Emit(id, data);
 }
 
-void BandwidthApi::StopTestImpl(PromiseResult<bool> res) {
-  stop_test_event_.Emit(res.request_id);
-}
-
-void BandwidthApi::MessageImpl(std::uint16_t id, PayloadData data) {
-  message_event_.Emit(id, std::move(data));
-}
-
-EventSubscriber<void(RequestId req_id)> BandwidthApi::handshake_event() {
-  return EventSubscriber{handshake_event_};
-}
-
-EventSubscriber<void(RequestId req_id)> BandwidthApi::start_test_event() {
-  return EventSubscriber{start_test_event_};
-}
-
-EventSubscriber<void(RequestId req_id)> BandwidthApi::stop_test_event() {
-  return EventSubscriber{stop_test_event_};
-}
-
-EventSubscriber<void(std::uint16_t id, BandwidthApi::PayloadData&& data)>
-BandwidthApi::message_event() {
-  return EventSubscriber{message_event_};
-}
 }  // namespace ae::bench

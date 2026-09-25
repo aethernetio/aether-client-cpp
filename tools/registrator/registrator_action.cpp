@@ -17,22 +17,26 @@
 #include "registrator/registrator_action.h"
 
 #include "aether/registration/registration.h"
+#include "aether/tele.h"
 
 namespace ae::reg {
 RegistratorAction::RegistratorAction(
     ae::AeContext const& ae_context, ae::AetherApp& aether_app,
     std::vector<reg::ClientConfig> const& client_configs)
-    : ae_context_{ae_context} {
+    : Action{ae_context},
+      ae_context_{ae_context},
+      registered_event_{ae_context_},
+      failed_event_{ae_context_} {
   AE_TELED_INFO("RegistratorAction");
   RegisterClients(aether_app.aether(), client_configs);
 }
 
-RegistratorAction::RegisteredEvent::Subscriber
+RegistratorAction::RegisteredEvent const&
 RegistratorAction::registered_event() {
-  return EventSubscriber{registered_event_};
+  return registered_event_;
 }
-RegistratorAction::FailedEvent::Subscriber RegistratorAction::failed_event() {
-  return EventSubscriber{failed_event_};
+RegistratorAction::FailedEvent const& RegistratorAction::failed_event() {
+  return failed_event_;
 }
 
 /**

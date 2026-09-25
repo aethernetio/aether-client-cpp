@@ -21,19 +21,23 @@
 namespace ae::upd_internal {
 
 UdpBase::UdpBase(AeContext const& ae_context, AddressPort endpoint)
-    : ae_context_{ae_context}, endpoint_{std::move(endpoint)}, stream_info_{} {
+    : ae_context_{ae_context},
+      endpoint_{std::move(endpoint)},
+      stream_info_{},
+      out_data_event_{ae_context_},
+      stream_update_event_{ae_context_} {
   AE_TELE_INFO(kUdpTransport);
   stream_info_.link_state = LinkState::kUnlinked;
   stream_info_.is_reliable = false;
   stream_info_.max_element_size = std::numeric_limits<std::uint32_t>::max();
 }
 
-UdpBase::StreamUpdateEvent::Subscriber UdpBase::stream_update_event() {
-  return EventSubscriber{stream_update_event_};
+UdpBase::StreamUpdateEvent const& UdpBase::stream_update_event() {
+  return stream_update_event_;
 }
 StreamInfo UdpBase::stream_info() const { return stream_info_; }
-UdpBase::OutDataEvent::Subscriber UdpBase::out_data_event() {
-  return EventSubscriber{out_data_event_};
+UdpBase::OutDataEvent const& UdpBase::out_data_event() {
+  return out_data_event_;
 }
 void UdpBase::Restream() {
   AE_TELED_DEBUG("UDP restream");

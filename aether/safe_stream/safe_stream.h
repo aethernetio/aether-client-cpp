@@ -35,16 +35,16 @@
 namespace ae {
 template <std::size_t Capacity>
 class SafeStream final : public ByteStream,  // NOLINT
-                         public SafeStreamApi,
-                         public ISendDataPush,
-                         public ISendAckRepeat {
+                         public ISafeStreamSendActionDelegate<Capacity>,
+                         public ISafeStreamRecvActionDelegate {
   using IndexType = RingIndex<Capacity>;
   using IndexRangeType = RingIndexRange<IndexType>;
 
   class SSWriteAction final : public WriteAction {
    public:
-    explicit SSWriteAction(IndexRangeType index_range, SafeStream& stream)
-        : stream_{&stream}, index_range_{index_range} {}
+    explicit SSWriteAction(EventContext auto const& context,
+                           IndexRangeType index_range, SafeStream& stream)
+        : WriteAction{context}, stream_{&stream}, index_range_{index_range} {}
 
     // TODO: add tests for stop
     void Stop() noexcept override { stream_->StopWrite(index_range_); }
@@ -58,25 +58,73 @@ class SafeStream final : public ByteStream,  // NOLINT
     IndexRangeType index_range_;
   };
 
+  class SafeStreamApiServer : public ISafeStreamApi {
+   public:
+    explicit SafeStreamApiServer(SafeStream& self) : self_{&self} {}
+    // Api impl methods
+    void Ack(std::uint16_t index) override {
+      self_->sender_.Acknowledge(index);
+    }
+    void RequestRepeat(std::uint16_t index) override {
+      self_->sender_.RequestRepeat(index);
+    }
+    void SendReset(std::uint16_t begin_offset, std::uint16_t delta_offset,
+                   std::uint8_t repeat_count, DataBuffer data) override {
+      self_->receiver_.PushData(begin_offset,
+                                DataMessage{.reset = true,
+                                            .repeat_count = repeat_count,
+                                            .delta_offset = delta_offset,
+                                            .data = std::move(data)});
+    }
+    void Send(std::uint16_t begin_offset, std::uint16_t delta_offset,
+              std::uint8_t repeat_count, DataBuffer data) override {
+      self_->receiver_.PushData(begin_offset,
+                                DataMessage{.reset = false,
+                                            .repeat_count = repeat_count,
+                                            .delta_offset = delta_offset,
+                                            .data = std::move(data)});
+    }
+
+   private:
+    SafeStream* self_;
+  };
+
+  class SafeStreamApiClient : public ISafeStreamApi {
+   public:
+    // Api impl methods
+    void Ack(std::uint16_t index) override {
+      ClientMethod<&ISafeStreamApi::Ack>(index);
+    }
+    void RequestRepeat(std::uint16_t index) override {
+      ClientMethod<&ISafeStreamApi::RequestRepeat>(index);
+    }
+    void SendReset(std::uint16_t begin_offset, std::uint16_t delta_offset,
+                   std::uint8_t repeat_count, DataBuffer data) override {
+      ClientMethod<&ISafeStreamApi::SendReset>(begin_offset, delta_offset,
+                                               repeat_count, data);
+    }
+    void Send(std::uint16_t begin_offset, std::uint16_t delta_offset,
+              std::uint8_t repeat_count, DataBuffer data) override {
+      ClientMethod<&ISafeStreamApi::Send>(begin_offset, delta_offset,
+                                          repeat_count, data);
+    }
+  };
+
  public:
   using SafeStreamSender = SafeStreamSendAction<Capacity>;
   using SafeStreamReceiver = SafeStreamRecvAction<Capacity>;
 
   SafeStream(AeContext const& ae_context, SafeStreamConfig config)
-      : SafeStreamApi{protocol_context_},
+      : ByteStream{ae_context},
         ae_context_{ae_context},
         config_{config},
+        protocol_context_(ae_context_),
+        api_server_{*this},
+        api_client_{},
         sender_{ae_context_, *this, config_},
         receiver_{ae_context_, *this, config_},
         stream_info_{config_.max_packet_size, config_.max_packet_size, false,
-                     LinkState::kUnlinked, false} {
-    sender_.acknowledged_event().Subscribe(
-        MethodPtr<&SafeStream::WriteAcknowledged>{this});
-    sender_.send_failed_event().Subscribe(
-        MethodPtr<&SafeStream::WriteFailed>{this});
-
-    receiver_.receive_event().Subscribe(MethodPtr<&SafeStream::WriteOut>{this});
-  }
+                     LinkState::kUnlinked, false} {}
 
   AE_CLASS_NO_COPY_MOVE(SafeStream);
 
@@ -89,9 +137,9 @@ class SafeStream final : public ByteStream,  // NOLINT
       return *failed_write_;
     }
     // TODO: make without allocation
-    auto& ref = sswas_.emplace_back(
-        std::make_pair(res.value().right,
-                       std::make_unique<SSWriteAction>(res.value(), *this)));
+    auto& ref = sswas_.emplace_back(std::make_pair(
+        res.value().right,
+        std::make_unique<SSWriteAction>(ae_context_, res.value(), *this)));
     return *ref.second;
   }
 
@@ -107,38 +155,18 @@ class SafeStream final : public ByteStream,  // NOLINT
     OnStreamUpdate();
   }
 
-  // Api impl methods
-  void AckImpl(std::uint16_t index) override { sender_.Acknowledge(index); }
-  void RequestRepeatImpl(std::uint16_t index) override {
-    sender_.RequestRepeat(index);
-  }
-  void SendResetImpl(std::uint16_t begin_offset, std::uint16_t delta_offset,
-                     std::uint8_t repeat_count, DataBuffer data) override {
-    receiver_.PushData(begin_offset, DataMessage{.reset = true,
-                                                 .repeat_count = repeat_count,
-                                                 .delta_offset = delta_offset,
-                                                 .data = std::move(data)});
-  }
-  void SendImpl(std::uint16_t begin_offset, std::uint16_t delta_offset,
-                std::uint8_t repeat_count, DataBuffer data) override {
-    receiver_.PushData(begin_offset, DataMessage{.reset = false,
-                                                 .repeat_count = repeat_count,
-                                                 .delta_offset = delta_offset,
-                                                 .data = std::move(data)});
-  }
-
-  // Implement ISendDataPush
+  // Implement ISafeStreamSendActionDelegate
   WriteAction& PushData(
       std::uint16_t begin_offset,
       DataMessage&& data_message) override {  // NOLINT (*param-not-moved)
     assert(out_);
-    auto api_adapter = ApiCallAdapter{ApiContext{*this}, *out_};
+    auto api_adapter = ApiCallAdapter{api_client_, *out_};
     if (data_message.reset) {
-      api_adapter->send_reset(begin_offset, data_message.delta_offset,
-                              data_message.repeat_count,
-                              std::move(data_message.data));
+      api_adapter->SendReset(begin_offset, data_message.delta_offset,
+                             data_message.repeat_count,
+                             std::move(data_message.data));
     } else {
-      api_adapter->send(begin_offset, data_message.delta_offset,
+      api_adapter->Send(begin_offset, data_message.delta_offset,
                         data_message.repeat_count,
                         std::move(data_message.data));
     }
@@ -148,20 +176,22 @@ class SafeStream final : public ByteStream,  // NOLINT
     return api_adapter.Flush();
   }
 
-  // Implement ISendConfirmRepeat
+  // Implement ISafeStreamRecvActionDelegate
   void SendAck(std::uint16_t index) override {
     assert(out_);
-    auto api_adapter = ApiCallAdapter{ApiContext{*this}, *out_};
-    api_adapter->ack(index);
+    auto api_adapter = ApiCallAdapter{api_client_, *out_};
+    api_adapter->Ack(index);
     api_adapter.Flush();
   }
 
   void SendRepeatRequest(std::uint16_t index) override {
     assert(out_);
-    auto api_adapter = ApiCallAdapter{ApiContext{*this}, *out_};
-    api_adapter->request_repeat(index);
+    auto api_adapter = ApiCallAdapter{api_client_, *out_};
+    api_adapter->RequestRepeat(index);
     api_adapter.Flush();
   }
+
+  void ReceiveData(DataBuffer& data) override { WriteOut(data); }
 
   void StopWrite(IndexRangeType index_range) { sender_.Stop(index_range); }
 
@@ -190,10 +220,10 @@ class SafeStream final : public ByteStream,  // NOLINT
   void OnOutData(DataBuffer const& data) {
     AE_TELED_DEBUG("Received data {}", data);
     auto api_parser = ApiParser{protocol_context_, data};
-    api_parser.Parse(*this);
+    api_parser.Parse(api_server_);
   }
 
-  void WriteAcknowledged(IndexType buffer_begin, IndexType ack_index) {
+  void WriteAcknowledged(IndexType buffer_begin, IndexType ack_index) override {
     for (auto& [index, sswa] : sswas_) {
       if (IndexComparable{index, buffer_begin} <= ack_index) {
         sswa->Acknowledge();
@@ -203,7 +233,7 @@ class SafeStream final : public ByteStream,  // NOLINT
                   [](auto const& e) { return e.second->is_finished(); });
   }
 
-  void WriteStopped(IndexType buffer_begin, IndexType stop_index) {
+  void WriteStopped(IndexType buffer_begin, IndexType stop_index) override {
     for (auto& [index, sswa] : sswas_) {
       if (IndexComparable{index, buffer_begin} <= stop_index) {
         sswa->Stopped();
@@ -213,7 +243,7 @@ class SafeStream final : public ByteStream,  // NOLINT
                   [](auto const& e) { return e.second->is_finished(); });
   }
 
-  void WriteFailed(IndexType buffer_begin, IndexType failed_index) {
+  void WriteFailed(IndexType buffer_begin, IndexType failed_index) override {
     for (auto& [index, sswa] : sswas_) {
       if (IndexComparable{index, buffer_begin} <= failed_index) {
         sswa->Rejected();
@@ -226,6 +256,8 @@ class SafeStream final : public ByteStream,  // NOLINT
   AeContext ae_context_;
   SafeStreamConfig config_;
   ProtocolContext protocol_context_;
+  SafeStreamApiServer api_server_;
+  SafeStreamApiClient api_client_;
   SafeStreamSender sender_;
   SafeStreamReceiver receiver_;
 

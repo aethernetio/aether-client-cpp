@@ -18,26 +18,23 @@
 
 #if AE_SUPPORT_REGISTRATION
 namespace ae {
-ClientRegRootApi::ClientRegRootApi(ProtocolContext& protocol_context,
-                                   IDecryptProvider& root_decrypt_provider,
+ClientRegRootApi::ClientRegRootApi(IDecryptProvider& root_decrypt_provider,
                                    IDecryptProvider& global_decrypt_provider)
-    : ApiClassImpl{protocol_context},
-      return_result{protocol_context},
-      root_decrypt_provider_{&root_decrypt_provider},
-      global_decrypt_provider_{&global_decrypt_provider},
-      client_reg_api_{protocol_context},
-      global_reg_client_api_{protocol_context} {}
+    : root_decrypt_provider_{&root_decrypt_provider},
+      global_decrypt_provider_{&global_decrypt_provider} {}
 
-void ClientRegRootApi::Enter(SubApiImpl<ClientRegApiSafe> sub_api) {
-  sub_api.Parse(client_reg_api_, [this](auto const& data) {
-    return root_decrypt_provider_->Decrypt(data);
-  });
+void ClientRegRootApi::Enter(SubApi<ClientRegApiSafe> sub_api) {
+  auto unsafe_data =
+      root_decrypt_provider_->Decrypt(std::move(sub_api).buffer());
+  auto parser = ApiParser{server_context().protocol_context(), unsafe_data};
+  parser.Parse(client_reg_api_);
 }
 
-void ClientRegRootApi::EnterGlobal(SubApiImpl<GlobalRegClientApi> sub_api) {
-  sub_api.Parse(global_reg_client_api_, [this](auto const& data) {
-    return global_decrypt_provider_->Decrypt(data);
-  });
+void ClientRegRootApi::EnterGlobal(SubApi<GlobalRegClientApi> sub_api) {
+  auto unsafe_data =
+      global_decrypt_provider_->Decrypt(std::move(sub_api).buffer());
+  auto parser = ApiParser{server_context().protocol_context(), unsafe_data};
+  parser.Parse(global_reg_client_api_);
 }
 
 }  // namespace ae

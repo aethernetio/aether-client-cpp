@@ -17,52 +17,45 @@
 #ifndef EXAMPLES_BENCHES_SEND_MESSAGES_BANDWIDTH_COMMON_BANDWIDTH_API_H_
 #define EXAMPLES_BENCHES_SEND_MESSAGES_BANDWIDTH_COMMON_BANDWIDTH_API_H_
 
+#include "aether/api_protocol/api_protocol.h"
 #include "aether/events/events.h"
 #include "aether/types/data_buffer.h"
-#include "aether/api_protocol/api_method.h"
-#include "aether/api_protocol/api_class_impl.h"
-#include "aether/api_protocol/return_result_api.h"
 
 namespace ae::bench {
-class BandwidthApi : public ApiClassImpl<BandwidthApi> {
+class BandwidthApi : public DeclareApi<BandwidthApi> {
  public:
   using PayloadData = DataBuffer;
 
-  explicit BandwidthApi(ProtocolContext& protocol_context);
+  virtual ~BandwidthApi() = default;
 
   // sender sends handshake until receiver doesn't answers true
-  Method<0x03, ApiPromise<bool>()> handshake;
+  virtual ApiPromise<bool> Handshake();
   // sender sends start or stop test and wait for receiver's response true to
   // continue/stop tests
-  Method<0x04, ApiPromise<bool>()> start_test;
-  Method<0x05, ApiPromise<bool>()> stop_test;
+  virtual ApiPromise<bool> StartTest();
+  virtual ApiPromise<bool> StopTest();
 
-  Method<0x06, void(std::uint16_t id, PayloadData data)> message;
+  virtual void Message(std::uint16_t id, PayloadData const& data);
 
-  void HandshakeImpl(PromiseResult<bool> res);
-  void StartTestImpl(PromiseResult<bool> res);
-  void StopTestImpl(PromiseResult<bool> res);
-  void MessageImpl(std::uint16_t id, PayloadData data);
-
-  ReturnResultApi return_result;
-
-  AE_METHODS(RegMethod<0x03, &BandwidthApi::HandshakeImpl>,
-             RegMethod<0x04, &BandwidthApi::StartTestImpl>,
-             RegMethod<0x05, &BandwidthApi::StopTestImpl>,
-             RegMethod<0x06, &BandwidthApi::MessageImpl>,
-             ExtApi<&BandwidthApi::return_result>);
-
-  EventSubscriber<void(RequestId req_id)> handshake_event();
-  EventSubscriber<void(RequestId req_id)> start_test_event();
-  EventSubscriber<void(RequestId req_id)> stop_test_event();
-  EventSubscriber<void(std::uint16_t id, PayloadData&& data)> message_event();
-
- private:
-  Event<void(RequestId req_id)> handshake_event_;
-  Event<void(RequestId req_id)> start_test_event_;
-  Event<void(RequestId req_id)> stop_test_event_;
-  Event<void(std::uint16_t id, PayloadData&& data)> message_event_;
+  API_LIST(METHOD(0x03, Handshake), METHOD(0x04, StartTest),
+           METHOD(0x05, StopTest), METHOD(0x06, Message))
 };
+
+class BandwidthApiServer : public BandwidthApi {
+ public:
+  explicit BandwidthApiServer(EventSystem& es);
+
+  ApiPromise<bool> Handshake() override;
+  ApiPromise<bool> StartTest() override;
+  ApiPromise<bool> StopTest() override;
+  void Message(std::uint16_t id, PayloadData const& data) override;
+
+  Event<void(RequestId req_id)> handshake_event;
+  Event<void(RequestId req_id)> start_test_event;
+  Event<void(RequestId req_id)> stop_test_event;
+  Event<void(std::uint16_t id, PayloadData const& data)> message_event;
+};
+
 }  // namespace ae::bench
 
 #endif  // EXAMPLES_BENCHES_SEND_MESSAGES_BANDWIDTH_COMMON_BANDWIDTH_API_H_

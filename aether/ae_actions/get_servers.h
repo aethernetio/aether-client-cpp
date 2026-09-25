@@ -19,12 +19,12 @@
 
 #include <vector>
 
-#include "aether/ae_context.h"
 #include "aether-miscpp/types/result.h"
+#include "aether/actions/action.h"
+#include "aether/ae_context.h"
 #include "aether/events/events.h"
 #include "aether/types/server_id.h"
-#include "aether/actions/action.h"
-#include "aether/events/multi_subscription.h"
+
 #include "aether/cloud_connections/cloud_request.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
 
@@ -39,7 +39,7 @@ class GetServersAction : public Action {
                    CloudServerConnections& cloud_connection,
                    RequestPolicy::Variant request_policy);
 
-  ResultEvent::Subscriber result_event();
+  ResultEvent const& result_event() const;
 
  private:
   void GetResponse(ServerDescriptor const& server_descriptor,

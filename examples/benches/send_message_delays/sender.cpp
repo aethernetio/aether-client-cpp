@@ -18,7 +18,7 @@
 
 #include <utility>
 
-#include "aether/api_protocol/api_context.h"
+#include "aether/api_protocol/api_protocol.h"
 #include "aether/client_messages/p2p_message_stream.h"
 #include "aether/client_messages/p2p_safe_message_stream.h"
 #include "aether/stream_api/api_call_adapter.h"
@@ -35,7 +35,8 @@ Sender::Sender(AeContext const& ae_context, Client::ptr client,
       destination_uid_{destination_uid},
       safe_stream_config_{safe_stream_config},
       connected_stream_{},
-      bench_delays_api_{protocol_context_} {}
+      protocol_context_{ae_context_},
+      bench_delays_api_{} {}
 
 void Sender::ConnectP2pStream() {
   AE_TELED_DEBUG("Sender::ConnectP2pStream()");
@@ -63,25 +64,25 @@ void Sender::Disconnect() {
 }
 
 TimedSender& Sender::WarmUp() {
-  return CreateBenchAction([](auto& api, auto id) { api->warm_up(id, {}); });
+  return CreateBenchAction([](auto& api, auto id) { api->WarmUp(id, {}); });
 }
 
 TimedSender& Sender::Send2Bytes() {
-  return CreateBenchAction([](auto& api, auto id) { api->two_bytes(id); });
+  return CreateBenchAction([](auto& api, auto id) { api->TwoBytes(id); });
 }
 
 TimedSender& Sender::Send10Bytes() {
-  return CreateBenchAction([](auto& api, auto id) { api->ten_bytes(id, {}); });
+  return CreateBenchAction([](auto& api, auto id) { api->TenBytes(id, {}); });
 }
 
 TimedSender& Sender::Send100Bytes() {
   return CreateBenchAction(
-      [](auto& api, auto id) { api->hundred_bytes(id, {}); });
+      [](auto& api, auto id) { api->HundredBytes(id, {}); });
 }
 
 TimedSender& Sender::Send1000Bytes() {
   return CreateBenchAction(
-      [](auto& api, auto id) { api->thousand_bytes(id, {}); });
+      [](auto& api, auto id) { api->ThousandBytes(id, {}); });
 }
 
 template <typename Func>
@@ -89,7 +90,7 @@ TimedSender& Sender::CreateBenchAction(Func&& func) {
   sender_action_ = std::make_unique<TimedSender>(
       ae_context_, [&, f{std::forward<Func>(func)}](std::uint16_t id) {
         auto api_context =
-            ApiCallAdapter{ApiContext{bench_delays_api_}, *connected_stream_};
+            ApiCallAdapter{bench_delays_api_, *connected_stream_};
         f(api_context, id);
         api_context.Flush();
       });

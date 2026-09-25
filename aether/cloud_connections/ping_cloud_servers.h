@@ -25,7 +25,6 @@
 #  include <optional>
 
 #  include "aether/ae_context.h"
-#  include "aether/events/event_subscription.h"
 #  include "aether/executors/executors.h"
 #  include "aether/tasks/manual_task_scheduler.h"
 #  include "aether/types/server_id.h"

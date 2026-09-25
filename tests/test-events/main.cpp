@@ -20,11 +20,16 @@ void setUp() {}
 void tearDown() {}
 
 extern int test_events();
-extern int test_events_mt();
+
+extern int test_event_key_registry();
+extern int test_event_handler_map();
+extern int test_event_system();
 
 int main() {
   auto res = 0;
   res += test_events();
-  res += test_events_mt();
+  res += test_event_key_registry();
+  res += test_event_handler_map();
+  res += test_event_system();
   return res;
 }

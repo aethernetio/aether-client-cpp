@@ -123,8 +123,8 @@ void Esp32SerialPort::Write(DataBuffer const& data) {
   }
 }
 
-Esp32SerialPort::DataReadEvent::Subscriber Esp32SerialPort::read_event() {
-  return EventSubscriber{read_event_};
+Esp32SerialPort::DataReadEvent const& Esp32SerialPort::read_event() {
+  return read_event_;
 }
 
 bool Esp32SerialPort::IsOpen() { return uart_num_ != UART_NUM_MAX; }
