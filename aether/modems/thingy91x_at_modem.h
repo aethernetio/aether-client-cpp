@@ -149,6 +149,7 @@ class Thingy91xAtModem final : public IModemDriver {
    * The driver selects and closes each socket before sending AT+CFUN=0.
    * @return The same driver-owned stop operation on repeated calls. It remains
    * available until driver destruction.
+   * The serial port is closed before completion, including on shutdown errors.
    * @note Stop is terminal for this instance. New start, open, write,
    * power-save, and power-off requests are rejected once stopping begins.
    */

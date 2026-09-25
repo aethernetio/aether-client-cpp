@@ -60,6 +60,7 @@ option(AE_FILTRATION "Build aether in filtration mode" Off)
 option(AE_INSTALL "Install aether" ${AE_ROOT_PORJECT})
 option(AE_BUILD_TOOLS "Build tools" ${AE_ROOT_PORJECT})
 option(AE_BUILD_EXAMPLES "Build examples" ${AE_ROOT_PORJECT})
+option(AE_BUILD_PREPARED_TEST_IOT "Build Windows prepared LTE IoT example" OFF)
 option(AE_BUILD_TESTS "Build tests" ${AE_ROOT_PORJECT})
 option(AE_BUILD_ANDROID_SMOKE "Build Android NDK smoke shared library and runner" Off)
 option(AE_ADDRESS_SANITIZE "Enable address sanitizer" Off)
@@ -229,7 +230,8 @@ if(ESP_PLATFORM)
     idf::esp_netif
     idf::nvs_flash
     idf::spiffs
-    idf::esp_driver_uart)
+    idf::esp_driver_uart
+    idf::esp_driver_gpio)
 
   # test if they exists
   foreach(c ${idf_components})
@@ -360,6 +362,10 @@ if(AE_BUILD_TESTS)
 
   target_link_libraries(${TARGET_NAME} PRIVATE inline_tests)
   add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/tests ${CMAKE_BINARY_DIR}/tests)
+endif()
+
+if(AE_BUILD_PREPARED_TEST_IOT)
+  add_subdirectory(examples/prepared_test_iot)
 endif()
 
 if(ANDROID AND AE_BUILD_ANDROID_SMOKE)

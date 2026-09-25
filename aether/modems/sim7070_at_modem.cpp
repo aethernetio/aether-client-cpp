@@ -24,6 +24,7 @@
 
 #  include <cassert>
 #  include <chrono>
+#  include <limits>
 #  include <string_view>
 #  include <utility>
 
@@ -34,6 +35,7 @@
 #  include "aether/serial_ports/at_support/at_stage.h"
 #  include "aether/serial_ports/serial_port_factory.h"
 
+#  include "aether/modems/esp32_modem_boot.h"
 #  include "aether/modems/modems_tele.h"
 
 namespace ae {
@@ -794,6 +796,9 @@ void ModemStopOperation::RunPipeline() {
            }) |
            ex::then([this]() noexcept {
              self_->started_ = false;
+             // Stop is terminal: release the port even if the object graph
+             // retains this driver, and also when deactivation failed.
+             self_->serial_->Close();
              if (failed_) {
                SetResult(Error{static_cast<ModemError>(-1)});
                return;
@@ -882,10 +887,20 @@ Sim7070AtModem::Sim7070AtModem(AeContext const& ae_context,
 
 void Sim7070AtModem::Init() {
   operation_queue_.Push(at::Stage(ae_context_, [this]() {
-    return at::MakeRequest(ex::just(), at_support_, "AT", kWaitOk) |
-           at::MakeRequest(at_support_, "ATE0", kWaitOk) |
-           at::MakeRequest(at_support_, "AT+CMEE=1", kWaitOk) |
-           ex::with_timeout(ae_context_, 1s) | ex::then([&]() noexcept {
+#  if defined(ESP_PLATFORM) && defined(AE_MODEM_PWR_GPIO) && \
+      defined(AE_MODEM_DTR_GPIO)
+    auto ready =
+        esp32_modem_boot_internal::EnsureReady(ae_context_, at_support_);
+#  else
+    auto ready = at::MakeRequest(ex::just(), at_support_, "AT", kWaitOk) |
+                 ex::with_timeout(ae_context_, 1s);
+#  endif
+    return std::move(ready) | ex::let_value([this]() noexcept {
+             return ex::just() | at::MakeRequest(at_support_, "ATE0", kWaitOk) |
+                    at::MakeRequest(at_support_, "AT+CMEE=1", kWaitOk) |
+                    ex::with_timeout(ae_context_, 1s);
+           }) |
+           ex::then([&]() noexcept {
              AE_TELED_INFO("Sim7070AtModem init success");
              initiated_ = true;
            }) |
@@ -896,6 +911,9 @@ void Sim7070AtModem::Init() {
                [](int error) {
                  AE_TELED_ERROR("Sim7070AtModem init failed, with error {}",
                                 error);
+               },
+               [](std::exception_ptr const&) noexcept {
+                 AE_TELED_ERROR("Sim7070AtModem init failed, with exception");
                },
            });
   }));
@@ -924,6 +942,7 @@ ModemOperation* Sim7070AtModem::Stop() {
     stopping_ = true;
     poll_listener_.reset();
     buffer_full_listener_.reset();
+    connection_closed_listener_.reset();
     modem_stop_operation_ =
         std::make_unique<sim7070_modem_internal::ModemStopOperation>(
             ae_context_, *this);
@@ -1003,6 +1022,22 @@ void Sim7070AtModem::SetupPoll() {
   if (stopping_) {
     return;
   }
+  connection_closed_listener_.emplace(
+      at_support_.dispatcher(), "+CASTATE:", [this](auto&, auto pos) {
+        std::int32_t cid{-1};
+        std::int32_t state{-1};
+        if (!at_support::ParseResponse(*pos, "+CASTATE", cid, state) ||
+            cid < 0 || cid > std::numeric_limits<ConnectionIndex>::max() ||
+            state != 0) {
+          return;
+        }
+        auto connection = static_cast<ConnectionIndex>(cid);
+        if (connections_.erase(connection) == 0) {
+          return;
+        }
+        AE_TELED_ERROR("Modem connection {} closed", cid);
+        NotifyConnectionClosed(connection);
+      });
   poll_listener_.emplace(at_support_.dispatcher(),
                          "+CADATAIND: ", [this](auto&, auto pos) {
                            std::int32_t cid{};

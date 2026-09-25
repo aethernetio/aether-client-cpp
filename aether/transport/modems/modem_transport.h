@@ -136,6 +136,7 @@ class ModemTransport final : public ByteIStream {
   MultiSubscription send_action_subs_;
   Subscription connection_sub_;
   Subscription read_packet_sub_;
+  Subscription connection_closed_sub_;
   TaskSubscription connection_failure_task_;
 };
 }  // namespace ae

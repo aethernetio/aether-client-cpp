@@ -173,6 +173,9 @@ void ModemTransport::Restream() {
 }
 
 WriteAction& ModemTransport::Write(DataBuffer&& in_data) {
+  if (!stream_info_.is_writable) {
+    return FailedWrite();
+  }
   AE_TELE_DEBUG(kModemTransportSend, "Send data size {}", in_data.size());
 
   if (protocol_ == Protocol::kTcp) {
@@ -270,6 +273,17 @@ void ModemTransport::Connect() {
 void ModemTransport::OnConnected(ConnectionIndex connection_index) {
   connection_ = connection_index;
 
+  connection_closed_sub_ = modem_driver_->connection_closed_event().Subscribe(
+      [this](ConnectionIndex connection) {
+        if (connection != connection_) {
+          return;
+        }
+        // The modem already closed it. Do not send CACLOSE for a reused ID.
+        connection_ = kInvalidConnectionIndex;
+        stream_info_.is_writable = false;
+        ScheduleConnectionFailure();
+      });
+
   read_packet_sub_ = modem_driver_->data_event().Subscribe(
       MethodPtr<&ModemTransport::DataReceived>{this});
 
@@ -301,6 +315,7 @@ void ModemTransport::Disconnect(bool notify) {
   stream_info_.is_writable = false;
   connection_sub_.Reset();
   read_packet_sub_.Reset();
+  connection_closed_sub_.Reset();
   if (connection_ != kInvalidConnectionIndex) {
     modem_driver_->CloseNetwork(connection_);
     connection_ = kInvalidConnectionIndex;

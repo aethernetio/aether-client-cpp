@@ -16,72 +16,38 @@
 
 #ifndef AETHER_SERIAL_PORTS_ESP32_SERIAL_PORT_H_
 #define AETHER_SERIAL_PORTS_ESP32_SERIAL_PORT_H_
-
-// FIXME: add implementation for esp32 serial port
-#if 0 && defined(ESP_PLATFORM)
-
-#  include <optional>
-#  include <string>
+#if defined(ESP_PLATFORM)
+#  define ESP32_SERIAL_PORT_ENABLED 1
+#  include <cstdint>
+#  include <span>
 #  include <vector>
-
-#  include "driver/uart.h"
-
-#  include "aether-objects/ptr/ptr_view.h"
-#  include "aether/actions/action_context.h"
-
-#  include "aether/poller/poller.h"
+#  include "aether/ae_context.h"
 #  include "aether/serial_ports/iserial_port.h"
 #  include "aether/serial_ports/serial_port_types.h"
-
-#  define ESP32_SERIAL_PORT_ENABLED 1
-
+#  include "driver/uart.h"
 namespace ae {
-class Esp32SerialPort : public ISerialPort {
-  class ReadAction final : public Action<ReadAction> {
-   public:
-    ReadAction(ActionContext action_context, Esp32SerialPort& serial_port);
-
-    UpdateStatus Update();
-
-   private:
-    void PollEvent(PollerEvent event);
-    void ReadData();
-
-    Esp32SerialPort* serial_port_;
-    Subscription poll_sub_;
-    std::list<DataBuffer> buffers_;
-    std::atomic_bool read_event_;
-  };
-
+// All calls, including destruction, belong to the AeContext scheduler thread.
+class Esp32SerialPort final : public ISerialPort {
  public:
-  Esp32SerialPort(ActionContext action_context, SerialInit serial_init,
-                  IPoller::ptr const& poller);
+  explicit Esp32SerialPort(AeContext const& context, SerialInit const& init);
   ~Esp32SerialPort() override;
-
-  void Write(DataBuffer const& data) override;
-
+  void Write(std::span<std::uint8_t const> data) override;
   DataReadEvent::Subscriber read_event() override;
-
   bool IsOpen() override;
+  void Close() override;
 
  private:
-  uart_port_t OpenPort(SerialInit const& serial_init);
-  bool SetOptions(uart_port_t uart_num, SerialInit const& serial_init);
-  esp_err_t SetupTimeouts();
-  bool GetUartNumber(const std::string& port_name, uart_port_t* out_uart_num);
-
-  void Close();
-
-  ActionContext action_context_;
-  SerialInit serial_init_;
-  PtrView<IPoller> poller_;
-  uart_port_t uart_num_;
-
+  static uart_port_t OpenPort(SerialInit const& init, QueueHandle_t& events);
+  void Schedule();
+  void Poll();
+  void FlushWrite();
+  AeContext context_;
+  uart_port_t uart_num_{UART_NUM_MAX};
+  QueueHandle_t events_{};
+  std::vector<std::uint8_t> pending_write_;
   DataReadEvent read_event_;
-
-  ActionPtr<ReadAction> read_action_;
+  TaskSubscription task_;
 };
-} /* namespace ae */
-
-#endif  // ESP_PLATFORM
+}  // namespace ae
+#endif
 #endif  // AETHER_SERIAL_PORTS_ESP32_SERIAL_PORT_H_

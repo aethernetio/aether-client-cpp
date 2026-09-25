@@ -22,16 +22,16 @@
 
 #  define UNIX_SERIAL_PORT_ENABLED 1
 
+#  include <atomic>
 #  include <list>
 #  include <mutex>
-#  include <atomic>
 
 #  include "aether/ae_context.h"
 #  include "aether/poller/poller.h"
-#  include "aether/types/data_buffer.h"
 #  include "aether/poller/unix_poller.h"
 #  include "aether/serial_ports/iserial_port.h"
 #  include "aether/serial_ports/serial_port_types.h"
+#  include "aether/types/data_buffer.h"
 
 namespace ae {
 class UnixSerialPort final : public ISerialPort {
@@ -45,6 +45,7 @@ class UnixSerialPort final : public ISerialPort {
   DataReadEvent::Subscriber read_event() override;
 
   bool IsOpen() override;
+  void Close() override;
 
  private:
   static int OpenPort(SerialInit const& serial_init);
@@ -53,8 +54,6 @@ class UnixSerialPort final : public ISerialPort {
   void PolleEvent(DescriptorType fd, EventType event);
   void ReadData(DescriptorType fd);
   void EmitData();
-
-  void Close();
 
   AeContext ae_context_;
   SerialInit serial_init_;

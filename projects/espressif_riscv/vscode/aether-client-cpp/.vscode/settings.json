@@ -3,12 +3,12 @@
     "-G",
     "Ninja",
     "-DCMAKE_BUILD_TYPE=Release",
-    "-DUSER_CONFIG=../../../../../config/user_config_hydrogen.h"
+    "-DUSER_CONFIG=G:/projects/prj_aether/GitHub/aether-client-cpp/config/user_config_firebeetle_c6_sim7070.h"
   ],
   "C_Cpp.intelliSenseEngine": "Tag Parser",
   "idf.adapterTargetName": "esp32c6",
   "idf.openOcdConfigs": [
-    "board/esp32c6-ftdi.cfg"
+    "board/esp32c6-lpcore-builtin.cfg"
   ],
   "idf.openOcdLaunchArgs": [
     "-c adapter speed 20000",
@@ -120,5 +120,17 @@
     "filesystem": "cpp"
   },
   "idf.flashType": "UART",
-  "idf.portWin": "COM9"
+  "idf.portWin": "COM9",
+  "idf.currentSetup": "G:\\dev\\esp32\\v6.1\\esp-idf",
+  "idf.customExtraVars": {
+    "OPENOCD_USB_ADAPTER_LOCATION": "2-10",
+    "IDF_TARGET": "esp32c6"
+  },
+  "clangd.path": "G:\\dev\\esp32\\tools\\esp-clangd\\esp-21.1.3_20260408\\esp-clangd\\bin\\clangd.exe",
+  "clangd.arguments": [
+    "--background-index",
+    "--query-driver=**",
+    "--compile-commands-dir=g:\\projects\\prj_aether\\GitHub\\aether-client-cpp\\projects\\espressif_riscv\\vscode\\aether-client-cpp\\build"
+  ],
+  "idf.port": "COM9"
 }

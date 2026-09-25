@@ -40,6 +40,7 @@ else()
               nvs_flash
               spiffs
               esp_driver_uart
+              esp_driver_gpio
       )
 
     add_subdirectory("../../" aether)

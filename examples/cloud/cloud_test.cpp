@@ -219,16 +219,22 @@ int AetherCloudExample() {
    * WaitUntil either waits until the next selected time or some action
    * triggers new event.
    */
+  auto next_progress_log = ae::Now();
   while (!aether_app->IsExited()) {
-    ae::Format(std::cout,
-               "~['_']~ Wait cloud test received_count={} confirmed_count={}\n",
-               received_count, confirmed_count);
+    auto current_time = ae::Now();
+    if (current_time >= next_progress_log) {
+      ae::Format(
+          std::cout,
+          "~['_']~ Wait cloud test received_count={} confirmed_count={}\n",
+          received_count, confirmed_count);
+      next_progress_log = current_time + std::chrono::seconds{5};
+    }
     if ((received_count == messages.size()) &&
         (confirmed_count == messages.size())) {
       aether_app->Exit(0);
     }
     // Wait for next event or timeout
-    auto current_time = ae::Now();
+    current_time = ae::Now();
     auto next_time = aether_app->Update(current_time);
     aether_app->WaitUntil(
         std::min(next_time, current_time + std::chrono::seconds{5}));

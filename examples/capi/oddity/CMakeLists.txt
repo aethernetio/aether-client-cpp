@@ -44,6 +44,7 @@ else()
                 nvs_flash
                 spiffs
                 esp_driver_uart
+                esp_driver_gpio
       )
       add_subdirectory("../../../" aether)
       target_link_libraries(${COMPONENT_LIB} PRIVATE aether)

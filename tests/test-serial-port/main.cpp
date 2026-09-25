@@ -36,8 +36,12 @@ extern int test_thingy91x();
 extern int test_sim7070();
 extern int test_app_shutdown();
 extern int test_modem_transport_shutdown();
+extern int test_win_serial_reopen(char const* port);
 
 int main(int argc, char* argv[]) {
+  if (argc == 3 && std::string_view{argv[1]} == "--serial-reopen") {
+    return test_win_serial_reopen(argv[2]);
+  }
   if (argc == 2 && std::string_view{argv[1]} == "--modem-shutdown") {
     return test_thingy91x() + test_sim7070() + test_app_shutdown() +
            test_modem_transport_shutdown();

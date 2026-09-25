@@ -25,29 +25,44 @@
 #  else
 
 namespace ae::examples {
-static constexpr std::string_view kSerialPortModem = "COM1";
+#    if defined(ESP_PLATFORM)
+#      if !defined(AE_MODEM_UART_PORT) || !defined(AE_MODEM_UART_TX_GPIO) || \
+          !defined(AE_MODEM_UART_RX_GPIO)
+#        error "Select a modem board USER_CONFIG with UART port and pins"
+#      endif
+static SerialInit const serial_init_modem{
+    .port_name = AE_MODEM_UART_PORT,
+    .baud_rate = kBaudRate::kBaudRate115200,
+    .tx_io_num = AE_MODEM_UART_TX_GPIO,
+    .rx_io_num = AE_MODEM_UART_RX_GPIO,
+    .rts_io_num = -1,
+    .cts_io_num = -1};
+#    else
+static constexpr std::string_view kSerialPortModem = "COM28";
 SerialInit serial_init_modem = {std::string(kSerialPortModem),
                                 kBaudRate::kBaudRate115200};
+#    endif
 
-static ae::ModemInit const modem_init{serial_init_modem,            ///< Platform serial port configuration.
-                                      {},                           ///< Requested power-saving configuration.
-                                      {},                           ///< Base-station configuration data.
-                                      1111,                         ///< Numeric SIM PIN used when use_pin is enabled.
-                                      false,                        ///< Whether to submit the configured SIM PIN.
-                                      ae::kModemMode::kModeNbIot,   ///< Requested radio access mode.
-                                      "00001",                      ///< Numeric operator code; an empty value permits
-                                                                    ///< automatic selection.
-                                      "",                           ///< Operator name, preferred over operator_code
-                                                                    ///< when supported.
-                                      "internet",                   ///< Access point name for packet data.
-                                      "user",                       ///< APN authentication user name.
-                                      "password",                   ///< APN authentication password.
-                                      ae::kAuthType::kAuthTypeNone, ///< Requested APN authentication method.
-                                      false,                        ///< Optional authentication flag; support is driver-specific.
-                                      "",                           ///< Optional authentication user name.
-                                      "",                           ///< Optional authentication password.
-                                      "",                           ///< Optional SSL certificate configuration.
-                                      false                         ///< Optional SSL flag; support is driver-specific.
+static ae::ModemInit const modem_init{
+    serial_init_modem,  ///< Platform serial port configuration.
+    {},                 ///< Requested power-saving configuration.
+    {},                 ///< Base-station configuration data.
+    1111,               ///< Numeric SIM PIN used when use_pin is enabled.
+    false,              ///< Whether to submit the configured SIM PIN.
+    ae::kModemMode::kModeNbIot,  ///< Requested radio access mode.
+    "25001",            ///< Numeric operator code; an empty value permits
+                        ///< automatic selection.
+    "",                 ///< Operator name, preferred over operator_code
+                        ///< when supported.
+    "internet.mts.ru",  ///< Access point name for packet data.
+    "mts",              ///< APN authentication user name.
+    "mts",              ///< APN authentication password.
+    ae::kAuthType::kAuthTypeNone,  ///< Requested APN authentication method.
+    false,  ///< Optional authentication flag; support is driver-specific.
+    "",     ///< Optional authentication user name.
+    "",     ///< Optional authentication password.
+    "",     ///< Optional SSL certificate configuration.
+    false   ///< Optional SSL flag; support is driver-specific.
 };
 
 static std::unique_ptr<AetherApp> construct_aether_app() {

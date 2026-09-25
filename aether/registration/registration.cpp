@@ -109,7 +109,7 @@ auto Registration::GetKeys() {
                                         sign_pk_)) {
                     AE_TELE_ERROR(RegisterGetKeysVerificationFailed,
                                   "Sign verification failed");
-                    ex::set_error(std::move(r), 1);
+                    ex::set_error(std::move(r), std::int32_t{1});
                     return;
                   }
                   server_pub_key_ = std::move(signed_key.key);
@@ -162,7 +162,7 @@ auto Registration::RequestPowParams() {
                           AE_TELE_ERROR(
                               RegisterPowParamsVerificationFailed,
                               "Proof of work params sign verification failed");
-                          ex::set_error(std::move(r), 2);
+                          ex::set_error(std::move(r), std::int32_t{2});
                           return;
                         }
 
@@ -328,7 +328,17 @@ void Registration::Run() {
                     }) |
       ex::let_stopped([&]() noexcept { return ex::just_error(1); }) |
       // perform the rest of the registration process
-      ex::let_value([&](auto&&) noexcept { return RequestPowParams(); }) |
+      ex::let_value([&](auto&&) noexcept {
+        return RequestPowParams() |
+               ex::with_timeout(ae_context_, response_timeout_) |
+               ex::let_error(Override{
+                   [&](ex::TimeoutError) noexcept {
+                     AE_TELED_ERROR(
+                         "Registration proof-of-work response timeout");
+                     return ex::just_error(-1);
+                   },
+                   [](auto error) noexcept { return ex::just_error(error); }});
+      }) |
       ex::let_value([&](auto&&) noexcept { return MakeRegistration(); }) |
       ex::let_value([&](auto&&) noexcept { return ResolveCloud(); }) |
       ex::let_error(Override{

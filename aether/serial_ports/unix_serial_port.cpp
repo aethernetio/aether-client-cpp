@@ -19,8 +19,8 @@
 #if defined UNIX_SERIAL_PORT_ENABLED
 
 #  include <fcntl.h>
-#  include <unistd.h>
 #  include <termios.h>
+#  include <unistd.h>
 
 #  include "aether-miscpp/misc/defer.h"
 #  include "aether/serial_ports/serial_ports_tele.h"
@@ -36,8 +36,11 @@ UnixSerialPort::UnixSerialPort(AeContext const& ae_context,
   poller_fd_.Events(EventType::kRead | EventType::kError);
 }
 
-UnixSerialPort::~UnixSerialPort() {
+UnixSerialPort::~UnixSerialPort() { Close(); }
+
+void UnixSerialPort::Close() {
   auto fd = poller_fd_.Remove();
+  scheduler_sub_.Reset();
   if (*fd != kInvalidDescriptor) {
     close(*fd);
   }

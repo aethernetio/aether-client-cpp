@@ -26,6 +26,7 @@ list(APPEND test_srcs
   test-sim7070.cpp
   test-app-shutdown.cpp
   test-modem-transport-shutdown.cpp
+  test-win-serial-reopen.cpp
 )
 
 if(NOT CM_PLATFORM)
@@ -44,4 +45,16 @@ if(NOT CM_PLATFORM)
            COMMAND $<TARGET_FILE:${PROJECT_NAME}> --modem-shutdown)
 else()
   message(WARNING "Not implemented for ${CM_PLATFORM}")
+endif()
+
+# Compile the real ESP32 UART and boot senders against a small IDF test double.
+if(NOT CM_PLATFORM)
+  add_executable(test-esp32-serial-port
+    test-esp32-serial-port.cpp
+    ${ROOT_DIR}/aether/serial_ports/esp32_serial_port.cpp)
+  target_include_directories(test-esp32-serial-port BEFORE PRIVATE esp32-fake)
+  target_compile_definitions(test-esp32-serial-port PRIVATE
+    ESP_PLATFORM=1 AE_MODEM_PWR_GPIO=14 AE_MODEM_DTR_GPIO=8)
+  target_link_libraries(test-esp32-serial-port PRIVATE aether unity)
+  add_test(NAME test-esp32-serial-port COMMAND test-esp32-serial-port)
 endif()

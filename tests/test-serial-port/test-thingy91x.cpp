@@ -38,9 +38,12 @@ struct Thingy91xAtModemTestAccess {
     modem.SetupPoll();
   }
   static std::unique_ptr<Thingy91xAtModem> Create(
-      AeContext const& context, std::unique_ptr<ISerialPort> serial) {
+      AeContext const& context, std::unique_ptr<ISerialPort> serial,
+      kModemMode mode) {
+    auto init = ModemInit{};
+    init.modem_mode = mode;
     return std::unique_ptr<Thingy91xAtModem>{
-        new Thingy91xAtModem{context, ModemInit{}, std::move(serial)}};
+        new Thingy91xAtModem{context, std::move(init), std::move(serial)}};
   }
 };
 
@@ -57,14 +60,14 @@ struct TestContext {
 };
 
 struct Fixture {
-  Fixture() {
+  explicit Fixture(kModemMode mode = kModemMode::kModeAuto) {
     auto port = std::make_unique<tests::MockSerialPort>();
     serial = port.get();
     writes = serial->write_event().Subscribe([this](auto data) {
       commands.emplace_back(reinterpret_cast<char const*>(data.data()),
                             data.size());
     });
-    modem = Thingy91xAtModemTestAccess::Create(context, std::move(port));
+    modem = Thingy91xAtModemTestAccess::Create(context, std::move(port), mode);
     Pump();
     Reply("OK\r\n");
     Reply("OK\r\n");
@@ -125,6 +128,30 @@ struct Fixture {
   std::unique_ptr<Thingy91xAtModem> modem;
 };
 
+void CheckStartMode(kModemMode mode, char const* command) {
+  Fixture f{mode};
+  auto* start = f.modem->Start();
+  TEST_ASSERT_NOT_NULL(start);
+  f.Pump();
+  f.Expect("AT+CFUN=0\r\n");
+  f.Reply("OK\r\n");
+  f.Expect(command);
+  // A rejected mode must finish with an error before dependent AT commands.
+  f.Reply("ERROR\r\n");
+  TEST_ASSERT_TRUE(start->is_finished());
+  TEST_ASSERT_TRUE(start->result().has_value());
+  TEST_ASSERT_TRUE(start->result()->IsErr());
+  f.Expect(command);
+}
+
+void test_StartSelectsNbIot() {
+  CheckStartMode(kModemMode::kModeNbIot, "AT%XSYSTEMMODE=0,1,0,2\r\n");
+}
+
+void test_StartSelectsLteM() {
+  CheckStartMode(kModemMode::kModeCatM, "AT%XSYSTEMMODE=1,0,0,1\r\n");
+}
+
 void test_CreateFailureDoesNotCloseAnotherSocket() {
   Fixture f;
   f.Open();
@@ -166,6 +193,9 @@ void test_StopClosesSocketsBeforeDeactivation() {
   Fixture f;
   Thingy91xAtModemTestAccess::Connected(*f.modem);
   auto* stop = f.modem->Stop();
+  bool closed_at_result = false;
+  Subscription stopped = stop->result_event().Subscribe(
+      [&](auto const&) { closed_at_result = !f.serial->IsOpen(); });
   TEST_ASSERT_EQUAL_PTR(stop, f.modem->Stop());
   TEST_ASSERT_NULL(f.modem->OpenNetwork(Protocol::kTcp, "127.0.0.1", 9000));
   TEST_ASSERT_NULL(f.modem->WritePacket(4, {}));
@@ -181,8 +211,11 @@ void test_StopClosesSocketsBeforeDeactivation() {
   f.Reply("OK\r\n");
   f.Expect("AT+CFUN=0\r\n");
   TEST_ASSERT_FALSE(stop->is_finished());
+  TEST_ASSERT_TRUE(f.serial->IsOpen());
   f.Reply("OK\r\n");
   TEST_ASSERT_TRUE(stop->is_finished());
+  TEST_ASSERT_FALSE(f.serial->IsOpen());
+  TEST_ASSERT_TRUE(closed_at_result);
   TEST_ASSERT_TRUE(stop->result()->IsOk());
   TEST_ASSERT_EQUAL_PTR(stop, f.modem->Stop());
   TEST_ASSERT_EQUAL_PTR(stop, f.modem->CloseNetwork(4));
@@ -208,6 +241,7 @@ void test_StopContinuesAfterSelectErrorAndCloseTimeout() {
   TEST_ASSERT_FALSE(stop->is_finished());
   f.Reply("OK\r\n");
   TEST_ASSERT_TRUE(stop->is_finished());
+  TEST_ASSERT_FALSE(f.serial->IsOpen());
   TEST_ASSERT_FALSE(stop->result()->IsOk());
   TEST_ASSERT_EQUAL_UINT(4, f.commands.size());
 }
@@ -221,6 +255,7 @@ void test_StopDeactivationTimeoutFinishes() {
   f.now = Now();
   f.Pump();
   TEST_ASSERT_TRUE(stop->is_finished());
+  TEST_ASSERT_FALSE(f.serial->IsOpen());
   TEST_ASSERT_FALSE(stop->result()->IsOk());
 }
 
@@ -238,6 +273,7 @@ void test_StopIncludesSocketOpenedByPendingOperation() {
   f.Expect("AT+CFUN=0\r\n");
   f.Reply("OK\r\n");
   TEST_ASSERT_TRUE(stop->is_finished());
+  TEST_ASSERT_FALSE(f.serial->IsOpen());
   TEST_ASSERT_TRUE(stop->result()->IsOk());
 }
 }  // namespace test_thingy91x
@@ -248,6 +284,8 @@ int test_thingy91x() {
 #if AE_SUPPORT_MODEMS && AE_ENABLE_THINGY91X
   using namespace ae::test_thingy91x;  // NOLINT: Unity suite entry.
   UNITY_BEGIN();
+  RUN_TEST(test_StartSelectsNbIot);
+  RUN_TEST(test_StartSelectsLteM);
   RUN_TEST(test_CreateFailureDoesNotCloseAnotherSocket);
   RUN_TEST(test_ConnectFailureClosesSocketBeforeReportingError);
   RUN_TEST(test_ConnectTimeoutClosesSocketBeforeReportingError);

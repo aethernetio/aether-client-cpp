@@ -31,6 +31,13 @@ WinSerialPort::WinSerialPort(AeContext const& ae_context,
       fd_{OpenPort(serial_init_)},
       read_buffer_(kReadBufSize) {
   if (fd_ != INVALID_HANDLE_VALUE) {
+    overlapped_rd_.hEvent = CreateEventA(nullptr, TRUE, FALSE, nullptr);
+    if (overlapped_rd_.hEvent == nullptr) {
+      AE_TELED_ERROR("Unable to create serial read event {}", GetLastError());
+      CloseHandle(fd_);
+      fd_ = INVALID_HANDLE_VALUE;
+      return;
+    }
     poller_->Add({fd_}, MethodPtr<&WinSerialPort::PollEvent>{this});
     RequestRead();
   }
@@ -107,10 +114,10 @@ void WinSerialPort::RequestRead() {
   }
 
   DWORD bytes_read{0};
-  auto read_result =
-      ::ReadFile(fd_, read_buffer_.data(),
-                 static_cast<DWORD>(read_buffer_.size()), &bytes_read,
-                 &overlapped_rd_);
+  ResetEvent(overlapped_rd_.hEvent);
+  auto read_result = ::ReadFile(fd_, read_buffer_.data(),
+                                static_cast<DWORD>(read_buffer_.size()),
+                                &bytes_read, &overlapped_rd_);
   if (read_result == FALSE) {
     auto error = GetLastError();
     if (error != ERROR_IO_PENDING) {
@@ -118,6 +125,7 @@ void WinSerialPort::RequestRead() {
       return;
     }
   }
+  read_pending_ = true;
 }
 
 void WinSerialPort::HandleRead() {
@@ -129,6 +137,7 @@ void WinSerialPort::HandleRead() {
     }
 
     DWORD bytes_read{0};
+    read_pending_ = false;
     if (!::GetOverlappedResult(fd_, &overlapped_rd_, &bytes_read, FALSE)) {
       auto error = GetLastError();
       if (error != ERROR_OPERATION_ABORTED) {
@@ -230,20 +239,39 @@ bool WinSerialPort::SetOptions(void* fd, SerialInit const& serial_init) {
 }
 
 void WinSerialPort::Close() {
-  scheduler_sub_.Reset();
-
   auto fd = fd_;
   if (fd == INVALID_HANDLE_VALUE) {
     return;
   }
 
   poller_->Remove({fd});
+  // Remove waits for any poll callback, which could still schedule EmitData.
+  scheduler_sub_.Reset();
 
   auto lock = std::lock_guard{fd_lock_};
   if (fd_ == fd) {
     CancelIoEx(fd_, nullptr);
+    // Cancellation is asynchronous. Keep OVERLAPPED and its buffer alive
+    // until the read completes; otherwise reopening can race outstanding I/O.
+    // Writes finish synchronously under fd_lock_, so only the read can remain.
+    if (read_pending_) {
+      DWORD bytes_read{0};
+      if (!GetOverlappedResult(fd_, &overlapped_rd_, &bytes_read, TRUE)) {
+        auto error = GetLastError();
+        if (error != ERROR_OPERATION_ABORTED) {
+          AE_TELED_ERROR("Serial read completion during close failed {}",
+                         error);
+        }
+      }
+      read_pending_ = false;
+    }
     CloseHandle(fd_);
     fd_ = INVALID_HANDLE_VALUE;
+    CloseHandle(overlapped_rd_.hEvent);
+    overlapped_rd_.hEvent = nullptr;
+    buffers_.clear();
+    read_flag_ = false;
+    AE_TELED_DEBUG("Serial port {} closed", serial_init_.port_name);
   }
 }
 

@@ -87,8 +87,9 @@ void IoCpPoller::Loop() {
     if (!GetQueuedCompletionStatus(iocp_, &bytes_transferred, &completion_key,
                                    &overlapped, INFINITE)) {
       auto error = GetLastError();
-      if (error == ERROR_CONNECTION_ABORTED) {
-        // socket closed
+      if (error == ERROR_CONNECTION_ABORTED ||
+          error == ERROR_OPERATION_ABORTED) {
+        // Expected completion when a socket closes or serial I/O is canceled.
         continue;
       }
       AE_TELE_ERROR(kWinpollWaitFailed, "GetQueuedCompletionStatus error {}",

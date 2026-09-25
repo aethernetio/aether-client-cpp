@@ -17,7 +17,11 @@
 #ifndef AETHER_WRITE_ACTION_FAILED_WRITE_ACTION_H_
 #define AETHER_WRITE_ACTION_FAILED_WRITE_ACTION_H_
 
+#include <cassert>
+
 #include "aether/ae_context.h"
+#include "aether/tasks/details/task_subsctiption.h"
+#include "aether/tele.h"
 #include "aether/write_action/write_action.h"
 
 namespace ae {
@@ -27,8 +31,16 @@ namespace ae {
 class FailedWriteAction final : public WriteAction {
  public:
   explicit FailedWriteAction(AeContext const& context) {
-    context.scheduler().Task([&]() { SetStatus(WriteAction::Status::kFail); });
+    task_ = context.scheduler().Task(
+        [this]() { SetStatus(WriteAction::Status::kFail); });
+    if (!task_) {
+      AE_TELED_ERROR("Failed to schedule write failure");
+      assert(false && "Task allocation failed");
+    }
   }
+
+ private:
+  TaskSubscription task_;
 };
 }  // namespace ae
 

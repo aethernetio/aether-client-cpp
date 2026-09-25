@@ -385,7 +385,7 @@ class ModemStartOperation final : public ModemOperation {
            // Disabling full functionality
            at::MakeRequest(at_support_, "AT+CFUN=0", kWaitOk) |
            ex::with_timeout(ae_context_, 1s) |
-           SetNetMode(kModemMode::kModeCatMNbIot) |
+           SetNetMode(modem_init_.modem_mode) |
            SetupNetwork(modem_init_.operator_name, modem_init_.operator_code,
                         modem_init_.apn_name, modem_init_.apn_user,
                         modem_init_.apn_pass, modem_init_.modem_mode,
@@ -470,6 +470,9 @@ class ModemStopOperation final : public ModemOperation {
              }) |
              ex::then([this]() noexcept {
                self_->started_ = false;
+               // Stop is terminal: release the port even if the object graph
+               // retains this driver, and also when deactivation failed.
+               self_->serial_->Close();
                if (failed_) {
                  SetResult(Error{static_cast<ModemError>(-1)});
                  return;

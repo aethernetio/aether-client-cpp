@@ -29,6 +29,7 @@ class MockSerialPort final : public ISerialPort {
   MockSerialPort() = default;
 
   bool IsOpen() override { return is_open_; }
+  void Close() override { is_open_ = false; }
 
   void Write(std::span<std::uint8_t const> data) override {
     write_event_.Emit(data);

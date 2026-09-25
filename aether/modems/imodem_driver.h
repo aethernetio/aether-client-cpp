@@ -25,18 +25,18 @@
 #include "aether/config.h"
 
 #if AE_SUPPORT_MODEMS
-#  include <span>
-#  include <string>
 #  include <cstdint>
 #  include <optional>
+#  include <span>
+#  include <string>
 
-#  include "aether-miscpp/types/result.h"
-#  include "aether/events/events.h"
-#  include "aether/types/address.h"
 #  include "aether-miscpp/meta/ignore_t.h"
+#  include "aether-miscpp/types/result.h"
 #  include "aether/actions/action.h"
-#  include "aether/types/data_buffer.h"
+#  include "aether/events/events.h"
 #  include "aether/modems/modem_driver_types.h"
+#  include "aether/types/address.h"
+#  include "aether/types/data_buffer.h"
 
 namespace ae {
 /**
@@ -170,6 +170,13 @@ class ModemOperation : public Action {
 class IModemDriver {
  public:
   using DataEvent = Event<void(ConnectionIndex, DataBuffer const& data)>;
+  using ConnectionClosedEvent = Event<void(ConnectionIndex)>;
+
+  // Drivers emit this when they observe an unsolicited socket closure.
+  // Retain a Subscription and defer work that could destroy the driver.
+  ConnectionClosedEvent::Subscriber connection_closed_event() {
+    return EventSubscriber{connection_closed_event_};
+  }
 
   virtual ~IModemDriver() = default;
 
@@ -237,6 +244,14 @@ class IModemDriver {
    * physical removal of power. See the concrete implementation.
    */
   virtual ModemOperation* PowerOff() = 0;
+
+ protected:
+  void NotifyConnectionClosed(ConnectionIndex connection) {
+    connection_closed_event_.Emit(connection);
+  }
+
+ private:
+  ConnectionClosedEvent connection_closed_event_;
 };
 
 } /* namespace ae */

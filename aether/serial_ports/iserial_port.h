@@ -17,8 +17,8 @@
 #ifndef AETHER_SERIAL_PORTS_ISERIAL_PORT_H_
 #define AETHER_SERIAL_PORTS_ISERIAL_PORT_H_
 
-#include <span>
 #include <cstdint>
+#include <span>
 
 #include "aether/events/events.h"
 
@@ -36,6 +36,13 @@ class ISerialPort {
    * \brief Check if the serial port is open.
    */
   virtual bool IsOpen() = 0;
+  /**
+   * \brief Release the port and stop read notifications. Safe to call
+   * again.
+   * Call on the scheduler thread, after all protocol operations
+   * have stopped.
+   */
+  virtual void Close() = 0;
   /**
    * \brief Write amount of data.
    */

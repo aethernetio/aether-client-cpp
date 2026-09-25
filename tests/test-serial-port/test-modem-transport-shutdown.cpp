@@ -137,6 +137,9 @@ class OpenedOperation final : public OpenNetworkOperation {
 };
 class StoppingDriver final : public IModemDriver {
  public:
+  void RemoteClose(ConnectionIndex connection) {
+    NotifyConnectionClosed(connection);
+  }
   ModemOperation* Start() override { return nullptr; }
   ModemOperation* Stop() override { return nullptr; }
   OpenNetworkOperation* OpenNetwork(Protocol, std::string const&,
@@ -164,6 +167,36 @@ class StoppingDriver final : public IModemDriver {
   OpenedOperation opened_;
   DataEvent data_;
 };
+
+void test_RemoteCloseDefersNotificationAndDoesNotCloseReusedId() {
+  TestContext context;
+  StoppingDriver driver;
+  Endpoint endpoint{};
+  endpoint.protocol = Protocol::kTcp;
+  auto transport = std::make_unique<ModemTransport>(context, driver, endpoint);
+  int updates = 0;
+  Subscription update = transport->stream_update_event().Subscribe([&]() {
+    ++updates;
+    TEST_ASSERT_TRUE(transport->stream_info().link_state ==
+                     LinkState::kLinkError);
+    update.Reset();
+    transport.reset();
+  });
+  driver.RemoteClose(0);
+  TEST_ASSERT_TRUE(transport->stream_info().is_writable);
+  driver.RemoteClose(1);
+  TEST_ASSERT_FALSE(transport->stream_info().is_writable);
+  transport->Write(DataBuffer{1, 2, 3});
+  TEST_ASSERT_EQUAL_INT(0, driver.rejected);
+  TEST_ASSERT_EQUAL_INT(0, updates);
+  driver.RemoteClose(1);
+  for (int i = 0; i < 8; ++i) {
+    context.scheduler.Update(Now());
+  }
+  TEST_ASSERT_NULL(transport.get());
+  TEST_ASSERT_EQUAL_INT(1, updates);
+  TEST_ASSERT_EQUAL_INT(0, driver.closed);
+}
 
 void CheckFailureDestroysTransportAfterWriteFinishes(Protocol protocol) {
   TestContext context;
@@ -239,6 +272,7 @@ int test_modem_transport_shutdown() {
   using namespace ae::test_modem_transport_shutdown;  // NOLINT: Unity suite
                                                       // entry.
   UNITY_BEGIN();
+  RUN_TEST(test_RemoteCloseDefersNotificationAndDoesNotCloseReusedId);
   RUN_TEST(test_ConnectedTransportCanDisconnectWhileBuilderRemainsAlive);
   RUN_TEST(test_ConnectionErrorCompletesOnlyOnce);
   RUN_TEST(test_AlreadyFailedTransportCompletesImmediately);

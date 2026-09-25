@@ -244,6 +244,7 @@ class Sim7070AtModem final : public IModemDriver {
    * The driver deactivates PDP context 0 before sending AT+CFUN=0.
    * @return The same driver-owned stop operation on repeated calls. It remains
    * available until driver destruction.
+   * The serial port is closed before completion, including on shutdown errors.
    * @note Stop is terminal for this instance. New start, open, write,
    * power-save, and power-off requests are rejected once stopping begins.
    */
@@ -302,6 +303,7 @@ class Sim7070AtModem final : public IModemDriver {
   DataEvent data_event_;
   std::optional<AtListener> poll_listener_;
   std::optional<AtListener> buffer_full_listener_;
+  std::optional<AtListener> connection_closed_listener_;
 
   std::unique_ptr<ModemOperation> modem_start_operation_;
   std::unique_ptr<ModemOperation> modem_stop_operation_;

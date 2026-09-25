@@ -4,7 +4,9 @@
       "name": "x64-Debug",
       "generator": "Ninja",
       "configurationType": "Debug",
-      "inheritEnvironments": [ "msvc_x64_x64" ],
+      "inheritEnvironments": [
+        "msvc_x64_x64"
+      ],
       "buildRoot": "${projectDir}\\out\\build\\${name}",
       "installRoot": "${projectDir}\\out\\install\\${name}",
       "cmakeCommandArgs": "",
@@ -20,8 +22,130 @@
       "cmakeCommandArgs": "",
       "buildCommandArgs": "-j 4",
       "ctestCommandArgs": "",
-      "inheritEnvironments": [ "msvc_x64_x64" ],
+      "inheritEnvironments": [
+        "msvc_x64_x64"
+      ],
       "variables": []
+    },
+    {
+      "name": "prepared-iot-sim7070",
+      "generator": "Ninja",
+      "configurationType": "Debug",
+      "inheritEnvironments": [
+        "msvc_x64_x64"
+      ],
+      "buildRoot": "${projectDir}\\out\\build\\${name}",
+      "installRoot": "${projectDir}\\out\\install\\${name}",
+      "cmakeCommandArgs": "",
+      "buildCommandArgs": "-j 4",
+      "ctestCommandArgs": "-R \"prepared|serial-port|modem-shutdown\" --output-on-failure",
+      "variables": [
+        {
+          "name": "AE_BUILD_PREPARED_TEST_IOT",
+          "value": "ON",
+          "type": "BOOL"
+        },
+        {
+          "name": "AE_BUILD_EXAMPLES",
+          "value": "OFF",
+          "type": "BOOL"
+        },
+        {
+          "name": "AE_BUILD_TOOLS",
+          "value": "OFF",
+          "type": "BOOL"
+        },
+        {
+          "name": "AE_INSTALL",
+          "value": "OFF",
+          "type": "BOOL"
+        },
+        {
+          "name": "AE_BUILD_TESTS",
+          "value": "ON",
+          "type": "BOOL"
+        },
+        {
+          "name": "AE_DISTILLATION",
+          "value": "ON",
+          "type": "BOOL"
+        },
+        {
+          "name": "AE_FILTRATION",
+          "value": "OFF",
+          "type": "BOOL"
+        },
+        {
+          "name": "CMAKE_EXPORT_COMPILE_COMMANDS",
+          "value": "ON",
+          "type": "BOOL"
+        },
+        {
+          "name": "USER_CONFIG",
+          "value": "${projectDir}/examples/prepared_test_iot/user_config_sim7070g.h",
+          "type": "PATH"
+        }
+      ]
+    },
+    {
+      "name": "prepared-iot-thingy91x",
+      "generator": "Ninja",
+      "configurationType": "Debug",
+      "inheritEnvironments": [
+        "msvc_x64_x64"
+      ],
+      "buildRoot": "${projectDir}\\out\\build\\${name}",
+      "installRoot": "${projectDir}\\out\\install\\${name}",
+      "cmakeCommandArgs": "",
+      "buildCommandArgs": "-j 4",
+      "ctestCommandArgs": "-R \"prepared|serial-port|modem-shutdown\" --output-on-failure",
+      "variables": [
+        {
+          "name": "AE_BUILD_PREPARED_TEST_IOT",
+          "value": "ON",
+          "type": "BOOL"
+        },
+        {
+          "name": "AE_BUILD_EXAMPLES",
+          "value": "OFF",
+          "type": "BOOL"
+        },
+        {
+          "name": "AE_BUILD_TOOLS",
+          "value": "OFF",
+          "type": "BOOL"
+        },
+        {
+          "name": "AE_INSTALL",
+          "value": "OFF",
+          "type": "BOOL"
+        },
+        {
+          "name": "AE_BUILD_TESTS",
+          "value": "ON",
+          "type": "BOOL"
+        },
+        {
+          "name": "AE_DISTILLATION",
+          "value": "ON",
+          "type": "BOOL"
+        },
+        {
+          "name": "AE_FILTRATION",
+          "value": "OFF",
+          "type": "BOOL"
+        },
+        {
+          "name": "CMAKE_EXPORT_COMPILE_COMMANDS",
+          "value": "ON",
+          "type": "BOOL"
+        },
+        {
+          "name": "USER_CONFIG",
+          "value": "${projectDir}/examples/prepared_test_iot/user_config_thingy91x.h",
+          "type": "PATH"
+        }
+      ]
     }
   ]
 }

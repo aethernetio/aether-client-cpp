@@ -89,10 +89,30 @@ struct Fixture {
   std::unique_ptr<Sim7070AtModem> modem;
 };
 
+void test_RemoteCloseNotifiesOnlyTrackedConnectionOnce() {
+  Fixture f;
+  Sim7070AtModemTestAccess::Connected(*f.modem);
+  std::vector<ConnectionIndex> closed;
+  Subscription subscription = f.modem->connection_closed_event().Subscribe(
+      [&](ConnectionIndex connection) { closed.push_back(connection); });
+  f.Reply(
+      "+CASTATE: 0,1\r\n+CASTATE: 8,0\r\n+CASTATE: 256,0\r\n"
+      "+CASTATE: invalid\r\n");
+  TEST_ASSERT_TRUE(closed.empty());
+  f.Reply("+CASTATE: 0,0\r\n+CASTATE: 0,0\r\n+CASTATE: 1,0\r\n");
+  TEST_ASSERT_EQUAL_UINT(2, closed.size());
+  TEST_ASSERT_EQUAL_INT(0, closed[0]);
+  TEST_ASSERT_EQUAL_INT(1, closed[1]);
+  TEST_ASSERT_TRUE(f.commands.empty());
+}
+
 void test_StopClosesSocketsAndWaitsForContextDeactivation() {
   Fixture f;
   Sim7070AtModemTestAccess::Connected(*f.modem);
   auto* stop = f.modem->Stop();
+  bool closed_at_result = false;
+  Subscription stopped = stop->result_event().Subscribe(
+      [&](auto const&) { closed_at_result = !f.serial->IsOpen(); });
   TEST_ASSERT_EQUAL_PTR(stop, f.modem->Stop());
   TEST_ASSERT_NULL(f.modem->OpenNetwork(Protocol::kTcp, "127.0.0.1", 9000));
   TEST_ASSERT_NULL(f.modem->WritePacket(0, {}));
@@ -111,8 +131,11 @@ void test_StopClosesSocketsAndWaitsForContextDeactivation() {
   f.Reply("OK\r\n");
   f.Expect("AT+CFUN=0\r\n");
   TEST_ASSERT_FALSE(stop->is_finished());
+  TEST_ASSERT_TRUE(f.serial->IsOpen());
   f.Reply("OK\r\n");
   TEST_ASSERT_TRUE(stop->is_finished());
+  TEST_ASSERT_FALSE(f.serial->IsOpen());
+  TEST_ASSERT_TRUE(closed_at_result);
   TEST_ASSERT_TRUE(stop->result()->IsOk());
   TEST_ASSERT_EQUAL_PTR(stop, f.modem->Stop());
   TEST_ASSERT_EQUAL_PTR(stop, f.modem->CloseNetwork(0));
@@ -139,6 +162,7 @@ void test_StopContinuesAfterCloseErrorAndDeactivationTimeout() {
   f.Expect("AT+CFUN=0\r\n");
   f.Reply("OK\r\n");
   TEST_ASSERT_TRUE(stop->is_finished());
+  TEST_ASSERT_FALSE(f.serial->IsOpen());
   TEST_ASSERT_FALSE(stop->result()->IsOk());
 }
 
@@ -151,6 +175,7 @@ void test_StopSkipsAlreadyInactiveContext() {
   f.Expect("AT+CFUN=0\r\n");
   f.Reply("OK\r\n");
   TEST_ASSERT_TRUE(stop->is_finished());
+  TEST_ASSERT_FALSE(f.serial->IsOpen());
   TEST_ASSERT_TRUE(stop->result()->IsOk());
   TEST_ASSERT_EQUAL_UINT(2, f.commands.size());
 }
@@ -163,6 +188,7 @@ void test_StopDeactivationErrorFinishes() {
   f.Expect("AT+CFUN=0\r\n");
   f.Reply("ERROR\r\n");
   TEST_ASSERT_TRUE(stop->is_finished());
+  TEST_ASSERT_FALSE(f.serial->IsOpen());
   TEST_ASSERT_FALSE(stop->result()->IsOk());
 }
 
@@ -217,6 +243,7 @@ void test_StartActivatesContextBeforeShutdown() {
   f.Expect("AT+CFUN=0\r\n");
   f.Reply("OK\r\n");
   TEST_ASSERT_TRUE(stop->is_finished());
+  TEST_ASSERT_FALSE(f.serial->IsOpen());
   TEST_ASSERT_TRUE(stop->result()->IsOk());
 }
 
@@ -273,6 +300,7 @@ int test_sim7070() {
 #if AE_SUPPORT_MODEMS && AE_ENABLE_SIM7070
   using namespace ae::test_sim7070;  // NOLINT: Unity suite entry.
   UNITY_BEGIN();
+  RUN_TEST(test_RemoteCloseNotifiesOnlyTrackedConnectionOnce);
   RUN_TEST(test_StopClosesSocketsAndWaitsForContextDeactivation);
   RUN_TEST(test_StopContinuesAfterCloseErrorAndDeactivationTimeout);
   RUN_TEST(test_StopSkipsAlreadyInactiveContext);

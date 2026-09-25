@@ -15,211 +15,179 @@
  */
 
 #include "aether/serial_ports/esp32_serial_port.h"
-
 #if ESP32_SERIAL_PORT_ENABLED == 1
-
-#  include "aether-miscpp/misc/defer.h"
-#  include "aether/serial_ports/serial_ports_tele.h"
-
+#  include <algorithm>
+#  include <array>
+#  include <cassert>
+#  include <chrono>
+#  include <string>
+#  include "aether/tele.h"
+#  include "soc/soc_caps.h"
 namespace ae {
-Esp32SerialPort::ReadAction::ReadAction(ActionContext action_context,
-                                        Esp32SerialPort& serial_port)
-    : Action{action_context}, serial_port_{&serial_port}, read_event_{} {
-  if (serial_port_->uart_num_ == UART_NUM_MAX) {
-    return;
-  }
-  auto poller = serial_port_->poller_.Lock();
-  assert(poller);
-  poll_sub_ =
-      poller->Add({serial_port_->uart_num_})
-          .Subscribe(
-              MethodPtr<&Esp32SerialPort::ReadAction::ReadAction::PollEvent>{
-                  this});
-}
+namespace esp32_serial_port_internal {
+constexpr int kRxBufferSize = 8192;
+constexpr int kTxBufferSize = 8192;
+constexpr std::size_t kWriteChunkSize = 2048;
+constexpr int kEventQueueSize = 32;
+constexpr std::size_t kReadChunkSize = 2048;
+constexpr auto kMinDataBits = static_cast<int>(kBits::kFiveBits);
+constexpr auto kMaxDataBits = static_cast<int>(kBits::kEigthBits);
+}  // namespace esp32_serial_port_internal
 
-UpdateStatus Esp32SerialPort::ReadAction::Update() {
-  if (read_event_) {
-    for (auto const& b : buffers_) {
-      serial_port_->read_event_.Emit(b);
-    }
-    buffers_.clear();
-    read_event_ = false;
-  }
-  return {};
-}
-
-void Esp32SerialPort::ReadAction::PollEvent(PollerEvent event) {
-  if (event.descriptor != DescriptorType{serial_port_->uart_num_}) {
-    return;
-  }
-  switch (event.event_type) {
-    case EventType::kRead:
-      ReadData();
-      break;
-    default:
-      break;
+Esp32SerialPort::Esp32SerialPort(AeContext const& context,
+                                 SerialInit const& init)
+    : context_{context} {
+  uart_num_ = OpenPort(init, events_);
+  if (IsOpen()) {
+    Schedule();
   }
 }
-
-void Esp32SerialPort::ReadAction::ReadData() {
-  if (serial_port_->uart_num_ == UART_NUM_MAX) {
-    AE_TELE_ERROR(kAdapterSerialNotOpen, "Port is not open");
-
-    return;
-  }
-
-  size_t length = 0;
-  esp_err_t err = uart_get_buffered_data_len(serial_port_->uart_num_, &length);
-  if (err != ESP_OK) {
-    AE_TELE_ERROR(kAdapterSerialReadFailed, "Read failed {}!", err);
-    return;
-  }
-
-  if (length == 0) {
-    return;
-  }
-
-  DataBuffer buffer(length);
-  int bytes_read =
-      uart_read_bytes(serial_port_->uart_num_, buffer.data(), length, 0);
-
-  // Reading error
-  if (bytes_read <= 0) {
-    AE_TELE_ERROR(kAdapterSerialReadFailed, "Read failed, no data!");
-    return;
-  } else {
-    buffer.resize(bytes_read);
-
-    AE_TELED_DEBUG("Serial data read {} bytes: {}", bytes_read, buffer);
-
-    buffers_.emplace_back(std::move(buffer));
-    read_event_ = true;
-    Action::Trigger();
-  }
-}
-
-Esp32SerialPort::Esp32SerialPort(ActionContext action_context,
-                                 SerialInit serial_init,
-                                 IPoller::ptr const& poller)
-    : action_context_{action_context},
-      serial_init_{std::move(serial_init)},
-      poller_{poller},
-      uart_num_{OpenPort(serial_init_)},
-      read_action_{action_context_, *this} {}
-
 Esp32SerialPort::~Esp32SerialPort() { Close(); }
-
-void Esp32SerialPort::Write(DataBuffer const& data) {
-  if (uart_num_ == UART_NUM_MAX) {
-    AE_TELE_ERROR(kAdapterSerialNotOpen, "Port is not open");
-    return;
+uart_port_t Esp32SerialPort::OpenPort(SerialInit const& init,
+                                      QueueHandle_t& events) {
+  auto port = UART_NUM_MAX;
+  // UART enum constants are not macros. Exclude the low-power UART.
+  for (int i = 0; i < SOC_UART_HP_NUM; ++i) {
+    if (init.port_name == "UART" + std::to_string(i) ||
+        init.port_name == "/dev/uart/" + std::to_string(i)) {
+      port = static_cast<uart_port_t>(i);
+      break;
+    }
   }
-
-  int bytes_written = uart_write_bytes(uart_num_, data.data(), data.size());
-  if (bytes_written < 0) {
-    // Recording error
-    AE_TELE_ERROR(kAdapterSerialWriteFailed, "Write failed!");
+  auto bits = static_cast<int>(init.byte_size);
+  if (port == UART_NUM_MAX || bits < esp32_serial_port_internal::kMinDataBits ||
+      bits > esp32_serial_port_internal::kMaxDataBits ||
+      static_cast<int>(init.baud_rate) <= 0 ||
+      (init.parity != kParity::kNoParity &&
+       init.parity != kParity::kOddParity &&
+       init.parity != kParity::kEvenParity) ||
+      static_cast<int>(init.stop_bits) < 1 ||
+      static_cast<int>(init.stop_bits) > 3 || uart_is_driver_installed(port)) {
+    AE_TELED_ERROR("Invalid or occupied UART: {}", init.port_name);
+    return UART_NUM_MAX;
+  }
+  uart_config_t config{};
+  config.baud_rate = static_cast<int>(init.baud_rate);
+  config.data_bits = static_cast<uart_word_length_t>(
+      bits - esp32_serial_port_internal::kMinDataBits);
+  config.parity = UART_PARITY_DISABLE;
+  if (init.parity == kParity::kOddParity) {
+    config.parity = UART_PARITY_ODD;
+  } else if (init.parity == kParity::kEvenParity) {
+    config.parity = UART_PARITY_EVEN;
+  }
+  config.stop_bits = static_cast<uart_stop_bits_t>(init.stop_bits);
+  config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
+  config.source_clk = UART_SCLK_DEFAULT;
+  if (uart_param_config(port, &config) != ESP_OK ||
+      uart_set_pin(port, init.tx_io_num, init.rx_io_num, UART_PIN_NO_CHANGE,
+                   UART_PIN_NO_CHANGE) != ESP_OK ||
+      uart_driver_install(port, esp32_serial_port_internal::kRxBufferSize,
+                          esp32_serial_port_internal::kTxBufferSize,
+                          esp32_serial_port_internal::kEventQueueSize, &events,
+                          0) != ESP_OK) {
+    AE_TELED_ERROR("Failed to configure UART: {}", init.port_name);
+    return UART_NUM_MAX;
+  }
+  return port;
+}
+void Esp32SerialPort::Schedule() {
+  task_ = context_.scheduler().DelayedTask([this] { Poll(); },
+                                           std::chrono::milliseconds{2});
+  if (!task_) {
+    AE_TELED_ERROR("Failed to schedule UART polling");
+    assert(false && "Task allocation failed");
     Close();
   }
 }
-
+void Esp32SerialPort::Poll() {
+  uart_event_t event{};
+  while (xQueueReceive(events_, &event, 0) == pdTRUE) {
+    if (event.type == UART_FIFO_OVF || event.type == UART_BUFFER_FULL ||
+        event.type == UART_FRAME_ERR || event.type == UART_PARITY_ERR) {
+      AE_TELED_ERROR("UART receive error: {}", static_cast<int>(event.type));
+      Close();
+      return;
+    }
+  }
+  FlushWrite();
+  if (!IsOpen()) {
+    return;
+  }
+  std::array<std::uint8_t, esp32_serial_port_internal::kReadChunkSize> buffer{};
+  auto count = uart_read_bytes(uart_num_, buffer.data(), buffer.size(), 0);
+  if (count < 0) {
+    AE_TELED_ERROR("UART read failed");
+    Close();
+    return;
+  }
+  // A subscriber can close the port, so schedule before emitting.
+  Schedule();
+  if (count > 0) {
+    read_event_.Emit({buffer.data(), static_cast<std::size_t>(count)});
+  }
+}
+void Esp32SerialPort::Write(std::span<std::uint8_t const> data) {
+  if (!IsOpen()) {
+    AE_TELED_ERROR("UART is closed");
+    return;
+  }
+  constexpr std::size_t kMaxPendingBytes = 16384;
+  if (data.size() > kMaxPendingBytes - pending_write_.size()) {
+    AE_TELED_ERROR("UART transmit queue overflow");
+    Close();
+    return;
+  }
+  pending_write_.insert(pending_write_.end(), data.begin(), data.end());
+  FlushWrite();
+}
+void Esp32SerialPort::FlushWrite() {
+  if (pending_write_.empty()) {
+    return;
+  }
+  // Only enqueue into an idle driver. A bounded chunk fits in the TX ring,
+  // so uart_write_bytes does not wait for space while the scheduler is running.
+  auto ready = uart_wait_tx_done(uart_num_, 0);
+  if (ready == ESP_ERR_TIMEOUT) {
+    return;
+  }
+  if (ready != ESP_OK) {
+    AE_TELED_ERROR("UART TX status failed: {}", ready);
+    Close();
+    return;
+  }
+  auto size = std::min(pending_write_.size(),
+                       esp32_serial_port_internal::kWriteChunkSize);
+  std::size_t free_size{};
+  if (uart_get_tx_buffer_free_size(uart_num_, &free_size) != ESP_OK) {
+    AE_TELED_ERROR("UART TX buffer query failed");
+    Close();
+    return;
+  }
+  if (free_size < size) {
+    return;
+  }
+  auto count = uart_write_bytes(uart_num_, pending_write_.data(), size);
+  if (count < 0 || static_cast<std::size_t>(count) != size) {
+    AE_TELED_ERROR("UART buffered write accepted {} of {} bytes", count, size);
+    Close();
+    return;
+  }
+  AE_TELED_DEBUG("UART TX buffer accepted {} bytes", count);
+  pending_write_.erase(pending_write_.begin(), pending_write_.begin() + count);
+}
 Esp32SerialPort::DataReadEvent::Subscriber Esp32SerialPort::read_event() {
   return EventSubscriber{read_event_};
 }
-
 bool Esp32SerialPort::IsOpen() { return uart_num_ != UART_NUM_MAX; }
-
-uart_port_t Esp32SerialPort::OpenPort(SerialInit const& serial_init) {
-  uart_port_t uart_num{UART_NUM_MAX};
-
-  if (!GetUartNumber(serial_init.port_name, &uart_num)) {
-    return UART_NUM_MAX;
-  }
-
-  auto close_on_exit = ae_defer_at[&] { uart_driver_delete(uart_num); };
-
-  if (!SetOptions(uart_num, serial_init)) {
-    return UART_NUM_MAX;
-  }
-
-  close_on_exit.Reset();
-
-  return uart_num;
-}
-
-bool Esp32SerialPort::SetOptions(uart_port_t uart_num,
-                                 SerialInit const& serial_init) {
-  uart_config_t uart_config = {
-      /* baud_rate */ static_cast<int>(serial_init.baud_rate),
-      /* data_bits */ UART_DATA_8_BITS,
-      /* parity */ UART_PARITY_DISABLE,
-      /* stop_bits */ UART_STOP_BITS_1,
-      /* flow_ctrl */ UART_HW_FLOWCTRL_DISABLE,
-      /* rx_flow_ctrl_thresh */ 122,
-      /* source_clk */ UART_SCLK_DEFAULT,
-      /* flags */ {}};
-
-  if (uart_param_config(uart_num_, &uart_config) != ESP_OK) {
-    return false;
-  }
-
-  if (uart_set_pin(uart_num_, serial_init.tx_io_num, serial_init.rx_io_num,
-                   UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE) != ESP_OK) {
-    return false;
-  }
-
-  if (uart_driver_install(uart_num_,
-                          // Receive buffer size
-                          4096,
-                          // Transmit Buffer size
-                          0,
-                          // Event Queue size
-                          0,
-                          // Event Queue Handler
-                          NULL,
-                          // Flags
-                          0) != ESP_OK) {
-    return false;
-  }
-
-  if (SetupTimeouts() != ESP_OK) {
-    uart_driver_delete(uart_num_);
-    return false;
-  }
-
-  return true;
-}
-
-esp_err_t Esp32SerialPort::SetupTimeouts() {
-  return uart_set_rx_timeout(uart_num_, 10);  // 10 units ? 100 ms
-}
-
-bool Esp32SerialPort::GetUartNumber(const std::string& port_name,
-                                    uart_port_t* out_uart_num) {
-  if (port_name == "UART0" || port_name == "/dev/uart/0") {
-#  if defined UART_NUM_0
-    *out_uart_num = UART_NUM_0;
-#  endif
-    return true;
-  } else if (port_name == "UART1" || port_name == "/dev/uart/1") {
-#  if defined UART_NUM_1
-    *out_uart_num = UART_NUM_1;
-#  endif
-    return true;
-  } else if (port_name == "UART2" || port_name == "/dev/uart/2") {
-#  if defined UART_NUM_2
-    *out_uart_num = UART_NUM_2;
-#  endif
-    return true;
-  }
-  return false;
-}
-
 void Esp32SerialPort::Close() {
-  if (uart_num_ != UART_NUM_MAX) {
+  task_.Reset();
+  if (IsOpen()) {
     uart_driver_delete(uart_num_);
+    uart_num_ = UART_NUM_MAX;
+    events_ = nullptr;
   }
+  pending_write_.clear();
 }
-} /* namespace ae */
-
-#endif  // ESP32_SERIAL_PORT_ENABLED
+}  // namespace ae
+#endif

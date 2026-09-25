@@ -17,9 +17,9 @@
 #include "aether/serial_ports/serial_port_factory.h"
 
 // IWYU pragma: begin_keeps
-#include "aether/serial_ports/win_serial_port.h"
 #include "aether/serial_ports/esp32_serial_port.h"
 #include "aether/serial_ports/unix_serial_port.h"
+#include "aether/serial_ports/win_serial_port.h"
 // IWYU pragma: end_keeps
 
 namespace ae {
@@ -30,7 +30,7 @@ std::unique_ptr<ISerialPort> SerialPortFactory::CreatePort(
 #if WIN_SERIAL_PORT_ENABLED == 1
   return std::make_unique<WinSerialPort>(ae_context, serial_init, poller);
 #elif ESP32_SERIAL_PORT_ENABLED == 1
-  return std::make_unique<Esp32SerialPort>(ae_context, serial_init, poller);
+  return std::make_unique<Esp32SerialPort>(ae_context, serial_init);
 #elif UNIX_SERIAL_PORT_ENABLED == 1
   return std::make_unique<UnixSerialPort>(ae_context, serial_init, poller);
 #else
