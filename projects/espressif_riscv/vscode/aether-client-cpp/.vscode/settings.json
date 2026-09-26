@@ -4,8 +4,8 @@
     "Ninja",
     "-DCMAKE_BUILD_TYPE=Release",
     "-DIDF_TARGET=esp32c6",
-    "-DWIFI_SSID=Visuale",
-    "-DWIFI_PASSWORD=Ws63$yhJ",
+    "-DWIFI_SSID=Test1234",
+    "-DWIFI_PASSWORD=Test1234",
     "-DUSER_CONFIG=../../../../../config/user_config_hydrogen.h"
   ],
   "C_Cpp.intelliSenseEngine": "Tag Parser",
