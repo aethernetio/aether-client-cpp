@@ -30,6 +30,12 @@ else()
       SRCS main.cpp a_b_message_exchange.cpp
       INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR} ../common
       REQUIRES esp_wifi esp_netif nvs_flash spiffs esp_driver_uart)
+
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE
+      WIFI_SSID="${WIFI_SSID}"
+      WIFI_PASSWORD="${WIFI_PASSWORD}"
+    )
+
     add_subdirectory("../../" aether)
     target_link_libraries(${COMPONENT_LIB} PRIVATE aether)
   else()

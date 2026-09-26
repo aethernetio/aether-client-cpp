@@ -46,6 +46,12 @@ else()
                 esp_driver_uart
                 esp_driver_gpio
       )
+
+      target_compile_definitions(${COMPONENT_LIB} PRIVATE
+        WIFI_SSID="${WIFI_SSID}"
+        WIFI_PASSWORD="${WIFI_PASSWORD}"
+      )
+
       add_subdirectory("../../../" aether)
       target_link_libraries(${COMPONENT_LIB} PRIVATE aether)
       if (NOT DEST_UID STREQUAL "")

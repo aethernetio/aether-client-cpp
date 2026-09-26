@@ -18,12 +18,12 @@
 #define EXAMPLES_COMMON_AETHER_CONSTRUCT_ESP_WIFI_H_
 
 #include "aether_construct.h"
-
+#include "aether/config.h"
 #if AE_EXAMPLE_ESP_WIFI
 
 namespace ae::examples {
-static const std::string kWifi1Ssid = "Test1234";
-static const std::string kWifi1Pass = "Test1234";
+static const std::string kWifi1Ssid = std::string{WIFI_SSID};
+static const std::string kWifi1Pass = std::string{WIFI_PASSWORD};
 
 static const std::string kWifi2Ssid = "Test2345";
 static const std::string kWifi2Pass = "Test2345";
