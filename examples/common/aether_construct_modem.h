@@ -50,13 +50,13 @@ static ae::ModemInit const modem_init{
     1111,               ///< Numeric SIM PIN used when use_pin is enabled.
     false,              ///< Whether to submit the configured SIM PIN.
     ae::kModemMode::kModeNbIot,  ///< Requested radio access mode.
-    "25001",            ///< Numeric operator code; an empty value permits
+    "00001",            ///< Numeric operator code; an empty value permits
                         ///< automatic selection.
     "",                 ///< Operator name, preferred over operator_code
                         ///< when supported.
-    "internet.mts.ru",  ///< Access point name for packet data.
-    "mts",              ///< APN authentication user name.
-    "mts",              ///< APN authentication password.
+    "internet",         ///< Access point name for packet data.
+    "user",             ///< APN authentication user name.
+    "pass",             ///< APN authentication password.
     ae::kAuthType::kAuthTypeNone,  ///< Requested APN authentication method.
     false,  ///< Optional authentication flag; support is driver-specific.
     "",     ///< Optional authentication user name.

@@ -40,6 +40,9 @@ ServerConnectionManager::GetServerConnectionFactory() {
 
 auto ServerConnectionManager::CreateConnection(Ptr<Server> const& server)
     -> std::shared_ptr<ClientServerConnection> {
+  if (stopped_) {
+    return {};
+  }
   auto in_cache = FindInCache(server->server_id);
   if (in_cache) {
     return in_cache;
@@ -68,6 +71,16 @@ std::shared_ptr<ClientServerConnection> ServerConnectionManager::FindInCache(
     return it->second.lock();
   }
   return nullptr;
+}
+
+void ServerConnectionManager::Stop() {
+  stopped_ = true;
+  server_update_subs_.Reset();
+  for (auto& [id, cached] : cached_connections_) {
+    if (auto connection = cached.lock()) {
+      connection->server_connection().Stop();
+    }
+  }
 }
 
 void ServerConnectionManager::ServerUpdate(ServerId server_id) {

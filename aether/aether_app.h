@@ -157,8 +157,8 @@ class AetherApp {
 
   ~AetherApp();
 
-  // Stop adapters, then mark the application as exited. Keep updating the
-  // scheduler until IsExited() becomes true.
+  // Stop client connections before adapters, then mark the app as exited.
+  // Keep updating the scheduler until IsExited() becomes true.
   void Exit(int code = 0);
 
   bool IsExited() const { return exit_code_.has_value(); }

@@ -52,6 +52,7 @@ class ServerConnectionManager {
       Ptr<Server> const& server);
 
   std::shared_ptr<ClientServerConnection> FindInCache(ServerId server_id) const;
+  void Stop();
 
  private:
   void ServerUpdate(ServerId server_id);
@@ -60,6 +61,7 @@ class ServerConnectionManager {
   PtrView<Client> client_;
   std::map<ServerId, std::weak_ptr<ClientServerConnection>> cached_connections_;
   MultiSubscription server_update_subs_;
+  bool stopped_{};
 };
 }  // namespace ae
 

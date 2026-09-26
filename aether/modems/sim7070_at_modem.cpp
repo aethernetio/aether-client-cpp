@@ -777,10 +777,10 @@ auto ModemStopOperation::Pipeline() {
                    })};
              })};
   return std::move(deactivate) | ex::let_value([this]() noexcept {
-           // Also detach LTE; this is a fallback if context deactivation
-           // failed.
-           return at::MakeRequest(ex::just(), at_support_, "AT+CFUN=0",
-                                  kWaitOk) |
+           // Normal power-off also detaches LTE if PDP cleanup failed.
+           // CPOWD reports NORMAL POWER DOWN, not OK (AT manual 5.2.1).
+           return at::MakeRequest(ex::just(), at_support_, "AT+CPOWD=1",
+                                  at::Wait{"NORMAL POWER DOWN"}) |
                   ex::with_timeout(ae_context_, 30s);
          });
 }
@@ -791,7 +791,7 @@ void ModemStopOperation::RunPipeline() {
     return Pipeline() |
            ex::then([this]() noexcept { self_->connections_.clear(); }) |
            ex::upon_error([this](auto&&) noexcept {
-             AE_TELED_ERROR("Sim7070 network deactivation failed");
+             AE_TELED_ERROR("Sim7070 power-off failed or timed out");
              failed_ = true;
            }) |
            ex::then([this]() noexcept {
@@ -841,10 +841,9 @@ ModemPowerOffOperation::ModemPowerOffOperation(AeContext const& ae_context,
 }
 
 auto ModemPowerOffOperation::Pipeline() {
-  return ex::just() | at::MakeRequest(at_support_, "AT+CFUN=1", kWaitOk) |
-         ex::with_timeout(ae_context_, 1s) |
-         at::MakeRequest(at_support_, "AT+CPOWD=1", kWaitOk) |
-         ex::with_timeout(ae_context_, 5s);
+  return at::MakeRequest(ex::just(), at_support_, "AT+CPOWD=1",
+                         at::Wait{"NORMAL POWER DOWN"}) |
+         ex::with_timeout(ae_context_, 30s);
 }
 
 void ModemPowerOffOperation::RunPipeline() {

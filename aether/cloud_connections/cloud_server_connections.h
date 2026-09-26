@@ -92,6 +92,8 @@ class CloudServerConnections {
    * \brief Restream all selected servers
    */
   void Restream();
+  // Cancel failover before stopping transports. Keeps published entries alive.
+  void Stop();
 
   /**
    * \brief Iterate over servers according to the request policy.
@@ -178,6 +180,7 @@ class CloudServerConnections {
   PtrView<Cloud> cloud_;
   std::unique_ptr<IServerConnectionFactory> connection_factory_;
   std::size_t max_connections_;
+  bool stopped_{};
   // Entries are reserved and populated once before connection pointers are
   // published. Do not grow or rebuild this vector: callbacks retain pointers
   // to its connections.

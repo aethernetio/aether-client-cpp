@@ -73,6 +73,7 @@ class Aether : public Obj {
 
   // AeContext protocol
   AeCtx ToAeContext() const;
+  void StopNetworking();
 
   ObjPtr<Client> CreateClient(ClientConfig const& config,
                               std::string const& client_id);

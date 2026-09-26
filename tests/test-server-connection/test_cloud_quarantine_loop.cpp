@@ -147,6 +147,21 @@ struct CloudFixture {
   std::unique_ptr<CloudServerConnections> connections;
 };
 
+void test_StopCancelsQuarantineReconnect() {
+  auto factory = std::make_unique<CountingNullFactory>();
+  auto* raw = factory.get();
+  CloudFixture f{std::move(factory), raw};
+  TEST_ASSERT_TRUE(f.AnyQuarantined());
+  auto attempts = raw->attempts;
+  f.connections->Stop();
+  f.connections->Stop();
+  f.connections->Restream();
+  f.ctx.PumpAt(Now() + std::chrono::milliseconds{
+                           AE_CLOUD_SERVER_QUARANTINE_TIME_MS * 2});
+  TEST_ASSERT_EQUAL_INT(attempts, raw->attempts);
+  TEST_ASSERT_TRUE(f.connections->selected_servers().empty());
+}
+
 void AssertCanonicalPriorities(CloudServerConnections& connections) {
   auto const& servers = connections.servers();
   for (std::size_t i = 0; i < servers.size(); ++i) {
@@ -366,6 +381,7 @@ int run_test_cloud_quarantine_loop() {
   using namespace ae::test_cloud_quarantine_loop;  // NOLINT
 
   UNITY_BEGIN();
+  RUN_TEST(test_StopCancelsQuarantineReconnect);
   RUN_TEST(test_CloudQuarantineAndReleasePreserveCanonicalOrder);
   RUN_TEST(test_CloudQuarantineDoesNotBusyLoop);
   RUN_TEST(test_CloudImmediateUnusableCandidatesUseQuarantinePath);

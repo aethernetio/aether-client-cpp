@@ -147,6 +147,25 @@ void CloudServerConnections::InitServerConnections() {
   NormalizeServerPriorities();
 }
 
+void CloudServerConnections::Stop() {
+  if (stopped_) {
+    return;
+  }
+  stopped_ = true;
+  defer_sub_.Reset();
+  selected_servers_.clear();
+  for (auto& entry : server_entries_) {
+    entry.state_sub.Reset();
+    entry.error_sub.Reset();
+    entry.quarantine_sub.Reset();
+  }
+  for (auto& entry : server_entries_) {
+    if (auto* connection = entry.connection.client_connection()) {
+      connection->server_connection().Stop();
+    }
+  }
+}
+
 bool CloudServerConnections::SubscribeToServerState(
     CloudServerConnection& server_connection) {
   auto* conn = server_connection.client_connection();
@@ -256,7 +275,7 @@ void CloudServerConnections::ReleaseQuarantinedServer(
 }
 
 void CloudServerConnections::ScheduleReconcileServers() {
-  if (defer_sub_) {
+  if (stopped_ || defer_sub_) {
     return;
   }
   defer_sub_ = ae_context_.scheduler().Task([this]() {
@@ -271,7 +290,7 @@ void CloudServerConnections::ScheduleReconcileServers() {
 }
 
 void CloudServerConnections::ReconcileServers() {
-  if (selected_servers_.size() >= max_connections_) {
+  if (stopped_ || selected_servers_.size() >= max_connections_) {
     return;
   }
   // Vacancy-fill model: keep the current selected list stable and only append

@@ -16,11 +16,13 @@
 
 #include <unity.h>
 #include <chrono>
+#include <functional>
 #include <memory>
 #include "aether/config.h"
 #if AE_DISTILLATION
 #  include "aether-objects/domain_storage/ram_domain_storage.h"
 #  include "aether/aether_app.h"
+#  include "aether/client.h"
 
 namespace ae::test_app_shutdown {
 class ShutdownTestAdapter final : public Adapter {
@@ -34,6 +36,9 @@ class ShutdownTestAdapter final : public Adapter {
   AE_OBJECT_REFLECT()
   std::vector<AccessPoint::ptr> access_points() override { return {}; }
   IAdapterStop& Stop() override {
+    if (on_stop) {
+      on_stop();
+    }
     ++stop_count;
     task_ = scheduler_->DelayedTask(
         [this]() {
@@ -44,6 +49,7 @@ class ShutdownTestAdapter final : public Adapter {
     return action_;
   }
   int stop_count{};
+  std::function<void()> on_stop;
 
  private:
   TaskScheduler* scheduler_{};
@@ -83,6 +89,38 @@ void test_ExitWaitsForAdapterAndKeepsOriginalExitCode() {
   TEST_ASSERT_TRUE(app->IsExited());
   TEST_ASSERT_EQUAL_INT(7, app->ExitCode());
   // Release the external persistent reference before its domain is destroyed.
+  adapter.Reset();
+}
+
+void test_ExitStopsClientConnectionsBeforeAdapter() {
+  int finished = 0;
+  ShutdownTestAdapter::ptr adapter;
+  auto app = MakeApp(finished, adapter);
+  ClientConfig config{};
+  config.cloud.push_back(ServerConfig{ServerId{7}, {}});
+  auto client = app->aether()->CreateClient(config, "shutdown-test");
+  Ptr<Client> loaded = client.Load();
+  auto& connections = loaded->cloud_connection();
+  TEST_ASSERT_FALSE(connections.selected_servers().empty());
+  bool checked = false;
+  adapter->on_stop = [&]() {
+    TEST_ASSERT_TRUE(connections.selected_servers().empty());
+    checked = true;
+  };
+  app->Exit();
+  for (int i = 0; i < 8; ++i) {
+    app->Update(Now() + std::chrono::milliseconds{100});
+  }
+  TEST_ASSERT_TRUE(checked);
+  TEST_ASSERT_TRUE(app->IsExited());
+  auto server = app->aether()->GetServer(ServerId{7});
+  TEST_ASSERT_NULL(loaded->server_connection_manager()
+                       .CreateConnection(server.Load())
+                       .get());
+  server.Reset();
+  adapter->on_stop = {};
+  loaded = {};
+  client.Reset();
   adapter.Reset();
 }
 
@@ -132,6 +170,7 @@ int test_app_shutdown() {
 #if AE_DISTILLATION
   using namespace ae::test_app_shutdown;  // NOLINT: Unity suite entry.
   UNITY_BEGIN();
+  RUN_TEST(test_ExitStopsClientConnectionsBeforeAdapter);
   RUN_TEST(test_ExitWaitsForAdapterAndKeepsOriginalExitCode);
   RUN_TEST(test_DestructorWaitsForAdapterShutdown);
   RUN_TEST(test_AdapterStopCompletesImmediatelyWithoutPendingWork);

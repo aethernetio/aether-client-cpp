@@ -237,11 +237,12 @@ class Sim7070AtModem final : public IModemDriver {
    */
   ModemOperation* Start() override;
   /**
-   * @brief Stop polling, close tracked sockets, and disable network service.
+   * @brief Stop polling, close tracked sockets, and power off the modem.
    *
    * Shutdown is queued after pending operations. Socket cleanup continues after
    * individual close failures; the final operation reports cleanup errors.
-   * The driver deactivates PDP context 0 before sending AT+CFUN=0.
+   * The driver deactivates PDP context 0, sends AT+CPOWD=1 and waits up to
+   * 30 seconds for NORMAL POWER DOWN before closing the serial port.
    * @return The same driver-owned stop operation on repeated calls. It remains
    * available until driver destruction.
    * The serial port is closed before completion, including on shutdown errors.
@@ -275,7 +276,7 @@ class Sim7070AtModem final : public IModemDriver {
   ModemOperation* SetPowerSaveParam(ModemPowerSaveParam const& psp) override;
   /**
    * @copydoc IModemDriver::PowerOff
-   * @note Sends AT+CFUN=1 followed by AT+CPOWD=1.
+   * @note Sends AT+CPOWD=1 and waits for NORMAL POWER DOWN (up to 30 seconds).
    */
   ModemOperation* PowerOff() override;
 

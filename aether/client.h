@@ -72,6 +72,8 @@ class Client : public Obj {
                              ephemeral_uid_, master_key_, cloud_, server_keys_,
                              connectivity_policy_, client_cloud_manager_))
   void SendTelemetry();
+  // Stop runtime connections without changing persisted configuration.
+  void StopNetworking();
 
  private:
   ObjPtr<Aether> aether_;

@@ -59,8 +59,27 @@ ServerConnection::OutDataEvent::Subscriber ServerConnection::out_data_event() {
 }
 
 void ServerConnection::Restream() {
+  if (stopped_) {
+    return;
+  }
   // restream means something wrong with current channel
   ChannelError();
+}
+
+void ServerConnection::Stop() {
+  if (stopped_) {
+    return;
+  }
+  stopped_ = true;
+  defer_sub_.Reset();
+  channel_stream_update_sub_.Reset();
+  channel_stream_out_data_sub_.Reset();
+  channel_select_action_.reset();
+  stream_info_.is_writable = false;
+  stream_info_.link_state = LinkState::kUnlinked;
+  top_channel_ = nullptr;
+  stream_update_event_.Emit();
+  stream_.reset();
 }
 
 ServerConnection::ServerErrorEvent::Subscriber
@@ -131,6 +150,9 @@ ChannelEntry* ServerConnection::TopChannel() {
 }
 
 void ServerConnection::SelectChannel() {
+  if (stopped_) {
+    return;
+  }
   // prevent new channel selection while one is active
   if (channel_select_action_ && !channel_select_action_->is_finished()) {
     AE_TELED_DEBUG("Repeated select channel");

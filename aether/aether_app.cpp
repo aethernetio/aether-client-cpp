@@ -406,6 +406,7 @@ void AetherApp::Exit(int code) {
   requested_exit_code_ = code;
   // Defer shutdown out of the callback that requested exit.
   shutdown_task_ = aether_->task_scheduler->Task([this]() {
+    aether_->StopNetworking();
     auto registry = aether_->adapter_registry;
     if (registry) {
       registry.Load();

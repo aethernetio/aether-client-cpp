@@ -33,6 +33,21 @@ Client::Client(ObjProp prop, Aether::ptr aether)
 
 Client::~Client() = default;
 
+void Client::StopNetworking() {
+#if AE_ENABLE_PING
+  ping_cloud_servers_.reset();
+#endif
+#if TELEMETRY_ENABLED
+  telemetry_.reset();
+#endif
+  if (cloud_connection_) {
+    cloud_connection_->Stop();
+  }
+  if (server_connection_manager_) {
+    server_connection_manager_->Stop();
+  }
+}
+
 std::string const& Client::id() const { return client_id_; }
 Uid const& Client::parent_uid() const { return parent_uid_; }
 Uid const& Client::uid() const { return uid_; }

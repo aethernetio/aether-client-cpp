@@ -50,6 +50,8 @@ class ServerConnection final : public ByteIStream {
   StreamInfo stream_info() const override;
   OutDataEvent::Subscriber out_data_event() override;
   void Restream() override;
+  // Terminal shutdown; call outside connection callbacks.
+  void Stop();
 
   ServerErrorEvent::Subscriber server_error_event();
   ChannelChangedEvent::Subscriber channel_changed_event();
@@ -78,6 +80,7 @@ class ServerConnection final : public ByteIStream {
   PtrView<Server> server_;
 
   bool full_connected_;
+  bool stopped_{};
   ChannelEntry* top_channel_;
   std::unique_ptr<ByteIStream> stream_;
   std::vector<ChannelEntry> channels_;

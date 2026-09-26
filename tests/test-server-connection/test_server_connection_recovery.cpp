@@ -343,6 +343,51 @@ void test_FullPoolStillReachesLinkError() {
   TEST_ASSERT_EQUAL(1, builds);
 }
 
+void test_StopCancelsPendingChannelFallback() {
+  TestContext ctx;
+  AeContext ae_ctx{ctx};
+  RamDomainStorage storage;
+  Domain domain{storage};
+  int builds = 0;
+  FakeBuildPolicy policy{FakeBuildPolicy::Mode::kFailThenSucceed, &builds,
+                         &ae_ctx};
+  auto first = FakeChannel::ptr::Create(CreateWith{domain}, policy);
+  auto second = FakeChannel::ptr::Create(CreateWith{domain}, policy);
+  auto server = MakeServerWithChannels(domain, {first, second});
+  ServerConnection connection{ae_ctx, server.Load()};
+  TEST_ASSERT_EQUAL_INT(1, builds);
+  connection.Stop();
+  connection.Restream();
+  connection.Stop();
+  ctx.Pump();
+  TEST_ASSERT_EQUAL_INT(1, builds);
+  TEST_ASSERT_FALSE(connection.stream_info().is_writable);
+  TEST_ASSERT_TRUE(connection.stream_info().link_state == LinkState::kUnlinked);
+}
+
+void test_StopClosesLinkedConnectionWithoutFailover() {
+  TestContext ctx;
+  AeContext ae_ctx{ctx};
+  RamDomainStorage storage;
+  Domain domain{storage};
+  int builds = 0;
+  FakeBuildPolicy policy{FakeBuildPolicy::Mode::kAlwaysSucceed, &builds,
+                         &ae_ctx};
+  auto channel = FakeChannel::ptr::Create(CreateWith{domain}, policy);
+  auto server = MakeServerWithChannels(domain, {channel});
+  ServerConnection connection{ae_ctx, server.Load()};
+  TEST_ASSERT_TRUE(connection.stream_info().is_writable);
+  int errors = 0;
+  Subscription sub =
+      connection.server_error_event().Subscribe([&]() { ++errors; });
+  connection.Stop();
+  connection.Restream();
+  ctx.Pump();
+  TEST_ASSERT_EQUAL_INT(0, errors);
+  TEST_ASSERT_EQUAL_INT(1, builds);
+  TEST_ASSERT_FALSE(connection.stream_info().is_writable);
+}
+
 void test_NoBusyLoopOnPermanentFailure() {
   TestContext ctx;
   AeContext ae_ctx{ctx};
@@ -368,6 +413,8 @@ void test_NoBusyLoopOnPermanentFailure() {
 int run_test_server_connection_recovery() {
   using namespace ae::test_server_connection_recovery;  // NOLINT
   UNITY_BEGIN();
+  RUN_TEST(test_StopCancelsPendingChannelFallback);
+  RUN_TEST(test_StopClosesLinkedConnectionWithoutFailover);
   RUN_TEST(test_SingleChannelBuildFailureReachesLinkError);
   RUN_TEST(test_ResultCallbackSeesFinishedAction);
   RUN_TEST(test_SecondChannelSucceedsAfterFirstFailure);

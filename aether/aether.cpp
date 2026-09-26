@@ -39,6 +39,15 @@ Aether::Aether(ObjProp prop)
 
 Aether::~Aether() { AE_TELE_DEBUG(AetherDestroyed); }
 
+void Aether::StopNetworking() {
+  for (auto& [id, client] : clients_) {
+    if (client.is_loaded()) {
+      Ptr<Client> loaded = client.Load();
+      loaded->StopNetworking();
+    }
+  }
+}
+
 AeCtx Aether::ToAeContext() const {
   static constexpr AeCtxTable ae_table{
       [](void* obj) -> Aether& { return *static_cast<Aether*>(obj); },

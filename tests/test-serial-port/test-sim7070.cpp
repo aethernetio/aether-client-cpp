@@ -129,10 +129,13 @@ void test_StopClosesSocketsAndWaitsForContextDeactivation() {
   TEST_ASSERT_FALSE(stop->is_finished());
   f.Expect("AT+CNACT=0,0\r\n");
   f.Reply("OK\r\n");
-  f.Expect("AT+CFUN=0\r\n");
+  f.Expect("AT+CPOWD=1\r\n");
   TEST_ASSERT_FALSE(stop->is_finished());
   TEST_ASSERT_TRUE(f.serial->IsOpen());
   f.Reply("OK\r\n");
+  TEST_ASSERT_FALSE(stop->is_finished());
+  TEST_ASSERT_TRUE(f.serial->IsOpen());
+  f.Reply("NORMAL POWER DOWN\r\n");
   TEST_ASSERT_TRUE(stop->is_finished());
   TEST_ASSERT_FALSE(f.serial->IsOpen());
   TEST_ASSERT_TRUE(closed_at_result);
@@ -159,8 +162,8 @@ void test_StopContinuesAfterCloseErrorAndDeactivationTimeout() {
   f.context.scheduler.Update(f.now + std::chrono::seconds{11});
   f.now = Now();
   f.Pump();
-  f.Expect("AT+CFUN=0\r\n");
-  f.Reply("OK\r\n");
+  f.Expect("AT+CPOWD=1\r\n");
+  f.Reply("NORMAL POWER DOWN\r\n");
   TEST_ASSERT_TRUE(stop->is_finished());
   TEST_ASSERT_FALSE(f.serial->IsOpen());
   TEST_ASSERT_FALSE(stop->result()->IsOk());
@@ -172,20 +175,48 @@ void test_StopSkipsAlreadyInactiveContext() {
   f.Pump();
   f.Expect("AT+CNACT?\r\n");
   f.Reply("+CNACT: 0,0,\"0.0.0.0\"\r\nOK\r\n");
-  f.Expect("AT+CFUN=0\r\n");
-  f.Reply("OK\r\n");
+  f.Expect("AT+CPOWD=1\r\n");
+  f.Reply("NORMAL POWER DOWN\r\n");
   TEST_ASSERT_TRUE(stop->is_finished());
   TEST_ASSERT_FALSE(f.serial->IsOpen());
   TEST_ASSERT_TRUE(stop->result()->IsOk());
   TEST_ASSERT_EQUAL_UINT(2, f.commands.size());
 }
 
-void test_StopDeactivationErrorFinishes() {
+void test_StopPowerOffTimeoutClosesSerialAndReportsError() {
   Fixture f;
   auto* stop = f.modem->Stop();
   f.Pump();
   f.Reply("+CNACT: 0,0,\"0.0.0.0\"\r\nOK\r\n");
-  f.Expect("AT+CFUN=0\r\n");
+  f.Expect("AT+CPOWD=1\r\n");
+  TEST_ASSERT_FALSE(stop->is_finished());
+  f.now += std::chrono::seconds{31};
+  f.Pump();
+  TEST_ASSERT_TRUE(stop->is_finished());
+  TEST_ASSERT_FALSE(stop->result()->IsOk());
+  TEST_ASSERT_FALSE(f.serial->IsOpen());
+  TEST_ASSERT_EQUAL_UINT(2, f.commands.size());
+}
+
+void test_PowerOffWaitsForNormalPowerDownWithoutEnablingRadio() {
+  Fixture f;
+  auto* power_off = f.modem->PowerOff();
+  f.Pump();
+  f.Expect("AT+CPOWD=1\r\n");
+  f.Reply("OK\r\n");
+  TEST_ASSERT_FALSE(power_off->is_finished());
+  f.Reply("NORMAL POWER DOWN\r\n");
+  TEST_ASSERT_TRUE(power_off->is_finished());
+  TEST_ASSERT_TRUE(power_off->result()->IsOk());
+  TEST_ASSERT_EQUAL_UINT(1, f.commands.size());
+}
+
+void test_StopPowerOffErrorFinishes() {
+  Fixture f;
+  auto* stop = f.modem->Stop();
+  f.Pump();
+  f.Reply("+CNACT: 0,0,\"0.0.0.0\"\r\nOK\r\n");
+  f.Expect("AT+CPOWD=1\r\n");
   f.Reply("ERROR\r\n");
   TEST_ASSERT_TRUE(stop->is_finished());
   TEST_ASSERT_FALSE(f.serial->IsOpen());
@@ -240,8 +271,8 @@ void test_StartActivatesContextBeforeShutdown() {
   f.Reply("+CNACT: 0,1,\"10.0.0.1\"\r\nOK\r\n");
   f.Expect("AT+CNACT=0,0\r\n");
   f.Reply("OK\r\n+APP PDP: 0,DEACTIVE\r\n");
-  f.Expect("AT+CFUN=0\r\n");
-  f.Reply("OK\r\n");
+  f.Expect("AT+CPOWD=1\r\n");
+  f.Reply("NORMAL POWER DOWN\r\n");
   TEST_ASSERT_TRUE(stop->is_finished());
   TEST_ASSERT_FALSE(f.serial->IsOpen());
   TEST_ASSERT_TRUE(stop->result()->IsOk());
@@ -304,7 +335,9 @@ int test_sim7070() {
   RUN_TEST(test_StopClosesSocketsAndWaitsForContextDeactivation);
   RUN_TEST(test_StopContinuesAfterCloseErrorAndDeactivationTimeout);
   RUN_TEST(test_StopSkipsAlreadyInactiveContext);
-  RUN_TEST(test_StopDeactivationErrorFinishes);
+  RUN_TEST(test_StopPowerOffErrorFinishes);
+  RUN_TEST(test_StopPowerOffTimeoutClosesSerialAndReportsError);
+  RUN_TEST(test_PowerOffWaitsForNormalPowerDownWithoutEnablingRadio);
   RUN_TEST(test_StartActivatesContextBeforeShutdown);
   RUN_TEST(test_StartDoesNotQuerySimWhenEnablingModemFails);
   RUN_TEST(test_StartRetriesSimWhileInterfaceIsWakingUp);
