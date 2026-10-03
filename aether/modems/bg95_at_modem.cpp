@@ -21,8 +21,8 @@
 
 #  include "aether-miscpp/misc/override.h"
 #  include "aether/executors/executors.h"
-#  include "aether/serial_ports/at_support/at_stage.h"
 #  include "aether/serial_ports/at_support/at_request.h"
+#  include "aether/serial_ports/at_support/at_stage.h"
 #  include "aether/serial_ports/serial_port_factory.h"
 
 #  include "aether/modems/modems_tele.h"
@@ -50,7 +50,8 @@ OpenNetworkOperationImpl::OpenNetworkOperationImpl(AeContext const& ae_context,
 auto OpenNetworkOperationImpl::Pipeline() {
   // BG95 uses QIACT for PDP context activation and QIOPEN for socket connection
   // AT+QIACT=<pdp_context>,<IP_type>,<IP_address> to activate PDP context
-  // AT+QIOPEN=<pdp_context>,<socket_id>,<conn_type>,<server>,<port> to open socket
+  // AT+QIOPEN=<pdp_context>,<socket_id>,<conn_type>,<server>,<port> to open
+  // socket
 
   auto handle = self_->next_connection_index_++;
   auto protocol_str = [&]() -> std::string_view {
@@ -65,27 +66,27 @@ auto OpenNetworkOperationImpl::Pipeline() {
 
   // First activate PDP context, then open socket
   return ex::just() |
-         at::MakeRequest(at_support_,
-                         "AT+QIACT=1,1,\"0.0.0.0\"",
-                         at::Wait{"+QIACT:",
-                                  [](auto&, auto pos) {
-                                    std::int32_t context_id{};
-                                    std::int32_t result{};
-                                    if (at_support::ParseResponse(*pos, "+QIACT",
-                                                                   context_id,
-                                                                   result)) {
-                                      return result == 1;
-                                    }
-                                    return false;
-                                  }}) |
+         at::MakeRequest(
+             at_support_, "AT+QIACT=1,1,\"0.0.0.0\"",
+             at::Wait{"+QIACT:",
+                      [](auto&, auto pos) {
+                        std::int32_t context_id{};
+                        std::int32_t result{};
+                        if (at_support::ParseResponse(*pos, "+QIACT",
+                                                      context_id, result)) {
+                          return result == 1;
+                        }
+                        return false;
+                      }}) |
          ex::with_timeout(ae_context_, 30s) |
          at::MakeRequest(at_support_,
-                         Format(R"(AT+QIOPEN=1,{}, "{}", "{}", {}))",
-                                 handle, protocol_str, host_, port_),
+                         Format(R"(AT+QIOPEN=1,{}, "{}", "{}", {}))", handle,
+                                protocol_str, host_, port_),
                          at::Wait{Format("+QIOPEN: {}", handle),
                                   [handle](AtBuffer&, auto pos) {
                                     std::int32_t result_code{};
-                                    int expected_handle = static_cast<int>(handle);
+                                    int expected_handle =
+                                        static_cast<int>(handle);
                                     if (at_support::ParseResponse(
                                             *pos, "+QIOPEN", result_code,
                                             expected_handle)) {
@@ -221,20 +222,19 @@ ModemStartOperation::ModemStartOperation(AeContext const& ae_context,
 }
 
 auto ModemStartOperation::SetBaudRate(kBaudRate const rate) {
-  static const std::map<kBaudRate, std::string_view>
-      baud_rate_commands_bg95 = {
-          {kBaudRate::kBaudRate9600, "AT+IPR=9600"},
-          {kBaudRate::kBaudRate19200, "AT+IPR=19200"},
-          {kBaudRate::kBaudRate38400, "AT+IPR=38400"},
-          {kBaudRate::kBaudRate57600, "AT+IPR=57600"},
-          {kBaudRate::kBaudRate115200, "AT+IPR=115200"},
-          {kBaudRate::kBaudRate230400, "AT+IPR=230400"},
-          {kBaudRate::kBaudRate921600, "AT+IPR=921600"},
-          {kBaudRate::kBaudRate2900000, "AT+IPR=2900000"},
-          {kBaudRate::kBaudRate3000000, "AT+IPR=3000000"},
-          {kBaudRate::kBaudRate3200000, "AT+IPR=3200000"},
-          {kBaudRate::kBaudRate3684000, "AT+IPR=3684000"},
-          {kBaudRate::kBaudRate4000000, "AT+IPR=4000000"}};
+  static const std::map<kBaudRate, std::string_view> baud_rate_commands_bg95 = {
+      {kBaudRate::kBaudRate9600, "AT+IPR=9600"},
+      {kBaudRate::kBaudRate19200, "AT+IPR=19200"},
+      {kBaudRate::kBaudRate38400, "AT+IPR=38400"},
+      {kBaudRate::kBaudRate57600, "AT+IPR=57600"},
+      {kBaudRate::kBaudRate115200, "AT+IPR=115200"},
+      {kBaudRate::kBaudRate230400, "AT+IPR=230400"},
+      {kBaudRate::kBaudRate921600, "AT+IPR=921600"},
+      {kBaudRate::kBaudRate2900000, "AT+IPR=2900000"},
+      {kBaudRate::kBaudRate3000000, "AT+IPR=3000000"},
+      {kBaudRate::kBaudRate3200000, "AT+IPR=3200000"},
+      {kBaudRate::kBaudRate3684000, "AT+IPR=3684000"},
+      {kBaudRate::kBaudRate4000000, "AT+IPR=4000000"}};
 
   return ex::let_value([&, rate]() noexcept {
     auto make_request = [&](std::string&& cmd) noexcept {
@@ -256,17 +256,15 @@ auto ModemStartOperation::SetBaudRate(kBaudRate const rate) {
 
 auto ModemStartOperation::SetNetMode(kModemMode const modem_mode) {
   // BG95 specific network mode commands
-  static const std::map<kModemMode, std::string_view>
-      net_mode_commands_bg95 = {
-          {kModemMode::kModeAuto, "AT+CNMP=2"},      // Set modem mode Auto
-          {kModemMode::kModeGSMOnly, "AT+CNMP=13"},  // Set modem mode GSMOnly
-          {kModemMode::kModeLTEOnly, "AT+CNMP=38"},  // Set modem mode LTEOnly
-          {kModemMode::kModeGSMLTE, "AT+CNMP=51"},   // Set modem mode GSMLTE
-          {kModemMode::kModeCatM, "AT+CMNB=1"},      // Set modem mode CatM
-          {kModemMode::kModeNbIot, "AT+CMNB=2"},     // Set modem mode NbIot
-          {kModemMode::kModeCatMNbIot,
-           "AT+CMNB=3"},  // Set modem mode CatMNbIot
-      };
+  static const std::map<kModemMode, std::string_view> net_mode_commands_bg95 = {
+      {kModemMode::kModeAuto, "AT+CNMP=2"},       // Set modem mode Auto
+      {kModemMode::kModeGSMOnly, "AT+CNMP=13"},   // Set modem mode GSMOnly
+      {kModemMode::kModeLTEOnly, "AT+CNMP=38"},   // Set modem mode LTEOnly
+      {kModemMode::kModeGSMLTE, "AT+CNMP=51"},    // Set modem mode GSMLTE
+      {kModemMode::kModeCatM, "AT+CMNB=1"},       // Set modem mode CatM
+      {kModemMode::kModeNbIot, "AT+CMNB=2"},      // Set modem mode NbIot
+      {kModemMode::kModeCatMNbIot, "AT+CMNB=3"},  // Set modem mode CatMNbIot
+  };
 
   return ex::let_value([&, modem_mode]() noexcept {
     auto make_request = [&](std::string&& cmd) noexcept {
@@ -426,7 +424,7 @@ void ModemStartOperation::RunPipeline() {
 }
 
 ModemStopOperation::ModemStopOperation(AeContext const& ae_context,
-                                      Bg95AtModem& self)
+                                       Bg95AtModem& self)
     : ae_context_{ae_context}, self_{&self}, at_support_{self.at_support_} {
   RunPipeline();
 }
@@ -536,8 +534,8 @@ void Bg95AtModem::Init() {
 ModemOperation* Bg95AtModem::Start() {
   if (!modem_start_operation_ || modem_start_operation_->is_finished()) {
     if (started_) {
-      modem_start_operation_ = std::make_unique<
-          bg95_modem_internal::ModemStartedAlreadyOperation>();
+      modem_start_operation_ =
+          std::make_unique<bg95_modem_internal::ModemStartedAlreadyOperation>();
     } else {
       modem_start_operation_ =
           std::make_unique<bg95_modem_internal::ModemStartOperation>(
@@ -551,12 +549,12 @@ ModemOperation* Bg95AtModem::Start() {
 ModemOperation* Bg95AtModem::Stop() {
   if (!modem_stop_operation_ || modem_stop_operation_->is_finished()) {
     if (!started_) {
-      modem_stop_operation_ = std::make_unique<
-          bg95_modem_internal::ModemStoppedAlreadyOperation>();
+      modem_stop_operation_ =
+          std::make_unique<bg95_modem_internal::ModemStoppedAlreadyOperation>();
     } else {
       modem_stop_operation_ =
-          std::make_unique<bg95_modem_internal::ModemStopOperation>(
-              ae_context_, *this);
+          std::make_unique<bg95_modem_internal::ModemStopOperation>(ae_context_,
+                                                                    *this);
     }
   }
 
@@ -581,8 +579,8 @@ ModemOperation* Bg95AtModem::CloseNetwork(ConnectionIndex connect_index) {
   return op;
 }
 
-WriteOperation* Bg95AtModem::WritePacket(
-    ConnectionIndex connect_index, std::span<std::uint8_t const> data) {
+WriteOperation* Bg95AtModem::WritePacket(ConnectionIndex connect_index,
+                                         std::span<std::uint8_t const> data) {
   if (data.size() > kModemMTU) {
     assert(false);
     return nullptr;
@@ -592,16 +590,13 @@ WriteOperation* Bg95AtModem::WritePacket(
   return op;
 }
 
-Bg95AtModem::DataEvent::Subscriber Bg95AtModem::data_event() {
-  return EventSubscriber{data_event_};
-}
+Bg95AtModem::DataEvent const& Bg95AtModem::data_event() { return data_event_; }
 
-ModemOperation* Bg95AtModem::SetPowerSaveParam(
-    ModemPowerSaveParam const& psp) {
+ModemOperation* Bg95AtModem::SetPowerSaveParam(ModemPowerSaveParam const& psp) {
   if (!modem_set_psp_operation_ || modem_set_psp_operation_->is_finished()) {
-    modem_set_psp_operation_ = std::make_unique<
-        bg95_modem_internal::ModemSetPowerSaveParamOperation>(ae_context_,
-                                                               *this, psp);
+    modem_set_psp_operation_ =
+        std::make_unique<bg95_modem_internal::ModemSetPowerSaveParamOperation>(
+            ae_context_, *this, psp);
   }
 
   return modem_set_psp_operation_.get();
@@ -619,17 +614,16 @@ ModemOperation* Bg95AtModem::PowerOff() {
 // ============================private members=============================== //
 void Bg95AtModem::SetupPoll() {
   // BG95 uses +QIURC indication for socket events
-  poll_listener_.emplace(at_support_.dispatcher(),
-                         "+QIURC: ", [this](auto&, auto pos) {
-                           std::string type;
-                           std::int32_t handle{};
-                           if (at_support::ParseResponse(*pos, "+QIURC", type,
-                                                         handle)) {
-                             if (type == "recv") {
-                               PollEvent(handle);
-                             }
-                           }
-                         });
+  poll_listener_.emplace(
+      at_support_.dispatcher(), "+QIURC: ", [this](auto&, auto pos) {
+        std::string type;
+        std::int32_t handle{};
+        if (at_support::ParseResponse(*pos, "+QIURC", type, handle)) {
+          if (type == "recv") {
+            PollEvent(handle);
+          }
+        }
+      });
 }
 
 void Bg95AtModem::PollEvent(std::int32_t handle) {

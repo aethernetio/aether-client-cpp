@@ -25,39 +25,42 @@ GetServersAction::GetServersAction(AeContext const& ae_context,
                                    std::vector<ServerId> server_ids,
                                    CloudServerConnections& cloud_connection,
                                    RequestPolicy::Variant request_policy)
-    : server_ids_{std::move(server_ids)},
+    : Action{ae_context},
+      server_ids_{std::move(server_ids)},
+      result_event_{ae_context},
       cloud_request_{
           ae_context,
           ApiCallWithListener{
               ApiCall{[this](ApiContext<AuthorizedApi>& auth_api, auto*) {
                 AE_TELED_DEBUG("Resolve servers {}", server_ids_);
-                auth_api->resolver_servers(server_ids_);
+                auth_api->ResolveServer(server_ids_);
               }},
-              ResponseSubscriber{[this](ClientApiSafe& client_api, auto*,
-                                        auto* request) {
-                return client_api.send_server_descriptor_event().Subscribe(
-                    [this, request](auto const& sd) {
-                      GetResponse(sd, request);
-                    });
-              }}},
+              ResponseSubscriber{
+                  [this](ClientApiSafe& client_api, auto*, auto* request) {
+                    return client_api.send_server_descriptor_event().Subscribe(
+                        [this, request](auto const& sd) {
+                          GetResponse(sd, request);
+                        });
+                  }}},
           cloud_connection,
           request_policy,
       } {
-  request_subs_ += cloud_request_.result_event().Subscribe([this](bool success) {
-    if (success) {
-      AE_TELED_INFO("GetServersAction succeeded");
-      result_event_.Emit(
-          Ok<std::vector<ServerDescriptor> const&>{server_descriptors_});
-    } else {
-      AE_TELED_ERROR("GetServersAction failed");
-      result_event_.Emit(Error{1});
-    }
-    Finish();
-  });
+  request_subs_ +=
+      cloud_request_.result_event().Subscribe([this](bool success) {
+        if (success) {
+          AE_TELED_INFO("GetServersAction succeeded");
+          result_event_.Emit(
+              Ok<std::vector<ServerDescriptor> const&>{server_descriptors_});
+        } else {
+          AE_TELED_ERROR("GetServersAction failed");
+          result_event_.Emit(Error{1});
+        }
+        Finish();
+      });
 }
 
-GetServersAction::ResultEvent::Subscriber GetServersAction::result_event() {
-  return EventSubscriber{result_event_};
+GetServersAction::ResultEvent const& GetServersAction::result_event() const {
+  return result_event_;
 }
 
 void GetServersAction::GetResponse(ServerDescriptor const& server_descriptor,

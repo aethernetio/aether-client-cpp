@@ -132,7 +132,7 @@ int AetherCloudExample() {
          * Send confirmation to received message.
          */
         client_a->message_stream_manager().new_port_event().Subscribe(
-            [&](ae::P2pPortHandle handle) {
+            [&](ae::P2pPortHandle& handle) {
               auto dest = handle.destination();
               receiver_stream = ae::make_unique<ae::P2pSafeStream>(
                   *aether_app, ae::examples::kSafeStreamConfig,

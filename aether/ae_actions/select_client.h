@@ -23,7 +23,6 @@
 #include "aether/actions/action.h"
 #include "aether/ae_context.h"
 #include "aether/config.h"
-#include "aether/events/event_subscription.h"
 #include "aether/events/events.h"
 
 namespace ae {
@@ -53,7 +52,7 @@ class SelectClientAction final : public Action {
    */
   explicit SelectClientAction(AeContext const& ae_context);
 
-  ResultEvent::Subscriber result_event();
+  ResultEvent const& result_event();
 
  private:
   AeContext ae_context_;

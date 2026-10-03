@@ -22,7 +22,7 @@
 #  include <utility>
 
 #  include "aether-objects/ptr/ptr_view.h"
-#  include "aether/events/event_subscription.h"
+#  include "aether/events/events.h"
 #  include "aether/executors/executors.h"
 
 #  include "aether/aether.h"
@@ -42,7 +42,7 @@ ex::sender auto WifiConnect(Ptr<WifiAccessPoint> const& access_point) {
         auto access_point = ap.Lock();
         assert(access_point && "Wifi access point is not loaded");
         connect_sub_ = access_point->Connect().connection_event().Subscribe(
-            [&](bool is_connected) mutable noexcept {
+            [&](bool is_connected) noexcept {
               if (is_connected) {
                 ex::set_value(std::move(ctx.receiver));
               } else {

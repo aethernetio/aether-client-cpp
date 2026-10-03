@@ -19,6 +19,7 @@
 
 #include <chrono>
 
+#include "aether/events/events.h"
 #include "aether/tasks/details/task_subsctiption.h"
 
 namespace ae {
@@ -34,6 +35,7 @@ concept AsyncScheduler = requires(T& t) {
 template <typename T>
 concept ActionContext = requires(T t) {
   { t.scheduler() } -> AsyncScheduler;
+  { t.event_system() } -> events::EventSystemConcept;
 };
 }  // namespace ae
 

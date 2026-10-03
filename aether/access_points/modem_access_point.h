@@ -25,7 +25,6 @@
 #  include "aether/actions/action.h"
 #  include "aether/adapters/modem_adapter.h"
 #  include "aether/ae_context.h"
-#  include "aether/events/event_subscription.h"
 #  include "aether/events/events.h"
 
 namespace ae {
@@ -38,7 +37,7 @@ class ModemConnectAction final : public Action {
   explicit ModemConnectAction(AeContext const& ae_context,
                               IModemDriver& driver);
 
-  ConnectionEvent::Subscriber connection_event();
+  ConnectionEvent const& connection_event();
 
  private:
   void Start();

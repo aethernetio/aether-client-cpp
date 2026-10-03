@@ -17,13 +17,13 @@
 #include "aether/client_messages/p2p_message_stream_manager.h"
 
 #include <cassert>
-#include <cstdint>
 #include <utility>
 
 #include "aether/client.h"
-#include "aether/client_messages/client_messages_tele.h"
 #include "aether/cloud_connections/cloud_server_connection.h"
 #include "aether/work_cloud_api/client_api/client_api_safe.h"
+
+#include "aether/client_messages/client_messages_tele.h"
 
 namespace ae {
 
@@ -32,10 +32,11 @@ P2pMessageStreamManager::P2pMessageStreamManager(AeContext const& ae_context,
     : ae_context_{ae_context},
       client_{client},
       cloud_connection_{&client->cloud_connection()},
+      new_port_event_{ae_context_},
       on_message_received_sub_{CloudEventListener{
           ApiEventSubscriber{[this](ClientApiSafe& client_api,
-                                    [[maybe_unused]] CloudServerConnection* server_connection)
-                                 -> EventHandlerDeleter {
+                                    [[maybe_unused]] CloudServerConnection*
+                                        server_connection) -> RegEventHandler {
             return client_api.send_message_event().Subscribe(
                 MethodPtr<&P2pMessageStreamManager::NewMessageReceived>{this});
           }},
@@ -46,9 +47,9 @@ P2pPortHandle P2pMessageStreamManager::CreatePort(Uid const& destination) {
   return P2pPortHandle{std::move(port)};
 }
 
-P2pMessageStreamManager::NewPortEvent::Subscriber
+P2pMessageStreamManager::NewPortEvent const&
 P2pMessageStreamManager::new_port_event() {
-  return EventSubscriber{new_port_event_};
+  return new_port_event_;
 }
 
 std::pair<std::shared_ptr<p2p_stream_internal::P2pReceivePort>, bool>
@@ -64,7 +65,8 @@ P2pMessageStreamManager::GetOrCreatePort(Uid const& destination) {
   // -Warray-bounds warning while destroying P2pReceivePort from
   // _Sp_counted_ptr_inplace because P2pReceivePort owns Event/RcPtr storage.
   auto port = std::shared_ptr<p2p_stream_internal::P2pReceivePort>{
-      std::make_unique<p2p_stream_internal::P2pReceivePort>(destination)};
+      std::make_unique<p2p_stream_internal::P2pReceivePort>(ae_context_,
+                                                            destination)};
   ports_.emplace(destination, port);
   return {port, true};
 }
@@ -75,7 +77,8 @@ void P2pMessageStreamManager::NewMessageReceived(AeMessage const& message) {
   assert(port != nullptr);
 
   if (is_new) {
-    new_port_event_.Emit(P2pPortHandle{port});
+    auto handle = P2pPortHandle{port};
+    new_port_event_.Emit(handle);
   }
 
   port->Deliver(message.data);

@@ -31,6 +31,7 @@
 #include "aether/cloud.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
 #include "aether/config.h"
+#include "aether/env.h"
 #include "aether/server.h"
 #include "aether/server_connections/client_server_connection.h"
 #include "aether/server_connections/iserver_connection_factory.h"
@@ -67,22 +68,12 @@ struct CloudServerConnectionsTestAccess {
 };
 
 namespace test_cloud_quarantine_loop {
-struct TestContext {
-  AeCtx ToAeContext() const {
-    static constexpr auto table =
-        AeCtxTable{nullptr, [](void* obj) -> TaskScheduler& {
-                     return static_cast<TestContext*>(obj)->sched;
-                   }};
-    return AeCtx{const_cast<TestContext*>(this), &table};  // NOLINT
-  }
-
+struct TestContext : public AeEnv {
   void PumpAt(std::chrono::system_clock::time_point now, int rounds = 8) {
     for (int i = 0; i < rounds; ++i) {
-      (void)sched.Update(now);
+      scheduler().Update(now);
     }
   }
-
-  TaskScheduler sched;
 };
 
 class CountingNullFactory final : public IServerConnectionFactory {
@@ -111,8 +102,8 @@ struct CloudFixture {
                IServerConnectionFactory* raw,
                std::vector<ServerId> additional_server_ids = {},
                std::size_t max_connections = 1)
-      : ae_ctx{ctx},
-        domain{storage},
+       : ae_ctx{ctx},
+         domain{storage, &ctx},
         registry{AdapterRegistry::ptr::Create(CreateWith{domain})},
         server{Server::ptr::Create(CreateWith{domain}, ServerId{7},
                                    std::vector<Endpoint>{}, registry)},

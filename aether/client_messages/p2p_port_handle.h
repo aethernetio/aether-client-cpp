@@ -5,9 +5,9 @@
 #include <memory>
 
 #include "aether/common.h"
-#include "aether/types/uid.h"
-#include "aether/types/data_buffer.h"
 #include "aether/events/events.h"
+#include "aether/types/data_buffer.h"
+#include "aether/types/uid.h"
 
 namespace ae {
 
@@ -17,13 +17,14 @@ class P2pReceivePort {
  public:
   using OutDataEvent = Event<void(DataBuffer const&)>;
 
-  explicit P2pReceivePort(Uid destination);
+  P2pReceivePort(EventContext auto const& context, Uid destination)
+      : destination_{destination}, out_data_event_{context} {}
   ~P2pReceivePort() = default;
 
   AE_CLASS_NO_COPY_MOVE(P2pReceivePort)
 
   Uid const& destination() const;
-  OutDataEvent::Subscriber out_data_event();
+  OutDataEvent const& out_data_event();
   void Deliver(DataBuffer const& data);
 
  private:
@@ -52,7 +53,7 @@ class P2pPortHandle {
     return port_->destination();
   }
 
-  OutDataEvent::Subscriber out_data_event() {
+  OutDataEvent const& out_data_event() {
     assert(port_ != nullptr && "P2pPortHandle is empty — was it moved from?");
     return port_->out_data_event();
   }

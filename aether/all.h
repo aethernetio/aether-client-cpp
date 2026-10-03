@@ -27,10 +27,7 @@
 
 #include "aether/actions/action_context.h"
 #include "aether/actions/repeatable_task.h"
-#include "aether/events/cumulative_event.h"
-#include "aether/events/event_subscription.h"
 #include "aether/events/events.h"
-#include "aether/events/multi_subscription.h"
 #include "aether/executors/executors.h"
 
 #include "aether-miscpp/format/format.h"

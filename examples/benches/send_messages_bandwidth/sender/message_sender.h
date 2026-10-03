@@ -19,11 +19,10 @@
 
 #include <functional>
 
-#include "aether/clock.h"
-#include "aether/ae_context.h"
 #include "aether-miscpp/types/result.h"
+#include "aether/ae_context.h"
+#include "aether/clock.h"
 #include "aether/events/events.h"
-#include "aether/events/multi_subscription.h"
 #include "aether/write_action/write_action.h"
 
 #include "send_messages_bandwidth/common/bandwidth.h"
@@ -41,7 +40,7 @@ class MessageSender {
   MessageSender(AeContext const& ae_context, SendProc send_proc,
                 std::size_t send_count);
 
-  ResultEvent::Subscriber result_event();
+  ResultEvent const& result_event();
   void Stop();
 
  private:

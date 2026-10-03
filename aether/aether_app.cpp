@@ -42,7 +42,6 @@
 // IWYU pragma: end_keeps
 
 namespace ae {
-
 void AetherAppContext::TelemetryInit() {
 #if AE_TELE_ENABLED
   // Init telemetry sink
@@ -114,8 +113,7 @@ static Aether::ptr AetherFactory(AetherAppContext const& context) {
 #if !AE_DISTILLATION || AE_FILTRATION
   auto a = Aether::ptr::Declare(
       CreateWith{context.domain()}.with_id(GlobalId::kAether));
-  a.Load();
-  if (a.is_loaded()) {
+  if (auto aptr = a.Load(); !!aptr) {
     return a;
   }
 #endif
@@ -298,8 +296,9 @@ void AetherAppContext::InitComponentContext() {
     // clean old state
     domain_storage.CleanUp();
 #endif  // AE_DISTILLATION
+    auto const& env = context.env_.Resolve();
 
-    return std::make_unique<Domain>(domain_storage);
+    return std::make_unique<Domain>(domain_storage, env.get());
   });
 
   if (!aether_) {
@@ -350,6 +349,10 @@ std::unique_ptr<AetherApp> AetherApp::Construct(AetherAppContext context) {
 
   auto app = std::unique_ptr<AetherApp>{new AetherApp()};
   app->aether_ = context.aether();
+  // set aether to environment
+  // The problems might be if any aether's members will try to use env's aether
+  // before it set
+  context.set_aether_to_env_(context.env_.Resolve().get(), app->aether_);
 #if AE_DISTILLATION
   app->aether_->tele_statistics = context.tele_statistics_.Resolve(context);
   app->aether_->client_prefab = context.client_prefab_.Resolve(context);
@@ -376,6 +379,7 @@ std::unique_ptr<AetherApp> AetherApp::Construct(AetherAppContext context) {
   // save domain from context to the app
   app->domain_facility_ =
       std::move(std::move(context).domain_storage_.Resolve());
+  app->env_ = std::move(std::move(context).env_.Resolve());
   app->domain_ = std::move(std::move(context).domain_.Resolve(context));
   return app;
 }

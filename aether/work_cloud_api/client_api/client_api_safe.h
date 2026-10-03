@@ -19,8 +19,8 @@
 
 #include "aether/types/uid.h"
 
-#include "aether/events/events.h"
 #include "aether/api_protocol/api_protocol.h"
+#include "aether/events/events.h"
 
 #include "aether/work_cloud_api/ae_message.h"
 #include "aether/work_cloud_api/cloud_configs.h"
@@ -41,9 +41,9 @@ struct AccessCheckResult {
   bool has_access;
 };
 
-class ClientApiSafe : public ApiClassImpl<ClientApiSafe> {
+class ClientApiSafe : public DeclareApi<ClientApiSafe> {
  public:
-  explicit ClientApiSafe(ProtocolContext& protocol_context);
+  explicit ClientApiSafe(EventSystem& event_system);
 
   void ChangeParent(Uid const& uid);
   void ChangeAlias(Uid const& uid);
@@ -77,36 +77,27 @@ class ClientApiSafe : public ApiClassImpl<ClientApiSafe> {
 
   ReturnResultApi return_result;
 
-  AE_METHODS(RegMethod<3, &ClientApiSafe::ChangeParent>,
-             RegMethod<4, &ClientApiSafe::ChangeAlias>,
-             RegMethod<5, &ClientApiSafe::NewChildren>,
-             RegMethod<6, &ClientApiSafe::SendMessages>,
-             RegMethod<7, &ClientApiSafe::SendServerDescriptor>,
-             RegMethod<8, &ClientApiSafe::SendServerDescriptors>,
-             RegMethod<9, &ClientApiSafe::SendCloud>,
-             RegMethod<10, &ClientApiSafe::SendClouds>,
-             RegMethod<11, &ClientApiSafe::RequestTelemetry>,
-             RegMethod<12, &ClientApiSafe::SendAccessGroups>,
-             RegMethod<13, &ClientApiSafe::SendAccessGroupForClient>,
-             RegMethod<14, &ClientApiSafe::AddItemsToAccessGroup>,
-             RegMethod<15, &ClientApiSafe::RemoveItemsFromAccessGroup>,
-             RegMethod<16, &ClientApiSafe::AddAccessGroupsToClient>,
-             RegMethod<17, &ClientApiSafe::RemoveAccessGroupsFromClient>,
-             RegMethod<18, &ClientApiSafe::SendAllAccessedClients>,
-             RegMethod<19, &ClientApiSafe::SendAccessCheckResults>,
-             RegMethod<20, &ClientApiSafe::SendMessage>,
-             RegMethod<21, &ClientApiSafe::SendCLoudConfig>,
-             ExtApi<&ClientApiSafe::return_result>);
+  API_LIST(METHOD(3, ChangeParent), METHOD(4, ChangeAlias),
+           METHOD(5, NewChildren), METHOD(6, SendMessages),
+           METHOD(7, SendServerDescriptor), METHOD(8, SendServerDescriptors),
+           METHOD(9, SendCloud), METHOD(10, SendClouds),
+           METHOD(11, RequestTelemetry), METHOD(12, SendAccessGroups),
+           METHOD(13, SendAccessGroupForClient),
+           METHOD(14, AddItemsToAccessGroup),
+           METHOD(15, RemoveItemsFromAccessGroup),
+           METHOD(16, AddAccessGroupsToClient),
+           METHOD(17, RemoveAccessGroupsFromClient),
+           METHOD(18, SendAllAccessedClients),
+           METHOD(19, SendAccessCheckResults), METHOD(20, SendMessage),
+           METHOD(21, SendCLoudConfig));
 
-  auto send_message_event() { return EventSubscriber{send_message_event_}; }
-  auto send_cloud_event() { return EventSubscriber{send_cloud_event_}; }
-  auto send_server_descriptor_event() {
-    return EventSubscriber{send_server_descriptor_event_};
+  auto const& send_message_event() { return send_message_event_; }
+  auto const& send_cloud_event() { return send_cloud_event_; }
+  auto const& send_server_descriptor_event() {
+    return send_server_descriptor_event_;
   }
-  auto request_telemetry_event() {
-    return EventSubscriber{request_telemetry_event_};
-  }
-  auto send_cloud_configs() { return EventSubscriber{send_cloud_configs_}; }
+  auto const& request_telemetry_event() { return request_telemetry_event_; }
+  auto const& send_cloud_configs() { return send_cloud_configs_; }
 
  private:
   Event<void(AeMessage const& message)> send_message_event_;

@@ -22,8 +22,6 @@
 #  include <limits>
 #  include <utility>
 
-#  include "aether/server.h"
-
 #  include "aether/cloud_connections/cloud_server_connection.h"
 #  include "aether/work_cloud_api/work_server_api/authorized_api.h"
 
@@ -67,7 +65,8 @@ Ping::Ping(AeContext const& ae_context,
       next_ping_hint_{next_ping_hint},
       rx_window_{rx_window},
       timeout_{timeout},
-      server_id_{cloud_server_connection_->server_id()} {
+      server_id_{cloud_server_connection_->server_id()},
+      result_event_{ae_context_} {
   AE_TELE_INFO(
       kPing,
       "Ping action created to server id: {}, interval: {:%S}s, rx_window: "
@@ -75,7 +74,7 @@ Ping::Ping(AeContext const& ae_context,
       server_id_, next_ping_hint_, rx_window_, timeout_);
 }
 
-Ping::ResultEvent::Subscriber Ping::result_event() { return result_event_; }
+Ping::ResultEvent const& Ping::result_event() const { return result_event_; }
 
 void Ping::Start(TimePoint current_time) {
   auto* cc = cloud_server_connection_->client_connection();
@@ -90,7 +89,7 @@ void Ping::Start(TimePoint current_time) {
   state_ = RequestState::kPending;
 
   auto& write_action = cc->AuthorizedApiCall(
-      SubApi{[this, current_time](ApiContext<AuthorizedApi>& auth_api) {
+      [this, current_time](ApiContext<AuthorizedApi>& auth_api) {
         auto next_ping_hint_ms = static_cast<std::uint64_t>(
             std::chrono::duration_cast<std::chrono::milliseconds>(
                 next_ping_hint_)
@@ -99,7 +98,7 @@ void Ping::Start(TimePoint current_time) {
             std::chrono::duration_cast<std::chrono::milliseconds>(rx_window_)
                 .count());
 
-        auto pong_promise = auth_api->ping(next_ping_hint_ms, rx_window_ms);
+        auto pong_promise = auth_api->Ping(next_ping_hint_ms, rx_window_ms);
         auto req_id = pong_promise.request_id();
 
         AE_TELE_DEBUG(kPingSend,
@@ -130,7 +129,7 @@ void Ping::Start(TimePoint current_time) {
           ResetRequestSubscriptions();
           result_event_.Emit(PingResult{Error{5}});
         }
-      }});
+      });
 
   write_sub_ = write_action.status_event().Subscribe([this](auto status) {
     if (status == WriteAction::Status::kFail) {
@@ -148,8 +147,8 @@ void Ping::Start(TimePoint current_time) {
   }
 
 #  if DEBUG
-  cc->LoginApiCall(SubApi{[&](ApiContext<LoginApi>& api_call) {
-    api_call->get_my_ip().Subscribe([&](auto&& res) noexcept {
+  cc->LoginApiCall([&](ApiContext<LoginApi>& api_call) {
+    api_call->GetMyIp().Subscribe([&](auto&& res) noexcept {
       if (res) {
         auto&& ip = std::forward<decltype(res)>(res).value();
         AE_TELED_DEBUG("Server id: {}, our public ip: {}:{}, coords: {},{}",
@@ -159,7 +158,7 @@ void Ping::Start(TimePoint current_time) {
                        std::forward<decltype(res)>(res).error());
       }
     });
-  }});
+  });
 #  endif
 }
 

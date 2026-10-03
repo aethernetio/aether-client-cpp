@@ -49,22 +49,30 @@ struct RootServerSelectStreamTestAccess {
 
 namespace test_registration_root_server_select {
 
-struct TestContext {
-  AeCtx ToAeContext() const {
-    static constexpr auto table =
-        AeCtxTable{nullptr, [](void* obj) -> TaskScheduler& {
-                     return static_cast<TestContext*>(obj)->scheduler;
-                   }};
-    return AeCtx{const_cast<TestContext*>(this), &table};  // NOLINT
+struct TestContext : public Env {
+  template <typename... A>
+  decltype(auto) Update(A&&... a) {
+    return sched.Update(std::forward<A>(a)...);
   }
 
-  TaskScheduler scheduler;
+  void* find_component(EnvId id) noexcept override {
+    if (id == EnvTypeId<TaskScheduler>::value) {
+      return &sched;
+    }
+    if (id == EnvTypeId<EventSystem>::value) {
+      return &event_system;
+    }
+    return nullptr;
+  }
+
+  TaskScheduler sched;
+  EventSystem event_system;
 };
 
 struct Fixture {
   Fixture()
       : ae_context{context},
-        domain{storage},
+        domain{storage, &context},
         aether{Aether::ptr::Create(CreateWith{domain})},
         registry{AdapterRegistry::ptr::Create(CreateWith{domain})},
         cloud{RegistrationCloud::ptr::Create(CreateWith{domain}, aether)} {}

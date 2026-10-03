@@ -30,6 +30,7 @@
 #include "aether/cloud_connections/cloud_request_execution_policy.h"
 #include "aether/cloud_connections/local_presence_schedule.h"
 #include "aether/cloud_connections/request_policy.h"
+#include "aether/common.h"
 #include "aether/config.h"
 #include "aether/events/events.h"
 #include "aether/types/server_id.h"
@@ -137,11 +138,6 @@ class ClientConnectivityPolicy : public Obj {
   AE_CLASS_NO_COPY_MOVE(ClientConnectivityPolicy);
 
   AE_OBJECT_REFLECT(AE_MMBRS(rx_targets_, rx_timings_))
-  template <typename Dnv>
-  void Load(CurrentVersion, Dnv& dnv) {
-    dnv(base_, rx_targets_, rx_timings_);
-    ResetRuntimeState();
-  }
 
   RxTimingConfig ConfigureRxTimings(
       RequestPolicy::Variant targets = RequestPolicy::All{});
@@ -149,8 +145,7 @@ class ClientConnectivityPolicy : public Obj {
   // Per-server runtime config. Does not invent ONLINE until a confirming Pong.
   void ConfigureServerRxTiming(
       ServerId server_id, RxTimingConf conf,
-      Percentile rtt_reliability_percentile =
-          kDefaultRttReliabilityPercentile);
+      Percentile rtt_reliability_percentile = kDefaultRttReliabilityPercentile);
 
   void SetServerSelectedForAggregate(ServerId server_id, bool selected);
   void BindServerPriority(ServerId server_id, std::size_t priority);
@@ -164,11 +159,11 @@ class ClientConnectivityPolicy : public Obj {
       const noexcept {
     return rx_timings_;
   }
-  Event<void()>::Subscriber suspend_allowed_event() noexcept {
-    return EventSubscriber{suspend_allowed_event_};
+  auto const& suspend_allowed_event() noexcept {
+    return *suspend_allowed_event_;
   }
-  Event<void(ServerId)>::Subscriber server_rx_timing_changed_event() noexcept {
-    return EventSubscriber{server_rx_timing_changed_event_};
+  auto const& server_rx_timing_changed_event() noexcept {
+    return *server_rx_timing_changed_event_;
   }
 
   ConnectivityStatus GetStatus() const noexcept;
@@ -178,7 +173,8 @@ class ClientConnectivityPolicy : public Obj {
   void ReportNextServiceTime(std::size_t priority, TimePoint next_service_time);
 
   ServerPresenceState& EnsureServerPresence(ServerId server_id);
-  ServerPresenceState const* FindServerPresence(ServerId server_id) const noexcept;
+  ServerPresenceState const* FindServerPresence(
+      ServerId server_id) const noexcept;
   ServerPresenceState* FindServerPresence(ServerId server_id) noexcept;
 
   // Confirm schedule from a successful Pong using selected_rtt projection.
@@ -205,12 +201,14 @@ class ClientConnectivityPolicy : public Obj {
   }
 
   // Read-only. No side effects. Aggregate OR: ONLINE iff any selected server
-  // has confirmed interval>0 and now <= expected_open + offline_detection_timeout.
+  // has confirmed interval>0 and now <= expected_open +
+  // offline_detection_timeout.
   bool IsLocallyOnline() const noexcept;
   bool IsLocallyOnline(TimePoint now) const noexcept;
   bool IsServerLocallyOnline(ServerId server_id, TimePoint now) const noexcept;
 
-  // Read-only diagnostics for live harness (expected_open / deadline / last pong).
+  // Read-only diagnostics for live harness (expected_open / deadline / last
+  // pong).
   struct LocalPresenceDiag {
     bool any_online{false};
     bool has_schedule{false};
@@ -222,6 +220,7 @@ class ClientConnectivityPolicy : public Obj {
   LocalPresenceDiag DiagnoseLocalPresence(TimePoint now) const noexcept;
 
  private:
+  void Loaded();
   void ResetRuntimeState();
   void IncrementSuspendBlock();
   void DecrementSuspendBlock();
@@ -236,12 +235,12 @@ class ClientConnectivityPolicy : public Obj {
 
   bool can_suspend_{true};
   std::uint8_t suspend_block_count_{};
-  Duration offline_detection_timeout_{std::chrono::milliseconds{
-      AE_OFFLINE_DETECTION_TIMEOUT_MS}};
+  Duration offline_detection_timeout_{
+      std::chrono::milliseconds{AE_OFFLINE_DETECTION_TIMEOUT_MS}};
   CloudRequestExecutionPolicy cloud_request_execution_policy_{};
 
-  Event<void()> suspend_allowed_event_;
-  Event<void(ServerId)> server_rx_timing_changed_event_;
+  std::optional<Event<void()>> suspend_allowed_event_;
+  std::optional<Event<void(ServerId)>> server_rx_timing_changed_event_;
 };
 
 }  // namespace ae

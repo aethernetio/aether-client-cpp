@@ -30,15 +30,15 @@ include(inline_tests/inline_tests.cmake)
 add_subdirectory(inline_tests)
 generate_inline_tests(${CMAKE_CURRENT_LIST_DIR}/../aether aether)
 
-#tests
+# tests
 add_subdirectory(test-types)
 add_subdirectory(test-api-protocol)
 add_subdirectory(test-prepared-packet)
 add_subdirectory(test-actions)
 add_subdirectory(test-events)
 add_subdirectory(test-transport)
-add_subdirectory(test-stream)
 add_subdirectory(test-safe-stream)
+add_subdirectory(test-stream)
 add_subdirectory(test-domain-storage)
 add_subdirectory(test-serial-port)
 add_subdirectory(test-tasks)

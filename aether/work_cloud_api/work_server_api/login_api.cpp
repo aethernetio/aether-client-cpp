@@ -19,20 +19,24 @@
 #include "aether/tele.h"
 
 namespace ae {
-LoginApi::LoginApi(ProtocolContext& protocol_context,
-                   IEncryptProvider& encrypt_provider)
-    : ApiClass{protocol_context},
-      login_by_uid{protocol_context, LoginProc{*this}},
-      login_by_alias{protocol_context, LoginProc{*this}},
-      get_my_ip{protocol_context},
-      encrypt_provider_{&encrypt_provider},
-      auth_api_{protocol_context} {}
+LoginApi::LoginApi(IEncryptProvider& encrypt_provider)
+    : encrypt_provider_{&encrypt_provider}, auth_api_{} {}
 
-DataBuffer LoginApi::Encrypt(DataBuffer const& data) {
-  AE_TELED_DEBUG("Login api data {}", data);
-  auto enc_data = encrypt_provider_->Encrypt(data);
-  AE_TELED_DEBUG("Login api encrypted size {}, {}", enc_data.size(), enc_data);
-  return enc_data;
+void LoginApi::LoginByUid(Uid const& uid, SubApi<AuthorizedApi> sub_api) {
+  auto auth_data = std::move(sub_api)(auth_api_, client_context());
+  AE_TELED_DEBUG("Login by uid {} data [{}]", uid, auth_data);
+  auto enc_data = encrypt_provider_->Encrypt(auth_data);
+  ClientMethod<&LoginApi::LoginByAlias>(uid, std::move(enc_data));
 }
 
+void LoginApi::LoginByAlias(Uid const& alias, SubApi<AuthorizedApi> sub_api) {
+  auto auth_data = std::move(sub_api)(auth_api_, client_context());
+  AE_TELED_DEBUG("Login by alias {} data [{}]", alias, auth_data);
+  auto enc_data = encrypt_provider_->Encrypt(auth_data);
+  ClientMethod<&LoginApi::LoginByAlias>(alias, std::move(enc_data));
+}
+
+ApiPromise<InfoIp> LoginApi::GetMyIp() {
+  return ClientMethod<&LoginApi::GetMyIp>();
+}
 }  // namespace ae

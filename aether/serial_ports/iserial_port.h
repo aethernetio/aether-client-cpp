@@ -17,8 +17,8 @@
 #ifndef AETHER_SERIAL_PORTS_ISERIAL_PORT_H_
 #define AETHER_SERIAL_PORTS_ISERIAL_PORT_H_
 
-#include <span>
 #include <cstdint>
+#include <span>
 
 #include "aether/events/events.h"
 
@@ -43,7 +43,7 @@ class ISerialPort {
   /**
    * \brief Read data event.
    */
-  virtual DataReadEvent::Subscriber read_event() = 0;
+  virtual DataReadEvent const& read_event() = 0;
 };
 } /* namespace ae */
 

@@ -27,7 +27,7 @@ DISABLE_WARNING_POP()
 #include "aether-miscpp/types/small_function.h"
 
 #include "aether/ae_context.h"
-#include "aether/events/multi_subscription.h"
+#include "aether/events/events.h"
 #include "aether/write_action/failed_write_action.h"
 #include "aether/write_action/write_action.h"
 
@@ -53,7 +53,8 @@ namespace ae {
 
 class BufferedWriteAction final : public WriteAction {
  public:
-  BufferedWriteAction() noexcept;
+  explicit BufferedWriteAction(EventContext auto const& context)
+      : WriteAction{context} {}
 
   AE_CLASS_MOVE_ONLY(BufferedWriteAction);
 
@@ -71,7 +72,7 @@ class BufferedWriteAction final : public WriteAction {
 /**
  * \brief Buffers write requests until gate is not ready to accept them.
  */
-template <typename T, std::size_t MaxSize = 10>
+template <typename T, std::size_t MaxSize>
 class BufferWrite {
   struct BufferEntry {
     BufferedWriteAction wa;
@@ -128,7 +129,7 @@ class BufferWrite {
       return FailedWrite();
     }
     buffer_.push(BufferEntry{
-        BufferedWriteAction{},
+        BufferedWriteAction{ae_context_},
         std::move(data),
     });
     auto& buff_entry = buffer_.back();

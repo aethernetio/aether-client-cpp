@@ -19,6 +19,8 @@
 #include <chrono>
 #include <utility>
 
+#include "aether/ae_context.h"
+
 namespace ae {
 
 namespace {
@@ -82,8 +84,16 @@ ClientConnectivityPolicy::ClientConnectivityPolicy()
 ClientConnectivityPolicy::ClientConnectivityPolicy(ObjProp prop)
     : Base{prop},
       rx_targets_{RequestPolicy::All{}},
-      rx_timings_{MakeDefaultRxTimings()} {}
+      rx_timings_{MakeDefaultRxTimings()},
+      suspend_allowed_event_{std::in_place, AeContext{*this}},
+      server_rx_timing_changed_event_{std::in_place, AeContext{*this}} {}
 #endif
+
+void ClientConnectivityPolicy::Loaded() {
+  suspend_allowed_event_.emplace(AeContext{*this});
+  server_rx_timing_changed_event_.emplace(AeContext{*this});
+  ResetRuntimeState();
+}
 
 auto ClientConnectivityPolicy::ConfigureRxTimings(
     RequestPolicy::Variant targets) -> RxTimingConfig {
@@ -104,7 +114,7 @@ void ClientConnectivityPolicy::ConfigureServerRxTiming(
   if (timing_changed) {
     state.config_change_pending = true;
   }
-  server_rx_timing_changed_event_.Emit(server_id);
+  server_rx_timing_changed_event_->Emit(server_id);
 }
 
 void ClientConnectivityPolicy::SetServerSelectedForAggregate(ServerId server_id,
@@ -196,12 +206,9 @@ ServerPresenceState* ClientConnectivityPolicy::FindServerPresence(
   return it == server_presence_.end() ? nullptr : &it->second;
 }
 
-void ClientConnectivityPolicy::ConfirmServerPong(ServerId server_id,
-                                                 TimePoint send_time,
-                                                 TimePoint pong_time,
-                                                 Duration interval,
-                                                 Duration rx_window,
-                                                 Duration selected_rtt) {
+void ClientConnectivityPolicy::ConfirmServerPong(
+    ServerId server_id, TimePoint send_time, TimePoint pong_time,
+    Duration interval, Duration rx_window, Duration selected_rtt) {
   auto& state = EnsureServerPresence(server_id);
   // interval == 0 clears the future Presence promise after the server
   // accepted the reset Ping. rx_window is unrelated to Presence.
@@ -274,10 +281,9 @@ bool ClientConnectivityPolicy::IsServerLocallyOnline(
   if (state == nullptr) {
     return false;
   }
-  return IsLocalPresenceOnline(state->has_confirmed_schedule,
-                               state->confirmed_interval,
-                               state->confirmed_window_open_local, now,
-                               offline_detection_timeout_);
+  return IsLocalPresenceOnline(
+      state->has_confirmed_schedule, state->confirmed_interval,
+      state->confirmed_window_open_local, now, offline_detection_timeout_);
 }
 
 ClientConnectivityPolicy::LocalPresenceDiag
@@ -288,8 +294,8 @@ ClientConnectivityPolicy::DiagnoseLocalPresence(TimePoint now) const noexcept {
         state.confirmed_interval <= Duration{}) {
       continue;
     }
-    auto const deadline = LocalOfflineDeadline(state.confirmed_window_open_local,
-                                               offline_detection_timeout_);
+    auto const deadline = LocalOfflineDeadline(
+        state.confirmed_window_open_local, offline_detection_timeout_);
     auto const online = IsLocalPresenceOnline(
         state.has_confirmed_schedule, state.confirmed_interval,
         state.confirmed_window_open_local, now, offline_detection_timeout_);
@@ -340,7 +346,7 @@ void ClientConnectivityPolicy::ApplyDesiredIfNoOverride(
   state.desired = conf;
   if (timing_changed) {
     state.config_change_pending = true;
-    server_rx_timing_changed_event_.Emit(server_id);
+    server_rx_timing_changed_event_->Emit(server_id);
   }
 }
 
@@ -378,7 +384,7 @@ void ClientConnectivityPolicy::DecrementSuspendBlock() {
   --suspend_block_count_;
   can_suspend_ = suspend_block_count_ == 0;
   if (can_suspend_) {
-    suspend_allowed_event_.Emit();
+    suspend_allowed_event_->Emit();
   }
 }
 

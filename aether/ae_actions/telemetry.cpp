@@ -65,7 +65,7 @@ void Telemetry::SendTelemetry() {
 
   cloud_connection_->CallApi(
       ApiCall{[&](ApiContext<AuthorizedApi>& auth_api, auto*) {
-        auth_api->send_telemetry(std::move(*telemetry));
+        auth_api->SendTelemetry(*telemetry);
       }},
       RequestPolicy::Priority{server_num});
 

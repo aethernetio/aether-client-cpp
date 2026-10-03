@@ -18,18 +18,24 @@
 
 #if AE_SUPPORT_REGISTRATION
 namespace ae {
-RegistrationRootApi::RegistrationRootApi(ProtocolContext& protocol_context,
-                                         IEncryptProvider& root_encrypt,
+RegistrationRootApi::RegistrationRootApi(IEncryptProvider& root_encrypt,
                                          IEncryptProvider& global_encrypt)
-    : ApiClass{protocol_context},
-      get_asymmetric_public_key{protocol_context},
-      enter{protocol_context, EnterProc{*this}},
-      get_my_ip{protocol_context},
-      enc_provider_{&root_encrypt},
-      server_registration_api_{protocol_context, global_encrypt} {}
+    : enc_provider_{&root_encrypt}, server_registration_api_{global_encrypt} {}
 
-DataBuffer RegistrationRootApi::Encrypt(DataBuffer const& data) const {
-  return enc_provider_->Encrypt(data);
+ApiPromise<SignedKey> RegistrationRootApi::GetPublicKey(CryptoLib crypto_lib) {
+  return ClientMethod<&RegistrationRootApi::GetPublicKey>(crypto_lib);
+}
+
+void RegistrationRootApi::Enter(CryptoLib crypto_lib,
+                                SubApi<ServerRegistrationApi> sub_api) {
+  auto server_api_data = enc_provider_->Encrypt(
+      std::move(sub_api)(server_registration_api_, client_context()));
+  ClientMethod<&RegistrationRootApi::Enter>(crypto_lib,
+                                            std::move(server_api_data));
+}
+
+ApiPromise<InfoIp> RegistrationRootApi::GetMyIp() {
+  return ClientMethod<&RegistrationRootApi::GetMyIp>();
 }
 
 }  // namespace ae

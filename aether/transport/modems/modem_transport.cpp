@@ -153,14 +153,13 @@ ModemTransport::ModemTransport(AeContext const& ae_context,
 
 ModemTransport::~ModemTransport() { Disconnect(); }
 
-ModemTransport::StreamUpdateEvent::Subscriber
-ModemTransport::stream_update_event() {
+ModemTransport::StreamUpdateEvent const& ModemTransport::stream_update_event() {
   return stream_update_event_;
 }
 
 StreamInfo ModemTransport::stream_info() const { return stream_info_; }
 
-ModemTransport::OutDataEvent::Subscriber ModemTransport::out_data_event() {
+ModemTransport::OutDataEvent const& ModemTransport::out_data_event() {
   return out_data_event_;
 }
 
@@ -185,8 +184,7 @@ WriteAction& ModemTransport::Write(DataBuffer&& in_data) {
 
 WriteAction& ModemTransport::WriteTcp(DataBuffer&& in_data) {
   auto& send_queue_manager =
-      std::get<PacketQueueManager<SendTcpAction, kTcpSendQueueSize>>(
-          packet_queue_manager_);
+      std::get<ModemTcpPacketQueueManager>(packet_queue_manager_);
 
   // Make TCP packet with its size at the beginning
   auto packet_data = std::vector<std::uint8_t>{};
@@ -212,8 +210,7 @@ WriteAction& ModemTransport::WriteTcp(DataBuffer&& in_data) {
 }
 WriteAction& ModemTransport::WriteUdp(DataBuffer&& in_data) {
   auto& send_queue_manager =
-      std::get<PacketQueueManager<SendUdpAction, kTcpSendQueueSize>>(
-          packet_queue_manager_);
+      std::get<ModemUdpPacketQueueManager>(packet_queue_manager_);
 
   auto* send_action =
       send_queue_manager.AddPacket(ae_context_, *this, std::move(in_data));
@@ -322,15 +319,11 @@ ModemTransport::PacketQueueManagerVar ModemTransport::MakePacketQueueManager(
   switch (endpoint.protocol) {
     case Protocol::kTcp: {
       return PacketQueueManagerVar{
-          std::in_place_type_t<
-              PacketQueueManager<SendTcpAction, kTcpSendQueueSize>>{},
-          ae_context};
+          std::in_place_type_t<ModemTcpPacketQueueManager>{}, ae_context};
     }
     default: {
       return PacketQueueManagerVar{
-          std::in_place_type_t<
-              PacketQueueManager<SendUdpAction, kTcpSendQueueSize>>{},
-          ae_context};
+          std::in_place_type_t<ModemUdpPacketQueueManager>{}, ae_context};
     }
   }
 }

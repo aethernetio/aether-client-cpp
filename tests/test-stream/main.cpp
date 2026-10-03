@@ -19,12 +19,10 @@
 void setUp() {}
 void tearDown() {}
 
-extern int test_templated_streams();
 extern int test_tied_gates();
 
 int main() {
   int res = 0;
-  res += test_templated_streams();
   res += test_tied_gates();
   return res;
 }

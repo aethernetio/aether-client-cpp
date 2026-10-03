@@ -30,7 +30,7 @@
 #  include "aether/client_connectivity_policy.h"
 #  include "aether/cloud_connections/cloud_server_connections.h"
 #  include "aether/cloud_connections/local_presence_machine.h"
-#  include "aether/events/event_subscription.h"
+#  include "aether/events/events.h"
 #  include "aether/executors/executors.h"
 #  include "aether/tasks/manual_task_scheduler.h"
 #  include "aether/types/server_id.h"

@@ -17,8 +17,8 @@
 #ifndef AETHER_WRITE_ACTION_WRITE_ACTION_H_
 #define AETHER_WRITE_ACTION_WRITE_ACTION_H_
 
-#include "aether/events/events.h"
 #include "aether/actions/action.h"
+#include "aether/events/events.h"
 
 namespace ae {
 /**
@@ -33,7 +33,8 @@ class WriteAction : public Action {
   };
   using StatusEvent = Event<void(Status)>;
 
-  WriteAction() noexcept = default;
+  explicit WriteAction(EventContext auto const& context) noexcept
+      : Action{context}, status_event_{context} {}
   ~WriteAction() noexcept override = default;
 
   AE_CLASS_MOVE_ONLY(WriteAction)
@@ -46,9 +47,7 @@ class WriteAction : public Action {
   /**
    * \brief Subscribe to status event of this action.
    */
-  virtual StatusEvent::Subscriber status_event() noexcept {
-    return EventSubscriber{status_event_};
-  }
+  virtual StatusEvent const& status_event() noexcept { return status_event_; }
 
  protected:
   virtual void SetStatus(Status status) noexcept {

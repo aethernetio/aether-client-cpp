@@ -19,27 +19,18 @@
 #include "aether/tele.h"
 
 namespace ae {
-ClientApiUnsafe::ClientApiUnsafe(ProtocolContext& protocol_context,
+ClientApiUnsafe::ClientApiUnsafe(EventSystem& event_system,
                                  IDecryptProvider& decrypt_provider)
-    : ApiClassImpl{protocol_context},
-      return_result{protocol_context},
-      decrypt_provider_{&decrypt_provider},
-      client_safe_api_{protocol_context} {}
+    : decrypt_provider_{&decrypt_provider}, client_safe_api_{event_system} {}
 
-void ClientApiUnsafe::SendSafeApiData(SubApiImpl<ClientApiSafe> sub_api) {
-  sub_api.Parse(client_safe_api_, [this](auto const& data) {
-    auto decrypted = Decrypt(data);
-    if (decrypted.empty()) {
-      AE_TELED_WARNING("Dropped packet: client safe api decrypt failed");
-      return decrypted;
-    }
-    AE_TELED_DEBUG("Client api unsafe data {}", decrypted);
-    return decrypted;
-  });
+void ClientApiUnsafe::SendSafeApiData(SubApi<ClientApiSafe> sub_api) {
+  auto unsafe_data = decrypt_provider_->Decrypt(std::move(sub_api).buffer());
+  AE_TELED_DEBUG("Client api unsafe data {}", unsafe_data);
+
+  auto parser = ApiParser{server_context().protocol_context(), unsafe_data};
+  // not fully parsed
+  if (!parser.Parse(client_safe_api_)) {
+    server_context().reader().Cancel();
+  }
 }
-
-DataBuffer ClientApiUnsafe::Decrypt(DataBuffer const& data) {
-  return decrypt_provider_->Decrypt(data);
-}
-
 }  // namespace ae

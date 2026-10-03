@@ -14,9 +14,23 @@
 
 cmake_minimum_required( VERSION 3.16 )
 
-list(APPEND test_srcs
+set(test_api_protocol_suites
+  packet
+  method-call
+  request-response
+  pending-responses
+  sender-lifecycle
+  registration
+)
+
+set(test_srcs
   main.cpp
+  test-packet.cpp
   test-method-call.cpp
+  test-request-response.cpp
+  test-pending-responses.cpp
+  test-sender-lifecycle.cpp
+  test-registration.cpp
 )
 
 if(NOT CM_PLATFORM)
@@ -26,10 +40,23 @@ if(NOT CM_PLATFORM)
   add_executable(${PROJECT_NAME})
   target_sources(${PROJECT_NAME} PRIVATE ${test_srcs})
   # for aether
-  target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
-  target_link_libraries(${PROJECT_NAME} PRIVATE aether unity gcem)
+  target_link_libraries(${PROJECT_NAME} PRIVATE aether unity gcem etl)
 
   add_test(NAME ${PROJECT_NAME} COMMAND $<TARGET_FILE:${PROJECT_NAME}>)
+
+  foreach(suite IN LISTS test_api_protocol_suites)
+    string(REPLACE "-" "_" suite_entry ${suite})
+    set(suite_target "${PROJECT_NAME}-${suite}")
+
+    add_executable(${suite_target} suite-main.cpp "test-${suite}.cpp")
+    target_compile_definitions(
+      ${suite_target}
+      PRIVATE API_PROTOCOL_SUITE=test_api_protocol_${suite_entry}
+    )
+    target_link_libraries(${suite_target} PRIVATE aether unity gcem etl)
+
+    add_test(NAME ${suite_target} COMMAND $<TARGET_FILE:${suite_target}>)
+  endforeach()
 else()
   message(WARNING "Not implemented for ${CM_PLATFORM}")
 endif()

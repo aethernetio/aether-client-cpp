@@ -20,10 +20,9 @@
 #include <string_view>
 
 #include "aether/events/events.h"
-#include "aether/types/data_buffer.h"
 #include "aether/stream_api/gate_trait.h"
 #include "aether/stream_api/tied_gates.h"
-#include "aether/stream_api/gates_stream.h"
+#include "aether/types/data_buffer.h"
 
 #include "tests/test-stream/to_data_buffer.h"
 
@@ -74,23 +73,29 @@ struct RemoveFoxGate {
 };
 
 struct NotifyThenFoxJumpedGate {
+  explicit NotifyThenFoxJumpedGate(EventContext auto const& context)
+      : out_data_event_{context} {}
+
   void WriteOut(DataBuffer data) { out_data_event_.Emit(std::move(data)); }
 
-  EventSubscriber<void(DataBuffer const&)> out_data_event() {
-    return EventSubscriber{out_data_event_};
+  Event<void(DataBuffer const&)> const& out_data_event() {
+    return out_data_event_;
   }
 
-  Event<void(DataBuffer const&)> out_data_event_{};
+  Event<void(DataBuffer const&)> out_data_event_;
 };
 
 struct NotifyThenLazyDogWokeUpGate {
+  explicit NotifyThenLazyDogWokeUpGate(EventContext auto const& context)
+      : out_data_event_{context} {}
+
   void WriteOut(DataBuffer data) { out_data_event_.Emit(std::move(data)); }
 
-  EventSubscriber<void(DataBuffer const&)> out_data_event() {
-    return EventSubscriber{out_data_event_};
+  Event<void(DataBuffer const&)> const& out_data_event() {
+    return out_data_event_;
   }
 
-  Event<void(DataBuffer const&)> out_data_event_{};
+  Event<void(DataBuffer const&)> out_data_event_;
 };
 
 static constexpr char test_data[] =
@@ -141,8 +146,16 @@ void test_Overhead() {
 }
 
 void test_SubscribeOutDataEvent() {
-  auto notify_then_fox_jumped_gate = NotifyThenFoxJumpedGate{};
-  auto notify_then_lazy_dog_woke_up_gate = NotifyThenLazyDogWokeUpGate{};
+  EventSystem event_system;
+  struct TiedGatesEventContext {
+    EventSystem& event_system() const { return event_system_; }
+
+    EventSystem& event_system_;
+  };
+  auto event_context = TiedGatesEventContext{event_system};
+  auto notify_then_fox_jumped_gate = NotifyThenFoxJumpedGate{event_context};
+  auto notify_then_lazy_dog_woke_up_gate =
+      NotifyThenLazyDogWokeUpGate{event_context};
   auto remove_first_three_gate = RemoveFirstThreeGate{};
   auto remove_fox_gate = RemoveFoxGate{};
 
@@ -160,15 +173,6 @@ void test_SubscribeOutDataEvent() {
                remove_fox_gate);
 
   TEST_ASSERT_EQUAL(data.size() - 3 - 3, received.size());
-}
-
-void test_TiedStream() {
-  auto stream = GatesStream(
-      AddHelloGate{}, RemoveFoxGate{}, NotifyThenFoxJumpedGate{}, SortGate{},
-      NotifyThenLazyDogWokeUpGate{}, RemoveFirstThreeGate{}, AddOneGate{});
-
-  DataBuffer data{ToDataBuffer(test_data)};
-  stream.Write(std::move(data));
 }
 
 }  // namespace ae::test_tied_gates

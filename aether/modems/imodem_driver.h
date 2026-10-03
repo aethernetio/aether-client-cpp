@@ -20,18 +20,18 @@
 #include "aether/config.h"
 
 #if AE_SUPPORT_MODEMS
-#  include <span>
-#  include <string>
 #  include <cstdint>
 #  include <optional>
+#  include <span>
+#  include <string>
 
-#  include "aether-miscpp/types/result.h"
-#  include "aether/events/events.h"
-#  include "aether/types/address.h"
 #  include "aether-miscpp/meta/ignore_t.h"
+#  include "aether-miscpp/types/result.h"
 #  include "aether/actions/action.h"
-#  include "aether/types/data_buffer.h"
+#  include "aether/events/events.h"
 #  include "aether/modems/modem_driver_types.h"
+#  include "aether/types/address.h"
+#  include "aether/types/data_buffer.h"
 
 namespace ae {
 enum class ModemError : int {};
@@ -41,9 +41,7 @@ class OpenNetworkOperation : public Action {
   // return either connection index or error
   using ResultType = Result<ConnectionIndex, ModemError>;
   using ResultEvent = Event<void(ResultType)>;
-  ResultEvent::Subscriber result_event() {
-    return EventSubscriber{result_event_};
-  }
+  ResultEvent const& result_event() { return result_event_; }
   std::optional<ResultType> const& result() const { return result_; }
 
  protected:
@@ -63,9 +61,7 @@ class WriteOperation : public Action {
   // return size of bytes written, or error code
   using ResultType = Result<std::size_t, ModemError>;
   using ResultEvent = Event<void(ResultType)>;
-  ResultEvent::Subscriber result_event() {
-    return EventSubscriber{result_event_};
-  }
+  ResultEvent const& result_event() { return result_event_; }
   std::optional<ResultType> const& result() const { return result_; }
 
  protected:
@@ -84,9 +80,7 @@ class ModemOperation : public Action {
  public:
   using ResultType = Result<Ignore, ModemError>;
   using ResultEvent = Event<void(ResultType)>;
-  ResultEvent::Subscriber result_event() {
-    return EventSubscriber{result_event_};
-  }
+  ResultEvent const& result_event() { return result_event_; }
   std::optional<ResultType> const& result() const { return result_; }
 
  protected:
@@ -118,7 +112,7 @@ class IModemDriver {
 
   virtual WriteOperation* WritePacket(ConnectionIndex connect_index,
                                       std::span<std::uint8_t const> data) = 0;
-  virtual DataEvent::Subscriber data_event() = 0;
+  virtual DataEvent const& data_event() = 0;
 
   virtual ModemOperation* SetPowerSaveParam(ModemPowerSaveParam const& psp) = 0;
   virtual ModemOperation* PowerOff() = 0;

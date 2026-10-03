@@ -23,7 +23,6 @@
 #include "aether/common.h"
 #include "aether/config.h"
 #include "aether/events/events.h"
-#include "aether/events/multi_subscription.h"
 #include "aether/safe_stream/details/circular_buffer.h"
 #include "aether/safe_stream/details/safe_stream_data_message.h"
 #include "aether/safe_stream/details/sending_chunk_list.h"
@@ -48,11 +47,18 @@ static inline Num RandomOffset() {
 }
 }  // namespace safe_stream_send_action_internal
 
-class ISendDataPush {
+template <std::size_t Capacity>
+class ISafeStreamSendActionDelegate {
  public:
-  virtual ~ISendDataPush() = default;
+  using IndexType = RingIndex<Capacity>;
+
+  virtual ~ISafeStreamSendActionDelegate() = default;
   virtual WriteAction& PushData(std::uint16_t index,
                                 DataMessage&& data_message) = 0;
+  virtual void WriteAcknowledged(IndexType buffer_begin,
+                                 IndexType ack_index) = 0;
+  virtual void WriteStopped(IndexType buffer_begin, IndexType stop_index) = 0;
+  virtual void WriteFailed(IndexType buffer_begin, IndexType failed_index) = 0;
 };
 
 // TODO: split on templated and not templated parts
@@ -68,15 +74,11 @@ class SafeStreamSendAction {
   using IndexRangeType = RingIndexRange<IndexType>;
   using SendingChunkListImpl = SendingChunkList<IndexType>;
 
-  using AcknowledgedEvent = Event<void(IndexType buffer_begin, IndexType end)>;
-  using SendFailedEvent = Event<void(IndexType buffer_begin, IndexType end)>;
-  using StoppedEvent = Event<void(IndexType buffer_begin, IndexType end)>;
-
   SafeStreamSendAction(AeContext const& ae_context,
-                       ISendDataPush& send_data_push,
+                       ISafeStreamSendActionDelegate<Capacity>& delegate,
                        SafeStreamConfig const& config)
       : ae_context_{ae_context},
-        send_data_push_{&send_data_push},
+        delegate_{&delegate},
         max_repeat_count_{config.max_repeat_count},
         window_size_{config.window_size},
         sending_buffer_{
@@ -112,7 +114,7 @@ class SafeStreamSendAction {
       return;
     }
     AE_TELED_DEBUG("Stop range {}-{}", range.left, range.right);
-    stopped_event_.Emit(sending_buffer_.begin(), range.right);
+    delegate_->WriteStopped(sending_buffer_.begin(), range.right);
     sending_buffer_.EraseFrom(range.left);
   }
 
@@ -138,7 +140,7 @@ class SafeStreamSendAction {
     if (IndexComparable{last_sent_, sending_buffer_.begin()} < confirm_index) {
       last_sent_ = confirm_index + 1;
     }
-    acknowledged_event_.Emit(sending_buffer_.begin(), confirm_index);
+    delegate_->WriteAcknowledged(sending_buffer_.begin(), confirm_index);
     sending_buffer_.Erase(confirm_index + 1);
     sending_chunks_.RemoveUpTo(confirm_index);
     sending_chunks_.set_buffer_begin(sending_buffer_.begin());
@@ -167,16 +169,6 @@ class SafeStreamSendAction {
     AE_TELED_DEBUG("Set max payload to {}", max_payload_size);
     max_payload_size_ = max_payload_size;
     EnqueueSend();
-  }
-
-  AcknowledgedEvent::Subscriber acknowledged_event() {
-    return EventSubscriber{acknowledged_event_};
-  }
-  StoppedEvent::Subscriber stopped_event() {
-    return EventSubscriber{stopped_event_};
-  }
-  SendFailedEvent::Subscriber send_failed_event() {
-    return EventSubscriber{send_failed_event_};
   }
 
  private:
@@ -343,7 +335,7 @@ class SafeStreamSendAction {
 
   void RejectSend(IndexType end_index) {
     // send failed for a chunk
-    send_failed_event_.Emit(sending_buffer_.begin(), end_index);
+    delegate_->WriteFailed(sending_buffer_.begin(), end_index);
 
     sending_buffer_.Erase(end_index + 1);
     sending_chunks_.RemoveUpTo(end_index);
@@ -367,7 +359,7 @@ class SafeStreamSendAction {
               data_buffer.begin() +
                   static_cast<DataBuffer::difference_type>(dspan.first.size()));
 
-    return send_data_push_->PushData(
+    return delegate_->PushData(
         static_cast<std::uint16_t>(sending_buffer_.begin()),
         DataMessage{
             init_state_,
@@ -379,7 +371,7 @@ class SafeStreamSendAction {
   }
 
   AeContext ae_context_;
-  ISendDataPush* send_data_push_;
+  ISafeStreamSendActionDelegate<Capacity>* delegate_;
 
   std::uint8_t max_repeat_count_{};
   std::size_t window_size_{};
@@ -393,9 +385,6 @@ class SafeStreamSendAction {
   MultiSubscription sending_data_subs_;
   MultiSubscription send_subs_;
   ResponseStatistics response_statistics_;
-  AcknowledgedEvent acknowledged_event_;
-  StoppedEvent stopped_event_;
-  SendFailedEvent send_failed_event_;
   TaskSubscription repeat_timer_;
   TaskSubscription send_enqueued_;
 };

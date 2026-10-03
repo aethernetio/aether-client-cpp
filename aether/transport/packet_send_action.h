@@ -22,7 +22,8 @@
 namespace ae {
 class PacketSendAction : public WriteAction {
  public:
-  PacketSendAction() = default;
+  explicit PacketSendAction(EventContext auto const& context)
+      : WriteAction(context) {}
   AE_CLASS_MOVE_ONLY(PacketSendAction)
   // Trigger event to send data
   virtual void Send() = 0;

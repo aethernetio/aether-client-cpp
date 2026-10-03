@@ -48,13 +48,16 @@ CloudRequest::CloudRequest(AeContext const& ae_context,
                            CloudServerConnections& cloud_server_connections,
                            RequestPolicy::Variant policy,
                            CloudRequestExecutionPolicy exec_policy)
-    : ae_context_{ae_context},
+    : Action{ae_context},
+      ae_context_{ae_context},
       request_{std::move(api_call)},
       cloud_scs_{&cloud_server_connections},
       policy_{policy},
       exec_policy_{exec_policy},
       server_changed_sub_{cloud_scs_->servers_update_event().Subscribe(
-          MethodPtr<&CloudRequest::ServersUpdated>{this})} {
+          MethodPtr<&CloudRequest::ServersUpdated>{this})},
+      result_event_{ae_context_},
+      attempt_exhausted_event_{ae_context_} {
   NormalizeCloudRequestExecutionPolicy(exec_policy_);
   AE_CLOUD_REQ_DEBUG(
       "CLOUD_REQUEST_START percentile_tail_raw={} factor_raw={} retry_count={} "
@@ -72,13 +75,16 @@ CloudRequest::CloudRequest(AeContext const& ae_context,
                            CloudServerConnections& cloud_server_connections,
                            RequestPolicy::Variant policy,
                            CloudRequestExecutionPolicy exec_policy)
-    : ae_context_{ae_context},
+    : Action{ae_context},
+      ae_context_{ae_context},
       request_{std::move(api_request)},
       cloud_scs_{&cloud_server_connections},
       policy_{policy},
       exec_policy_{exec_policy},
       server_changed_sub_{cloud_scs_->servers_update_event().Subscribe(
-          MethodPtr<&CloudRequest::ServersUpdated>{this})} {
+          MethodPtr<&CloudRequest::ServersUpdated>{this})},
+      result_event_{ae_context_},
+      attempt_exhausted_event_{ae_context_} {
   NormalizeCloudRequestExecutionPolicy(exec_policy_);
   AE_CLOUD_REQ_DEBUG(
       "CLOUD_REQUEST_START percentile_tail_raw={} factor_raw={} retry_count={} "
@@ -144,13 +150,13 @@ void CloudRequest::CompleteAttemptWithRemoteError(CloudServerConnection* sc) {
   EnqueuePump();
 }
 
-CloudRequest::ResultEvent::Subscriber CloudRequest::result_event() {
-  return EventSubscriber{result_event_};
+CloudRequest::ResultEvent const& CloudRequest::result_event() {
+  return result_event_;
 }
 
-CloudRequest::AttemptExhaustedEvent::Subscriber
+CloudRequest::AttemptExhaustedEvent const&
 CloudRequest::attempt_exhausted_event() {
-  return EventSubscriber{attempt_exhausted_event_};
+  return attempt_exhausted_event_;
 }
 
 void CloudRequest::EmitAttemptExhausted(CloudServerConnection* sc) {
@@ -162,9 +168,8 @@ void CloudRequest::RebuildCandidates() {
   cloud_scs_->ForServers([&](CloudServerConnection* sc) { next.push_back(sc); },
                          policy_);
   for (auto* sc : next) {
-    auto const known =
-        std::find(candidates_.begin(), candidates_.end(), sc) !=
-        candidates_.end();
+    auto const known = std::find(candidates_.begin(), candidates_.end(), sc) !=
+                       candidates_.end();
     if (!known) {
       candidates_.push_back(sc);
       server_requests_.emplace(sc, ServerRequest{});
@@ -190,7 +195,8 @@ void CloudRequest::ActivateFollowing(std::uint8_t count, bool as_hedge,
     if (as_hedge) {
       AE_CLOUD_REQ_DEBUG(
           "SERVER_HEDGE_ACTIVATED source_server={} new_server={}",
-          source != nullptr ? source->server_id() : ServerId{}, sc->server_id());
+          source != nullptr ? source->server_id() : ServerId{},
+          sc->server_id());
     }
     ActivateServer(sc);
     --count;
@@ -235,19 +241,16 @@ Duration CloudRequest::SoftTimeoutFor(CloudServerConnection* sc) const {
     return ComputeCloudRequestSoftTimeout(FallbackCloudRequestRtt(),
                                           exec_policy_);
   }
-  auto const& stats =
-      channel->channel_statistics().response_time_statistics();
+  auto const& stats = channel->channel_statistics().response_time_statistics();
   if (stats.empty()) {
     return ComputeCloudRequestSoftTimeout(FallbackCloudRequestRtt(),
                                           exec_policy_);
   }
-  auto const rtt =
-      stats.PercentileValue(exec_policy_.response_percentile);
+  auto const rtt = stats.PercentileValue(exec_policy_.response_percentile);
   return ComputeCloudRequestSoftTimeout(rtt, exec_policy_);
 }
 
-void CloudRequest::LaunchAttempt(CloudServerConnection* sc,
-                                 ServerRequest& sr) {
+void CloudRequest::LaunchAttempt(CloudServerConnection* sc, ServerRequest& sr) {
   auto const attempt_index = sr.exec.StartAttempt(exec_policy_);
   if (attempt_index == 0) {
     return;
@@ -385,12 +388,10 @@ void CloudRequest::OnChannelChanged(CloudServerConnection* sc) {
   }
   auto& sr = it->second;
   auto const action = sr.exec.OnChannelChanged(exec_policy_);
-  if (action ==
-      CloudRequestServerExecState::ChannelChangedAction::kIgnore) {
+  if (action == CloudRequestServerExecState::ChannelChangedAction::kIgnore) {
     return;
   }
-  if (action ==
-      CloudRequestServerExecState::ChannelChangedAction::kExhaust) {
+  if (action == CloudRequestServerExecState::ChannelChangedAction::kExhaust) {
     ExhaustServerNoResponse(sc, sr);
     EnqueuePump();
     return;

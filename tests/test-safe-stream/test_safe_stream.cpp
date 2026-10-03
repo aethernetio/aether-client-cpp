@@ -16,17 +16,17 @@
 
 #include <unity.h>
 
-#include "aether/api_protocol/api_message.h"
+#include <utility>
 
 #include "aether/ae_context.h"
-#include "aether/api_protocol/protocol_context.h"
+#include "aether/api_protocol/details/packet_reader.h"
 
 #include "aether/safe_stream/safe_stream.h"
 
-#include "tests/test-stream/to_data_buffer.h"
 #include "tests/test-safe-stream/stream-test-ctx.h"
 #include "tests/test-stream/mock_read_stream.h"
 #include "tests/test-stream/mock_write_stream.h"
+#include "tests/test-stream/to_data_buffer.h"
 
 namespace ae::test_safe_stream {
 constexpr auto config = SafeStreamConfig{
@@ -56,17 +56,18 @@ void test_SafeStreamWriteFewData() {
 
   auto received_packet = DataBuffer{};
 
-  auto read_stream = MockReadStream{};
+  auto read_stream = MockReadStream{ctx};
   auto write_stream = MockWriteStream{ctx, std::size_t{120}};
 
   auto safe_stream = SafeStream<kCapacity>{ctx, config};
+  MultiSubscription subscriptions;
 
   Tie(read_stream, safe_stream, write_stream);
 
-  write_stream.on_write_event().Subscribe(
-      [&](auto data) { write_stream.WriteOut(std::move(data)); });
+  subscriptions += write_stream.on_write_event().Subscribe(
+      [&](DataBuffer& data) { write_stream.WriteOut(data); });
 
-  read_stream.out_data_event().Subscribe([&](auto data) {
+  subscriptions += read_stream.out_data_event().Subscribe([&](auto data) {
     received_packet.insert(std::end(received_packet), std::begin(data),
                            std::end(data));
   });
@@ -95,28 +96,30 @@ void test_SafeStreamPacketLoss() {
 
   TestContext ctx;
 
-  auto pc = ProtocolContext{};
-
   auto received_packet = DataBuffer{};
+  auto send_packet_dropped = false;
 
-  auto read_stream = MockReadStream{};
+  auto read_stream = MockReadStream{ctx};
   auto write_stream = MockWriteStream{ctx, std::size_t{120}};
 
   auto safe_stream = SafeStream<kCapacity>{ctx, config};
+  MultiSubscription subscriptions;
   Tie(read_stream, safe_stream, write_stream);
 
   // loop data to itself
-  write_stream.on_write_event().Subscribe([&](auto data) {
-    auto api_parser = ApiParser{pc, data};
-    auto mid = api_parser.Extract<MessageId>();
-    if (mid == 7) {
-      // packet "send" is lost
-      return;
-    }
-    write_stream.WriteOut(std::move(data));
-  });
+  subscriptions +=
+      write_stream.on_write_event().Subscribe([&](DataBuffer& data) {
+        auto packet_reader = PacketReader{data};
+        auto mid = packet_reader.Extract<MessageId>();
+        if (((mid == 5) || (mid == 6)) && !send_packet_dropped) {
+          // The initial reset/send packet is lost.
+          send_packet_dropped = true;
+          return;
+        }
+        write_stream.WriteOut(data);
+      });
 
-  read_stream.out_data_event().Subscribe([&](auto data) {
+  subscriptions += read_stream.out_data_event().Subscribe([&](auto data) {
     received_packet.insert(std::end(received_packet), std::begin(data),
                            std::end(data));
   });
@@ -140,11 +143,34 @@ void test_SafeStreamPacketLoss() {
   TEST_ASSERT_EQUAL(sizeof(_200_bytes_data), received_packet.size());
 }
 
+void test_SafeStreamStopBeforeTransmission() {
+  TestContext ctx;
+  auto write_stream = MockWriteStream{ctx, std::size_t{120}};
+  auto safe_stream = SafeStream<kCapacity>{ctx, config};
+  bool stopped = false;
+  bool transmitted = false;
+
+  safe_stream.LinkOut(write_stream);
+  Subscription write_subscription = write_stream.on_write_event().Subscribe(
+      [&](auto const&) { transmitted = true; });
+
+  auto& action = safe_stream.Write(ToDataBuffer(_100_bytes_data));
+  Subscription status_subscription = action.status_event().Subscribe(
+      [&](auto status) { stopped = status == WriteAction::Status::kStop; });
+  action.Stop();
+
+  ctx.Update(Now());
+
+  TEST_ASSERT_TRUE(stopped);
+  TEST_ASSERT_FALSE(transmitted);
+}
+
 }  // namespace ae::test_safe_stream
 
 int test_safe_stream() {
   UNITY_BEGIN();
   RUN_TEST(ae::test_safe_stream::test_SafeStreamWriteFewData);
   RUN_TEST(ae::test_safe_stream::test_SafeStreamPacketLoss);
+  RUN_TEST(ae::test_safe_stream::test_SafeStreamStopBeforeTransmission);
   return UNITY_END();
 }

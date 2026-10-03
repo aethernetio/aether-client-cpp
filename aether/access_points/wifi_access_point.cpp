@@ -35,20 +35,22 @@ WifiConnectAction::WifiConnectAction(
     AeContext const& ae_context, WifiAccessPoint& access_point,
     WifiDriver& driver, WiFiAp wifi_ap, std::optional<WiFiPowerSaveParam> psp,
     std::optional<WiFiBaseStation> base_station)
-    : ae_context_{ae_context},
+    : Action{ae_context},
+      ae_context_{ae_context},
       access_point_{&access_point},
       driver_{&driver},
       wifi_ap_{std::move(wifi_ap)},
       psp_{std::move(psp)},
       base_station_{std::move(base_station)},
+      connection_event_{ae_context_},
       scheduler_sub_{
           ae_context_.scheduler().Task([this]() { EnsureConnected(); })} {
   AE_TELED_DEBUG("WifiConnectAction created");
 }
 
-WifiConnectAction::ConnectionEvent::Subscriber
+WifiConnectAction::ConnectionEvent const&
 WifiConnectAction::connection_event() {
-  return EventSubscriber{connection_event_};
+  return connection_event_;
 }
 
 void WifiConnectAction::EnsureConnected() {
@@ -65,7 +67,7 @@ void WifiConnectAction::EnsureConnected() {
 
 void WifiConnectAction::Connect() {
   connect_sub_ = driver_->connect_res_event().Subscribe(
-      [&](Result<WiFiBaseStation, int>&& res) {
+      [&](Result<WiFiBaseStation, int>& res) {
         connect_sub_.Reset();
         if (res) {
           AE_TELED_INFO("Wifi connected");

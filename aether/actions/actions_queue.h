@@ -17,13 +17,13 @@
 #ifndef AETHER_ACTIONS_ACTIONS_QUEUE_H_
 #define AETHER_ACTIONS_ACTIONS_QUEUE_H_
 
-#include <queue>
-#include <memory>
-#include <utility>
 #include <functional>
+#include <memory>
+#include <queue>
+#include <utility>
 
 #include "aether-miscpp/types/small_function.h"
-#include "aether/events/event_subscription.h"
+#include "aether/events/events.h"
 
 namespace ae {
 namespace actions_queue_internal {

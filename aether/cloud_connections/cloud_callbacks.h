@@ -19,8 +19,8 @@
 
 #include "aether-miscpp/types/small_function.h"
 
-#include "aether/events/event_deleter.h"
 #include "aether/api_protocol/api_protocol.h"
+#include "aether/events/events.h"
 #include "aether/work_cloud_api/client_api/client_api_safe.h"
 #include "aether/work_cloud_api/work_server_api/authorized_api.h"
 
@@ -30,20 +30,21 @@ class CloudServerConnections;
 class CloudRequest;
 
 // subscribe to client's api events
-struct ApiEventSubscriber : SmallFunction<EventHandlerDeleter(
-                             ClientApiSafe& client_api,
-                             CloudServerConnection* server_connection)> {};
+struct ApiEventSubscriber
+    : SmallFunction<RegEventHandler(ClientApiSafe& client_api,
+                                    CloudServerConnection* server_connection)> {
+};
 
 // call authorized api
-struct ApiCall
-    : SmallFunction<void(ApiContext<AuthorizedApi>& auth_api,
-                         CloudServerConnection* server_connection)> {};
+struct ApiCall : SmallFunction<void(ApiContext<AuthorizedApi>& auth_api,
+                                    CloudServerConnection* server_connection)> {
+};
 
 // listen to client's api response
 struct ResponseSubscriber
-    : SmallFunction<EventHandlerDeleter(
-          ClientApiSafe& client_api, CloudServerConnection* server_connection,
-          CloudRequest* request)> {};
+    : SmallFunction<RegEventHandler(ClientApiSafe& client_api,
+                                    CloudServerConnection* server_connection,
+                                    CloudRequest* request)> {};
 
 // ApiCall combined with its ResponseSubscriber
 struct ApiCallWithListener {

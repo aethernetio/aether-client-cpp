@@ -17,30 +17,26 @@
 #ifndef AETHER_WORK_CLOUD_API_CLIENT_API_CLIENT_API_UNSAFE_H_
 #define AETHER_WORK_CLOUD_API_CLIENT_API_CLIENT_API_UNSAFE_H_
 
-#include "aether/types/data_buffer.h"
-#include "aether/crypto/icrypto_provider.h"
 #include "aether/api_protocol/api_protocol.h"
+#include "aether/crypto/icrypto_provider.h"
 
 #include "aether/work_cloud_api/client_api/client_api_safe.h"
 
 namespace ae {
-class ClientApiUnsafe : public ApiClassImpl<ClientApiUnsafe> {
+class ClientApiUnsafe : public DeclareApi<ClientApiUnsafe> {
  public:
-  explicit ClientApiUnsafe(ProtocolContext& protocol_context,
+  explicit ClientApiUnsafe(EventSystem& event_system,
                            IDecryptProvider& decrypt_provider);
 
-  void SendSafeApiData(SubApiImpl<ClientApiSafe> sub_api);
+  void SendSafeApiData(SubApi<ClientApiSafe> sub_api);
 
   ReturnResultApi return_result;
 
-  AE_METHODS(RegMethod<4, &ClientApiUnsafe::SendSafeApiData>,
-             ExtApi<&ClientApiUnsafe::return_result>);
+  API_LIST(METHOD(4, SendSafeApiData))
 
   ClientApiSafe& client_api_safe() { return client_safe_api_; }
 
  private:
-  DataBuffer Decrypt(DataBuffer const& data);
-
   IDecryptProvider* decrypt_provider_;
   ClientApiSafe client_safe_api_;
 };

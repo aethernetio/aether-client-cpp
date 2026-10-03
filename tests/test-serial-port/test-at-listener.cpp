@@ -16,17 +16,19 @@
 
 #include <unity.h>
 
-#include "aether/serial_ports/at_support/at_listener.h"
-#include "aether/serial_ports/at_support/at_dispatcher.h"
 #include "aether/serial_ports/at_support/at_buffer.h"
-#include "tests/test-serial-port/mock-serial-port.h"
+#include "aether/serial_ports/at_support/at_dispatcher.h"
+#include "aether/serial_ports/at_support/at_listener.h"
 #include "tests/test-serial-port/mock-at-observer.h"
+#include "tests/test-serial-port/mock-serial-port.h"
+#include "tests/test-serial-port/mock-test-context.h"
 
 namespace ae::test_at_listener {
 
 void test_AtListenerConstructorRegistersWithDispatcher() {
-  tests::MockSerialPort mock_serial{};
-  AtBuffer buffer{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  AtBuffer buffer{context, mock_serial};
   AtDispatcher dispatcher{buffer};
   int handler_call_count = 0;
   AtBuffer::iterator observed_pos{};
@@ -57,8 +59,9 @@ void test_AtListenerConstructorRegistersWithDispatcher() {
 }
 
 void test_AtListenerStoresHandlerCorrectly() {
-  tests::MockSerialPort mock_serial{};
-  AtBuffer buffer{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  AtBuffer buffer{context, mock_serial};
   AtDispatcher dispatcher{buffer};
   int handler_call_count = 0;
   AtBuffer::iterator observed_pos{};
@@ -89,8 +92,9 @@ void test_AtListenerStoresHandlerCorrectly() {
 }
 
 void test_AtListenerMultipleListenersDifferentPatterns() {
-  tests::MockSerialPort mock_serial{};
-  AtBuffer buffer{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  AtBuffer buffer{context, mock_serial};
   AtDispatcher dispatcher{buffer};
   int handler1_call_count = 0;
   int handler2_call_count = 0;
@@ -150,8 +154,9 @@ void test_AtListenerMultipleListenersDifferentPatterns() {
 }
 
 void test_AtListenerSingleListenerMultipleMatch() {
-  tests::MockSerialPort mock_serial{};
-  AtBuffer buffer{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  AtBuffer buffer{context, mock_serial};
   AtDispatcher dispatcher{buffer};
   int handler_call_count = 0;
 
@@ -171,8 +176,9 @@ void test_AtListenerSingleListenerMultipleMatch() {
 }
 
 void test_AtListenerDestructorUnregistersFromDispatcher() {
-  tests::MockSerialPort mock_serial{};
-  AtBuffer buffer{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  AtBuffer buffer{context, mock_serial};
   AtDispatcher dispatcher{buffer};
   int handler_call_count = 0;
 
@@ -205,8 +211,9 @@ void test_AtListenerDestructorUnregistersFromDispatcher() {
 }
 
 void test_AtListenerNoHandlerCallsAfterDestruction() {
-  tests::MockSerialPort mock_serial{};
-  AtBuffer buffer{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  AtBuffer buffer{context, mock_serial};
   AtDispatcher dispatcher{buffer};
   int handler_call_count = 0;
 
@@ -228,8 +235,9 @@ void test_AtListenerNoHandlerCallsAfterDestruction() {
 }
 
 void test_AtListenerRAIIBehavior() {
-  tests::MockSerialPort mock_serial{};
-  AtBuffer buffer{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  AtBuffer buffer{context, mock_serial};
   AtDispatcher dispatcher{buffer};
   int outer_handler_count = 0;
   int inner_handler_count = 0;
@@ -314,8 +322,9 @@ void test_AtListenerRAIIBehavior() {
 }
 
 void test_AtListenerIntegrationWithObserver() {
-  tests::MockSerialPort mock_serial{};
-  AtBuffer buffer{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  AtBuffer buffer{context, mock_serial};
   AtDispatcher dispatcher{buffer};
 
   // Test mixed usage of observers and listeners

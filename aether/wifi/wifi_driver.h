@@ -33,8 +33,11 @@ class WifiDriver {
   /**
    * \brief Wifi connection result.
    * \param res - AP parameters or error code
+   *
+   * The result is transferred to the handler. This event must have exactly one
+   * subscriber. This is a usage contract and is not enforced at runtime.
    */
-  using ConnectResEvent = Event<void(Result<WiFiBaseStation, int>&& res)>;
+  using ConnectResEvent = Event<void(Result<WiFiBaseStation, int>& res)>;
 
   virtual ~WifiDriver() = default;
 
@@ -45,7 +48,7 @@ class WifiDriver {
                        std::optional<WiFiPowerSaveParam> const& psp,
                        std::optional<WiFiBaseStation> const& base_station) = 0;
 
-  virtual ConnectResEvent::Subscriber connect_res_event() = 0;
+  virtual ConnectResEvent const& connect_res_event() = 0;
 
   /**
    * \brief Get the AP ssid if connected

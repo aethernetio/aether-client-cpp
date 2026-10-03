@@ -27,7 +27,7 @@
 namespace ae {
 SelectClientAction::SelectClientAction(AeContext const& ae_context,
                                        Client::ptr client)
-    : ae_context_{ae_context} {
+    : Action{ae_context}, ae_context_{ae_context}, result_event_{ae_context_} {
   AE_TELED_DEBUG("Select loaded client");
   task_sub_ = ae_context_.scheduler().Task([this, c{std::move(client)}]() {
     result_event_.Emit(Ok{c});
@@ -40,7 +40,10 @@ SelectClientAction::SelectClientAction(AeContext const& ae_context,
                                        Aether& aether,
                                        Registration& registration,
                                        std::string client_id)
-    : ae_context_{ae_context}, client_id_{std::move(client_id)} {
+    : Action{ae_context},
+      ae_context_{ae_context},
+      result_event_{ae_context_},
+      client_id_{std::move(client_id)} {
   AE_TELED_DEBUG("Waiting for client registration");
   registration_sub_ = registration.registration().Subscribe(
       [this, aeth{&aether}](auto const& res) {
@@ -56,7 +59,7 @@ SelectClientAction::SelectClientAction(AeContext const& ae_context,
 #endif
 
 SelectClientAction::SelectClientAction(AeContext const& ae_context)
-    : ae_context_{ae_context} {
+    : Action{ae_context}, ae_context_{ae_context}, result_event_{ae_context_} {
   AE_TELED_DEBUG("No clients to select");
   task_sub_ = ae_context_.scheduler().Task([this]() {
     result_event_.Emit(Error{2});
@@ -64,7 +67,7 @@ SelectClientAction::SelectClientAction(AeContext const& ae_context)
   });
 }
 
-SelectClientAction::ResultEvent::Subscriber SelectClientAction::result_event() {
-  return EventSubscriber{result_event_};
+SelectClientAction::ResultEvent const& SelectClientAction::result_event() {
+  return result_event_;
 }
 }  // namespace ae

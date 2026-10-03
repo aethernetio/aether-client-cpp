@@ -17,13 +17,13 @@
 #ifndef AETHET_CONNECTION_MANAGER_CONNECTION_MANAGHER_H_
 #define AETHET_CONNECTION_MANAGER_CONNECTION_MANAGHER_H_
 
-#include "aether/types/uid.h"
 #include "aether/ae_context.h"
 #include "aether/events/events.h"
+#include "aether/types/uid.h"
 
-#include "aether/connection_manager/get_cloud_action.h"
 #include "aether/cloud_connections/cloud_request.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
+#include "aether/connection_manager/get_cloud_action.h"
 
 namespace ae {
 class ClientCloudManager;
@@ -36,7 +36,7 @@ class GetCloudFromAether final : public GetCloudAction {
                               CloudServerConnections& cloud_connection,
                               Uid const& client_uid);
 
-  ResultEvent::Subscriber result_event() noexcept override;
+  ResultEvent const& result_event() noexcept override;
 
  private:
   void CloudUpdate(Uid const& uid, Result<Cloud::ptr const&, int> const& res);

@@ -51,15 +51,15 @@ ActionPtr<WriteAction> GatewayTransport::Write(DataBuffer&& in_data) {
       server_kind_);
 }
 
-GatewayTransport::StreamUpdateEvent::Subscriber
+GatewayTransport::StreamUpdateEvent const&
 GatewayTransport::stream_update_event() {
-  return EventSubscriber{stream_update_event_};
+  return stream_update_event_;
 }
 
 StreamInfo GatewayTransport::stream_info() const { return stream_info_; }
 
-GatewayTransport::OutDataEvent::Subscriber GatewayTransport::out_data_event() {
-  return EventSubscriber{out_data_event_};
+GatewayTransport::OutDataEvent const& GatewayTransport::out_data_event() {
+  return out_data_event_;
 }
 
 void GatewayTransport::Restream() {

@@ -20,6 +20,8 @@
 #include <map>
 #include <optional>
 
+#include "aether/config.h"
+
 #include "aether-objects/obj/obj.h"
 #include "aether-objects/ptr/ptr.h"
 #include "aether/actions/action_pool.h"
@@ -58,7 +60,7 @@ class GetCloudFromCache final : public GetCloudAction {
  public:
   GetCloudFromCache(AeContext const& ae_context, Cloud::ptr cloud);
 
-  ResultEvent::Subscriber result_event() noexcept override;
+  ResultEvent const& result_event() noexcept override;
 
  private:
   Cloud::ptr cloud_;
@@ -72,6 +74,11 @@ class ClientCloudManager : public Obj {
   ClientCloudManager() = default;
 
  public:
+  static constexpr auto kGetCloudActionPoolCapacity =
+      AE_CLOUD_GET_CLOUD_ACTION_POOL_CAPACITY;
+  static constexpr auto kGetServersActionPoolCapacity =
+      AE_CLOUD_GET_SERVERS_ACTION_POOL_CAPACITY;
+
   using CloudUpdateEvent =
       Event<void(Uid const& uid, Result<Cloud::ptr const&, int>)>;
 
@@ -79,15 +86,16 @@ class ClientCloudManager : public Obj {
       ActionPool<AeContext,
                  std::variant<client_cloud_manager_internal::GetCloudFromCache,
                               GetCloudFromAether>,
-                 5>;
-  using GetServersPool = ActionPool<AeContext, GetServersAction, 5>;
+                 kGetCloudActionPoolCapacity>;
+  using GetServersPool =
+      ActionPool<AeContext, GetServersAction, kGetServersActionPoolCapacity>;
 
   explicit ClientCloudManager(ObjProp prop, ObjPtr<Aether> aether,
                               ObjPtr<Client> client);
 
   AE_CLASS_NO_COPY_MOVE(ClientCloudManager)
 
-  CloudUpdateEvent::Subscriber cloud_update_event();
+  CloudUpdateEvent const& cloud_update_event();
 
   /**
    * \brief Make request for cloud for client_uid.
@@ -105,6 +113,7 @@ class ClientCloudManager : public Obj {
   void StartListenForCloudUpdate();
 
  private:
+  void Loaded();
   void CloudConfigs(std::vector<CloudConfig> const& configs);
   void FinalizeCloudConfig(CloudConfig const& conf);
   auto MakeServersSender(std::vector<ServerId> const& sids);
@@ -116,7 +125,7 @@ class ClientCloudManager : public Obj {
   ObjPtr<Client> client_;
   std::map<Uid, client_cloud_manager_internal::CloudCache> cloud_cache_;
 
-  CloudUpdateEvent cloud_update_event_;
+  std::optional<CloudUpdateEvent> cloud_update_event_;
   CloudEventListener cloud_update_sub_;
   std::optional<GetCloudActionPool> cloud_actions_;
   std::optional<GetServersPool> get_servers_pool_;

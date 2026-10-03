@@ -17,6 +17,10 @@
 #ifndef AETHER_CONFIG_H_
 #define AETHER_CONFIG_H_
 
+// Defines Aether's compile-time configuration defaults. USER_CONFIG, when
+// defined, is included before these defaults so it can override them. Add new
+// options to aether/tele_compile_options.h for telemetry reporting.
+
 // IWYU pragma: begin_exports
 #include <cstddef>
 #include <cstdint>
@@ -42,27 +46,25 @@
 #  define AE_TASK_ALIGN alignof(std::max_align_t)
 #endif
 
-// Sized for concurrent Local Presence pings plus Remote Presence
-// get_client_timing across selected servers with soft-timeout retry/hedge.
+// Configuration for event system
+#ifndef AE_EVENTS_MAX_COUNT
+#  define AE_EVENTS_MAX_COUNT 256
+#endif
+#ifndef AE_EVENT_HANDLER_MAX_SIZE
+#  define AE_EVENT_HANDLER_MAX_SIZE 48
+#endif
+#ifndef AE_EVENT_HANDLER_ALIGN
+#  define AE_EVENT_HANDLER_ALIGN (alignof(std::max_align_t))
+#endif
+
+// Maximum amount of pending responses for each server
 #ifndef AE_API_PROTOCOL_MAX_PENDING_RESPONSES
 #  define AE_API_PROTOCOL_MAX_PENDING_RESPONSES 32
 #endif
 
-#ifndef AE_API_PROTOCOL_MAX_PACKET_STACK_DEPTH
-#  define AE_API_PROTOCOL_MAX_PACKET_STACK_DEPTH 4
-#endif
-
-#ifndef AE_API_PROTOCOL_MAX_PARSER_PACKER_DEPTH
-#  define AE_API_PROTOCOL_MAX_PARSER_PACKER_DEPTH 4
-#endif
-
-// Maximum size in bytes for a single pending response pool element.
-#ifndef AE_API_PROTOCOL_PENDING_RESPONSE_MAX_SIZE
-#  define AE_API_PROTOCOL_PENDING_RESPONSE_MAX_SIZE 4 * sizeof(void*)
-#endif
-
-#ifndef AE_API_PROTOCOL_PENDING_RESPONSE_ALIGN
-#  define AE_API_PROTOCOL_PENDING_RESPONSE_ALIGN alignof(std::max_align_t)
+// Maximum amount of method calls for one api layer at a time
+#ifndef AE_API_PROTOCOL_MAX_API_CALL_PER_CONTEXT
+#  define AE_API_PROTOCOL_MAX_API_CALL_PER_CONTEXT 3
 #endif
 
 #ifndef AE_SUPPORT_IPV4
@@ -88,6 +90,51 @@
 #ifndef AE_TCP_PACKET_QUEUE_SIZE
 #  define AE_TCP_PACKET_QUEUE_SIZE 100
 #endif  // AE_TCP_PACKET_QUEUE_SIZE
+
+// Buffered server connection write buffer entry count.
+#ifndef AE_SERVER_CONNECTION_BUFFER_CAPACITY
+#  define AE_SERVER_CONNECTION_BUFFER_CAPACITY 10
+#endif
+
+// Root registration server selection stream write buffer entry count.
+#ifndef AE_ROOT_REG_SERVER_BUFFER_CAPACITY
+#  define AE_ROOT_REG_SERVER_BUFFER_CAPACITY 2
+#endif
+
+// Peer-to-peer message stream write buffer entry count.
+#ifndef AE_P2P_MESSAGE_STREAM_BUFFER_CAPACITY
+#  define AE_P2P_MESSAGE_STREAM_BUFFER_CAPACITY 10
+#endif
+
+// Cloud retrieval action pool entry count.
+#ifndef AE_CLOUD_GET_CLOUD_ACTION_POOL_CAPACITY
+#  define AE_CLOUD_GET_CLOUD_ACTION_POOL_CAPACITY 5
+#endif
+
+// Cloud server retrieval action pool entry count.
+#ifndef AE_CLOUD_GET_SERVERS_ACTION_POOL_CAPACITY
+#  define AE_CLOUD_GET_SERVERS_ACTION_POOL_CAPACITY 5
+#endif
+
+// Modem network operation action pool entry count.
+#ifndef AE_MODEM_NETWORK_OP_ACTION_POOL_CAPACITY
+#  define AE_MODEM_NETWORK_OP_ACTION_POOL_CAPACITY 10
+#endif
+
+// Modem write action pool entry count.
+#ifndef AE_MODEM_WRITE_ACTION_POOL_CAPACITY
+#  define AE_MODEM_WRITE_ACTION_POOL_CAPACITY 10
+#endif
+
+// Modem TCP packet queue entry count.
+#ifndef AE_MODEM_TCP_PACKET_QUEUE_SIZE
+#  define AE_MODEM_TCP_PACKET_QUEUE_SIZE 10
+#endif
+
+// Modem UDP packet queue entry count.
+#ifndef AE_MODEM_UDP_PACKET_QUEUE_SIZE
+#  define AE_MODEM_UDP_PACKET_QUEUE_SIZE 10
+#endif
 
 #ifndef AE_SUPPORT_WEBSOCKET
 #  define AE_SUPPORT_WEBSOCKET 1
@@ -486,13 +533,6 @@
 // the maximum size of the telemetry statistics buffer
 #ifndef AE_STATISTICS_MAX_SIZE
 #  define AE_STATISTICS_MAX_SIZE (10 * 1024)  // 10 KB
-#endif
-
-#ifndef AE_EVENT_HANDLER_MAX_SIZE
-#  define AE_EVENT_HANDLER_MAX_SIZE 48
-#endif
-#ifndef AE_EVENT_HANDLER_ALIGN
-#  define AE_EVENT_HANDLER_ALIGN (alignof(void*))
 #endif
 
 #ifndef NDEBUG

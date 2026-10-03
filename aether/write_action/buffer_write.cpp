@@ -19,8 +19,6 @@
 #include <cassert>
 
 namespace ae {
-BufferedWriteAction::BufferedWriteAction() noexcept = default;
-
 void BufferedWriteAction::Stop() noexcept {
   if (wa_sub_) {  // wa_sub_ is used as alive indicator
     assert(wa_ != nullptr && "Child write action is null");

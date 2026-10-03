@@ -19,18 +19,32 @@
 #if AE_SUPPORT_REGISTRATION
 
 namespace ae {
-ServerRegistrationApi::ServerRegistrationApi(ProtocolContext& protocol_context,
-                                             IEncryptProvider& encrypt_provider)
-    : ApiClass{protocol_context},
-      registration{protocol_context, RegistrationProc{*this}},
-      request_proof_of_work_data{protocol_context},
-      resolve_servers{protocol_context},
-      set_return_key{protocol_context},
-      encrypt_provider_{&encrypt_provider},
-      global_reg_server_api_{protocol_context} {}
+ServerRegistrationApi::ServerRegistrationApi(IEncryptProvider& encrypt_provider)
+    : encrypt_provider_{&encrypt_provider}, global_reg_server_api_{} {}
 
-DataBuffer ServerRegistrationApi::Encrypt(DataBuffer const& data) const {
-  return encrypt_provider_->Encrypt(data);
+void ServerRegistrationApi::Registration(
+    std::string const& salt, std::string const& password_suffix,
+    std::vector<std::uint32_t> const& passwords, Uid const& parent_uid_,
+    SubApi<GlobalRegServerApi> sub_api) {
+  auto gr_data = encrypt_provider_->Encrypt(
+      std::move(sub_api)(global_reg_server_api_, client_context()));
+  ClientMethod<&ServerRegistrationApi::Registration>(
+      salt, password_suffix, passwords, parent_uid_, std::move(gr_data));
+}
+
+ApiPromise<PowParams> ServerRegistrationApi::RequestProofOfWorkData(
+    Uid const& parent_id, PowMethod pow_method) {
+  return ClientMethod<&ServerRegistrationApi::RequestProofOfWorkData>(
+      parent_id, pow_method);
+}
+
+ApiPromise<std::vector<ServerDescriptor>> ServerRegistrationApi::ResolveServers(
+    std::vector<ServerId> const& servers) {
+  return ClientMethod<&ServerRegistrationApi::ResolveServers>(servers);
+}
+
+void ServerRegistrationApi::SetReturnKey(Key const& key) {
+  ClientMethod<&ServerRegistrationApi::SetReturnKey>(key);
 }
 
 }  // namespace ae

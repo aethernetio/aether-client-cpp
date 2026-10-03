@@ -21,8 +21,8 @@
 
 #  include "aether-miscpp/misc/override.h"
 #  include "aether/executors/executors.h"
-#  include "aether/serial_ports/at_support/at_stage.h"
 #  include "aether/serial_ports/at_support/at_request.h"
+#  include "aether/serial_ports/at_support/at_stage.h"
 #  include "aether/serial_ports/serial_port_factory.h"
 
 #  include "aether/modems/modems_tele.h"
@@ -615,8 +615,8 @@ WriteOperation* Sim7070AtModem::WritePacket(
   return op;
 }
 
-Sim7070AtModem::DataEvent::Subscriber Sim7070AtModem::data_event() {
-  return EventSubscriber{data_event_};
+Sim7070AtModem::DataEvent const& Sim7070AtModem::data_event() {
+  return data_event_;
 }
 
 ModemOperation* Sim7070AtModem::SetPowerSaveParam(

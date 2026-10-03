@@ -22,6 +22,8 @@
 namespace ae {
 class MockReadStream final : public ByteStream {
  public:
+  explicit MockReadStream(EventContext auto const& context)
+      : ByteStream{context} {}
 };
 }  // namespace ae
 

@@ -21,22 +21,21 @@
 
 #if AE_SUPPORT_REGISTRATION
 
-#  include <vector>
 #  include <optional>
+#  include <vector>
 
-#  include "aether/types/uid.h"
 #  include "aether/crypto/key.h"
 #  include "aether/events/events.h"
-#  include "aether/types/server_id.h"
-#  include "aether/types/client_config.h"
 #  include "aether/executors/executors.h"
-#  include "aether-miscpp/types/small_function.h"
+#  include "aether/types/client_config.h"
+#  include "aether/types/server_id.h"
+#  include "aether/types/uid.h"
 
-#  include "aether/registration_cloud.h"
 #  include "aether/registration/api/client_reg_api_unsafe.h"
 #  include "aether/registration/api/registration_root_api.h"
-#  include "aether/registration/root_server_select_stream.h"
 #  include "aether/registration/registration_crypto_provider.h"
+#  include "aether/registration/root_server_select_stream.h"
+#  include "aether/registration_cloud.h"
 
 namespace ae {
 class Registration : Action {
@@ -47,7 +46,7 @@ class Registration : Action {
                Ptr<RegistrationCloud> const& reg_cloud, Uid parent_uid);
   ~Registration() override;
 
-  RegistrationEvent::Subscriber registration();
+  RegistrationEvent const& registration();
 
  private:
   void InitConnection();
@@ -79,6 +78,10 @@ class Registration : Action {
   Key master_key_;
   Uid client_uid_;
   Uid ephemeral_uid_;
+
+#  if DEBUG
+  Subscription get_my_ip_subscription_;
+#  endif
 
   std::optional<ex::AnyWaiter<ex::set_value_t(ClientConfig),
                               ex::set_error_t(int), ex::set_stopped_t()>>

@@ -21,15 +21,14 @@
 #include <map>
 #include <vector>
 
-#include "aether/common.h"
-#include "aether/ae_context.h"
 #include "aether/actions/action.h"
-#include "aether/cloud_connections/cloud_request_execution_policy.h"
-#include "aether/cloud_connections/request_policy.h"
+#include "aether/ae_context.h"
 #include "aether/cloud_connections/cloud_callbacks.h"
+#include "aether/cloud_connections/cloud_request_execution_policy.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
-#include "aether/events/event_subscription.h"
-#include "aether/events/multi_subscription.h"
+#include "aether/cloud_connections/request_policy.h"
+#include "aether/common.h"
+#include "aether/events/events.h"
 
 namespace ae {
 /**
@@ -101,8 +100,8 @@ class CloudRequest final : public Action {
     return exec_policy_;
   }
 
-  ResultEvent::Subscriber result_event();
-  AttemptExhaustedEvent::Subscriber attempt_exhausted_event();
+  ResultEvent const& result_event();
+  AttemptExhaustedEvent const& attempt_exhausted_event();
 
  private:
   void RebuildCandidates();

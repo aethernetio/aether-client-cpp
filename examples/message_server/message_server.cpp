@@ -74,7 +74,7 @@ void SubscribeToMessages(ae::Client::ptr const& client,
   // listen for new port open events from the other clients
   client_ptr->message_stream_manager().new_port_event().Subscribe(
       [&, c_ = ae::Ptr<ae::Client>(client_ptr),
-       ctx_ = context](ae::P2pPortHandle&& p2p_handle) {
+       ctx_ = context](ae::P2pPortHandle& p2p_handle) {
         auto dest = p2p_handle.destination();
         // insert new stream into client streams map
         auto [stream, _] = client_streams.insert_or_assign(

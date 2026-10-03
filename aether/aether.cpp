@@ -26,27 +26,15 @@
 #include "aether/registration/registration.h"
 #include "aether/work_cloud.h"
 
-#include "aether/aether_tele.h"
+#include "aether/tele.h"
 
 namespace ae {
 
-Aether::Aether() : task_scheduler{make_unique<TaskScheduler>()} {}
+Aether::Aether() = default;
 
-Aether::Aether(ObjProp prop)
-    : Obj{prop}, task_scheduler{make_unique<TaskScheduler>()} {
-  AE_TELE_DEBUG(AetherCreated);
-}
+Aether::Aether(ObjProp prop) : Obj{prop} { AE_TELE_DEBUG(AetherCreated); }
 
 Aether::~Aether() { AE_TELE_DEBUG(AetherDestroyed); }
-
-AeCtx Aether::ToAeContext() const {
-  static constexpr AeCtxTable ae_table{
-      [](void* obj) -> Aether& { return *static_cast<Aether*>(obj); },
-      [](void* obj) -> TaskScheduler& {
-        return *static_cast<Aether*>(obj)->task_scheduler;
-      }};
-  return AeCtx{const_cast<Aether*>(this), &ae_table};  // NOLINT(*const-cast)
-}
 
 Client::ptr Aether::CreateClient(ClientConfig const& config,
                                  std::string const& client_id) {

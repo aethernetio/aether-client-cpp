@@ -45,29 +45,35 @@ work versus an explicit `Start()` method.
 `Event` owns its handlers. `EventSubscriber` is a non-owning façade used to
 subscribe and emit through an owning object.
 
-`Subscribe()` returns `EventHandlerDeleter`. It is lightweight and is **not** an
-RAII object: destroying or discarding it does not unsubscribe the handler. Call
-Use `Subscription` to control the handler lifetime; do not manage the returned
-deleter directly.
+`Subscribe()` returns `RegEventHandler`. It is lightweight and is **not** an
+RAII object: destroying or discarding it does not unsubscribe the handler.
+`RegEventHandler` remains a copyable aggregate, but every returned token must
+be transferred to exactly one `Subscription` or `MultiSubscription`; copying or
+retaining it for multiple owners is unsupported misuse. Use `Subscription` to
+control the handler lifetime; do not manage the returned deleter directly.
 
 Use RAII lifetime control when a callback should have an owner lifetime:
 
-- `Subscription` owns one `EventHandlerDeleter`; destruction/reset unsubscribes.
+- `Subscription` owns one `RegEventHandler`; destruction/reset unsubscribes.
 - `MultiSubscription` owns several deleters and unsubscribes them together.
 - A temporary `Subscription` unsubscribes at the end of its scope.
 - Retain the subscription for as long as its callback may run.
+
+Unregistering an event rejects new invocations and registrations. Handlers
+already captured by an active invocation snapshot continue unless individually
+unsubscribed.
 
 Define events with a private `Event<void(...)>` member and expose a subscriber:
 
 ```cpp
 using ChangedEvent = Event<void(Value const&)>;
-ChangedEvent::Subscriber changed_event();
+ChangedEvent const& changed_event();
 
 private:
 ChangedEvent changed_event_;
 ```
 
-Return `EventSubscriber{changed_event_}` from the accessor and emit from the
+Return `changed_event_ const&` from the accessor and emit from the
 owner with `changed_event_.Emit(value)`.
 
 ## Actions

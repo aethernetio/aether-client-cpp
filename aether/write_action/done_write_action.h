@@ -17,7 +17,7 @@
 #ifndef AETHER_WRITE_ACTION_DONE_WRITE_ACTION_H_
 #define AETHER_WRITE_ACTION_DONE_WRITE_ACTION_H_
 
-#include "aether/ae_context.h"
+#include "aether/actions/action_context.h"
 #include "aether/write_action/write_action.h"
 
 namespace ae {
@@ -26,7 +26,8 @@ namespace ae {
  */
 class DoneWriteAction final : public WriteAction {
  public:
-  explicit DoneWriteAction(AeContext const& context) {
+  explicit DoneWriteAction(ActionContext auto const& context)
+      : WriteAction{context} {
     context.scheduler().Task(
         [&]() { SetStatus(WriteAction::Status::kSuccess); });
   }

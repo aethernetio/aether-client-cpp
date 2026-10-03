@@ -24,17 +24,15 @@
 #include <vector>
 
 #include "aether-miscpp/types/result.h"
-#include "aether/ae_context.h"
 #include "aether/actions/action.h"
+#include "aether/ae_context.h"
 #include "aether/cloud.h"
 #include "aether/cloud_connections/cloud_request.h"
-#include "aether/events/event_subscription.h"
+#include "aether/cloud_connections/cloud_request_execution_policy.h"
 #include "aether/events/events.h"
-#include "aether/events/multi_subscription.h"
 #include "aether/remote_presence.h"
 #include "aether/types/server_id.h"
 #include "aether/types/uid.h"
-#include "aether/cloud_connections/cloud_request_execution_policy.h"
 
 namespace ae {
 
@@ -57,7 +55,7 @@ class QueryPeerPresence final : public Action {
 
   AE_CLASS_NO_COPY_MOVE(QueryPeerPresence)
 
-  ResultEvent::Subscriber result_event() noexcept;
+  ResultEvent const& result_event() noexcept { return result_event_; }
   Uid peer_uid() const noexcept { return peer_uid_; }
   std::vector<RemoteServerPresenceSample> const& samples() const noexcept {
     return samples_;
@@ -75,10 +73,10 @@ class QueryPeerPresence final : public Action {
 
  private:
   struct AttemptMeta {
-    std::uint64_t next_generation{0};
+    std::uint16_t next_generation{0};
     // Per-attempt send times so late responses from earlier attempts remain
     // classifiable after a soft-timeout retry is launched.
-    std::map<std::uint64_t, TimePoint> send_times;
+    std::map<std::uint16_t, TimePoint> send_times;
   };
 
   void OnCloud(Result<Cloud::ptr, int> result);
@@ -86,7 +84,7 @@ class QueryPeerPresence final : public Action {
   void StartQuery();
   void RefreshUsableSet();
   void RequestTiming(CloudServerConnection* sc);
-  void OnServerTiming(CloudServerConnection* sc, std::uint64_t generation,
+  void OnServerTiming(CloudServerConnection* sc, std::uint16_t generation,
                       Result<ClientTiming, std::int32_t> const& res);
   void MarkUnknown(ServerId server_id);
   void MarkExcluded(ServerId server_id);

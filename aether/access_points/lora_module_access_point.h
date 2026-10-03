@@ -25,7 +25,7 @@
 #  include "aether/actions/action.h"
 #  include "aether/actions/action_ptr.h"
 #  include "aether/adapters/lora_module_adapter.h"
-#  include "aether/events/event_subscription.h"
+#  include "aether/events/events.h"
 #  include "aether/lora_modules/ilora_module_driver.h"
 #  include "aether/types/state_machine.h"
 

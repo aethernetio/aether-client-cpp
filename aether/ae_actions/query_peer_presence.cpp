@@ -19,20 +19,25 @@
 #include <algorithm>
 #include <utility>
 
-#include "aether/api_protocol/sub_api.h"
+#include "aether/api_protocol/api_protocol.h"
 #include "aether/client.h"
-#include "aether/cloud_connections/cloud_server_connection.h"
 #include "aether/config.h"
-#include "aether/connection_manager/client_cloud_manager.h"
 #include "aether/server.h"
 #include "aether/tele.h"
+
+#include "aether/cloud_connections/cloud_server_connection.h"
+#include "aether/connection_manager/client_cloud_manager.h"
 #include "aether/work_cloud_api/work_server_api/authorized_api.h"
 
 namespace ae {
 
 QueryPeerPresence::QueryPeerPresence(AeContext const& ae_context,
                                      Client& client, Uid peer_uid)
-    : ae_context_{ae_context}, client_{&client}, peer_uid_{peer_uid} {
+    : Action{ae_context},
+      ae_context_{ae_context},
+      client_{&client},
+      peer_uid_{peer_uid},
+      result_event_{ae_context_} {
   static_cast<void>(AllowObserverCloudFallbackForPeerPresence());
 
   auto cached = client_->cloud_manager()->GetCachedCloud(peer_uid_);
@@ -52,11 +57,6 @@ QueryPeerPresence::~QueryPeerPresence() {
   timing_subs_.clear();
 }
 
-QueryPeerPresence::ResultEvent::Subscriber
-QueryPeerPresence::result_event() noexcept {
-  return EventSubscriber{result_event_};
-}
-
 Duration QueryPeerPresence::OfflineTimeout() const noexcept {
   auto policy = client_->connectivity_policy();
   if (!policy) {
@@ -65,7 +65,8 @@ Duration QueryPeerPresence::OfflineTimeout() const noexcept {
   return policy.Load()->offline_detection_timeout();
 }
 
-CloudRequestExecutionPolicy QueryPeerPresence::ExecutionPolicy() const noexcept {
+CloudRequestExecutionPolicy QueryPeerPresence::ExecutionPolicy()
+    const noexcept {
   auto policy = client_->connectivity_policy();
   if (!policy) {
     return CloudRequestExecutionPolicy::Default();
@@ -203,7 +204,7 @@ void QueryPeerPresence::StartQuery() {
         // Accumulate subscribers — do not replace, so late responses from
         // earlier soft-timeout attempts remain deliverable.
         timing_subs_[server_id] +=
-            auth_api->get_client_timing(peer_uid_).Subscribe(
+            auth_api->GetClientTiming(peer_uid_).Subscribe(
                 [this, sc, generation](auto const& res) {
                   OnServerTiming(sc, generation, res);
                 });
@@ -219,18 +220,19 @@ void QueryPeerPresence::StartQuery() {
         MaybeComplete();
       });
 
-  cloud_request_sub_ = cloud_request_->result_event().Subscribe([this](bool ok) {
-    if (finished_) {
-      return;
-    }
-    if (ok) {
-      return;
-    }
-    MaybeComplete();
-    if (!finished_ && AllUsableTerminal()) {
-      Complete(AggregateRemotePresence(samples_));
-    }
-  });
+  cloud_request_sub_ =
+      cloud_request_->result_event().Subscribe([this](bool ok) {
+        if (finished_) {
+          return;
+        }
+        if (ok) {
+          return;
+        }
+        MaybeComplete();
+        if (!finished_ && AllUsableTerminal()) {
+          Complete(AggregateRemotePresence(samples_));
+        }
+      });
 }
 
 void QueryPeerPresence::RequestTiming(CloudServerConnection* sc) {
@@ -262,14 +264,14 @@ void QueryPeerPresence::RequestTiming(CloudServerConnection* sc) {
 
   // AuthorizedApiCall requires an active ApiContext path via CloudRequest's
   // handler; for recovered servers we re-enter through a one-server request.
-  conn->AuthorizedApiCall(SubApi{[&, sc, generation](
-                                     ApiContext<AuthorizedApi>& auth_api) {
-    timing_subs_[server_id] +=
-        auth_api->get_client_timing(peer_uid_).Subscribe(
-            [this, sc, generation](auto const& res) {
-              OnServerTiming(sc, generation, res);
-            });
-  }});
+  conn->AuthorizedApiCall(
+      SubApi{[&, sc, generation](ApiContext<AuthorizedApi>& auth_api) {
+        timing_subs_[server_id] +=
+            auth_api->GetClientTiming(peer_uid_).Subscribe(
+                [this, sc, generation](auto const& res) {
+                  OnServerTiming(sc, generation, res);
+                });
+      }});
 }
 
 void QueryPeerPresence::OnServerRecovered(CloudServerConnection* sc) {
@@ -294,7 +296,7 @@ void QueryPeerPresence::OnServerRecovered(CloudServerConnection* sc) {
 }
 
 void QueryPeerPresence::OnServerTiming(
-    CloudServerConnection* sc, std::uint64_t generation,
+    CloudServerConnection* sc, std::uint16_t generation,
     Result<ClientTiming, std::int32_t> const& res) {
   if (finished_ || sc == nullptr) {
     return;
@@ -335,9 +337,9 @@ void QueryPeerPresence::OnServerTiming(
   auto const recv = Now();
   TimePoint expected{};
   TimePoint deadline{};
-  auto const status = ClassifyRemoteServerPresence(
-      recv, send_time, recv, res.value(), OfflineTimeout(), &expected,
-      &deadline);
+  auto const status =
+      ClassifyRemoteServerPresence(recv, send_time, recv, res.value(),
+                                   OfflineTimeout(), &expected, &deadline);
 
   for (auto& sample : samples_) {
     if (sample.server_id != server_id) {
@@ -393,8 +395,7 @@ bool QueryPeerPresence::AllUsableTerminal() const noexcept {
     if (sample.status == RemoteServerPresence::kExcluded) {
       continue;
     }
-    if (!sample.has_timing &&
-        sample.status == RemoteServerPresence::kUnknown) {
+    if (!sample.has_timing && sample.status == RemoteServerPresence::kUnknown) {
       return false;
     }
   }

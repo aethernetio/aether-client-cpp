@@ -68,31 +68,22 @@ struct ServerConnectionTestAccess {
 
 namespace test_server_connection_recovery {
 
-struct TestContext {
-  AeCtx ToAeContext() const {
-    static constexpr auto table =
-        AeCtxTable{nullptr, [](void* obj) -> TaskScheduler& {
-                     return static_cast<TestContext*>(obj)->sched;
-                   }};
-    return AeCtx{const_cast<TestContext*>(this), &table};  // NOLINT
-  }
-
+struct TestContext : public AeEnv {
   void Pump(int rounds = 64) {
     auto now = std::chrono::system_clock::now();
     for (int i = 0; i < rounds; ++i) {
-      now = sched.Update(now);
+      now = scheduler().Update(now);
       if (now == std::chrono::system_clock::time_point::max()) {
         now = std::chrono::system_clock::now();
       }
     }
   }
-
-  TaskScheduler sched;
 };
 
 class ImmediateWriteAction : public WriteAction {
  public:
-  explicit ImmediateWriteAction(AeContext const& context) {
+  explicit ImmediateWriteAction(AeContext const& context)
+      : WriteAction{context} {
     context.scheduler().Task(
         [&]() { WriteAction::SetStatus(Status::kSuccess); });
   }
@@ -102,18 +93,18 @@ class LinkedMockStream final : public ByteIStream {
  public:
   explicit LinkedMockStream(AeContext const& context)
       : context_{context},
-        stream_info_{512, 1024, true, LinkState::kLinked, true} {}
+        stream_info_{512, 1024, true, LinkState::kLinked, true},
+        out_data_event_{context_},
+        stream_update_event_{context_} {}
 
   WriteAction& Write(DataBuffer&& /*data*/) override {
     return last_action_.emplace(context_);
   }
-  StreamUpdateEvent::Subscriber stream_update_event() override {
-    return EventSubscriber{stream_update_event_};
+  StreamUpdateEvent const& stream_update_event() override {
+    return stream_update_event_;
   }
   StreamInfo stream_info() const override { return stream_info_; }
-  OutDataEvent::Subscriber out_data_event() override {
-    return EventSubscriber{out_data_event_};
-  }
+  OutDataEvent const& out_data_event() override { return out_data_event_; }
   void Restream() override {}
 
  private:
@@ -206,7 +197,7 @@ void test_SingleChannelBuildFailureReachesLinkError() {
   TestContext ctx;
   AeContext ae_ctx{ctx};
   RamDomainStorage storage;
-  Domain domain{storage};
+  Domain domain{storage, &ctx};
 
   int builds = 0;
   FakeBuildPolicy policy{FakeBuildPolicy::Mode::kAlwaysFail, &builds, &ae_ctx};
@@ -252,7 +243,7 @@ void test_ResultCallbackSeesFinishedAction() {
   TestContext ctx;
   AeContext ae_ctx{ctx};
   RamDomainStorage storage;
-  Domain domain{storage};
+  Domain domain{storage, &ctx};
 
   int builds = 0;
   FakeBuildPolicy policy{FakeBuildPolicy::Mode::kAlwaysFail, &builds, &ae_ctx};
@@ -272,7 +263,7 @@ void test_SecondChannelSucceedsAfterFirstFailure() {
   TestContext ctx;
   AeContext ae_ctx{ctx};
   RamDomainStorage storage;
-  Domain domain{storage};
+  Domain domain{storage, &ctx};
 
   int builds = 0;
   FakeBuildPolicy policy{FakeBuildPolicy::Mode::kFailThenSucceed, &builds,
@@ -298,7 +289,7 @@ void test_FullPoolStillReachesLinkError() {
   TestContext ctx;
   AeContext ae_ctx{ctx};
   RamDomainStorage storage;
-  Domain domain{storage};
+  Domain domain{storage, &ctx};
 
   // Leave a few slots for transport timeout plumbing; keep the rest occupied
   // with active delayed tasks so deferred reselect cannot allocate.
@@ -306,7 +297,7 @@ void test_FullPoolStillReachesLinkError() {
       AE_TASK_MAX_COUNT > 8 ? AE_TASK_MAX_COUNT - 8 : AE_TASK_MAX_COUNT / 2;
   std::array<TaskSubscription, kBlockers> blockers{};
   for (auto& sub : blockers) {
-    sub = ctx.sched.DelayedTask([]() {}, std::chrono::seconds{60});
+    sub = ctx.scheduler().DelayedTask([]() {}, std::chrono::seconds{60});
     TEST_ASSERT_TRUE_MESSAGE(static_cast<bool>(sub),
                              "expected to fill scheduler pool");
   }
@@ -324,7 +315,7 @@ void test_FullPoolStillReachesLinkError() {
   // Exhaust remaining slots so DeferSelectChannel / DeferServerError fail.
   std::vector<TaskSubscription> extra;
   for (;;) {
-    auto sub = ctx.sched.DelayedTask([]() {}, std::chrono::seconds{60});
+    auto sub = ctx.scheduler().DelayedTask([]() {}, std::chrono::seconds{60});
     if (!sub) {
       break;
     }
@@ -347,7 +338,7 @@ void test_NoBusyLoopOnPermanentFailure() {
   TestContext ctx;
   AeContext ae_ctx{ctx};
   RamDomainStorage storage;
-  Domain domain{storage};
+  Domain domain{storage, &ctx};
 
   int builds = 0;
   FakeBuildPolicy policy{FakeBuildPolicy::Mode::kAlwaysFail, &builds, &ae_ctx};

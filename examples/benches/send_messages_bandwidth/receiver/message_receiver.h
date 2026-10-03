@@ -17,9 +17,9 @@
 #ifndef EXAMPLES_BENCHES_SEND_MESSAGES_BANDWIDTH_RECEIVER_MESSAGE_RECEIVER_H_
 #define EXAMPLES_BENCHES_SEND_MESSAGES_BANDWIDTH_RECEIVER_MESSAGE_RECEIVER_H_
 
-#include "aether/clock.h"
-#include "aether/ae_context.h"
 #include "aether-miscpp/types/result.h"
+#include "aether/ae_context.h"
+#include "aether/clock.h"
 #include "aether/events/events.h"
 
 #include "send_messages_bandwidth/common/bandwidth.h"
@@ -38,7 +38,7 @@ class MessageReceiver {
 
   explicit MessageReceiver(AeContext const& ae_context);
 
-  ResultEvent::Subscriber result_event();
+  ResultEvent const& result_event();
 
   void MessageReceived(std::uint16_t id);
   void StopTest();

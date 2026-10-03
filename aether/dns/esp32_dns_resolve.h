@@ -20,7 +20,7 @@
 #include "aether/config.h"
 #if AE_SUPPORT_CLOUD_DNS
 
-#  include "aether/env.h"
+#  include "aether/common.h"
 #  if (defined(ESP_PLATFORM))
 #    define ESP32_DNS_RESOLVER_ENABLED 1
 

@@ -20,6 +20,8 @@
 #include <cstdint>
 #include <functional>
 
+#include "aether-miscpp/types/result.h"
+
 #include "aether/ae_context.h"
 #include "aether/events/events.h"
 
@@ -32,12 +34,12 @@ namespace ae::bench {
  */
 class TimedSender {
  public:
-  using ResultTimesEvent = Event<void(TimeTable const& time_table)>;
+  using ResultTimesEvent = Event<void(Result<TimeTable, int>)>;
 
   TimedSender(AeContext const& ae_context,
               std::function<void(std::uint16_t id)> send_proc);
 
-  ResultTimesEvent::Subscriber message_times_event();
+  ResultTimesEvent const& result_event();
   void Stop();
   void Sync();
 

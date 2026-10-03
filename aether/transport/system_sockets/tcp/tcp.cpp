@@ -26,19 +26,22 @@
 namespace ae {
 namespace tcp_internal {
 TcpBase::TcpBase(AeContext const& ae_context, AddressPort endpoint) noexcept
-    : ae_context_{ae_context}, endpoint_{std::move(endpoint)} {
+    : ae_context_{ae_context},
+      endpoint_{std::move(endpoint)},
+      out_data_event_{ae_context_},
+      stream_update_event_{ae_context_} {
   stream_info_.link_state = LinkState::kUnlinked;
   stream_info_.is_reliable = true;
   // TODO: find a better value for max element size
   stream_info_.max_element_size = std::numeric_limits<std::uint32_t>::max();
 }
 
-TcpBase::StreamUpdateEvent::Subscriber TcpBase::stream_update_event() {
-  return EventSubscriber{stream_update_event_};
+TcpBase::StreamUpdateEvent const& TcpBase::stream_update_event() {
+  return stream_update_event_;
 }
 StreamInfo TcpBase::stream_info() const { return stream_info_; }
-TcpBase::OutDataEvent::Subscriber TcpBase::out_data_event() {
-  return EventSubscriber{out_data_event_};
+TcpBase::OutDataEvent const& TcpBase::out_data_event() {
+  return out_data_event_;
 }
 
 void TcpBase::Restream() {

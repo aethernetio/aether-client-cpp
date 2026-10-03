@@ -20,8 +20,9 @@
 #include <variant>
 
 #include "aether/actions/action.h"
-#include "aether/actions/actions_queue.h"
 #include "aether/actions/action_context.h"
+#include "aether/actions/actions_queue.h"
+#include "aether/events/events.h"
 #include "aether/tasks/manual_task_scheduler.h"
 
 namespace ae::test_actions_queue {
@@ -29,13 +30,16 @@ using Scheduler = ManualTaskScheduler<TaskManagerConf<50>>;
 
 struct TestContext {
   Scheduler& scheduler() const { return *sched; }
+  EventSystem& event_system() const { return *es; }
   Scheduler* sched;
+  EventSystem* es;
 };
 
 template <typename TBody>
 class TestSyncGenAction final : public Action {
  public:
-  TestSyncGenAction(ActionContext auto const&, TBody&& body) {
+  TestSyncGenAction(ActionContext auto const& context, TBody&& body)
+      : Action{context} {
     std::invoke(std::move(body));
     Finish();
   }
@@ -45,7 +49,7 @@ template <typename TBody>
 class TestAsyncGenAction final : public Action {
  public:
   TestAsyncGenAction(ActionContext auto const& context, TBody&& body)
-      : body_{std::move(body)} {
+      : Action{context}, body_{std::move(body)} {
     context.scheduler().Task([&]() {
       if (!stopped_) {
         std::invoke(body_);
@@ -92,11 +96,12 @@ auto Stage(ActionContext auto const& context, Func&& body) {
 
 void test_SingleStageExecution() {
   Scheduler sched;
+  EventSystem es;
   auto queue = ActionsQueue{};
 
   int execution_counter = 0;
   // Push a single successful stage
-  queue.Push(Stage<TestSyncGenAction>(TestContext{&sched},
+  queue.Push(Stage<TestSyncGenAction>(TestContext{&sched, &es},
                                       [&]() { execution_counter++; }));
   // stage already executed
   TEST_ASSERT_EQUAL(1, execution_counter);
@@ -104,7 +109,8 @@ void test_SingleStageExecution() {
 
 void test_MultipleStageSequentialExecution() {
   Scheduler sched;
-  auto context = TestContext{&sched};
+  EventSystem es;
+  auto context = TestContext{&sched, &es};
 
   auto queue = ActionsQueue{};
 
@@ -137,7 +143,8 @@ void test_MultipleStageSequentialExecution() {
 
 void test_NullStageHandling() {
   Scheduler sched;
-  auto context = TestContext{&sched};
+  EventSystem es;
+  auto context = TestContext{&sched, &es};
 
   auto queue = ActionsQueue{};
 
@@ -168,7 +175,8 @@ void test_StopEmptyQueue() {
 
 void test_StopDuringExecution() {
   Scheduler sched;
-  auto context = TestContext{&sched};
+  EventSystem es;
+  auto context = TestContext{&sched, &es};
 
   auto queue = ActionsQueue{};
 
@@ -199,7 +207,8 @@ void test_StopDuringExecution() {
 
 void test_StopAfterStageCompletion() {
   Scheduler sched;
-  auto context = TestContext{&sched};
+  EventSystem es;
+  auto context = TestContext{&sched, &es};
 
   auto queue = ActionsQueue{};
 
@@ -227,7 +236,8 @@ void test_StopAfterStageCompletion() {
 
 void test_DynamicStageAddition() {
   Scheduler sched;
-  auto context = TestContext{&sched};
+  EventSystem es;
+  auto context = TestContext{&sched, &es};
 
   auto queue = ActionsQueue{};
 
@@ -256,7 +266,8 @@ void test_DynamicStageAddition() {
 
 void test_SinglePushStopCycle() {
   Scheduler sched;
-  auto context = TestContext{&sched};
+  EventSystem es;
+  auto context = TestContext{&sched, &es};
 
   auto queue = ActionsQueue{};
 

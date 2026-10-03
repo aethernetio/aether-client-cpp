@@ -37,13 +37,12 @@ class TestSendMessageDelays {
                         std::ostream& write_results_stream)
       : ae_context_{aether_app},
         aether_{aether_app.aether()},
-        write_results_stream_{write_results_stream} {
+        write_results_stream_{write_results_stream},
+        test_finished_event_{ae_context_} {
     TestPipeline();
   }
 
-  TestFinishedEvent::Subscriber test_finished() {
-    return EventSubscriber{test_finished_event_};
-  }
+  TestFinishedEvent const& test_finished() { return test_finished_event_; }
 
  private:
   auto GetClients() {

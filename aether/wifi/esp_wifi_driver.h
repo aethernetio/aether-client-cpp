@@ -25,8 +25,8 @@
 
 #  include "freertos/FreeRTOS.h"
 
-#  include "freertos/task.h"
 #  include "freertos/event_groups.h"
+#  include "freertos/task.h"
 
 #  include "esp_err.h"
 #  include "esp_netif_types.h"
@@ -66,7 +66,7 @@ class EspWifiDriver final : public WifiDriver {
                std::optional<WiFiPowerSaveParam> const& psp,
                std::optional<WiFiBaseStation> const& base_station_) override;
 
-  ConnectResEvent::Subscriber connect_res_event() override;
+  ConnectResEvent const& connect_res_event() override;
 
   std::optional<std::string> connected_to() const override;
 

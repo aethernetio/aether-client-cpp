@@ -6,8 +6,7 @@
 #include "aether/crypto/ikey_provider.h"
 #include "aether/crypto/sync_crypto_provider.h"
 
-#include "aether/api_protocol/api_context.h"
-#include "aether/api_protocol/sub_api.h"
+#include "aether/api_protocol/api_protocol.h"
 
 #include "aether/work_cloud_api/ae_message.h"
 #include "aether/work_cloud_api/work_server_api/authorized_api.h"
@@ -28,7 +27,6 @@ class PreparedSendMessageKeyProvider final : public ISyncKeyProvider {
  private:
   PreparedSendMessage* block_;
 };
-
 }  // namespace
 
 Result<std::size_t, EncodePacketError> EncodePacket(
@@ -53,21 +51,18 @@ Result<std::size_t, EncodePacketError> EncodePacket(
       std::make_unique<PreparedSendMessageKeyProvider>(*send_message);
   SyncEncryptProvider encrypt_provider{std::move(key_provider)};
 
-  ProtocolContext protocol_context;
-  LoginApi login_api{protocol_context, encrypt_provider};
+  LoginApi login_api{encrypt_provider};
 
-  auto api_context = ApiContext{login_api};
+  auto login_context = ApiContext{login_api};
 
-  api_context->login_by_alias(
-      send_message->sender_ephemeral,
-      SubApi<AuthorizedApi>{
-          [&](auto& auth_api) {
-            auth_api->send_message(
-                AeMessage{send_message->destination_uid, DataBuffer{payload}});
-          },
-      });
+  auto auth_context = ApiContext{login_api.authorized_api()};
+  auth_context->SendMessage(
+      AeMessage{send_message->destination_uid, DataBuffer{payload}});
 
-  out = std::move(api_context).Pack();
+  login_context->LoginByAlias(send_message->sender_ephemeral,
+                              std::move(auth_context));
+
+  out = std::move(login_context);
 
   return Ok{out.size()};
 }

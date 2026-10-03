@@ -18,12 +18,14 @@
 
 #include "aether/serial_ports/at_support/at_buffer.h"
 #include "tests/test-serial-port/mock-serial-port.h"
+#include "tests/test-serial-port/mock-test-context.h"
 
 namespace ae::test_at_buffer {
 
 void test_AtBufferSingleCompleteLine() {
-  tests::MockSerialPort mock_serial{};
-  AtBuffer buffer{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  AtBuffer buffer{context, mock_serial};
 
   // Send a single complete line with \r\n
   DataBuffer data;
@@ -41,8 +43,9 @@ void test_AtBufferSingleCompleteLine() {
 }
 
 void test_AtBufferMultipleCompleteLines() {
-  tests::MockSerialPort mock_serial{};
-  AtBuffer buffer{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  AtBuffer buffer{context, mock_serial};
 
   // Send multiple complete lines with \r\n
   DataBuffer data;
@@ -70,8 +73,9 @@ void test_AtBufferMultipleCompleteLines() {
 }
 
 void test_AtBufferIncompleteLine() {
-  tests::MockSerialPort mock_serial{};
-  AtBuffer buffer{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  AtBuffer buffer{context, mock_serial};
 
   // Send incomplete line without \r\n
   DataBuffer data;
@@ -90,8 +94,9 @@ void test_AtBufferIncompleteLine() {
 }
 
 void test_AtBufferFindPatternBasic() {
-  tests::MockSerialPort mock_serial{};
-  AtBuffer buffer{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  AtBuffer buffer{context, mock_serial};
 
   // Add some data to the buffer
   DataBuffer data;
@@ -114,8 +119,9 @@ void test_AtBufferFindPatternBasic() {
 }
 
 void test_AtBufferFindPatternWithStartIterator() {
-  tests::MockSerialPort mock_serial{};
-  AtBuffer buffer{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  AtBuffer buffer{context, mock_serial};
 
   // Add some data to the buffer
   DataBuffer data;
@@ -142,8 +148,9 @@ void test_AtBufferFindPatternWithStartIterator() {
 }
 
 void test_AtBufferGetCrateBasic() {
-  tests::MockSerialPort mock_serial{};
-  AtBuffer buffer{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  AtBuffer buffer{context, mock_serial};
 
   // Add some data to the buffer
   DataBuffer data;
@@ -161,8 +168,9 @@ void test_AtBufferGetCrateBasic() {
 }
 
 void test_AtBufferGetCrateWithOffset() {
-  tests::MockSerialPort mock_serial{};
-  AtBuffer buffer{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  AtBuffer buffer{context, mock_serial};
 
   // Add some data to the buffer
   DataBuffer data;
@@ -181,8 +189,9 @@ void test_AtBufferGetCrateWithOffset() {
 }
 
 void test_AtBufferGetCrateWithStartIterator() {
-  tests::MockSerialPort mock_serial{};
-  AtBuffer buffer{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  AtBuffer buffer{context, mock_serial};
 
   // Add some data to the buffer
   DataBuffer data;
@@ -204,8 +213,9 @@ void test_AtBufferGetCrateWithStartIterator() {
 }
 
 void test_AtBufferGetCrateWithStartIteratorAndOffset() {
-  tests::MockSerialPort mock_serial{};
-  AtBuffer buffer{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  AtBuffer buffer{context, mock_serial};
 
   // Add some data to the buffer
   DataBuffer data;
@@ -226,8 +236,9 @@ void test_AtBufferGetCrateWithStartIteratorAndOffset() {
 }
 
 void test_AtBufferGetCrateWithStartIteratorAndOffsetBiggerThanLine() {
-  tests::MockSerialPort mock_serial{};
-  AtBuffer buffer{mock_serial};
+  tests::TestContext context{};
+  tests::MockSerialPort mock_serial{context};
+  AtBuffer buffer{context, mock_serial};
 
   // Add some data to the buffer
   DataBuffer data;

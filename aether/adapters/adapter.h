@@ -46,10 +46,11 @@ class Adapter : public Obj {
 
   virtual std::vector<AccessPoint::ptr> access_points() = 0;
 
-  virtual NewAccessPoint::Subscriber new_access_point();
+  virtual NewAccessPoint const& new_access_point();
 
  protected:
-  NewAccessPoint new_access_point_event_;
+  void Loaded();
+  std::optional<NewAccessPoint> new_access_point_event_;
 };
 
 }  // namespace ae

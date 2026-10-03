@@ -17,14 +17,14 @@
 #ifndef AETHER_EXECUTORS_FOR_RANGE_H_
 #define AETHER_EXECUTORS_FOR_RANGE_H_
 
-#include <utility>
 #include <optional>
 #include <type_traits>
+#include <utility>
 
 #include <stdexec/execution.hpp>
 
-#include "aether/types/iterator.h"
 #include "aether-miscpp/meta/type_list.h"
+#include "aether/types/iterator.h"
 
 namespace ae::ex {
 namespace for_range_internal {
@@ -156,29 +156,24 @@ class ForRangeSender {
 
  private:
   static constexpr auto transform_values = []<typename... Args>() {
-    auto convert = []<typename Arg>() {
-      if constexpr (IsContinue_v<Arg>) {
+    if constexpr (sizeof...(Args) > 0) {
+      if constexpr (IsContinue_v<TypeAt_t<0, TypeList<Args...>>>) {
         return stdexec::completion_signatures<>{};
       } else {
-        return stdexec::completion_signatures<stdexec::set_value_t(Arg)>{};
+        return stdexec::completion_signatures<stdexec::set_value_t(Args...)>{};
       }
-    };
-
-    return stdexec::__concat_completion_signatures(
-        convert.template operator()<Args>()...);
+    } else {
+      return stdexec::completion_signatures<stdexec::set_value_t()>{};
+    }
   };
 
   static constexpr auto transform_errors = []<typename... Args>() {
-    auto convert = []<typename Arg>() {
-      if constexpr (IsContinue_v<Arg>) {
-        return stdexec::completion_signatures<>{};
-      } else {
-        return stdexec::completion_signatures<stdexec::set_error_t(Arg)>{};
-      }
-    };
-
-    return stdexec::__concat_completion_signatures(
-        convert.template operator()<Args>()...);
+    static_assert(sizeof...(Args) > 0 && "Empty set_error is not supported");
+    if constexpr (IsContinue_v<TypeAt_t<0, TypeList<Args...>>>) {
+      return stdexec::completion_signatures<>{};
+    } else {
+      return stdexec::completion_signatures<stdexec::set_error_t(Args...)>{};
+    }
   };
 
   Iter iter_;

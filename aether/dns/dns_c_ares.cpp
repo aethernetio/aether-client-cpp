@@ -30,7 +30,6 @@
 #  include "aether/warning_disable.h"
 
 #  include "aether/aether.h"
-#  include "aether/events/multi_subscription.h"
 #  include "aether/socket_initializer.h"
 
 #  include "aether/executors/executors.h"
@@ -169,7 +168,8 @@ class AresImpl {
  private:
   ares_channel_t* channel_;
 
-  MultiSubscription multi_subscription_;
+  // this used to initialize sockets used in ares
+  // this is a RAII object
   AE_MAY_UNUSED_MEMBER SocketInitializer socket_initializer_;
 };
 

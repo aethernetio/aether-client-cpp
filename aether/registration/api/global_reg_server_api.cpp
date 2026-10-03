@@ -18,9 +18,12 @@
 
 #if AE_SUPPORT_REGISTRATION
 namespace ae {
-GlobalRegServerApi::GlobalRegServerApi(ProtocolContext& protocol_context)
-    : ApiClass{protocol_context},
-      set_master_key{protocol_context},
-      finish{protocol_context} {}
+void GlobalRegServerApi::SetMasterKey(Key const& key) {
+  ClientMethod<&GlobalRegServerApi::SetMasterKey>(key);
+}
+
+ApiPromise<RegistrationResponse> GlobalRegServerApi::Finish() {
+  return ClientMethod<&GlobalRegServerApi::Finish>();
+}
 }  // namespace ae
 #endif

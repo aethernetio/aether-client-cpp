@@ -46,13 +46,13 @@ class ServerConnection final : public ByteIStream {
   ServerConnection(AeContext const& ae_context, Ptr<Server> const& server);
 
   WriteAction& Write(DataBuffer&& in_data) override;
-  StreamUpdateEvent::Subscriber stream_update_event() override;
+  StreamUpdateEvent const& stream_update_event() override;
   StreamInfo stream_info() const override;
-  OutDataEvent::Subscriber out_data_event() override;
+  OutDataEvent const& out_data_event() override;
   void Restream() override;
 
-  ServerErrorEvent::Subscriber server_error_event();
-  ChannelChangedEvent::Subscriber channel_changed_event();
+  ServerErrorEvent const& server_error_event();
+  ChannelChangedEvent const& channel_changed_event();
 
   Ptr<Channel> current_channel() const;
 

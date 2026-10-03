@@ -22,12 +22,13 @@ namespace ae::bench {
 MessageReceiver::MessageReceiver(AeContext const& ae_context)
     : ae_context_{ae_context},
       first_message_received_time_{HighResTimePoint::clock::now()},
-      received_message_time_{Now()} {
+      received_message_time_{Now()},
+      result_event_{ae_context_} {
   SchedulerReceiveTimeout();
 }
 
-MessageReceiver::ResultEvent::Subscriber MessageReceiver::result_event() {
-  return EventSubscriber{result_event_};
+MessageReceiver::ResultEvent const& MessageReceiver::result_event() {
+  return result_event_;
 }
 
 void MessageReceiver::MessageReceived(std::uint16_t id) {

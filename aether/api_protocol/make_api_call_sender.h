@@ -17,168 +17,218 @@
 #ifndef AETHER_API_PROTOCOL_MAKE_API_CALL_SENDER_H_
 #define AETHER_API_PROTOCOL_MAKE_API_CALL_SENDER_H_
 
+#include <cstdint>
+#include <functional>
+#include <type_traits>
 #include <utility>
-#include <cassert>
 
+#include "aether/events/events.h"
 #include "aether/executors/executors.h"
-#include "aether/api_protocol/api_context.h"
-#include "aether/events/event_subscription.h"
 #include "aether/write_action/write_action.h"
+
+#include "aether/api_protocol/details/api_context.h"
+#include "aether/api_protocol/details/api_promise.h"
 
 namespace ae {
 struct WriteFailed {};
 
-namespace make_api_call_internal {
-template <typename R>
-struct OpBase {
-  constexpr explicit OpBase(R&& r) noexcept : recv{std::move(r)} {}
+namespace make_api_call_sender_internal {
 
-  virtual void Reset() noexcept {}
-  virtual bool is_reset() const noexcept { return false; }
+template <typename T>
+inline constexpr bool kIsApiPromise = false;
 
-  R recv;
+template <typename T>
+inline constexpr bool kIsApiPromise<ApiPromise<T>> = true;
 
- protected:
-  ~OpBase() = default;
+template <typename T>
+concept ApiPromiseReturn = kIsApiPromise<std::remove_cvref_t<T>>;
+
+template <typename Fn, typename Api>
+concept ApiCall = requires(Fn& fn, ApiContext<Api>& api_context) {
+  { std::invoke(fn, api_context) } -> ApiPromiseReturn;
 };
 
-template <typename R>
-struct Receiver {
-  using receiver_concept = ex::receiver_t;
+template <typename T>
+struct CallTraits;
 
-  constexpr void set_value(auto&&... v) && noexcept {
-    if (!op->is_reset()) {
-      op->Reset();
-      ex::set_value(std::move(op->recv), std::forward<decltype(v)>(v)...);
-    }
-  }
-  constexpr void set_error(auto&& e) && noexcept {
-    if (!op->is_reset()) {
-      op->Reset();
-      ex::set_error(std::move(op->recv), std::forward<decltype(e)>(e));
-    }
-  }
-  constexpr void set_stopped() && noexcept {
-    if (!op->is_reset()) {
-      op->Reset();
-      ex::set_stopped(std::move(op->recv));
-    }
-  }
-  constexpr auto get_env() noexcept {
-    assert(!op->is_reset());
-    return ex::get_env(op->recv);
-  }
-
-  OpBase<R>* op;
+template <typename T>
+struct CallTraits<ApiPromise<T>> {
+  using CompletionSignatures = ex::completion_signatures<
+      ex::set_value_t(T), ex::set_error_t(std::int32_t),
+      ex::set_error_t(WriteFailed), ex::set_stopped_t()>;
+  static constexpr bool kHasValue = true;
 };
 
-template <typename Api, typename Stream, typename Fn, ex::receiver R>
-class Operation final : public OpBase<R> {
+template <>
+struct CallTraits<ApiPromise<void>> {
+  using CompletionSignatures = ex::completion_signatures<
+      ex::set_value_t(), ex::set_error_t(std::int32_t),
+      ex::set_error_t(WriteFailed), ex::set_stopped_t()>;
+  static constexpr bool kHasValue = false;
+};
+
+template <typename Api, typename Stream, typename Fn, typename Return,
+          ex::receiver Receiver>
+class Operation final {
+  using Traits = CallTraits<Return>;
+
  public:
-  using receiver = Receiver<R>;
-
-  constexpr Operation(R&& recv, Api* api, Stream* stream, Fn&& fn) noexcept
-      : OpBase<R>{std::move(recv)},
+  template <typename R>
+  Operation(R&& receiver, Api* api, ProtocolContext* protocol_context,
+            Stream* stream, Fn&& fn) noexcept
+      : receiver_{std::forward<R>(receiver)},
         api_{api},
+        protocol_context_{protocol_context},
         stream_{stream},
         fn_{std::move(fn)} {}
 
-  constexpr void start() noexcept {
-    // prepare api call by user's function
-    auto api_context = ApiContext<Api>{*api_};
-    // though recv_ moved inside the function, it's possible that the function
-    // does not move it inside so we keep store recv_ as a member to ensure it
-    // live enough
-    recv_.emplace(this);
-    if constexpr (std::is_invocable_v<Fn, ApiContext<Api>&, receiver&&>) {
-      std::invoke(fn_, api_context, std::move(recv_.value()));
-    } else {
-      static_assert(std::is_invocable_v<Fn, ApiContext<Api>&, receiver&>,
-                    "Fn must be invocable with ApiContext<Api>& and receiver&");
-      std::invoke(fn_, api_context, recv_.value());
+  /**
+   * Starts this lvalue-qualified stdexec operation state.
+   *
+   * stdexec calls start() to synchronously build the API context and invoke
+   * the callable. An empty promise completes the receiver with set_stopped
+   * synchronously and does not write. Otherwise, start() subscribes to the
+   * promise, packs and writes the request, subscribes to write status, and
+   * returns.
+   *
+   * The caller/system must ensure that this operation is started once and
+   * remains alive until completion. For a non-empty promise, promise and write
+   * callbacks must be delivered asynchronously and serialized; terminal
+   * callbacks must not be concurrent or reentrant. Under this contract,
+   * surrounding event/write integration must deliver at most one terminal
+   * promise or write callback for the operation; exactly-once terminal
+   * delivery is a precondition because this simplified implementation
+   * intentionally has no completed_ guard.
+   *
+   * Under this contract,
+   * terminal callbacks reset subscriptions before completing the receiver, and
+   * no operation member may be accessed afterward.
+   */
+  void start() & noexcept {
+    auto api_context = protocol_context_ == nullptr
+                           ? ApiContext<Api>{*api_}
+                           : ApiContext<Api>{*api_, *protocol_context_};
+    auto promise = std::invoke(fn_, api_context);
+    if (!promise) {
+      ex::set_stopped(std::move(receiver_));
+      return;
     }
-    // write the result to the stream
-    auto& stream_action = stream_->Write(std::move(api_context).Pack());
-    // if stream is failed, the api call is also failed
-    sub_ = stream_action.status_event().Subscribe(
-        [&](WriteAction::Status status) noexcept {
-          switch (status) {
-            case WriteAction::Status::kFail:
-              Reset();
-              ex::set_error(std::move(OpBase<R>::recv), WriteFailed{});
-              break;
-            case WriteAction::Status::kStop:
-              Reset();
-              ex::set_stopped(std::move(OpBase<R>::recv));
-              break;
-            default:
-              break;
-          }
+
+    result_subscription_ = promise.Subscribe([this](auto&& result) noexcept {
+      this->OnPromiseResult(std::forward<decltype(result)>(result));
+    });
+    auto& write_action = stream_->Write(std::move(api_context).Pack());
+    write_subscription_ = write_action.status_event().Subscribe(
+        [this](WriteAction::Status status) noexcept {
+          this->OnWriteStatus(status);
         });
   }
 
-  void Reset() noexcept override { sub_.Reset(); is_reset_ = true; }
-  bool is_reset() const noexcept override { return is_reset_; }
-
  private:
+  template <typename Result>
+  void OnPromiseResult(Result&& result) noexcept {
+    ResetSubscriptions();
+    if (result) {
+      if constexpr (Traits::kHasValue) {
+        ex::set_value(std::move(receiver_),
+                      std::forward<Result>(result).value());
+      } else {
+        ex::set_value(std::move(receiver_));
+      }
+      return;
+    }
+
+    ex::set_error(std::move(receiver_), std::forward<Result>(result).error());
+  }
+
+  void OnWriteStatus(WriteAction::Status status) noexcept {
+    switch (status) {
+      case WriteAction::Status::kSuccess:
+        return;
+      case WriteAction::Status::kFail:
+        ResetSubscriptions();
+        ex::set_error(std::move(receiver_), WriteFailed{});
+        return;
+      case WriteAction::Status::kStop:
+        ResetSubscriptions();
+        ex::set_stopped(std::move(receiver_));
+        return;
+    }
+  }
+
+  void ResetSubscriptions() noexcept {
+    result_subscription_.Reset();
+    write_subscription_.Reset();
+  }
+
+  Receiver receiver_;
   Api* api_;
+  ProtocolContext* protocol_context_;
   Stream* stream_;
   Fn fn_;
-  Subscription sub_;
-  bool is_reset_ = false;
-  std::optional<receiver> recv_;
+  Subscription result_subscription_;
+  Subscription write_subscription_;
 };
 
-template <typename Completions, typename Api, typename Stream, typename Fn>
+template <typename Api, typename Stream, typename Fn>
+  requires ApiCall<Fn, Api>
 class Sender {
  public:
   using sender_concept = ex::sender_t;
+  using Return =
+      std::remove_cvref_t<std::invoke_result_t<Fn&, ApiContext<Api>&>>;
 
   template <typename...>
   static consteval auto get_completion_signatures() noexcept {
-    return ex::__transform_completion_signatures(
-        Completions{}, ex::__keep_completion<ex::set_value_t>{},
-        ex::__keep_completion<ex::set_error_t>{},
-        ex::__keep_completion<ex::set_stopped_t>{},
-        ex::completion_signatures<ex::set_error_t(WriteFailed)>{});
+    return typename CallTraits<Return>::CompletionSignatures{};
   }
 
-  constexpr Sender(Api& api, Stream& stream, Fn&& fn) noexcept
-      : api_{&api}, stream_{&stream}, fn_{std::move(fn)} {}
+  Sender(Api& api, Stream& stream, Fn&& fn) noexcept
+      : api_{&api},
+        protocol_context_{nullptr},
+        stream_{&stream},
+        fn_{std::move(fn)} {}
+  Sender(Api& api, ProtocolContext& protocol_context, Stream& stream,
+         Fn&& fn) noexcept
+      : api_{&api},
+        protocol_context_{&protocol_context},
+        stream_{&stream},
+        fn_{std::move(fn)} {}
 
-  constexpr auto connect(ex::receiver auto&& recv) noexcept {
-    return Operation<Api, Stream, Fn, std::decay_t<decltype(recv)>>{
-        std::forward<decltype(recv)>(recv),
-        api_,
-        stream_,
-        std::move(fn_),
-    };
+  template <typename Receiver>
+  auto connect(Receiver&& receiver) && noexcept {
+    return Operation<Api, Stream, Fn, Return, std::decay_t<Receiver>>{
+        std::forward<Receiver>(receiver), api_, protocol_context_, stream_,
+        std::move(fn_)};
   }
 
  private:
   Api* api_;
+  ProtocolContext* protocol_context_;
   Stream* stream_;
   Fn fn_;
 };
 
-template <typename... Sigs>
 struct MakeApiCall {
   template <typename Api, typename Stream, typename Fn>
-  constexpr auto operator()(Api& api, Stream& stream, Fn&& fn) const noexcept {
-    return Sender<ex::completion_signatures<Sigs...>, Api, Stream,
-                  std::decay_t<Fn>>{
-        api,
-        stream,
-        std::forward<decltype(fn)>(fn),
-    };
+  auto operator()(Api& api, Stream& stream, Fn&& fn) const noexcept
+      -> Sender<Api, Stream, std::decay_t<Fn>> {
+    return Sender<Api, Stream, std::decay_t<Fn>>{api, stream,
+                                                 std::forward<Fn>(fn)};
+  }
+
+  template <typename Api, typename Stream, typename Fn>
+  auto operator()(Api& api, ProtocolContext& protocol_context, Stream& stream,
+                  Fn&& fn) const noexcept
+      -> Sender<Api, Stream, std::decay_t<Fn>> {
+    return Sender<Api, Stream, std::decay_t<Fn>>{api, protocol_context, stream,
+                                                 std::forward<Fn>(fn)};
   }
 };
 
-}  // namespace make_api_call_internal
+}  // namespace make_api_call_sender_internal
 
-template <typename... Sigs>
-static constexpr inline auto make_api_call =
-    make_api_call_internal::MakeApiCall<Sigs...>{};
+inline constexpr make_api_call_sender_internal::MakeApiCall make_api_call{};
 
 }  // namespace ae
 

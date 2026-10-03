@@ -21,12 +21,12 @@
 
 #if AE_SUPPORT_GATEWAY
 
-#  include "aether/types/server_id.h"
-#  include "aether/types/client_id.h"
-#  include "aether/types/data_buffer.h"
 #  include "aether/actions/action_ptr.h"
 #  include "aether/gateway_api/gateway_api.h"
 #  include "aether/gateway_api/server_endpoints.h"
+#  include "aether/types/client_id.h"
+#  include "aether/types/data_buffer.h"
+#  include "aether/types/server_id.h"
 #  include "aether/write_action/write_action.h"
 
 namespace ae {
@@ -56,7 +56,7 @@ class IGatewayDevice {
   /**
    * \brief Get data from server by endpoints.
    */
-  virtual FromServerEvent::Subscriber from_server_event() = 0;
+  virtual FromServerEvent const& from_server_event() = 0;
 };
 }  // namespace ae
 

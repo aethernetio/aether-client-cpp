@@ -25,14 +25,19 @@ namespace ae::bench {
 Receiver::Receiver(AeContext const& ae_context, Client::ptr client)
     : ae_context_{ae_context},
       client_{std::move(client)},
-      bandwidth_api_{protocol_context_} {}
+      protocol_context_{ae_context_},
+      bandwidth_api_{ae_context_.event_system()},
+      test_finished_event_{ae_context_},
+      handshake_made_event_{ae_context_},
+      sync_made_event_{ae_context_},
+      error_event_{ae_context_} {}
 
-EventSubscriber<void()> Receiver::error_event() { return error_event_; }
+Event<void()> const& Receiver::error_event() { return error_event_; }
 
 void Receiver::Connect() {
   message_stream_subscription_ =
       client_->message_stream_manager().new_port_event().Subscribe(
-          [this](ae::P2pPortHandle handle) {
+          [this](ae::P2pPortHandle& handle) {
             auto dest = handle.destination();
             AE_TELED_DEBUG("Received message stream from {}", dest);
             message_stream_ = std::make_shared<P2pStream>(
@@ -44,11 +49,11 @@ void Receiver::Connect() {
 
 void Receiver::Disconnect() { message_stream_.reset(); }
 
-EventSubscriber<void()> Receiver::Handshake() {
-  bandwidth_api_.handshake_event().Subscribe([this](RequestId req_id) {
+Event<void()> const& Receiver::Handshake() {
+  bandwidth_api_.handshake_event.Subscribe([this](RequestId req_id) {
     AE_TELED_DEBUG("Received handshake request {}", req_id);
-    auto api = ApiCallAdapter{ApiContext{bandwidth_api_}, *message_stream_};
-    api->return_result.SendResult(req_id, true);
+    auto api = ApiCallAdapter{bandwidth_api_, *message_stream_};
+    api->SendResult(req_id, true);
     api.Flush();
     handshake_made_event_.Emit();
   });
@@ -56,26 +61,26 @@ EventSubscriber<void()> Receiver::Handshake() {
   return handshake_made_event_;
 }
 
-EventSubscriber<void(Bandwidth const&)> Receiver::TestMessages(
+Event<void(Bandwidth const&)> const& Receiver::TestMessages(
     std::size_t message_count, std::size_t message_size) {
   test_start_sub_ =
-      bandwidth_api_.start_test_event().Subscribe([this](RequestId req_id) {
+      bandwidth_api_.start_test_event.Subscribe([this](RequestId req_id) {
         AE_TELED_DEBUG("Received start test request {}", req_id);
-        auto api = ApiCallAdapter{ApiContext{bandwidth_api_}, *message_stream_};
-        api->return_result.SendResult(req_id, true);
+        auto api = ApiCallAdapter{bandwidth_api_, *message_stream_};
+        api->SendResult(req_id, true);
         api.Flush();
       });
 
   test_stopped_ = false;
   test_stop_sub_ =
-      bandwidth_api_.stop_test_event().Subscribe([this](RequestId req_id) {
+      bandwidth_api_.stop_test_event.Subscribe([this](RequestId req_id) {
         AE_TELED_DEBUG("Received stop test request {}", req_id);
-        auto api = ApiCallAdapter{ApiContext{bandwidth_api_}, *message_stream_};
+        auto api = ApiCallAdapter{bandwidth_api_, *message_stream_};
         if (message_receiver_ && !test_stopped_) {
           message_receiver_->StopTest();
           test_stopped_ = true;
         }
-        api->return_result.SendResult(req_id, true);
+        api->SendResult(req_id, true);
         api.Flush();
       });
 
@@ -94,7 +99,7 @@ EventSubscriber<void(Bandwidth const&)> Receiver::TestMessages(
       });
 
   message_recv_sub_ =
-      bandwidth_api_.message_event().Subscribe([this](auto id, auto&&) {
+      bandwidth_api_.message_event.Subscribe([this](auto id, auto&&) {
         test_start_sub_.Reset();
         message_receiver_->MessageReceived(id);
       });

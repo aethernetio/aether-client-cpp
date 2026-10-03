@@ -36,6 +36,7 @@
 #include "aether/crypto/ikey_provider.h"
 #include "aether/crypto/key_gen.h"
 #include "aether/crypto/sync_crypto_provider.h"
+#include "aether/env.h"
 #include "aether/prepared_packet/packet_encoder.h"
 #include "aether/prepared_packet/prepared_send_message.h"
 #include "aether/server.h"
@@ -93,10 +94,11 @@ struct PreparedPacketFixture {
       Uid{std::array<std::uint8_t, Uid::kSize>{4}};
 
   PreparedPacketFixture()
-      : domain{storage},
+      : domain{storage, &context},
         aether{Aether::ptr::Create(CreateWith{domain})},
         registry{AdapterRegistry::ptr::Create(CreateWith{domain})} {
     aether->adapter_registry = registry;
+    context.SetAether(aether);
     aether->client_prefab = Client::ptr::Create(CreateWith{domain}, aether);
     aether->client_prefab.Save();
 
@@ -142,6 +144,7 @@ struct PreparedPacketFixture {
     client->cloud().Load()->SetServers(servers);
   }
 
+  AeEnv context;
   RamDomainStorage storage;
   Domain domain;
   Aether::ptr aether;

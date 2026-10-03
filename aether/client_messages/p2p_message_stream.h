@@ -21,6 +21,7 @@
 #include <optional>
 
 #include "aether/common.h"
+#include "aether/config.h"
 
 #include "aether-objects/ptr/ptr_view.h"
 #include "aether/ae_context.h"
@@ -51,15 +52,18 @@ class P2pStream final : public ByteIStream {
   AE_CLASS_NO_COPY_MOVE(P2pStream);
 
   WriteAction& Write(DataBuffer&& data) override;
-  StreamUpdateEvent::Subscriber stream_update_event() override;
+  StreamUpdateEvent const& stream_update_event() override;
   StreamInfo stream_info() const override;
-  OutDataEvent::Subscriber out_data_event() override;
+  OutDataEvent const& out_data_event() override;
   void Restream() override;
 
   void WriteOut(DataBuffer const& data);
   Uid const& destination() const;
 
  private:
+  static constexpr auto kBufferCapacity = AE_P2P_MESSAGE_STREAM_BUFFER_CAPACITY;
+  using Buffer = BufferWrite<AeMessage, kBufferCapacity>;
+
   void ConnectReceive();
   void ConnectSend();
 
@@ -76,7 +80,7 @@ class P2pStream final : public ByteIStream {
 
   // connection to destination cloud
   std::unique_ptr<CloudServerConnections> dest_cloud_conn_;
-  BufferWrite<AeMessage, 100> buffer_write_;
+  Buffer buffer_write_;
   std::unique_ptr<p2p_stream_internal::MessageSendStream> message_send_stream_;
 
   OutDataEvent out_data_event_;

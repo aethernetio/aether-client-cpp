@@ -50,7 +50,10 @@ static std::string_view ToString(ae::DataBuffer const& data) {
 }
 
 struct State {
-  explicit State(ae::AetherApp& app) : aether{app.aether()} {}
+  explicit State(ae::AetherApp& app)
+      : aether{app.aether()},
+        a_received_event{AeContext{app}},
+        b_received_event{AeContext{app}} {}
 
   ae::Aether::ptr aether;
   ae::Client::ptr client_a;
@@ -92,7 +95,7 @@ static void OpenAStream(State* state) {
 
   // subscribe to open new message stream
   state->client_b->message_stream_manager().new_port_event().Subscribe(
-      [state](ae::P2pPortHandle handle) {
+      [state](ae::P2pPortHandle& handle) {
         state->b_stream = std::make_shared<ae::P2pStream>(
             *state->aether, state->client_b.Load(), handle.destination(),
             std::move(handle));
@@ -115,13 +118,12 @@ static auto SendMessageAtoB(State* state, int message_num) {
                      text);
 
                  // Expect B receive the message
-                 test_sub_ =
-                     ae::EventSubscriber{state->b_received_event}.Subscribe(
-                         [&](std::string_view message) noexcept {
-                           Log("message.A_to_B.receive.done num={} text=[{}]",
-                               message_num, message);
-                           return ae::ex::set_value(std::move(ctx.receiver));
-                         });
+                 test_sub_ = state->b_received_event.Subscribe(
+                     [&](std::string_view message) noexcept {
+                       Log("message.A_to_B.receive.done num={} text=[{}]",
+                           message_num, message);
+                       return ae::ex::set_value(std::move(ctx.receiver));
+                     });
 
                  state->a_stream->Write(ToDataBuffer(text))
                      .status_event()
@@ -144,13 +146,12 @@ static auto SendMessageBtoA(State* state, int message_num) {
                      text);
 
                  // Expect A receive the message
-                 test_sub_ =
-                     ae::EventSubscriber{state->a_received_event}.Subscribe(
-                         [&](std::string_view message) noexcept {
-                           Log("message.B_to_A.receive.done num={} text=[{}]",
-                               message_num, message);
-                           return ae::ex::set_value(std::move(ctx.receiver));
-                         });
+                 test_sub_ = state->a_received_event.Subscribe(
+                     [&](std::string_view message) noexcept {
+                       Log("message.B_to_A.receive.done num={} text=[{}]",
+                           message_num, message);
+                       return ae::ex::set_value(std::move(ctx.receiver));
+                     });
 
                  if (!state->b_stream) {
                    Log("message.B_to_A.send.failed B has no stream to A");

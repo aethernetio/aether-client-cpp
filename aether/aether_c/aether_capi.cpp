@@ -176,7 +176,7 @@ void Listen(AetherClient* client, void* user_data) {
   }
 
   client->client->message_stream_manager().new_port_event().Subscribe(
-      [client, user_data](ae::P2pPortHandle handle) {
+      [client, user_data](ae::P2pPortHandle& handle) {
         auto dest = handle.destination();
         auto stream = std::make_shared<ae::P2pStream>(
             ae::AeContext{*aether_app}, client->client.Load(), dest,

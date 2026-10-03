@@ -16,14 +16,15 @@
 
 #include <unity.h>
 
+#include <functional>
 #include <optional>
 
-#include "aether/safe_stream/safe_stream_config.h"
 #include "aether/safe_stream/details/safe_stream_recv_action.h"
 #include "aether/safe_stream/details/safe_stream_send_action.h"
+#include "aether/safe_stream/safe_stream_config.h"
 
-#include "tests/test-stream/to_data_buffer.h"
 #include "tests/test-safe-stream/stream-test-ctx.h"
+#include "tests/test-stream/to_data_buffer.h"
 
 namespace ae::test_safe_stream_send_recv {
 constexpr auto config = SafeStreamConfig{
@@ -97,10 +98,11 @@ class DelayPushDataImpl : public TestSafeStreamActionsTransport {
   std::optional<PushMessageT> push_message;
 };
 
-class MockSendDataPush : public ISendDataPush {
+class MockSendDataPush : public ISafeStreamSendActionDelegate<kCapacity> {
   class DoneStreamWriteAction : public WriteAction {
    public:
-    explicit DoneStreamWriteAction(AeContext const& context) {
+    explicit DoneStreamWriteAction(AeContext const& context)
+        : WriteAction{context} {
       context.scheduler().Task([&]() { SetStatus(Status::kSuccess); });
     }
   };
@@ -121,12 +123,22 @@ class MockSendDataPush : public ISendDataPush {
     return *dswa_;
   }
 
+  void WriteAcknowledged(IndexType buffer_begin, IndexType end) override {
+    if (on_acknowledged) {
+      on_acknowledged(buffer_begin, end);
+    }
+  }
+
+  void WriteStopped(IndexType, IndexType) override {}
+  void WriteFailed(IndexType, IndexType) override {}
+
   AeContext context_;
   TestSafeStreamActionsTransport* transport_{};
   std::optional<DoneStreamWriteAction> dswa_;
+  std::function<void(IndexType, IndexType)> on_acknowledged;
 };
 
-class MockSendAckRepeat : public ISendAckRepeat {
+class MockSendAckRepeat : public ISafeStreamRecvActionDelegate {
  public:
   MockSendAckRepeat() = default;
 
@@ -139,7 +151,14 @@ class MockSendAckRepeat : public ISendAckRepeat {
     transport_->SendRepeatRequest(offset);
   }
 
+  void ReceiveData(DataBuffer& data) override {
+    if (on_receive) {
+      on_receive(data);
+    }
+  }
+
   TestSafeStreamActionsTransport* transport_{};
+  std::function<void(DataBuffer&)> on_receive;
 };
 
 static constexpr std::string_view test_data =
@@ -162,11 +181,11 @@ void test_SafeStreamInitHandshake() {
   auto recv_transport = MockSendAckRepeat{};
 
   auto sender = Sender{ctx, send_transport, config};
-  sender.acknowledged_event().Subscribe([&](auto buffer_begin, auto end) {
+  send_transport.on_acknowledged = [&](auto buffer_begin, auto end) {
     if (IndexComparable{expected_range.right, buffer_begin} <= end) {
       acked = true;
     }
-  });
+  };
 
   sender.SetMaxPayload(config.max_packet_size);
   auto receiver = Receiver{ctx, recv_transport, config};
@@ -175,8 +194,7 @@ void test_SafeStreamInitHandshake() {
   send_transport.Link(sender_to_receiver);
   recv_transport.Link(sender_to_receiver);
 
-  receiver.receive_event().Subscribe(
-      [&](auto const& data) { received = data; });
+  recv_transport.on_receive = [&](auto const& data) { received = data; };
 
   auto send_data = sender.SendData(ToSpan(test_data));
   TEST_ASSERT_TRUE(send_data.IsOk());
@@ -209,11 +227,11 @@ void test_SafeStreamReInitSender() {
   // sender is optional and will be replaced
   auto sender =
       std::optional<Sender>{std::in_place, ctx, send_transport, config};
-  sender->acknowledged_event().Subscribe([&](auto buffer_begin, auto end) {
+  send_transport.on_acknowledged = [&](auto buffer_begin, auto end) {
     if (IndexComparable{expected_range.right, buffer_begin} <= end) {
       acked = true;
     }
-  });
+  };
   sender->SetMaxPayload(config.max_packet_size);
   auto receiver = Receiver{ctx, recv_transport, config};
 
@@ -221,8 +239,7 @@ void test_SafeStreamReInitSender() {
   send_transport.Link(sender_to_receiver);
   recv_transport.Link(sender_to_receiver);
 
-  receiver.receive_event().Subscribe(
-      [&](auto const& data) { received = data; });
+  recv_transport.on_receive = [&](auto const& data) { received = data; };
 
   auto send_data1 = sender->SendData(ToSpan(test_data));
   TEST_ASSERT_TRUE(send_data1.IsOk());
@@ -244,11 +261,11 @@ void test_SafeStreamReInitSender() {
 
   // create new sender
   sender.emplace(ctx, send_transport, config);
-  sender->acknowledged_event().Subscribe([&](auto buffer_begin, auto end) {
+  send_transport.on_acknowledged = [&](auto buffer_begin, auto end) {
     if (IndexComparable{expected_range.right, buffer_begin} <= end) {
       acked = true;
     }
-  });
+  };
   sender->SetMaxPayload(config.max_packet_size);
 
   sender_to_receiver = TestSafeStreamActionsTransport{*sender, receiver};
@@ -285,11 +302,11 @@ void test_SafeStreamReInitReceiver() {
 
   // sender is optional and will be replaced
   auto sender = Sender{ctx, send_transport, config};
-  sender.acknowledged_event().Subscribe([&](auto buffer_begin, auto end) {
+  send_transport.on_acknowledged = [&](auto buffer_begin, auto end) {
     if (IndexComparable{expected_range.right, buffer_begin} <= end) {
       acked = true;
     }
-  });
+  };
   sender.SetMaxPayload(config.max_packet_size);
   auto receiver =
       std::optional<Receiver>{std::in_place, ctx, recv_transport, config};
@@ -298,8 +315,7 @@ void test_SafeStreamReInitReceiver() {
   send_transport.Link(sender_to_receiver);
   recv_transport.Link(sender_to_receiver);
 
-  receiver->receive_event().Subscribe(
-      [&](auto const& data) { received = data; });
+  recv_transport.on_receive = [&](auto const& data) { received = data; };
 
   auto send_data1 = sender.SendData(ToSpan(test_data));
   TEST_ASSERT_TRUE(send_data1.IsOk());
@@ -324,8 +340,7 @@ void test_SafeStreamReInitReceiver() {
   sender_to_receiver = TestSafeStreamActionsTransport{sender, *receiver};
   send_transport.Link(sender_to_receiver);
   recv_transport.Link(sender_to_receiver);
-  receiver->receive_event().Subscribe(
-      [&](auto const& data) { received = data; });
+  recv_transport.on_receive = [&](auto const& data) { received = data; };
 
   auto send_data2 = sender.SendData(ToSpan(test_data));
   TEST_ASSERT_TRUE(send_data2.IsOk());

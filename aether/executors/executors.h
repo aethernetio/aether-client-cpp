@@ -31,6 +31,7 @@ DISABLE_WARNING_POP()
 #include "aether/executors/any_sender.h"
 #include "aether/executors/any_waiter.h"
 #include "aether/executors/async_waiter.h"
+#include "aether/executors/event_wait_sender.h"
 #include "aether/executors/for_range.h"
 #include "aether/executors/make_sender.h"
 #include "aether/executors/scheduler_on_tasks.h"

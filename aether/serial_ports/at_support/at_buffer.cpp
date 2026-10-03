@@ -16,16 +16,17 @@
 
 #include "aether/serial_ports/at_support/at_buffer.h"
 
+#include "aether-miscpp/types/method_ptr.h"
+
 #include "aether/tele.h"
 
 namespace ae {
-AtBuffer::AtBuffer(ISerialPort& serial_port)
-    : data_read_sub_{serial_port.read_event().Subscribe(
+AtBuffer::AtBuffer(AeContext const& ae_context, ISerialPort& serial_port)
+    : update_event_{ae_context},
+      data_read_sub_{serial_port.read_event().Subscribe(
           MethodPtr<&AtBuffer::DataRead>{this})} {}
 
-AtBuffer::UpdateEvent::Subscriber AtBuffer::update_event() {
-  return EventSubscriber{update_event_};
-}
+AtBuffer::UpdateEvent const& AtBuffer::update_event() { return update_event_; }
 
 AtBuffer::iterator AtBuffer::FindPattern(std::string_view str) {
   return FindPattern(str, begin());

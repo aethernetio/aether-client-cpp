@@ -18,6 +18,8 @@
 
 #if AE_SUPPORT_REGISTRATION
 
+#  include "aether-miscpp/types/method_ptr.h"
+
 #  include "aether/tele.h"
 
 namespace ae {
@@ -26,7 +28,11 @@ RootServerSelectStream::RootServerSelectStream(
     : ae_context_{ae_context},
       cloud_{cloud},
       buffer_write_{ae_context,
-                    MethodPtr<&RootServerSelectStream::OnWrite>{this}} {
+                    MethodPtr<&RootServerSelectStream::OnWrite>{this}},
+      stream_update_event_{ae_context_},
+      out_data_event_{ae_context_},
+      server_changed_event_{ae_context_},
+      cloud_error_event_{ae_context_} {
   SelectServer();
 }
 
@@ -38,12 +44,12 @@ StreamInfo RootServerSelectStream::stream_info() const {
   return server_connection_ ? server_connection_->stream_info() : StreamInfo{};
 }
 
-RootServerSelectStream::StreamUpdateEvent::Subscriber
+RootServerSelectStream::StreamUpdateEvent const&
 RootServerSelectStream::stream_update_event() {
   return stream_update_event_;
 }
 
-RootServerSelectStream::OutDataEvent::Subscriber
+RootServerSelectStream::OutDataEvent const&
 RootServerSelectStream::out_data_event() {
   return out_data_event_;
 }
@@ -57,12 +63,12 @@ void RootServerSelectStream::Restream() {
   CloudError();
 }
 
-RootServerSelectStream::ServerChangedEvent::Subscriber
+RootServerSelectStream::ServerChangedEvent const&
 RootServerSelectStream::server_changed_event() {
   return server_changed_event_;
 }
 
-RootServerSelectStream::CloudErrorEvent::Subscriber
+RootServerSelectStream::CloudErrorEvent const&
 RootServerSelectStream::cloud_error_event() {
   return cloud_error_event_;
 }
@@ -103,7 +109,8 @@ void RootServerSelectStream::SelectServer() {
 
   server_connection_.emplace(ae_context_, chosen_server.server.Load());
 
-  server_connection_->out_data_event().Subscribe(out_data_event_);
+  server_connection_->out_data_event().Subscribe(
+      MethodPtr<&OutDataEvent::Emit>{&out_data_event_});
   server_connection_->server_error_event().Subscribe(
       MethodPtr<&RootServerSelectStream::ServerError>{this});
 

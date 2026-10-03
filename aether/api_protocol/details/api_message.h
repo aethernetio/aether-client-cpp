@@ -1,0 +1,95 @@
+/*
+ * Copyright 2024 Aethernet Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef AETHER_API_PROTOCOL_DETAILS_API_MESSAGE_H_
+#define AETHER_API_PROTOCOL_DETAILS_API_MESSAGE_H_
+
+#include <cassert>
+#include <cstdint>
+#include <tuple>
+
+#include "aether-miscpp/serialization/serialization.h"
+
+#include "aether/types/packed_size.h"
+#include "aether/vector_buffer.h"
+
+namespace ae {
+
+using MessageId = std::uint8_t;
+
+using MessageBuffer = VectorBuffer<PackedSize>;
+
+template <MessageId id, typename Message>
+struct ApiMessage {
+  static constexpr MessageId kMessageId = id;
+  using message_type = Message;
+
+  message_type message;
+};
+
+/**
+ * \brief A message formed from template parameters
+ */
+template <typename... Ts>
+struct GenericMessage {
+  explicit GenericMessage() = default;
+  explicit GenericMessage(Ts... args)
+    requires(sizeof...(Ts) > 0)
+      : fields{std::forward<Ts>(args)...} {}
+
+  [[no_unique_address]] std::tuple<Ts...> fields;
+};
+
+namespace seri {
+template <Archive A, typename... Ts>
+struct Serializer<A, GenericMessage<Ts...>> {
+  SeriResult Seri(A& archive, Meta<GenericMessage<Ts...> const> meta) const {
+    if constexpr (sizeof...(Ts) > 0) {
+      return std::apply(
+          [&](auto&... args) {
+            auto res = SeriResult{Ok{good}};
+            auto b = ((res = archive.Save(Meta{.value = args, .name = "field"}),
+                       !!res) &&
+                      ...);
+            (void)b;
+            return res;
+          },
+          meta.value.fields);
+    } else {
+      return Ok{seri::good};
+    }
+  }
+
+  SeriResult Deseri(A& archive, Meta<GenericMessage<Ts...>> meta) const {
+    if constexpr (sizeof...(Ts) > 0) {
+      return std::apply(
+          [&](auto&... args) {
+            auto res = SeriResult{Ok{good}};
+            auto b = ((res = archive.Load(Meta{args}), !!res) && ...);
+            (void)b;
+            return res;
+          },
+          meta.value.fields);
+    } else {
+      return Ok{seri::good};
+    }
+  }
+};
+}  // namespace seri
+
+}  // namespace ae
+
+#endif  // AETHER_API_PROTOCOL_DETAILS_API_MESSAGE_H_

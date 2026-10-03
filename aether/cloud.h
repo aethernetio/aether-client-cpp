@@ -19,11 +19,12 @@
 
 #include <cstdint>
 #include <map>
+#include <optional>
 #include <vector>
 
-#include "aether/events/events.h"
-
 #include "aether-objects/obj/obj.h"
+
+#include "aether/events/events.h"
 #include "aether/server.h"
 
 namespace ae {
@@ -52,11 +53,12 @@ class Cloud : public Obj {
 
   std::map<ServerId, CloudServer>& servers();
   std::map<ServerId, CloudServer> const& servers() const;
-  EventSubscriber<void()> cloud_updated();
+  Event<void()> const& cloud_updated();
 
  private:
+  void Loaded();
   std::map<ServerId, CloudServer> servers_;
-  Event<void()> cloud_updated_;
+  std::optional<Event<void()>> cloud_updated_;
 };
 
 }  // namespace ae

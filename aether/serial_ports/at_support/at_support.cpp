@@ -41,8 +41,10 @@ bool ParseArg(std::string_view arg, std::string& value) {
 
 }  // namespace at_support
 
-AtSupport::AtSupport(ISerialPort& serial) noexcept
-    : serial_{&serial}, at_buffer_{serial}, dispatcher_{at_buffer_} {};
+AtSupport::AtSupport(AeContext const& ae_context, ISerialPort& serial) noexcept
+    : serial_{&serial},
+      at_buffer_{ae_context, serial},
+      dispatcher_{at_buffer_} {};
 
 Result<std::size_t, int> AtSupport::SendATCommand(std::string_view command) {
   if (!serial_->IsOpen()) {

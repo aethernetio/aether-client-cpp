@@ -17,8 +17,10 @@
 #ifndef AETHER_STREAM_API_ISTREAM_H_
 #define AETHER_STREAM_API_ISTREAM_H_
 
-#include <utility>
 #include <type_traits>
+#include <utility>
+
+#include "aether-miscpp/types/method_ptr.h"
 
 #include "aether/common.h"
 
@@ -87,7 +89,7 @@ class IStream {
   /**
    * \brief Stream update event.
    */
-  virtual StreamUpdateEvent::Subscriber stream_update_event() = 0;
+  virtual StreamUpdateEvent const& stream_update_event() = 0;
   /**
    * \brief Stream info
    */
@@ -95,7 +97,7 @@ class IStream {
   /**
    * \brief New data received event.
    */
-  virtual OutDataEvent::Subscriber out_data_event() = 0;
+  virtual OutDataEvent const& out_data_event() = 0;
 
   /**
    * \brief Reconfigure the stream in case on user request.
@@ -114,7 +116,9 @@ class Stream : public IStream<TIn, TOut> {
 
   using OutStream = IStream<TInOut, TOutIn>;
 
-  Stream() = default;
+  explicit Stream(EventContext auto const& context)
+      : stream_update_event_{context}, out_data_event_{context} {}
+
   ~Stream() override = default;
 
   AE_CLASS_MOVE_ONLY(Stream)
@@ -126,13 +130,11 @@ class Stream : public IStream<TIn, TOut> {
     return out_->stream_info();
   }
 
-  StreamUpdateEvent::Subscriber stream_update_event() override {
-    return EventSubscriber{stream_update_event_};
+  StreamUpdateEvent const& stream_update_event() override {
+    return stream_update_event_;
   }
 
-  OutDataEvent::Subscriber out_data_event() override {
-    return EventSubscriber{out_data_event_};
-  }
+  OutDataEvent const& out_data_event() override { return out_data_event_; }
 
   void Restream() override {
     if (out_ == nullptr) {
@@ -167,7 +169,9 @@ class Stream<TIn, TOut, TIn, TOut> : public IStream<TIn, TOut> {
 
   using OutStream = IStream<TIn, TOut>;
 
-  Stream() = default;
+  explicit Stream(EventContext auto const& context)
+      : stream_update_event_{context}, out_data_event_{context} {}
+
   ~Stream() override = default;
   AE_CLASS_MOVE_ONLY(Stream)
 
@@ -183,13 +187,11 @@ class Stream<TIn, TOut, TIn, TOut> : public IStream<TIn, TOut> {
     return out_->stream_info();
   }
 
-  StreamUpdateEvent::Subscriber stream_update_event() override {
-    return EventSubscriber{stream_update_event_};
+  StreamUpdateEvent const& stream_update_event() override {
+    return stream_update_event_;
   }
 
-  OutDataEvent::Subscriber out_data_event() override {
-    return EventSubscriber{out_data_event_};
-  }
+  OutDataEvent const& out_data_event() override { return out_data_event_; }
 
   void Restream() override {
     if (out_ == nullptr) {
@@ -203,8 +205,10 @@ class Stream<TIn, TOut, TIn, TOut> : public IStream<TIn, TOut> {
    */
   virtual void LinkOut(OutStream& out) {
     out_ = &out;
-    update_sub_ = out_->stream_update_event().Subscribe(stream_update_event_);
-    out_data_sub_ = out_->out_data_event().Subscribe(out_data_event_);
+    update_sub_ = out_->stream_update_event().Subscribe(
+        MethodPtr<&StreamUpdateEvent::Emit>{&stream_update_event_});
+    out_data_sub_ = out_->out_data_event().Subscribe(
+        MethodPtr<&OutDataEvent::Emit>{&out_data_event_});
     stream_update_event_.Emit();
   }
   /**

@@ -20,10 +20,12 @@
 #include <chrono>
 #include <functional>
 
-#include "aether/actions/action.h"
 #include "aether-miscpp/meta/time_traits.h"
 #include "aether-miscpp/types/small_function.h"
+
+#include "aether/actions/action.h"
 #include "aether/actions/action_context.h"
+#include "aether/events/events.h"
 
 namespace ae {
 /**
@@ -39,11 +41,13 @@ class RepeatableTask : public Action {
     requires(IsDuration_v<D>)
   RepeatableTask(AC const& ac, Task&& task, D interval,
                  int max_repeat_count = kRepeatCountInfinite)
-      : ac_{ac},
+      : Action{ac},
+        ac_{ac},
         task_{std::move(task)},
         interval_{
             std::chrono::duration_cast<std::chrono::milliseconds>(interval)},
-        max_repeat_count_{max_repeat_count} {
+        max_repeat_count_{max_repeat_count},
+        repeat_count_exceeded_event_{ac_} {
     Run();
   }
 
@@ -51,8 +55,8 @@ class RepeatableTask : public Action {
 
   void Stop() { stopped_ = true; }
 
-  Event<void()>::Subscriber repeat_count_exceeded() noexcept {
-    return EventSubscriber{repeat_count_exceeded_event_};
+  Event<void()> const& repeat_count_exceeded() noexcept {
+    return repeat_count_exceeded_event_;
   }
 
  private:

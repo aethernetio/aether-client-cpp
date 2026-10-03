@@ -21,11 +21,11 @@
 
 #if AE_SUPPORT_LORA
 
-#  include <string>
 #  include <cstdint>
+#  include <string>
 
-#  include "aether/types/address.h"
 #  include "aether/events/events.h"
+#  include "aether/types/address.h"
 #  include "aether/types/data_buffer.h"
 
 #  include "aether/actions/notify_action.h"
@@ -51,7 +51,7 @@ class ILoraModuleDriver {
       ConnectionLoraIndex connect_index) = 0;
   virtual ActionPtr<LoraModuleOperation> WritePacket(
       ConnectionLoraIndex connect_index, DataBuffer const& data) = 0;
-  virtual DataEvent::Subscriber data_event() = 0;
+  virtual DataEvent const& data_event() = 0;
 
   virtual ActionPtr<LoraModuleOperation> SetPowerSaveParam(
       LoraPowerSaveParam const& psp) = 0;

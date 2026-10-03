@@ -20,7 +20,7 @@
 #include <cassert>
 #include <utility>
 
-#include "aether/api_protocol/api_context.h"
+#include "aether/api_protocol/api_protocol.h"
 #include "aether/stream_api/istream.h"
 #include "aether/types/data_buffer.h"
 
@@ -34,10 +34,20 @@ namespace ae {
 template <typename TApi>
 class ApiCallAdapter {
  public:
-  ApiCallAdapter(ApiContext<TApi>&& api_context, ByteIStream& byte_stream)
-      : api_context_{std::move(api_context)}, byte_stream_{&byte_stream} {}
+  // api and byte_stream must outlive this adapter, active call proxies, and
+  // synchronous calls or Pack().
+  ApiCallAdapter(TApi& api, ByteIStream& byte_stream)
+      : api_context_{api}, byte_stream_{&byte_stream} {}
+  // api, protocol_context, and byte_stream must outlive this adapter, active
+  // call proxies, and synchronous calls or Pack().
+  ApiCallAdapter(TApi& api, ProtocolContext& protocol_context,
+                 ByteIStream& byte_stream)
+      : api_context_{api, protocol_context}, byte_stream_{&byte_stream} {}
 
-  AE_CLASS_MOVE_ONLY(ApiCallAdapter)
+  ApiCallAdapter(ApiCallAdapter const&) = delete;
+  ApiCallAdapter& operator=(ApiCallAdapter const&) = delete;
+  ApiCallAdapter(ApiCallAdapter&&) = delete;
+  ApiCallAdapter& operator=(ApiCallAdapter&&) = delete;
 
   WriteAction& Flush() {
     return byte_stream_->Write(DataBuffer{std::move(api_context_)});
