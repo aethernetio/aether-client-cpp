@@ -27,9 +27,9 @@
 
 #  include "aether/ae_actions/ping.h"
 #  include "aether/ae_context.h"
-#  include "aether/client_connectivity_policy.h"
 #  include "aether/cloud_connections/cloud_server_connections.h"
 #  include "aether/cloud_connections/local_presence_machine.h"
+#  include "aether/connection_manager/connectivity_policy.h"
 #  include "aether/events/events.h"
 #  include "aether/executors/executors.h"
 #  include "aether/tasks/manual_task_scheduler.h"
@@ -39,7 +39,7 @@ namespace ae {
 class PingCloudServers {
   class ServerPing {
    public:
-    ServerPing(AeContext const& ae_context, ClientConnectivityPolicy& policy,
+    ServerPing(AeContext const& ae_context, ConnectivityPolicy& policy,
                CloudServerConnection& cloud_sc, std::size_t priority);
     ~ServerPing();
 
@@ -78,7 +78,7 @@ class PingCloudServers {
     void ApplyConfirmed(LocalPresenceMachine::PongOutcome const& outcome);
 
     AeContext ae_context_;
-    ClientConnectivityPolicy* policy_;
+    ConnectivityPolicy* policy_;
     CloudServerConnection* cloud_sc_;
     ServerId server_id_{};
     std::size_t priority_{};
@@ -92,9 +92,9 @@ class PingCloudServers {
     TaskSubscription wake_sub_;
     TaskSubscription current_window_sub_;
     TaskSubscription restream_sub_;
-    ClientConnectivityPolicy::SuspendBlocker request_blocker_;
-    ClientConnectivityPolicy::SuspendBlocker current_window_blocker_;
-    ClientConnectivityPolicy::SuspendBlocker restream_blocker_;
+    SuspendBlocker request_blocker_;
+    SuspendBlocker current_window_blocker_;
+    SuspendBlocker restream_blocker_;
     TimePoint next_wake_{TimePoint::max()};
     bool stop_{false};
     bool holding_request_{false};
@@ -105,7 +105,7 @@ class PingCloudServers {
  public:
   PingCloudServers(AeContext const& ae_context,
                    CloudServerConnections& cloud_server_connections,
-                   ClientConnectivityPolicy& policy);
+                   ConnectivityPolicy& policy);
   ~PingCloudServers();
 
  private:
@@ -119,7 +119,7 @@ class PingCloudServers {
 
   AeContext ae_context_;
   CloudServerConnections* cloud_server_connections_;
-  ClientConnectivityPolicy* policy_;
+  ConnectivityPolicy* policy_;
 
   Subscription servers_update_;
   Subscription server_quarantined_sub_;

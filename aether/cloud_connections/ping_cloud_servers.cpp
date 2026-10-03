@@ -25,15 +25,15 @@
 
 #if AE_ENABLE_PING
 
+#  include <functional>
 #  include "aether/channels/channel.h"
 #  include "aether/cloud_connections/cloud_connections_tele.h"
 #  include "aether/executors/executors.h"
-#  include <functional>
 
 namespace ae {
 
 PingCloudServers::ServerPing::ServerPing(AeContext const& ae_context,
-                                         ClientConnectivityPolicy& policy,
+                                         ConnectivityPolicy& policy,
                                          CloudServerConnection& cloud_sc,
                                          std::size_t priority)
     : ae_context_{ae_context},
@@ -129,8 +129,8 @@ void PingCloudServers::ServerPing::ScheduleWake(TimePoint when) {
     wake_sub_.Reset();
     return;
   }
-  wake_sub_ = ae_context_.scheduler().DelayedTask([this]() noexcept { Pump(); },
-                                                  when);
+  wake_sub_ =
+      ae_context_.scheduler().DelayedTask([this]() noexcept { Pump(); }, when);
 }
 
 void PingCloudServers::ServerPing::SyncBlockers() {
@@ -301,8 +301,9 @@ void PingCloudServers::ServerPing::StartSend(
       [this]<typename R>(std::optional<R>&& res) noexcept {
         if (res && res->IsErr()) {
           AE_TELED_ERROR("Ping start error {}", std::move(res)->error());
-          machine_.OnStartFailed(Now(), SelectedRtt(),
-                                 PresenceRestreamReason::kConnectionUnavailable);
+          machine_.OnStartFailed(
+              Now(), SelectedRtt(),
+              PresenceRestreamReason::kConnectionUnavailable);
           SyncBlockers();
           Pump();
         } else if (!(res && res->IsOk())) {
@@ -341,10 +342,10 @@ void PingCloudServers::ServerPing::OnPingResult(std::uint64_t attempt_id,
           }
           AddRttSample(measured);
           auto const selected = SelectedRtt();
-          auto outcome = machine_.OnPong(
-              attempt_id, spec.cycle_id, send_time, Now(), spec.wire_interval,
-              spec.desired_interval, spec.rx_window,
-              spec.following_open_target, selected);
+          auto outcome = machine_.OnPong(attempt_id, spec.cycle_id, send_time,
+                                         Now(), spec.wire_interval,
+                                         spec.desired_interval, spec.rx_window,
+                                         spec.following_open_target, selected);
           ApplyConfirmed(outcome);
           live_.erase(attempt_id);
           SyncBlockers();
@@ -425,7 +426,7 @@ void PingCloudServers::ServerPing::ScheduleRestream() {
 PingCloudServers::PingCloudServers(
     AeContext const& ae_context,
     CloudServerConnections& cloud_server_connections,
-    ClientConnectivityPolicy& policy)
+    ConnectivityPolicy& policy)
     : ae_context_{ae_context},
       cloud_server_connections_{&cloud_server_connections},
       policy_{&policy},

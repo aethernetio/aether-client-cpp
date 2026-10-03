@@ -50,12 +50,12 @@
 #include <string_view>
 #include <vector>
 
+#include "ae-numeric/percentile.h"
 #include "aether-miscpp/format/format.h"
 #include "aether/ae_actions/query_peer_presence.h"
 #include "aether/all.h"
 #include "aether/client_connectivity_policy.h"
 #include "aether/cloud_connections/cloud_request_execution_policy.h"
-#include "ae-numeric/percentile.h"
 #include "aether/cloud_connections/local_presence_schedule.h"
 #include "aether/config.h"
 #include "aether/remote_presence.h"
@@ -139,9 +139,11 @@ void ApplyTimings(Client& client) {
     return;
   }
   policy->ResetRxTimings();
-  policy->SetOfflineDetectionTimeout(kOfflineTimeout);
-  policy->SetCloudRequestExecutionPolicy(
-      CloudRequestExecutionPolicy::FromFactor(Percentile::FromPercent(99.99), TimeoutFactor8::FromDouble(1.2), /*retries=*/2,
+  policy->policy().SetOfflineDetectionTimeout(kOfflineTimeout);
+  policy->policy().SetCloudRequestExecutionPolicy(
+      CloudRequestExecutionPolicy::FromFactor(Percentile::FromPercent(99.99),
+                                              TimeoutFactor8::FromDouble(1.2),
+                                              /*retries=*/2,
                                               /*hedge=*/2));
   policy->ConfigureRxTimings(RequestPolicy::All{})
       .ForAllPriorities(RxTimingConf::Every(kInterval).WithWindow(kWindow));
@@ -150,8 +152,7 @@ void ApplyTimings(Client& client) {
       continue;
     }
     policy->ConfigureServerRxTiming(
-        server->server_id(),
-        RxTimingConf::Every(kInterval).WithWindow(kWindow),
+        server->server_id(), RxTimingConf::Every(kInterval).WithWindow(kWindow),
         Percentile::FromPercent(99.0));
   }
 }
@@ -251,8 +252,8 @@ std::int64_t PercentileMs(std::vector<std::int64_t> values, double p) {
   if (p >= 100.0) {
     return values.back();
   }
-  auto const idx = static_cast<std::size_t>(
-      std::ceil((values.size() - 1) * (p / 100.0)));
+  auto const idx =
+      static_cast<std::size_t>(std::ceil((values.size() - 1) * (p / 100.0)));
   return values[std::min(idx, values.size() - 1)];
 }
 
@@ -294,9 +295,9 @@ std::string Narrow(std::wstring const& s) {
   if (s.empty()) {
     return {};
   }
-  int const n = WideCharToMultiByte(CP_UTF8, 0, s.data(),
-                                    static_cast<int>(s.size()), nullptr, 0,
-                                    nullptr, nullptr);
+  int const n =
+      WideCharToMultiByte(CP_UTF8, 0, s.data(), static_cast<int>(s.size()),
+                          nullptr, 0, nullptr, nullptr);
   std::string out(static_cast<std::size_t>(n), '\0');
   WideCharToMultiByte(CP_UTF8, 0, s.data(), static_cast<int>(s.size()),
                       out.data(), n, nullptr, nullptr);
@@ -511,8 +512,8 @@ bool ReadPeerStatus(std::string const& path, PeerStatus& out) {
 void WritePeerStatus(std::string const& path, Client& client) {
   auto policy = client.connectivity_policy();
   auto const now = Now();
-  auto diag = policy ? policy->DiagnoseLocalPresence(now)
-                     : ClientConnectivityPolicy::LocalPresenceDiag{};
+  auto diag = policy ? policy->policy().DiagnoseLocalPresence(now)
+                     : ConnectivityPolicy::LocalPresenceDiag{};
   auto const tmp = path + ".tmp";
   {
     std::ofstream out(tmp, std::ios::trunc);
@@ -854,8 +855,7 @@ int RunOrchestrator(Options const& opt) {
         return 1;
       }
       auto q = RunOneQuery(*app, *client_b.Load(), peer_uid, query_id++);
-      if (got && ps.online &&
-          q.presence.state == PeerPresenceState::kOnline) {
+      if (got && ps.online && q.presence.state == PeerPresenceState::kOnline) {
         ++online_streak;
         if (online_streak >= 3) {
           settled = true;
@@ -966,8 +966,8 @@ int RunOrchestrator(Options const& opt) {
           }
           remote_off = q.complete;
           saw_remote = true;
-          Log("REMOTE_OFFLINE at_ms={} block->remote_ms={}", EpochMs(remote_off),
-              EpochMs(remote_off) - EpochMs(block_time));
+          Log("REMOTE_OFFLINE at_ms={} block->remote_ms={}",
+              EpochMs(remote_off), EpochMs(remote_off) - EpochMs(block_time));
         }
       }
     }
@@ -1180,8 +1180,8 @@ int RunOrchestrator(Options const& opt) {
           unknown_start = q.complete;
         }
       } else if (in_unknown) {
-        auto const dur = static_cast<std::uint64_t>(
-            EpochMs(q.complete) - EpochMs(unknown_start));
+        auto const dur = static_cast<std::uint64_t>(EpochMs(q.complete) -
+                                                    EpochMs(unknown_start));
         unknown_max_ms = std::max(unknown_max_ms, dur);
         in_unknown = false;
       }
@@ -1230,8 +1230,7 @@ int RunOrchestrator(Options const& opt) {
       }
       auto q = RunOneQuery(*app, *client_b.Load(), peer_uid, query_id++);
       for (auto const& s : q.samples) {
-        if (s.server_id == s1_id &&
-            s.status == RemoteServerPresence::kOnline) {
+        if (s.server_id == s1_id && s.status == RemoteServerPresence::kOnline) {
           if (!saw_fresh) {
             s1_fresh_ok = q.complete;
             saw_fresh = true;
@@ -1284,7 +1283,8 @@ int RunOrchestrator(Options const& opt) {
       "Remote_OFFLINE_latency_median_ms={} "
       "Local_ONLINE_recovery_median_ms={} "
       "Remote_ONLINE_recovery_median_ms={}",
-      PercentileMs(block_to_local_off, 50), PercentileMs(block_to_remote_off, 50),
+      PercentileMs(block_to_local_off, 50),
+      PercentileMs(block_to_remote_off, 50),
       PercentileMs(unblock_to_local_on, 50),
       PercentileMs(unblock_to_remote_on, 50));
   Log("remote_presence_live.done PASS");

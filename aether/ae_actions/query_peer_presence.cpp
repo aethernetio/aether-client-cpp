@@ -62,7 +62,7 @@ Duration QueryPeerPresence::OfflineTimeout() const noexcept {
   if (!policy) {
     return DefaultOfflineDetectionTimeout();
   }
-  return policy.Load()->offline_detection_timeout();
+  return policy.Load()->policy().offline_detection_timeout();
 }
 
 CloudRequestExecutionPolicy QueryPeerPresence::ExecutionPolicy()
@@ -71,7 +71,7 @@ CloudRequestExecutionPolicy QueryPeerPresence::ExecutionPolicy()
   if (!policy) {
     return CloudRequestExecutionPolicy::Default();
   }
-  return policy.Load()->cloud_request_execution_policy();
+  return policy.Load()->policy().cloud_request_execution_policy();
 }
 
 void QueryPeerPresence::BindPeerCloud(Cloud::ptr cloud) {

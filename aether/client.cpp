@@ -73,7 +73,7 @@ CloudServerConnections& Client::cloud_connection() {
 
 #if AE_ENABLE_PING
     ping_cloud_servers_ = std::make_unique<PingCloudServers>(
-        *aether_, *cloud_connection_, *connectivity_policy().Load());
+        *aether_, *cloud_connection_, connectivity_policy().Load()->policy());
 #endif
 
 #if TELEMETRY_ENABLED
@@ -97,7 +97,7 @@ bool Client::IsLocallyOnline() const {
   if (!connectivity_policy_.is_valid()) {
     return false;
   }
-  return connectivity_policy_.Load()->IsLocallyOnline();
+  return connectivity_policy_.Load()->policy().IsLocallyOnline();
 }
 
 QueryPeerPresence& Client::QueryPeerPresence(Uid peer_uid) {
@@ -105,9 +105,8 @@ QueryPeerPresence& Client::QueryPeerPresence(Uid peer_uid) {
       query_peer_presence_->peer_uid() == peer_uid) {
     return *query_peer_presence_;
   }
-  query_peer_presence_ =
-      std::make_unique<::ae::QueryPeerPresence>(AeContext{*aether_}, *this,
-                                                 peer_uid);
+  query_peer_presence_ = std::make_unique<::ae::QueryPeerPresence>(
+      AeContext{*aether_}, *this, peer_uid);
   return *query_peer_presence_;
 }
 

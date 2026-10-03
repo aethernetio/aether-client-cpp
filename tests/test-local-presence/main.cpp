@@ -24,11 +24,16 @@
 
 #include <unity.h>
 
-#include "aether/client_connectivity_policy.h"
+#include "ae-numeric/percentile.h"
+#include "aether-objects/env/env.h"
+
+#include "aether/events/events.h"
+#include "aether/tasks/manual_task_scheduler.h"
+
 #include "aether/cloud_connections/local_presence_machine.h"
 #include "aether/cloud_connections/local_presence_schedule.h"
+#include "aether/connection_manager/connectivity_policy.h"
 #include "aether/remote_presence.h"
-#include "ae-numeric/percentile.h"
 #include "aether/types/statistic_counter.h"
 #include "aether/work_cloud_api/client_timing.h"
 
@@ -50,6 +55,29 @@ std::int64_t ToMs(Duration d) {
   return std::chrono::duration_cast<Ms>(d).count();
 }
 
+struct TestContext : public Env {
+  template <typename... A>
+  decltype(auto) Update(A&&... a) {
+    return sched.Update(std::forward<A>(a)...);
+  }
+
+  void* find_component(EnvId id) noexcept override {
+    if (id == EnvTypeId<TaskScheduler>::value) {
+      return &sched;
+    }
+    if (id == EnvTypeId<EventSystem>::value) {
+      return &event_system_;
+    }
+    return nullptr;
+  }
+
+  TaskScheduler& scheduler() const { return sched; }
+  EventSystem& event_system() const { return event_system_; }
+
+  mutable TaskScheduler sched;
+  mutable EventSystem event_system_;
+};
+
 void test_PrefixFormula() {
   auto const R = Dur(100);
   auto const G = kLocalPresenceGuard;
@@ -63,10 +91,12 @@ void test_PrefixFormula() {
 }
 
 void test_ConfirmOnlyAfterPong() {
-  ClientConnectivityPolicy policy;
+  TestContext ctx;
+  ConnectivityPolicy policy{ctx};
   ServerId const sid{7};
   policy.ConfigureServerRxTiming(
-      sid, RxTimingConf::Every(Dur(1000)).WithWindow(Dur(300)), Percentile::FromPercent(99.0));
+      sid, RxTimingConf::Every(Dur(1000)).WithWindow(Dur(300)),
+      Percentile::FromPercent(99.0));
   auto* state = policy.FindServerPresence(sid);
   TEST_ASSERT_NOT_NULL(state);
   TEST_ASSERT_FALSE(state->has_confirmed_schedule);
@@ -79,9 +109,8 @@ void test_ConfirmOnlyAfterPong() {
   TEST_ASSERT_TRUE(state->has_confirmed_schedule);
   TEST_ASSERT_EQUAL(2050, ToMs(state->confirmed_window_open_local));
   TEST_ASSERT_EQUAL(2350, ToMs(state->confirmed_window_close_local));
-  auto const deadline =
-      LocalOfflineDeadline(state->confirmed_window_open_local,
-                           policy.offline_detection_timeout());
+  auto const deadline = LocalOfflineDeadline(
+      state->confirmed_window_open_local, policy.offline_detection_timeout());
   TEST_ASSERT_EQUAL(3050, ToMs(deadline));
   TEST_ASSERT_TRUE(policy.IsServerLocallyOnline(sid, Tp(2050)));
   TEST_ASSERT_TRUE(policy.IsServerLocallyOnline(sid, deadline));
@@ -90,10 +119,10 @@ void test_ConfirmOnlyAfterPong() {
 
 void test_SelectedRttProjectionIgnoresMeasuredPong() {
   auto const selected = Dur(100);
-  auto fast = MakeConfirmedSchedule(Tp(1000), Tp(1020), Dur(1000), Dur(1000),
-                                    selected);
-  auto slow = MakeConfirmedSchedule(Tp(1000), Tp(1400), Dur(1000), Dur(1000),
-                                    selected);
+  auto fast =
+      MakeConfirmedSchedule(Tp(1000), Tp(1020), Dur(1000), Dur(1000), selected);
+  auto slow =
+      MakeConfirmedSchedule(Tp(1000), Tp(1400), Dur(1000), Dur(1000), selected);
   TEST_ASSERT_EQUAL(ToMs(fast.window_open_local), ToMs(slow.window_open_local));
   TEST_ASSERT_EQUAL(ToMs(fast.window_close_local),
                     ToMs(slow.window_close_local));
@@ -102,13 +131,16 @@ void test_SelectedRttProjectionIgnoresMeasuredPong() {
 }
 
 void test_PerServerIndependence() {
-  ClientConnectivityPolicy policy;
+  TestContext ctx;
+  ConnectivityPolicy policy{ctx};
   ServerId const a{1};
   ServerId const b{2};
   policy.ConfigureServerRxTiming(
-      a, RxTimingConf::Every(Dur(1000)).WithWindow(Dur(300)), Percentile::FromPercent(99.0));
+      a, RxTimingConf::Every(Dur(1000)).WithWindow(Dur(300)),
+      Percentile::FromPercent(99.0));
   policy.ConfigureServerRxTiming(
-      b, RxTimingConf::Every(Dur(3000)).WithWindow(Dur(700)), Percentile::FromPercent(95.0));
+      b, RxTimingConf::Every(Dur(3000)).WithWindow(Dur(700)),
+      Percentile::FromPercent(95.0));
   policy.ConfirmServerPong(a, Tp(0), Tp(100), Dur(1000), Dur(300), Dur(100));
   TEST_ASSERT_FALSE(policy.IsServerLocallyOnline(b, Tp(50)));
   TEST_ASSERT_TRUE(policy.IsServerLocallyOnline(a, Tp(50)));
@@ -116,21 +148,24 @@ void test_PerServerIndependence() {
 }
 
 void test_OfflineOnlyAfterOfflineDetectionTimeout() {
-  ClientConnectivityPolicy policy;
+  TestContext ctx;
+  ConnectivityPolicy policy{ctx};
   ServerId const sid{3};
   policy.SetOfflineDetectionTimeout(Dur(1000));
   policy.ConfirmServerPong(sid, Tp(0), Tp(40), Dur(1000), Dur(10000), Dur(40));
   // open = 0 + 20 + 1000 = 1020; deadline = 2020 even with rx_window=10s.
-  TEST_ASSERT_EQUAL(1020, ToMs(policy.FindServerPresence(sid)
-                                    ->confirmed_window_open_local));
   TEST_ASSERT_EQUAL(
-      11020, ToMs(policy.FindServerPresence(sid)->confirmed_window_close_local));
+      1020, ToMs(policy.FindServerPresence(sid)->confirmed_window_open_local));
+  TEST_ASSERT_EQUAL(
+      11020,
+      ToMs(policy.FindServerPresence(sid)->confirmed_window_close_local));
   TEST_ASSERT_TRUE(policy.IsLocallyOnline(Tp(2020)));
   TEST_ASSERT_FALSE(policy.IsLocallyOnline(Tp(2021)));
 }
 
 void test_RuntimeIntervalChangeKeepsOldConfirmed() {
-  ClientConnectivityPolicy policy;
+  TestContext ctx;
+  ConnectivityPolicy policy{ctx};
   ServerId const sid{4};
   policy.ConfigureServerRxTiming(
       sid, RxTimingConf::Every(Dur(1000)).WithWindow(Dur(200)));
@@ -188,7 +223,8 @@ void test_ReliabilityP95VsP99PrefixTimes() {
 }
 
 void test_AggregateIgnoresDeselected() {
-  ClientConnectivityPolicy policy;
+  TestContext ctx;
+  ConnectivityPolicy policy{ctx};
   ServerId const a{10};
   ServerId const b{11};
   policy.ConfirmServerPong(a, Tp(0), Tp(40), Dur(1000), Dur(200), Dur(40));
@@ -201,7 +237,9 @@ void test_AggregateIgnoresDeselected() {
   TEST_ASSERT_TRUE(policy.IsLocallyOnline(Tp(50)));
 }
 
-void test_OneWayProjection() { TEST_ASSERT_EQUAL(50, ToMs(OneWayFromRtt(Dur(100)))); }
+void test_OneWayProjection() {
+  TEST_ASSERT_EQUAL(50, ToMs(OneWayFromRtt(Dur(100))));
+}
 
 void test_MakeConfirmedScheduleDeterministic() {
   auto s =
@@ -211,14 +249,16 @@ void test_MakeConfirmedScheduleDeterministic() {
 }
 
 void test_ConfigScopeOverrideAndPriority() {
-  ClientConnectivityPolicy policy;
+  TestContext ctx;
+  ConnectivityPolicy policy{ctx};
   ServerId const a{1};
   ServerId const b{2};
   ServerId const c{3};
   policy.BindServerPriority(a, 0);
   policy.BindServerPriority(b, 1);
   policy.ConfigureServerRxTiming(
-      a, RxTimingConf::Every(Dur(1000)).WithWindow(Dur(1000)), Percentile::FromPercent(99.0));
+      a, RxTimingConf::Every(Dur(1000)).WithWindow(Dur(1000)),
+      Percentile::FromPercent(99.0));
   TEST_ASSERT_EQUAL(1000, ToMs(policy.FindServerPresence(a)->desired.interval));
   TEST_ASSERT_EQUAL(AE_PING_INTERVAL_MS,
                     ToMs(policy.FindServerPresence(b)->desired.interval));
@@ -228,8 +268,8 @@ void test_ConfigScopeOverrideAndPriority() {
   TEST_ASSERT_EQUAL(1000, ToMs(policy.FindServerPresence(a)->desired.interval));
   TEST_ASSERT_EQUAL(3000, ToMs(policy.FindServerPresence(b)->desired.interval));
 
-  policy.ConfigureRxTimings().ForPriority<0>(
-      RxTimingConf::Every(Dur(4000)).WithWindow(Dur(4000)));
+  policy.ConfigureRxTimings().ForPriority(
+      RxTimingConf::Every(Dur(4000)).WithWindow(Dur(4000)), 0);
   TEST_ASSERT_EQUAL(1000, ToMs(policy.FindServerPresence(a)->desired.interval));
   TEST_ASSERT_EQUAL(3000, ToMs(policy.FindServerPresence(b)->desired.interval));
 
@@ -261,7 +301,7 @@ class PresenceHarness {
 
   explicit PresenceHarness(TimePoint start) : now_{start} {}
 
-  ClientConnectivityPolicy& policy() { return policy_; }
+  ConnectivityPolicy& policy() { return policy_; }
   TimePoint now() const { return now_; }
   PollStats const& poll_stats() const { return poll_stats_; }
 
@@ -293,7 +333,9 @@ class PresenceHarness {
     servers_.at(id).fixed_delay = delay;
   }
 
-  void SetDelayFn(ServerId id, DelayFn fn) { servers_.at(id).delay_fn = std::move(fn); }
+  void SetDelayFn(ServerId id, DelayFn fn) {
+    servers_.at(id).delay_fn = std::move(fn);
+  }
 
   void SetDropKind(ServerId id, PingAttemptKind kind, bool drop) {
     servers_.at(id).drop_kind[static_cast<int>(kind)] = drop;
@@ -513,12 +555,13 @@ class PresenceHarness {
     return true;
   }
 
-  ClientConnectivityPolicy policy_{};
+  TestContext ctx;
+  ConnectivityPolicy policy_{ctx};
   TimePoint now_{};
   std::map<ServerId, Server> servers_{};
   PollStats poll_stats_{};
-  ClientConnectivityPolicy::SuspendBlocker current_block_{};
-  ClientConnectivityPolicy::SuspendBlocker request_block_{};
+  SuspendBlocker current_block_{};
+  SuspendBlocker request_block_{};
   bool have_current_{false};
   bool have_request_{false};
 };
@@ -560,7 +603,8 @@ void test_LongSleepSuspendBetweenPongAndPrefix1() {
 
   auto const current_c = rt.machine(sid).current_promised_close();
   TEST_ASSERT_TRUE(current_c == rt.machine(sid).confirmed_window_close() ||
-                   ToMs(current_c) <= ToMs(rt.machine(sid).confirmed_window_close()));
+                   ToMs(current_c) <=
+                       ToMs(rt.machine(sid).confirmed_window_close()));
   rt.AdvanceTo(current_c);
   TEST_ASSERT_TRUE(rt.IsLocallyOnline());
   rt.AdvanceTo(current_c + Dur(1));
@@ -694,7 +738,8 @@ void test_QuarantineKeepsConfirmedUntilClose() {
 }
 
 void test_HardRemovalDropsAggregateImmediately() {
-  ClientConnectivityPolicy policy;
+  TestContext ctx;
+  ConnectivityPolicy policy{ctx};
   ServerId const a{1};
   ServerId const b{2};
   policy.ConfirmServerPong(a, Tp(0), Tp(40), Dur(1000), Dur(200), Dur(40));
@@ -719,7 +764,8 @@ void test_RuntimeConfigChangeKeepsOldUntilPong() {
   rt.policy().ConfigureServerRxTiming(
       sid, RxTimingConf::Every(Dur(10000)).WithWindow(Dur(200)));
   rt.machine(sid).SetDesired(
-      rt.now(), RxTimingConf::Every(Dur(10000)).WithWindow(Dur(200)), Percentile::FromPercent(99.0));
+      rt.now(), RxTimingConf::Every(Dur(10000)).WithWindow(Dur(200)),
+      Percentile::FromPercent(99.0));
   TEST_ASSERT_EQUAL(1000, ToMs(rt.machine(sid).confirmed_interval()));
   TEST_ASSERT_TRUE(rt.machine(sid).confirmed_window_close() == close_old);
   TEST_ASSERT_TRUE(rt.IsLocallyOnline());
@@ -765,17 +811,19 @@ void test_MultiServerIndependentSchedules() {
   PresenceHarness rt{Tp(0)};
   ServerId const a{1};
   ServerId const b{2};
-  rt.AddServer(a, RxTimingConf::Every(Dur(1000)).WithWindow(Dur(300)), Dur(100), Percentile::FromPercent(99.0), 0);
-  rt.AddServer(b, RxTimingConf::Every(Dur(3000)).WithWindow(Dur(700)), Dur(200), Percentile::FromPercent(95.0), 1);
+  rt.AddServer(a, RxTimingConf::Every(Dur(1000)).WithWindow(Dur(300)), Dur(100),
+               Percentile::FromPercent(99.0), 0);
+  rt.AddServer(b, RxTimingConf::Every(Dur(3000)).WithWindow(Dur(700)), Dur(200),
+               Percentile::FromPercent(95.0), 1);
   rt.SetFixedDelay(a, Dur(20));
   rt.SetFixedDelay(b, Dur(20));
   rt.AdvanceTo(Tp(40));
   TEST_ASSERT_EQUAL(1000, ToMs(rt.machine(a).confirmed_interval()));
   TEST_ASSERT_EQUAL(3000, ToMs(rt.machine(b).confirmed_interval()));
   rt.SetConnectivity(a, false);
-  auto const offline_deadline = LocalOfflineDeadline(
-      rt.machine(a).confirmed_window_open(),
-      rt.policy().offline_detection_timeout());
+  auto const offline_deadline =
+      LocalOfflineDeadline(rt.machine(a).confirmed_window_open(),
+                           rt.policy().offline_detection_timeout());
   rt.AdvanceTo(offline_deadline + Dur(1));
   TEST_ASSERT_FALSE(rt.policy().IsServerLocallyOnline(a, rt.now()));
   TEST_ASSERT_TRUE(rt.policy().IsServerLocallyOnline(b, rt.now()));
@@ -797,7 +845,8 @@ void test_StatisticalRuntimePollingIsLocallyOnline() {
   auto const rtt = Dur(100);
   // §25: start p95, then runtime switch p99, then p99.99 — no restart.
   auto phase_pct = Percentile::FromPercent(95.0);
-  rt.AddServer(sid, RxTimingConf::Every(interval).WithWindow(window), rtt, phase_pct);
+  rt.AddServer(sid, RxTimingConf::Every(interval).WithWindow(window), rtt,
+               phase_pct);
   rt.SetDelayFn(sid, [&rt, sid](PingAttemptKind kind, int) {
     auto const prefix1 = rt.counters(sid).prefix1;
     if (kind == PingAttemptKind::kPrefix1) {
@@ -846,7 +895,8 @@ void test_StatisticalRuntimePollingIsLocallyOnline() {
       rt.policy().ConfigureServerRxTiming(
           sid, RxTimingConf::Every(interval).WithWindow(window), phase_pct);
       rt.machine(sid).SetDesired(
-          rt.now(), RxTimingConf::Every(interval).WithWindow(window), phase_pct);
+          rt.now(), RxTimingConf::Every(interval).WithWindow(window),
+          phase_pct);
       phase = 1;
     } else if (phase == 1 && elapsed_ms >= 200000) {
       snap_phase(1);
@@ -854,7 +904,8 @@ void test_StatisticalRuntimePollingIsLocallyOnline() {
       rt.policy().ConfigureServerRxTiming(
           sid, RxTimingConf::Every(interval).WithWindow(window), phase_pct);
       rt.machine(sid).SetDesired(
-          rt.now(), RxTimingConf::Every(interval).WithWindow(window), phase_pct);
+          rt.now(), RxTimingConf::Every(interval).WithWindow(window),
+          phase_pct);
       phase = 2;
     }
     if (elapsed_ms >= 300000) {
@@ -874,13 +925,17 @@ void test_StatisticalRuntimePollingIsLocallyOnline() {
 
   std::printf(
       "STATISTICAL runtime (p95→p99→p99.99)\n"
-      "  duration_ms=%lld confirmed_pongs=%d status_polls=%d online_samples=%d\n"
+      "  duration_ms=%lld confirmed_pongs=%d status_polls=%d "
+      "online_samples=%d\n"
       "  false_offline_samples=%d false_offline_transitions=%d\n"
       "  totals: prefix1=%d prefix2=%d post_prefix_retry=%d late_pongs=%d "
       "timeouts=%d recoveries=%d restreams=%d\n"
-      "  phase p95: selected_rtt_ms=%lld prefix1=%d prefix2=%d retry=%d recoveries=%d\n"
-      "  phase p99: selected_rtt_ms=%lld prefix1=%d prefix2=%d retry=%d recoveries=%d\n"
-      "  phase p99.99: selected_rtt_ms=%lld prefix1=%d prefix2=%d retry=%d recoveries=%d\n",
+      "  phase p95: selected_rtt_ms=%lld prefix1=%d prefix2=%d retry=%d "
+      "recoveries=%d\n"
+      "  phase p99: selected_rtt_ms=%lld prefix1=%d prefix2=%d retry=%d "
+      "recoveries=%d\n"
+      "  phase p99.99: selected_rtt_ms=%lld prefix1=%d prefix2=%d retry=%d "
+      "recoveries=%d\n",
       static_cast<long long>(ToMs(g_stat_report.duration)), cycles,
       rt.poll_stats().status_poll_count, rt.poll_stats().online_samples,
       rt.poll_stats().false_offline_samples,
@@ -912,9 +967,9 @@ void test_FaultOfflineNotBeforeWindowCloseThenRecovery() {
   rt.AdvanceTo(Tp(20));
   rt.AdvancePolling(Dur(2000), Dur(10), true);
   TEST_ASSERT_TRUE(rt.IsLocallyOnline());
-  auto const deadline = LocalOfflineDeadline(
-      rt.machine(sid).confirmed_window_open(),
-      rt.policy().offline_detection_timeout());
+  auto const deadline =
+      LocalOfflineDeadline(rt.machine(sid).confirmed_window_open(),
+                           rt.policy().offline_detection_timeout());
   rt.SetConnectivity(sid, false);
 
   auto detected = TimePoint{};
@@ -938,7 +993,8 @@ void test_FaultOfflineNotBeforeWindowCloseThenRecovery() {
 }
 
 void test_RxWindowDoesNotAffectLocalPresenceDeadline() {
-  ClientConnectivityPolicy policy;
+  TestContext ctx;
+  ConnectivityPolicy policy{ctx};
   ServerId const sid{21};
   policy.SetOfflineDetectionTimeout(Dur(1000));
   policy.ConfirmServerPong(sid, Tp(0), Tp(40), Dur(1000), Dur(100), Dur(40));
@@ -948,14 +1004,16 @@ void test_RxWindowDoesNotAffectLocalPresenceDeadline() {
   policy.ConfigureServerRxTiming(
       sid, RxTimingConf::Every(Dur(1000)).WithWindow(Dur(10000)));
   // Confirmed open unchanged; Presence deadline unchanged by rx_window.
-  TEST_ASSERT_EQUAL(ToMs(open), ToMs(policy.FindServerPresence(sid)
-                                         ->confirmed_window_open_local));
+  TEST_ASSERT_EQUAL(
+      ToMs(open),
+      ToMs(policy.FindServerPresence(sid)->confirmed_window_open_local));
   TEST_ASSERT_TRUE(policy.IsLocallyOnline(deadline_before));
   TEST_ASSERT_FALSE(policy.IsLocallyOnline(deadline_before + Dur(1)));
 }
 
 void test_OfflineDetectionTimeoutRuntimeChangeAppliesImmediately() {
-  ClientConnectivityPolicy policy;
+  TestContext ctx;
+  ConnectivityPolicy policy{ctx};
   ServerId const sid{22};
   policy.SetOfflineDetectionTimeout(Dur(1000));
   policy.ConfirmServerPong(sid, Tp(0), Tp(40), Dur(1000), Dur(1000), Dur(40));
@@ -975,12 +1033,13 @@ void test_RetriesContinueAfterLocalOffline() {
   rt.SetFixedDelay(sid, Dur(20));
   rt.AdvanceTo(Tp(20));
   rt.SetConnectivity(sid, false);
-  auto const deadline = LocalOfflineDeadline(
-      rt.machine(sid).confirmed_window_open(),
-      rt.policy().offline_detection_timeout());
+  auto const deadline =
+      LocalOfflineDeadline(rt.machine(sid).confirmed_window_open(),
+                           rt.policy().offline_detection_timeout());
   rt.AdvanceTo(deadline + Dur(1));
   TEST_ASSERT_FALSE(rt.IsLocallyOnline());
-  auto const retries_before = rt.counters(sid).retry + rt.counters(sid).prefix2 +
+  auto const retries_before = rt.counters(sid).retry +
+                              rt.counters(sid).prefix2 +
                               rt.counters(sid).recovery;
   rt.AdvanceTo(deadline + Dur(500));
   auto const retries_after = rt.counters(sid).retry + rt.counters(sid).prefix2 +
@@ -1001,14 +1060,16 @@ void test_IntervalZeroWithoutPongKeepsConfirmed() {
   rt.AdvanceTo(Tp(20));
   TEST_ASSERT_TRUE(rt.machine(sid).has_confirmed_schedule());
   rt.machine(sid).SetDesired(rt.now(),
-                             RxTimingConf::Every(Dur(0)).WithWindow(Dur(1000)), Percentile::FromPercent(99.0));
+                             RxTimingConf::Every(Dur(0)).WithWindow(Dur(1000)),
+                             Percentile::FromPercent(99.0));
   TEST_ASSERT_TRUE(rt.machine(sid).has_confirmed_schedule());
   TEST_ASSERT_TRUE(rt.IsLocallyOnline());
 }
 
 void test_IntervalZeroWithPongClearsFuturePresence() {
   LocalPresenceMachine machine;
-  machine.SetDesired(Tp(0), RxTimingConf::Every(Dur(0)).WithWindow(Dur(1000)), Percentile::FromPercent(99.0));
+  machine.SetDesired(Tp(0), RxTimingConf::Every(Dur(0)).WithWindow(Dur(1000)),
+                     Percentile::FromPercent(99.0));
   machine.ArmInitial(Tp(0));
   auto tick = machine.TickNow(Tp(0), Dur(100));
   TEST_ASSERT_TRUE(tick.want_send);
@@ -1018,7 +1079,8 @@ void test_IntervalZeroWithPongClearsFuturePresence() {
                                 Tp(20), Dur(0), Dur(0), Dur(1000),
                                 tick.send.following_open_target, Dur(100));
   TEST_ASSERT_EQUAL(
-      static_cast<int>(LocalPresenceMachine::PongDisposition::kConfirmedSchedule),
+      static_cast<int>(
+          LocalPresenceMachine::PongDisposition::kConfirmedSchedule),
       static_cast<int>(outcome.disposition));
   TEST_ASSERT_FALSE(machine.has_confirmed_schedule());
   TEST_ASSERT_FALSE(machine.IsOnline(Tp(20)));
@@ -1194,11 +1256,15 @@ int main() {
   UNITY_BEGIN();
   RUN_TEST(ae::test_local_presence::test_PrefixFormula);
   RUN_TEST(ae::test_local_presence::test_ConfirmOnlyAfterPong);
-  RUN_TEST(ae::test_local_presence::test_SelectedRttProjectionIgnoresMeasuredPong);
+  RUN_TEST(
+      ae::test_local_presence::test_SelectedRttProjectionIgnoresMeasuredPong);
   RUN_TEST(ae::test_local_presence::test_PerServerIndependence);
-  RUN_TEST(ae::test_local_presence::test_OfflineOnlyAfterOfflineDetectionTimeout);
-  RUN_TEST(ae::test_local_presence::test_RuntimeIntervalChangeKeepsOldConfirmed);
-  RUN_TEST(ae::test_local_presence::test_RuntimePercentileOnlyChangeKeepsSchedule);
+  RUN_TEST(
+      ae::test_local_presence::test_OfflineOnlyAfterOfflineDetectionTimeout);
+  RUN_TEST(
+      ae::test_local_presence::test_RuntimeIntervalChangeKeepsOldConfirmed);
+  RUN_TEST(
+      ae::test_local_presence::test_RuntimePercentileOnlyChangeKeepsSchedule);
   RUN_TEST(ae::test_local_presence::test_RuntimePercentile);
   RUN_TEST(ae::test_local_presence::test_ReliabilityP95VsP99PrefixTimes);
   RUN_TEST(ae::test_local_presence::test_AggregateIgnoresDeselected);
@@ -1217,17 +1283,24 @@ int main() {
   RUN_TEST(ae::test_local_presence::test_RuntimeConfigChangeKeepsOldUntilPong);
   RUN_TEST(ae::test_local_presence::test_Prefix1SuccessNoPrefix2);
   RUN_TEST(ae::test_local_presence::test_MultiServerIndependentSchedules);
-  RUN_TEST(ae::test_local_presence::test_RxWindowDoesNotAffectLocalPresenceDeadline);
-  RUN_TEST(ae::test_local_presence::test_OfflineDetectionTimeoutRuntimeChangeAppliesImmediately);
+  RUN_TEST(
+      ae::test_local_presence::test_RxWindowDoesNotAffectLocalPresenceDeadline);
+  RUN_TEST(ae::test_local_presence::
+               test_OfflineDetectionTimeoutRuntimeChangeAppliesImmediately);
   RUN_TEST(ae::test_local_presence::test_RetriesContinueAfterLocalOffline);
   RUN_TEST(ae::test_local_presence::test_IntervalZeroWithoutPongKeepsConfirmed);
-  RUN_TEST(ae::test_local_presence::test_IntervalZeroWithPongClearsFuturePresence);
+  RUN_TEST(
+      ae::test_local_presence::test_IntervalZeroWithPongClearsFuturePresence);
   RUN_TEST(ae::test_local_presence::test_RemoteTimingProjectionAndAggregation);
-  RUN_TEST(ae::test_local_presence::test_NoObserverCloudFallbackAndAuthoritativeSet);
-  RUN_TEST(ae::test_local_presence::test_PeerCloudNotObserverCloudAuthoritativeIds);
+  RUN_TEST(
+      ae::test_local_presence::test_NoObserverCloudFallbackAndAuthoritativeSet);
+  RUN_TEST(
+      ae::test_local_presence::test_PeerCloudNotObserverCloudAuthoritativeIds);
   RUN_TEST(ae::test_local_presence::test_RecoveredServerRequiresFreshOnline);
   RUN_TEST(ae::test_local_presence::test_QueryFailureIsUnknownNotOffline);
-  RUN_TEST(ae::test_local_presence::test_StatisticalRuntimePollingIsLocallyOnline);
-  RUN_TEST(ae::test_local_presence::test_FaultOfflineNotBeforeWindowCloseThenRecovery);
+  RUN_TEST(
+      ae::test_local_presence::test_StatisticalRuntimePollingIsLocallyOnline);
+  RUN_TEST(ae::test_local_presence::
+               test_FaultOfflineNotBeforeWindowCloseThenRecovery);
   return UNITY_END();
 }
