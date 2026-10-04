@@ -113,7 +113,8 @@ class MultiSubscriptionObject {
 
  private:
   template <typename... REs>
-  void SetEventSystem(RegHandler<Es> const& re, REs const&... res) {
+  void SetEventSystem(RegHandler<Es> const& re,
+                      [[maybe_unused]] REs const&... res) {
     if (es_ == nullptr) {
       es_ = re.es;
     }
