@@ -203,7 +203,7 @@ class AetherAppContext {
   ComponentFactory<AetherAppContext, Client::ptr> client_prefab_;
   ComponentFactory<AetherAppContext, TeleStatistics::ptr> tele_statistics_;
 
-  bool tele_statistics_trap_is_set{false};
+  [[maybe_unused]] bool tele_statistics_trap_is_set{false};
   void (*set_aether_to_env_)(Env* env, Aether::ptr const&);
 };
 
