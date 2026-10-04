@@ -185,7 +185,7 @@ void CloudRequest::ActivateInitial() {
 }
 
 void CloudRequest::ActivateFollowing(std::uint8_t count, bool as_hedge,
-                                     CloudServerConnection* source) {
+                                     [[maybe_unused]] CloudServerConnection* source) {
   while (count > 0 && activate_cursor_ < candidates_.size()) {
     auto* sc = candidates_[activate_cursor_++];
     auto& sr = server_requests_[sc];
