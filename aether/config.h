@@ -59,7 +59,7 @@
 
 // Maximum amount of pending responses for each server
 #ifndef AE_API_PROTOCOL_MAX_PENDING_RESPONSES
-#  define AE_API_PROTOCOL_MAX_PENDING_RESPONSES 10
+#  define AE_API_PROTOCOL_MAX_PENDING_RESPONSES 32
 #endif
 
 // Maximum amount of method calls for one api layer at a time
@@ -342,6 +342,13 @@
 // Send ping interval, ms
 #ifndef AE_PING_INTERVAL_MS
 #  define AE_PING_INTERVAL_MS AE_DEFAULT_RESPONSE_TIMEOUT_MS + 1000
+#endif
+
+// Initial default for Local/Remote Presence offline classification timeout.
+// Runtime value lives on ClientConnectivityPolicy and may change without
+// a new Ping.
+#ifndef AE_OFFLINE_DETECTION_TIMEOUT_MS
+#  define AE_OFFLINE_DETECTION_TIMEOUT_MS 1000
 #endif
 
 // window size for safe stream response time statistics

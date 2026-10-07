@@ -108,19 +108,19 @@ int AetherCloudExample() {
 
         client_a->connectivity_policy()
             ->ConfigureRxTimings(ae::RequestPolicy::All{})
-            .ForPriority<0>(ae::RxTimingConf::Every(5s))
+            .ForPriority(ae::RxTimingConf::Every(5s), 0)
 #if AE_CLOUD_MAX_SERVER_CONNECTIONS >= 3
-            .ForPriority<1>(ae::RxTimingConf::Every(10s))
-            .ForPriority<2>(ae::RxTimingConf::Every(20s))
+            .ForPriority(ae::RxTimingConf::Every(10s), 1)
+            .ForPriority(ae::RxTimingConf::Every(20s), 2)
 #endif
             ;
 
         client_b->connectivity_policy()
             ->ConfigureRxTimings(ae::RequestPolicy::All{})
-            .ForPriority<0>(ae::RxTimingConf::Every(5s))
+            .ForPriority(ae::RxTimingConf::Every(5s), 0)
 #if AE_CLOUD_MAX_SERVER_CONNECTIONS >= 3
-            .ForPriority<1>(ae::RxTimingConf::Every(10s))
-            .ForPriority<2>(ae::RxTimingConf::Every(20s))
+            .ForPriority(ae::RxTimingConf::Every(10s), 1)
+            .ForPriority(ae::RxTimingConf::Every(20s), 2)
 #endif
             ;
       }) |
