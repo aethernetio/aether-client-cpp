@@ -116,6 +116,8 @@ auto Registration::GetKeys() {
                        AE_TELED_ERROR("Get my ip failed");
                      }
                    });
+#  else
+               (void)this;
 #  endif
                return promise;
              }) |
