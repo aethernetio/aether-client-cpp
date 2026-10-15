@@ -31,6 +31,22 @@ namespace ae::stream_matrix_bench {
 inline constexpr bool kSdkUdpEnabled = AE_SUPPORT_UDP != 0;
 inline constexpr bool kSdkTcpEnabled = AE_SUPPORT_TCP != 0;
 
+#if defined(AE_STREAM_MATRIX_BENCH_UDP_MEASURE_ONLY) && \
+    AE_STREAM_MATRIX_BENCH_UDP_MEASURE_ONLY
+inline constexpr bool kBenchMatrixUdpEnabled = true;
+inline constexpr bool kBenchMatrixTcpEnabled = false;
+inline constexpr bool kBenchRegBootstrapMayUseTcp = true;
+#elif defined(AE_STREAM_MATRIX_BENCH_TCP_MEASURE_ONLY) && \
+    AE_STREAM_MATRIX_BENCH_TCP_MEASURE_ONLY
+inline constexpr bool kBenchMatrixUdpEnabled = false;
+inline constexpr bool kBenchMatrixTcpEnabled = true;
+inline constexpr bool kBenchRegBootstrapMayUseTcp = true;
+#else
+inline constexpr bool kBenchMatrixUdpEnabled = kSdkUdpEnabled;
+inline constexpr bool kBenchMatrixTcpEnabled = kSdkTcpEnabled;
+inline constexpr bool kBenchRegBootstrapMayUseTcp = kSdkTcpEnabled;
+#endif
+
 enum class TransportVerifyResult {
   kOk,
   kUnlinked,

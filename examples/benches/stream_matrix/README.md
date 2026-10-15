@@ -8,8 +8,10 @@ Smoke needs **four modes** from **two** Release builds (do not reuse one build t
 
 | Build dir | `USER_CONFIG` | Modes in-process |
 |-----------|---------------|------------------|
-| `build-stream-matrix-udp` | `examples/benches/stream_matrix/config/udp_only.h` | UDP P2pStream + P2pSafeStream |
+| `build-stream-matrix-udp` | `examples/benches/stream_matrix/config/udp_only.h` | UDP P2pStream + P2pSafeStream (matrix) |
 | `build-stream-matrix-tcp` | `examples/benches/stream_matrix/config/tcp_only.h` | TCP P2pStream + P2pSafeStream |
+
+**UDP build:** `udp_only.h` enables **TCP for registration/bootstrap** (`FilterProtocol`) but matrix modes are **UDP-only**. `SetupMode` **Restream**s until `VerifyP2pStreamTransport(UDP)` passes — measured sends must not use TCP. Script still runs TCP smoke before UDP smoke (shared `state/` when persistence is available).
 
 Pass config as a **string** (CMake `CACHE PATH` strips `.h` on Windows):
 
@@ -19,7 +21,7 @@ cmake -S . -B build-stream-matrix-udp -DCMAKE_BUILD_TYPE=Release `
   -DAE_BUILD_TESTS=OFF
 ```
 
-Orchestration: `scripts/run_stream_matrix_bench.ps1` (logic tests → UDP smoke → TCP smoke → optional `--full` matrix on both exes).
+Orchestration: `scripts/run_stream_matrix_bench.ps1` (logic tests → **TCP smoke** → **UDP smoke** with shared `state/` → optional `--full` matrix on both exes).
 
 ## Connection model
 
@@ -44,7 +46,8 @@ Orchestration: `scripts/run_stream_matrix_bench.ps1` (logic tests → UDP smoke 
 ## UDP 1200-byte socket payload budget
 
 - Budget applies to **UDP datagram payload** after Æther framing + encryption + `SendMessage` body (IP/UDP headers excluded).
-- Estimated in `bench_udp_budget.cpp` (conservative fixed overheads + bench envelope bytes). **IP fragmentation not verified.**
+- **Envelope estimate** in `bench_udp_budget.cpp` (36 + 96 B + envelope) does **not** prove on-wire size.
+- **Socket audit** (`stream_matrix_udp_audit` on UDP TX/RX in `udp.cpp`) counts datagram payloads; \>1200 B → `UDP_SOCKET_BUDGET_VIOLATION`. **SafeStream per-datagram audit: not verified** (whole-message path only).
 - TCP and top-level SafeStream message size are not capped at 1200 B.
 
 ## Smoke vs full matrix

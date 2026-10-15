@@ -74,9 +74,14 @@ try {
 
   Remove-Item -Recurse -Force (Join-Path $Root "state") -ErrorAction SilentlyContinue
 
-  $udpSmoke = Run-Smoke "udp" $UdpDir $SdkSha $DirtyTag
-  Start-Sleep -Seconds 6
+  # TCP build registers clients into shared state/; UDP-only SDK loads them next.
   $tcpSmoke = Run-Smoke "tcp" $TcpDir $SdkSha $DirtyTag
+  if ($tcpSmoke.Code -ne 0) {
+    Write-Host "TCP smoke failed; UDP smoke needs registered state in state/"
+    exit $tcpSmoke.Code
+  }
+  Start-Sleep -Seconds 6
+  $udpSmoke = Run-Smoke "udp" $UdpDir $SdkSha $DirtyTag
 
   Write-Host "UDP smoke exit: $($udpSmoke.Code) -> $($udpSmoke.Out)"
   Write-Host "TCP smoke exit: $($tcpSmoke.Code) -> $($tcpSmoke.Out)"

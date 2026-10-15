@@ -18,6 +18,8 @@
 
 #include "aether/config.h"
 
+#include "stream_matrix/bench_transport.h"
+
 namespace ae::stream_matrix_bench {
 namespace {
 
@@ -38,6 +40,20 @@ void WriteSdkTransportCompileFlags(std::ostream& out) {
   out << "sdk_compile AE_SUPPORT_UDP=" << AE_SUPPORT_UDP
       << " AE_SUPPORT_TCP=" << AE_SUPPORT_TCP
       << " AE_SUPPORT_REGISTRATION=" << AE_SUPPORT_REGISTRATION << '\n';
+}
+
+void WriteBenchTransportPolicy(std::ostream& out) {
+  out << "bench_matrix_udp_modes=" << kBenchMatrixUdpEnabled
+      << " bench_matrix_tcp_modes=" << kBenchMatrixTcpEnabled
+      << " reg_bootstrap_may_use_tcp=" << kBenchRegBootstrapMayUseTcp << '\n';
+  if (kBenchMatrixUdpEnabled && !kSdkTcpEnabled) {
+    out << "reg_hypothesis: AE_SUPPORT_TCP=0 filters TCP registration endpoints "
+           "(FilterProtocol); not proven alone but breaks typical bootstrap\n";
+  }
+  if (kBenchMatrixUdpEnabled && kSdkTcpEnabled) {
+    out << "bench_policy: matrix UDP-only; TCP compiled for registration "
+           "bootstrap; P2P restream until VerifyP2pStreamTransport(UDP)\n";
+  }
 }
 
 void WriteClientSelectDiagnostics(std::ostream& out, char const* role,
@@ -61,6 +77,24 @@ void WriteClientSelectDiagnostics(std::ostream& out, char const* role,
   }
   out << '\n';
   WriteSdkTransportCompileFlags(out);
+}
+
+void WriteClientAcquireFailureHints(
+    std::ostream& out, ClientSelectOutcome const& select_a,
+    ClientSelectOutcome const& select_b) {
+  if (!select_a.finished || select_a.ok) {
+    if (!select_b.finished || select_b.ok) {
+      return;
+    }
+  }
+  out << "client_acquire_hints: failure before matrix; check registration "
+         "(GetKeys), endpoint/protocol filter, server connection, auth\n";
+  if (select_a.error_code == 1 || select_b.error_code == 1) {
+    out << "client_acquire_hints: SelectClient error_code=1 => registration "
+           "cloud/root-server path failed (see tele SERVER_CONNECTION_ERROR / "
+           "RegisterWaitKeysTimeout)\n";
+  }
+  WriteBenchTransportPolicy(out);
 }
 
 }  // namespace ae::stream_matrix_bench

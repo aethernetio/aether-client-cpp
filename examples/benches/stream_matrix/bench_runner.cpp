@@ -177,23 +177,53 @@ SetupResult StreamMatrixBench::SetupMode(BenchStreamKind stream,
   p2p_b_ = std::make_shared<P2pStream>(*ae_context_, client_b_.Load(),
                                        client_a_->uid(), std::move(handle_b));
 
-  if (!PumpUntil(
-          [&]() {
-            return p2p_a_->stream_info().link_state == LinkState::kLinked &&
-                   p2p_b_->stream_info().link_state == LinkState::kLinked;
-          },
-          std::chrono::seconds{120})) {
+  auto linked = [&]() {
+    return p2p_a_->stream_info().link_state == LinkState::kLinked &&
+           p2p_b_->stream_info().link_state == LinkState::kLinked;
+  };
+  auto verified = [&]() {
+    return VerifyP2pStreamTransport(*p2p_a_, transport) ==
+               TransportVerifyResult::kOk &&
+           VerifyP2pStreamTransport(*p2p_b_, transport) ==
+               TransportVerifyResult::kOk;
+  };
+  auto log_path = [this](char const* tag, P2pStream const& stream) {
+    auto view = stream.InspectSendPathTransport();
+    log_stream_ << tag << " send_path linked_udp=" << view.linked_udp_endpoint
+                << " linked_tcp=" << view.linked_tcp_endpoint
+                << " agg_reliable=" << view.aggregated.is_reliable
+                << " p0_reliable=" << view.at_priority0.is_reliable << '\n';
+  };
+
+  if (!PumpUntil(linked, std::chrono::seconds{120})) {
     log_stream_ << "SetupMode: link timeout\n";
     return SetupResult::kSetupFailed;
   }
 
-  auto verify_a = VerifyP2pStreamTransport(*p2p_a_, transport);
-  auto verify_b = VerifyP2pStreamTransport(*p2p_b_, transport);
-  if (verify_a != TransportVerifyResult::kOk ||
-      verify_b != TransportVerifyResult::kOk) {
-    log_stream_ << "SetupMode: transport verify failed a="
-                << static_cast<int>(verify_a) << " b="
-                << static_cast<int>(verify_b) << '\n';
+  int restream_attempts = 0;
+  while (!verified() && restream_attempts < 8) {
+    auto verify_a = VerifyP2pStreamTransport(*p2p_a_, transport);
+    auto verify_b = VerifyP2pStreamTransport(*p2p_b_, transport);
+    log_stream_ << "SetupMode: transport verify attempt=" << restream_attempts
+                << " a=" << static_cast<int>(verify_a)
+                << " b=" << static_cast<int>(verify_b) << " want="
+                << TransportKindName(transport) << '\n';
+    log_path("p2p_a", *p2p_a_);
+    log_path("p2p_b", *p2p_b_);
+    if (transport != BenchTransportKind::kUdp) {
+      break;
+    }
+    ++restream_attempts;
+    p2p_a_->Restream();
+    p2p_b_->Restream();
+    if (!PumpUntil(linked, std::chrono::seconds{45})) {
+      log_stream_ << "SetupMode: relink timeout after restream\n";
+      return SetupResult::kSetupFailed;
+    }
+  }
+
+  if (!verified()) {
+    log_stream_ << "SetupMode: transport verify failed after restreams\n";
     return SetupResult::kTransportUnavailable;
   }
   active_transport_ = transport;
@@ -595,6 +625,7 @@ int StreamMatrixBench::Run() {
   WriteCsvHeader(csv_stream_);
 
   WriteSdkTransportCompileFlags(log_stream_);
+  WriteBenchTransportPolicy(log_stream_);
   log_stream_ << "sdk_udp=" << kSdkUdpEnabled << " sdk_tcp=" << kSdkTcpEnabled
               << '\n';
 
@@ -640,6 +671,7 @@ int StreamMatrixBench::Run() {
                    "not a measure scheduler failure)\n";
     WriteClientSelectDiagnostics(log_stream_, "sender", select_a_, client_a_);
     WriteClientSelectDiagnostics(log_stream_, "receiver", select_b_, client_b_);
+    WriteClientAcquireFailureHints(log_stream_, select_a_, select_b_);
     return 1;
   }
 
@@ -661,12 +693,12 @@ int StreamMatrixBench::Run() {
   log_stream_ << "run_id=" << run_id_ << '\n';
 
   std::vector<Mode> modes;
-  if (kSdkUdpEnabled) {
+  if (kBenchMatrixUdpEnabled) {
     modes.push_back({BenchStreamKind::kP2pStream, BenchTransportKind::kUdp});
     modes.push_back(
         {BenchStreamKind::kP2pSafeStream, BenchTransportKind::kUdp});
   }
-  if (kSdkTcpEnabled) {
+  if (kBenchMatrixTcpEnabled) {
     modes.push_back({BenchStreamKind::kP2pStream, BenchTransportKind::kTcp});
     modes.push_back(
         {BenchStreamKind::kP2pSafeStream, BenchTransportKind::kTcp});
