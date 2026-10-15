@@ -48,6 +48,16 @@ UdpBudgetEstimate EstimateUdpBenchEnvelopeBudget(StreamInfo const& p2p_send);
 bool BenchEnvelopeWithinUdpSocketBudget(std::size_t bench_envelope_bytes,
                                         StreamInfo const& p2p_send);
 
+bool ApplyUdpWholeMessageEnvelopeEstimate(BenchStreamKind stream,
+                                          BenchTransportKind transport);
+
+// After socket audit: UDP_SOCKET_BUDGET_VIOLATION, UDP_ENVELOPE_ESTIMATE_EXCEEDED
+// (P2pStream only), or empty when no UDP-specific outcome applies.
+std::string_view ClassifyUdpMeasureOutcome(
+    BenchStreamKind stream, BenchTransportKind transport,
+    std::string_view prior_outcome, std::size_t serialized_measure_bytes,
+    StreamInfo const& p2p_send, UdpSocketAuditSnapshot const& audit);
+
 std::size_t MaxBenchEnvelopeBytesForUdp(StreamInfo const& p2p_send);
 
 void InstallUdpSocketPayloadAudit();

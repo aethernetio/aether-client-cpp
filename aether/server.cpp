@@ -36,9 +36,22 @@ Server::Server(ObjProp prop, ServerId server_id,
 
 void Server::Loaded() {
   channels_changed_.emplace(AeContext{*this});
+  // Domain storage may contain channels built under another AE_SUPPORT_* profile
+  // (e.g. TCP bootstrap state loaded by a UDP-only client). Regenerate from
+  // endpoints so access-point FilterProtocol / FilterAddresses apply now.
+  channels.clear();
+  adapter_registry_.WithLoaded([&](auto const& ar) {
+    for (auto const& adapter : ar->adapters()) {
+      for (auto const& ap : adapter->access_points()) {
+        AddChannels(ap);
+      }
+    }
+  });
   if (!subscribed_) {
     subscribed_ = true;
     UpdateSubscription();
+  } else {
+    channels_changed_->Emit();
   }
 }
 

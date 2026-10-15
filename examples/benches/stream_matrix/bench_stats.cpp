@@ -245,7 +245,9 @@ void WriteCsvHeader(std::ostream& out) {
          "missing_after_deadline,delivery_loss_pct,late,send_rate,receive_rate,"
          "goodput_bytes_s,latency_p50_ms,latency_p95_ms,latency_p99_ms,"
          "latency_max_ms,sched_p50_ms,sched_p95_ms,sched_max_ms,sched_rx_p50_ms,"
-         "sched_rx_p95_ms,sched_rx_max_ms,SDK_SHA,server_version,outcome\n";
+         "sched_rx_p95_ms,sched_rx_max_ms,max_udp_tx_observed,max_udp_rx_observed,"
+         "udp_tx_violations,udp_rx_violations,udp_socket_observed,SDK_SHA,"
+         "server_version,outcome\n";
 }
 
 void WriteCsvRow(std::ostream& out, CsvRow const& row) {
@@ -286,8 +288,10 @@ void WriteCsvRow(std::ostream& out, CsvRow const& row) {
   WriteOptionalMs(out, row.schedule_receive_latency.p95_ms);
   out << ',';
   WriteOptionalMs(out, row.schedule_receive_latency.max_ms);
-  out << ',' << row.sdk_sha << ',' << row.server_version << ',' << row.outcome
-      << '\n';
+  out << ',' << row.max_udp_tx_observed << ',' << row.max_udp_rx_observed << ','
+      << row.udp_tx_violations << ',' << row.udp_rx_violations << ','
+      << (row.udp_socket_observed ? 1 : 0) << ',' << row.sdk_sha << ','
+      << row.server_version << ',' << row.outcome << '\n';
 }
 
 }  // namespace ae::stream_matrix_bench

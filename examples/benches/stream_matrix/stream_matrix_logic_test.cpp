@@ -79,6 +79,35 @@ static void test_immediate_fail_counter_only() {
   Expect(stats.counters().write_immediate_fail_measure == 1, "immediate fail");
 }
 
+static void test_udp_outcome_safestream_vs_p2p() {
+  ae::StreamInfo info{};
+  info.max_element_size = 1200;
+  info.link_state = ae::LinkState::kLinked;
+  UdpSocketAuditSnapshot clean{};
+  clean.socket_observed = true;
+  std::size_t const large_serialized = 5000;
+
+  auto safe_out = ClassifyUdpMeasureOutcome(
+      BenchStreamKind::kP2pSafeStream, BenchTransportKind::kUdp, {}, large_serialized,
+      info, clean);
+  Expect(safe_out.empty(), "SafeStream/UDP large message no envelope estimate fail");
+
+  auto p2p_out = ClassifyUdpMeasureOutcome(
+      BenchStreamKind::kP2pStream, BenchTransportKind::kUdp, {}, large_serialized,
+      info, clean);
+  Expect(p2p_out == "UDP_ENVELOPE_ESTIMATE_EXCEEDED",
+         "P2pStream/UDP large message envelope estimate fail");
+
+  UdpSocketAuditSnapshot bad{};
+  bad.tx_violations = 1;
+  bad.socket_observed = true;
+  auto safe_viol = ClassifyUdpMeasureOutcome(
+      BenchStreamKind::kP2pSafeStream, BenchTransportKind::kUdp, {}, large_serialized,
+      info, bad);
+  Expect(safe_viol == "UDP_SOCKET_BUDGET_VIOLATION",
+         "SafeStream/UDP datagram audit violation");
+}
+
 static void test_udp_budget_boundary() {
   ae::StreamInfo info{};
   info.max_element_size = 1200;
@@ -112,6 +141,7 @@ int main() {
   test_late_duplicate_and_missing();
   test_unknown_sequence_ignored();
   test_immediate_fail_counter_only();
+  test_udp_outcome_safestream_vs_p2p();
   test_udp_budget_boundary();
   test_period_generation_respects_max_rate();
   test_missed_schedule_counter();
