@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -132,6 +133,11 @@ struct CsvRow {
   std::size_t payload_bytes{};
   std::size_t serialized_bytes{};
   std::size_t max_udp_payload_bytes{};
+  std::size_t max_udp_tx_observed{};
+  std::size_t max_udp_rx_observed{};
+  std::uint64_t udp_tx_violations{};
+  std::uint64_t udp_rx_violations{};
+  bool udp_socket_observed{false};
   double period_ms{};
   PointCounters counters;
   LatencySummary latency;

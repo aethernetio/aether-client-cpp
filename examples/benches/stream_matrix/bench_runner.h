@@ -38,6 +38,11 @@ namespace ae::stream_matrix_bench {
 struct BenchCliOptions {
   bool smoke{false};
   bool full_matrix{false};
+  bool run_points{false};
+  std::optional<BenchStreamKind> only_stream;
+  std::optional<BenchTransportKind> only_transport;
+  std::vector<std::size_t> only_payloads;
+  std::optional<double> only_period_ms;
   double max_messages_per_sec{128.0};
   Duration warmup{std::chrono::seconds{5}};
   Duration measure{std::chrono::seconds{60}};

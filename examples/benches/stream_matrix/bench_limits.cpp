@@ -144,4 +144,24 @@ std::string_view TransportKindName(BenchTransportKind kind) {
   return "unknown";
 }
 
+std::optional<BenchStreamKind> ParseStreamKind(std::string_view name) {
+  if (name == "P2pStream" || name == "p2pstream") {
+    return BenchStreamKind::kP2pStream;
+  }
+  if (name == "P2pSafeStream" || name == "p2psafestream") {
+    return BenchStreamKind::kP2pSafeStream;
+  }
+  return std::nullopt;
+}
+
+std::optional<BenchTransportKind> ParseTransportKind(std::string_view name) {
+  if (name == "UDP" || name == "udp") {
+    return BenchTransportKind::kUdp;
+  }
+  if (name == "TCP" || name == "tcp") {
+    return BenchTransportKind::kTcp;
+  }
+  return std::nullopt;
+}
+
 }  // namespace ae::stream_matrix_bench

@@ -69,6 +69,9 @@ PayloadLimitResult ComputePayloadLimit(BenchStreamKind stream,
 std::string_view StreamKindName(BenchStreamKind kind);
 std::string_view TransportKindName(BenchTransportKind kind);
 
+std::optional<BenchStreamKind> ParseStreamKind(std::string_view name);
+std::optional<BenchTransportKind> ParseTransportKind(std::string_view name);
+
 }  // namespace ae::stream_matrix_bench
 
 #endif

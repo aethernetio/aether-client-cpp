@@ -52,6 +52,17 @@ BenchCliOptions ParseArgs(int argc, char* argv[]) {
       options.smoke = true;
     } else if (arg == "--full") {
       options.full_matrix = true;
+    } else if (arg == "--run-points") {
+      options.run_points = true;
+    } else if (arg == "--only-stream" && i + 1 < argc) {
+      options.only_stream = ParseStreamKind(argv[++i]);
+    } else if (arg == "--only-transport" && i + 1 < argc) {
+      options.only_transport = ParseTransportKind(argv[++i]);
+    } else if (arg == "--only-payload" && i + 1 < argc) {
+      options.only_payloads.push_back(
+          static_cast<std::size_t>(std::stoull(argv[++i])));
+    } else if (arg == "--only-period" && i + 1 < argc) {
+      options.only_period_ms = std::stod(argv[++i]);
     } else if (arg == "--max-rate" && i + 1 < argc) {
       options.max_messages_per_sec = std::stod(argv[++i]);
     } else if (arg == "--warmup-sec" && i + 1 < argc) {
@@ -68,7 +79,7 @@ BenchCliOptions ParseArgs(int argc, char* argv[]) {
       options.server_version = argv[++i];
     }
   }
-  if (!options.smoke && !options.full_matrix) {
+  if (!options.smoke && !options.full_matrix && !options.run_points) {
     options.smoke = true;
   }
   return options;
@@ -382,7 +393,7 @@ void StreamMatrixBench::OnTick(BenchInstant now) {
       .payload = payload_pattern_,
   };
   auto wire = SerializeEnvelope(envelope);
-  if (active_transport_ == BenchTransportKind::kUdp &&
+  if (ApplyUdpWholeMessageEnvelopeEstimate(active_stream_, active_transport_) &&
       !BenchEnvelopeWithinUdpSocketBudget(wire.size(), p2p_a_->stream_info())) {
     log_stream_ << "point " << current_point_id_
                 << " UDP envelope estimate exceeded wire_bytes=" << wire.size()
@@ -525,17 +536,21 @@ std::optional<CsvRow> StreamMatrixBench::RunPoint(
         static_cast<double>(row.counters.write_calls_measure);
   }
 
+  UdpSocketAuditSnapshot audit{};
   if (active_transport_ == BenchTransportKind::kUdp) {
-    auto audit = UdpSocketPayloadAuditSnapshot();
+    audit = UdpSocketPayloadAuditSnapshot();
     WriteUdpAuditReport(log_stream_, audit);
-    if (audit.tx_violations != 0 || audit.rx_violations != 0) {
-      row.outcome = "UDP_SOCKET_BUDGET_VIOLATION";
+    row.max_udp_tx_observed = audit.max_tx_payload_bytes;
+    row.max_udp_rx_observed = audit.max_rx_payload_bytes;
+    row.udp_tx_violations = audit.tx_violations;
+    row.udp_rx_violations = audit.rx_violations;
+    row.udp_socket_observed = audit.socket_observed;
+    auto udp_outcome = ClassifyUdpMeasureOutcome(
+        stream, transport, row.outcome, serialized_payload_.size(),
+        p2p_a_->stream_info(), audit);
+    if (!udp_outcome.empty()) {
+      row.outcome = std::string{udp_outcome};
     }
-  }
-  if (row.outcome.empty() && active_transport_ == BenchTransportKind::kUdp &&
-      !BenchEnvelopeWithinUdpSocketBudget(serialized_payload_.size(),
-                                          p2p_a_->stream_info())) {
-    row.outcome = "UDP_ENVELOPE_ESTIMATE_EXCEEDED";
   }
   if (row.outcome.empty() && row.counters.rx_unique_measure == 0 &&
              row.counters.write_ok_measure > 0) {
@@ -699,7 +714,16 @@ int StreamMatrixBench::Run() {
     smoke_modes_expected_ = static_cast<int>(modes.size());
   }
 
+  std::size_t points_planned = 0;
+  std::size_t points_completed = 0;
+
   for (auto const& mode : modes) {
+    if (options_.only_stream && mode.stream != *options_.only_stream) {
+      continue;
+    }
+    if (options_.only_transport && mode.transport != *options_.only_transport) {
+      continue;
+    }
     auto setup = SetupMode(mode.stream, mode.transport);
     if (setup != SetupResult::kOk) {
       std::string outcome = "SETUP_FAILED";
@@ -720,20 +744,42 @@ int StreamMatrixBench::Run() {
         mode.stream, mode.transport, p2p_a_->stream_info(), safe_doc_,
         MeasureEnvelopeOverheadBytes());
 
-    std::vector<double> periods =
-        options_.smoke ? PeriodsMsFirstSecond()
-                       : PeriodsMsFirstSecond();
+    std::vector<double> periods = PeriodsMsFirstSecond();
     if (options_.full_matrix) {
       auto fast = PeriodsMsFast(options_.max_messages_per_sec);
       periods.insert(periods.end(), fast.begin(), fast.end());
     }
+    if (options_.only_period_ms) {
+      periods = {*options_.only_period_ms};
+    }
 
     for (double period : periods) {
-      auto sizes = options_.smoke
-                       ? std::vector<std::size_t>{100}
-                       : BuildSizeMatrix(limit.max_payload_bytes, true);
+      if (options_.only_period_ms && period != *options_.only_period_ms) {
+        continue;
+      }
+      std::vector<std::size_t> sizes;
+      if (options_.smoke) {
+        sizes = {100};
+      } else if (!options_.only_payloads.empty()) {
+        sizes = options_.only_payloads;
+      } else {
+        sizes = BuildSizeMatrix(limit.max_payload_bytes, true);
+      }
 
       for (std::size_t size : sizes) {
+        if (!options_.only_payloads.empty()) {
+          bool listed = false;
+          for (std::size_t want : options_.only_payloads) {
+            if (want == size) {
+              listed = true;
+              break;
+            }
+          }
+          if (!listed) {
+            continue;
+          }
+        }
+        ++points_planned;
         std::string skip;
         if (size > limit.max_payload_bytes) {
           skip = "SKIP_SIZE_LIMIT";
@@ -742,6 +788,9 @@ int StreamMatrixBench::Run() {
         if (row) {
           WriteCsvRow(csv_stream_, *row);
           csv_stream_.flush();
+          if (skip.empty()) {
+            ++points_completed;
+          }
           if (options_.smoke && skip.empty() && EvaluateSmokeRow(*row)) {
             ++smoke_modes_passed_;
           }
@@ -754,7 +803,9 @@ int StreamMatrixBench::Run() {
 
   log_stream_ << "modes_setup_ok=" << modes_setup_ok_
               << " smoke_expected=" << smoke_modes_expected_
-              << " smoke_passed=" << smoke_modes_passed_ << '\n';
+              << " smoke_passed=" << smoke_modes_passed_
+              << " points_planned=" << points_planned
+              << " points_completed=" << points_completed << '\n';
   app_->Exit(0);
 
   if (options_.smoke) {
