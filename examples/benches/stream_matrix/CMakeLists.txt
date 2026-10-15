@@ -43,6 +43,7 @@ if(NOT CM_PLATFORM)
     bench_limits.cpp
     bench_stats.cpp
     bench_transport.cpp
+    bench_udp_budget.cpp
     bench_runner.cpp
   )
 
@@ -59,6 +60,7 @@ if(NOT CM_PLATFORM)
     stream_matrix_logic_test.cpp
     bench_limits.cpp
     bench_stats.cpp
+    bench_udp_budget.cpp
   )
   target_link_libraries(aether_stream_matrix_logic_test PRIVATE aether)
   target_include_directories(aether_stream_matrix_logic_test

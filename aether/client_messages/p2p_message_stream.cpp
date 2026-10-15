@@ -27,7 +27,9 @@
 #include "aether/cloud_connections/cloud_server_connection.h"
 #include "aether/cloud_connections/cloud_subscription.h"
 
+#include "aether/channels/channel.h"
 #include "aether/client_messages/client_messages_tele.h"
+#include "aether/server_connections/client_server_connection.h"
 
 namespace ae {
 namespace p2p_stream_internal {
@@ -274,6 +276,41 @@ StreamInfo P2pStream::SendPathStreamInfoAtPriority(
       },
       RequestPolicy::Priority{priority});
   return info;
+}
+
+P2pStream::SendPathTransportView P2pStream::InspectSendPathTransport()
+    const {
+  SendPathTransportView view;
+  view.aggregated = stream_info();
+  view.at_priority0 = SendPathStreamInfoAtPriority(0);
+  if (!dest_cloud_conn_) {
+    return view;
+  }
+  dest_cloud_conn_->ForServers(
+      [&](CloudServerConnection* sc) {
+        auto* con = sc->client_connection();
+        if (con == nullptr) {
+          return;
+        }
+        if (con->stream_info().link_state != LinkState::kLinked) {
+          return;
+        }
+        auto channel = con->server_connection().current_channel();
+        if (channel == nullptr) {
+          return;
+        }
+        auto endpoint = channel->endpoint();
+        if (!endpoint) {
+          return;
+        }
+        if (endpoint->protocol == Protocol::kUdp) {
+          view.linked_udp_endpoint = true;
+        } else if (endpoint->protocol == Protocol::kTcp) {
+          view.linked_tcp_endpoint = true;
+        }
+      },
+      send_request_policy_);
+  return view;
 }
 
 }  // namespace ae

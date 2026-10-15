@@ -22,6 +22,10 @@
 
 #include "stream_matrix/bench_limits.h"
 
+namespace ae {
+class P2pStream;
+}
+
 namespace ae::stream_matrix_bench {
 
 inline constexpr bool kSdkUdpEnabled = AE_SUPPORT_UDP != 0;
@@ -36,6 +40,9 @@ enum class TransportVerifyResult {
 
 TransportVerifyResult VerifyP2pTransport(StreamInfo const& p2p_info,
                                          BenchTransportKind want);
+
+TransportVerifyResult VerifyP2pStreamTransport(P2pStream const& stream,
+                                               BenchTransportKind want);
 
 bool ModeCompiledIn(BenchTransportKind transport);
 

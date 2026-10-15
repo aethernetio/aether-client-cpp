@@ -60,6 +60,8 @@ class StreamMatrixBench {
   int Run();
 
  private:
+  using BenchClock = std::chrono::steady_clock;
+
   bool PumpUntil(std::function<bool()> predicate, Duration timeout);
   void PumpIdleUntil(TimePoint until);
 
@@ -72,8 +74,12 @@ class StreamMatrixBench {
                                  std::size_t payload_bytes, double period_ms,
                                  std::string const& outcome_if_skip);
 
-  void OnTick(TimePoint now);
+  void OnTick(BenchClock::time_point now);
+  void OnWarmupTick(BenchClock::time_point now);
   void OnReceived(DataBuffer const& data);
+  bool EvaluateSmokeRow(CsvRow const& row) const;
+  void SendServiceEnvelope(std::uint64_t attempt_id, std::uint64_t point_id,
+                            ByteIStream& stream);
 
   static Uid const& ParentUid();
   CsvRow MakeOutcomeRow(BenchStreamKind stream, BenchTransportKind transport,
@@ -94,29 +100,43 @@ class StreamMatrixBench {
   std::unique_ptr<P2pSafeStream> safe_b_;
   ByteIStream* send_stream_{nullptr};
   Subscription recv_sub_;
+  Subscription recv_sub_a_;
 
-  std::uint64_t run_id_{1};
+  std::uint64_t run_id_{};
   std::uint64_t next_point_id_{1};
   std::uint64_t next_sequence_{1};
   std::uint64_t current_point_id_{0};
+  std::uint64_t service_attempt_id_{0};
+  std::uint64_t expected_service_attempt_id_{0};
+  bool in_service_exchange_{false};
+  std::atomic<bool> service_echo_pending_{false};
 
   PointStats point_stats_;
   MultiSubscription write_status_subs_;
 
   bool point_active_{false};
   bool accept_measure_{false};
-  TimePoint measure_begin_{};
-  TimePoint measure_end_{};
-  TimePoint collect_end_{};
-  TimePoint next_scheduled_send_{};
+  BenchClock::time_point measure_begin_{};
+  BenchClock::time_point measure_end_{};
+  BenchClock::time_point collect_end_{};
+  BenchClock::time_point next_scheduled_send_{};
+  BenchClock::time_point next_warmup_send_{};
+  BenchClock::time_point point_begin_{};
+
+  static TimePoint BenchTimeToAe(BenchClock::time_point tp);
+  BenchClock::time_point BenchNow() const;
   std::size_t payload_bytes_{};
   double period_ms_{1000.0};
   DataBuffer serialized_payload_;
   std::vector<std::uint8_t> payload_pattern_;
 
   std::atomic<bool> service_rx_{false};
-  bool any_point_ok_{false};
   int modes_setup_ok_{0};
+  int smoke_modes_expected_{0};
+  int smoke_modes_passed_{0};
+  bool transport_verified_{false};
+  BenchTransportKind active_transport_{BenchTransportKind::kUdp};
+  BenchStreamKind active_stream_{BenchStreamKind::kP2pStream};
 
   std::ofstream csv_stream_;
   std::ofstream log_stream_;

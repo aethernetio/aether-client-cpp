@@ -19,6 +19,7 @@
 #include <algorithm>
 
 #include "stream_matrix/bench_envelope.h"
+#include "stream_matrix/bench_udp_budget.h"
 
 namespace ae::stream_matrix_bench {
 
@@ -33,17 +34,14 @@ std::vector<std::size_t> PayloadSweepFrom100() {
 std::vector<double> PeriodsMsFirstSecond() { return {1000.0}; }
 
 std::vector<double> PeriodsMsFast(double max_messages_per_sec) {
-  std::vector<double> periods_ms{500.0,  250.0,  125.0,   62.5,
-                                 31.25,  15.625, 7.8125};
-  if (max_messages_per_sec <= 0.0) {
-    return periods_ms;
+  std::vector<double> periods_ms;
+  for (double period_ms = 500.0; period_ms >= 1.0; period_ms *= 0.5) {
+    if (max_messages_per_sec > 0.0 &&
+        (1000.0 / period_ms) > max_messages_per_sec) {
+      continue;
+    }
+    periods_ms.push_back(period_ms);
   }
-  periods_ms.erase(
-      std::remove_if(periods_ms.begin(), periods_ms.end(),
-                     [&](double period_ms) {
-                       return (1000.0 / period_ms) > max_messages_per_sec;
-                     }),
-      periods_ms.end());
   return periods_ms;
 }
 
@@ -87,24 +85,15 @@ PayloadLimitResult ComputePayloadLimit(BenchStreamKind stream,
 
   if (stream == BenchStreamKind::kP2pStream) {
     if (transport == BenchTransportKind::kUdp) {
-      max_serialized = std::min(max_serialized, kBenchmarkUdpPayloadBudgetBytes);
-      if (p2p_send_info.max_element_size > 0) {
-        max_serialized =
-            std::min(max_serialized, p2p_send_info.max_element_size);
-      }
-    } else {
-      if (p2p_send_info.max_element_size > 0) {
-        max_serialized =
-            std::min(max_serialized, p2p_send_info.max_element_size);
-      }
+      max_serialized = MaxBenchEnvelopeBytesForUdp(p2p_send_info);
+    } else if (p2p_send_info.max_element_size > 0) {
+      max_serialized =
+          std::min(max_serialized, p2p_send_info.max_element_size);
     }
   } else {
     if (safe_doc.max_element_size_reported > 0) {
       max_serialized =
           std::min(max_serialized, safe_doc.max_element_size_reported);
-    }
-    if (transport == BenchTransportKind::kUdp) {
-      (void)safe_doc;
     }
   }
 
@@ -116,7 +105,13 @@ PayloadLimitResult ComputePayloadLimit(BenchStreamKind stream,
   std::size_t hi = max_serialized;
   while (lo < hi) {
     std::size_t mid = lo + (hi - lo + 1) / 2;
-    if (SerializedMeasureBytes(mid, 1, 1, 1) <= max_serialized) {
+    auto ser = SerializedMeasureBytes(mid, 1, 1, 1);
+    bool ok = ser <= max_serialized;
+    if (transport == BenchTransportKind::kUdp &&
+        stream == BenchStreamKind::kP2pStream) {
+      ok = ok && BenchEnvelopeWithinUdpSocketBudget(ser, p2p_send_info);
+    }
+    if (ok) {
       lo = mid;
     } else {
       hi = mid - 1;

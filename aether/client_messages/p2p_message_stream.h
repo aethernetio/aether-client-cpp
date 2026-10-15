@@ -68,6 +68,14 @@ class P2pStream final : public ByteIStream {
 
   StreamInfo SendPathStreamInfoAtPriority(std::size_t priority) const;
 
+  struct SendPathTransportView {
+    StreamInfo aggregated{};
+    StreamInfo at_priority0{};
+    bool linked_udp_endpoint{false};
+    bool linked_tcp_endpoint{false};
+  };
+  SendPathTransportView InspectSendPathTransport() const;
+
  private:
   static constexpr auto kBufferCapacity = AE_P2P_MESSAGE_STREAM_BUFFER_CAPACITY;
   using Buffer = BufferWrite<AeMessage, kBufferCapacity>;

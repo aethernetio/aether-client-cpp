@@ -16,6 +16,8 @@
 
 #include "stream_matrix/bench_transport.h"
 
+#include "aether/client_messages/p2p_message_stream.h"
+
 namespace ae::stream_matrix_bench {
 
 bool ModeCompiledIn(BenchTransportKind transport) {
@@ -46,6 +48,42 @@ TransportVerifyResult VerifyP2pTransport(StreamInfo const& p2p_info,
                     : TransportVerifyResult::kWrongProtocol;
   }
   return TransportVerifyResult::kWrongProtocol;
+}
+
+static TransportVerifyResult VerifySendPathView(
+    P2pStream::SendPathTransportView const& view, BenchTransportKind want) {
+  auto agg = VerifyP2pTransport(view.aggregated, want);
+  if (agg != TransportVerifyResult::kOk) {
+    return agg;
+  }
+  auto pri = VerifyP2pTransport(view.at_priority0, want);
+  if (pri != TransportVerifyResult::kOk) {
+    return pri;
+  }
+  if (view.linked_udp_endpoint && view.linked_tcp_endpoint) {
+    return TransportVerifyResult::kWrongProtocol;
+  }
+  switch (want) {
+    case BenchTransportKind::kUdp:
+      if (view.linked_tcp_endpoint) {
+        return TransportVerifyResult::kWrongProtocol;
+      }
+      break;
+    case BenchTransportKind::kTcp:
+      if (view.linked_udp_endpoint) {
+        return TransportVerifyResult::kWrongProtocol;
+      }
+      break;
+  }
+  return TransportVerifyResult::kOk;
+}
+
+TransportVerifyResult VerifyP2pStreamTransport(P2pStream const& stream,
+                                               BenchTransportKind want) {
+  if (!ModeCompiledIn(want)) {
+    return TransportVerifyResult::kNotCompiledIn;
+  }
+  return VerifySendPathView(stream.InspectSendPathTransport(), want);
 }
 
 }  // namespace ae::stream_matrix_bench

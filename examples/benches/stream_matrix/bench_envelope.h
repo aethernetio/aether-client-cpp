@@ -29,6 +29,7 @@ namespace ae::stream_matrix_bench {
 enum class EnvelopeKind : std::uint8_t {
   kService = 0,
   kMeasure = 1,
+  kWarmup = 2,
 };
 
 struct BenchEnvelope {
@@ -116,6 +117,10 @@ inline bool IsServiceEnvelope(BenchEnvelope const& e) {
 
 inline bool IsMeasureEnvelope(BenchEnvelope const& e) {
   return e.kind == static_cast<std::uint8_t>(EnvelopeKind::kMeasure);
+}
+
+inline bool IsWarmupEnvelope(BenchEnvelope const& e) {
+  return e.kind == static_cast<std::uint8_t>(EnvelopeKind::kWarmup);
 }
 
 }  // namespace ae::stream_matrix_bench

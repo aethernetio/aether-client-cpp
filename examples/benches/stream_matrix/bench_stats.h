@@ -38,6 +38,7 @@ struct SendRecord {
 
 struct PointCounters {
   std::uint64_t scheduled_measure{};
+  std::uint64_t missed_schedule{};
   std::uint64_t write_calls_measure{};
   std::uint64_t write_ok_measure{};
   std::uint64_t write_failed_measure{};
@@ -45,6 +46,7 @@ struct PointCounters {
   std::uint64_t write_immediate_fail_measure{};
   std::uint64_t skipped_backpressure{};
   std::uint64_t rx_unique_measure{};
+  std::uint64_t rx_unique_by_deadline{};
   std::uint64_t rx_duplicate{};
   std::uint64_t reordered{};
   std::uint64_t late{};
@@ -65,12 +67,19 @@ struct ScheduleLatencySummary {
   std::optional<double> max_ms;
 };
 
+struct ScheduleReceiveLatencySummary {
+  std::optional<double> p50_ms;
+  std::optional<double> p95_ms;
+  std::optional<double> max_ms;
+};
+
 class PointStats {
  public:
   void BeginPoint(TimePoint measure_begin, TimePoint measure_end,
                   TimePoint collect_end);
 
   void NoteScheduledMeasure();
+  void NoteMissedSchedule();
   void NoteWriteCalledMeasure(std::uint64_t sequence, TimePoint send_time,
                               TimePoint scheduled_time);
   void NoteWriteOkMeasure();
@@ -89,6 +98,7 @@ class PointStats {
   PointCounters const& counters() const { return counters_; }
   LatencySummary SendReceiveLatency() const;
   ScheduleLatencySummary ScheduleLatency() const;
+  ScheduleReceiveLatencySummary ScheduleReceiveLatency() const;
   double GoodputBytesPerSec() const;
   double SendRatePerSec() const;
   double ReceiveRatePerSec() const;
@@ -102,11 +112,16 @@ class PointStats {
   PointCounters counters_{};
   std::unordered_map<std::uint64_t, SendRecord> measure_sends_;
   std::unordered_set<std::uint64_t> received_unique_measure_;
+  std::unordered_set<std::uint64_t> received_unique_all_;
   std::uint64_t last_received_sequence_{0};
   bool have_last_sequence_{false};
   std::vector<double> send_receive_latency_ms_;
   std::vector<double> schedule_latency_ms_;
+  std::vector<double> schedule_receive_latency_ms_;
   std::size_t goodput_payload_bytes_{};
+
+  void NoteFirstReceive(std::uint64_t sequence, TimePoint recv_time,
+                        std::size_t payload_bytes, bool in_measure_window);
 };
 
 struct CsvRow {
@@ -121,6 +136,7 @@ struct CsvRow {
   PointCounters counters;
   LatencySummary latency;
   ScheduleLatencySummary schedule_latency;
+  ScheduleReceiveLatencySummary schedule_receive_latency;
   double send_rate{};
   double receive_rate{};
   double goodput_bytes_s{};

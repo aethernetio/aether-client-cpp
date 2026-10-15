@@ -31,13 +31,17 @@ void PointStats::BeginPoint(TimePoint measure_begin, TimePoint measure_end,
   counters_ = {};
   measure_sends_.clear();
   received_unique_measure_.clear();
+  received_unique_all_.clear();
   have_last_sequence_ = false;
   send_receive_latency_ms_.clear();
   schedule_latency_ms_.clear();
+  schedule_receive_latency_ms_.clear();
   goodput_payload_bytes_ = 0;
 }
 
 void PointStats::NoteScheduledMeasure() { ++counters_.scheduled_measure; }
+
+void PointStats::NoteMissedSchedule() { ++counters_.missed_schedule; }
 
 void PointStats::NoteWriteCalledMeasure(std::uint64_t sequence,
                                         TimePoint send_time,
@@ -73,61 +77,80 @@ void PointStats::NoteSkippedBackpressure() {
   ++counters_.skipped_backpressure;
 }
 
-void PointStats::NoteReceivedMeasure(std::uint64_t sequence,
-                                     TimePoint recv_time,
-                                     std::size_t payload_bytes) {
-  if (recv_time < measure_begin_ || recv_time > measure_end_) {
-    if (recv_time > measure_end_ && recv_time <= collect_end_) {
-      NoteReceivedLate(sequence, recv_time, payload_bytes);
-    }
+void PointStats::NoteFirstReceive(std::uint64_t sequence, TimePoint recv_time,
+                                  std::size_t payload_bytes,
+                                  bool in_measure_window) {
+  auto send_it = measure_sends_.find(sequence);
+  if (send_it == measure_sends_.end()) {
     return;
   }
-  if (!received_unique_measure_.insert(sequence).second) {
+
+  if (!received_unique_all_.insert(sequence).second) {
     ++counters_.rx_duplicate;
     return;
   }
-  ++counters_.rx_unique_measure;
-  if (have_last_sequence_ && sequence < last_received_sequence_) {
-    ++counters_.reordered;
-  }
-  last_received_sequence_ = sequence;
-  have_last_sequence_ = true;
 
-  auto send_it = measure_sends_.find(sequence);
-  if (send_it != measure_sends_.end()) {
-    auto ms = std::chrono::duration<double, std::milli>(recv_time -
-                                                        send_it->second.send_time)
-                  .count();
-    send_receive_latency_ms_.push_back(ms);
-    ++counters_.latency_samples;
+  ++counters_.rx_unique_by_deadline;
+
+  if (in_measure_window) {
+    ++counters_.rx_unique_measure;
+    if (have_last_sequence_ && sequence < last_received_sequence_) {
+      ++counters_.reordered;
+    }
+    last_received_sequence_ = sequence;
+    have_last_sequence_ = true;
     goodput_payload_bytes_ += payload_bytes;
+  } else {
+    ++counters_.late;
   }
+
+  auto ms = std::chrono::duration<double, std::milli>(recv_time -
+                                                      send_it->second.send_time)
+                .count();
+  send_receive_latency_ms_.push_back(ms);
+  ++counters_.latency_samples;
+
+  auto sched_ms =
+      std::chrono::duration<double, std::milli>(recv_time -
+                                                send_it->second.scheduled_time)
+          .count();
+  schedule_receive_latency_ms_.push_back(sched_ms);
+}
+
+void PointStats::NoteReceivedMeasure(std::uint64_t sequence,
+                                     TimePoint recv_time,
+                                     std::size_t payload_bytes) {
+  if (measure_sends_.count(sequence) == 0) {
+    return;
+  }
+  if (recv_time < measure_begin_) {
+    return;
+  }
+  if (recv_time > collect_end_) {
+    return;
+  }
+  if (recv_time <= measure_end_) {
+    NoteFirstReceive(sequence, recv_time, payload_bytes, true);
+    return;
+  }
+  NoteReceivedLate(sequence, recv_time, payload_bytes);
 }
 
 void PointStats::NoteReceivedLate(std::uint64_t sequence, TimePoint recv_time,
                                   std::size_t payload_bytes) {
-  (void)payload_bytes;
   if (measure_sends_.count(sequence) == 0) {
     return;
   }
-  if (received_unique_measure_.count(sequence) != 0) {
+  if (recv_time <= measure_end_ || recv_time > collect_end_) {
     return;
   }
-  ++counters_.late;
-  auto send_it = measure_sends_.find(sequence);
-  if (send_it != measure_sends_.end()) {
-    auto ms = std::chrono::duration<double, std::milli>(recv_time -
-                                                        send_it->second.send_time)
-                  .count();
-    send_receive_latency_ms_.push_back(ms);
-    ++counters_.latency_samples;
-  }
+  NoteFirstReceive(sequence, recv_time, payload_bytes, false);
 }
 
 void PointStats::FinalizeAfterCollectEnd() {
   for (auto const& [seq, rec] : measure_sends_) {
     (void)rec;
-    if (received_unique_measure_.count(seq) == 0) {
+    if (received_unique_all_.count(seq) == 0) {
       ++counters_.missing_after_deadline;
     }
   }
@@ -170,6 +193,19 @@ ScheduleLatencySummary PointStats::ScheduleLatency() const {
   };
 }
 
+ScheduleReceiveLatencySummary PointStats::ScheduleReceiveLatency() const {
+  if (schedule_receive_latency_ms_.empty()) {
+    return {};
+  }
+  auto sorted = schedule_receive_latency_ms_;
+  std::sort(sorted.begin(), sorted.end());
+  return ScheduleReceiveLatencySummary{
+      .p50_ms = PercentileMs(sorted, 50.0),
+      .p95_ms = PercentileMs(sorted, 95.0),
+      .max_ms = sorted.back(),
+  };
+}
+
 double PointStats::GoodputBytesPerSec() const {
   auto window = std::chrono::duration<double>(measure_end_ - measure_begin_);
   if (window.count() <= 0.0) {
@@ -204,12 +240,13 @@ static void WriteOptionalMs(std::ostream& out, std::optional<double> v) {
 
 void WriteCsvHeader(std::ostream& out) {
   out << "run_id,point_id,transport,stream,payload_bytes,serialized_bytes,"
-         "max_udp_payload_bytes,period_ms,scheduled,write_calls,write_ok,"
-         "write_failed,write_stopped,write_immediate_fail,skipped,rx_unique,"
-         "rx_duplicate,reordered,missing_after_deadline,delivery_loss_pct,"
-         "late,send_rate,receive_rate,goodput_bytes_s,latency_p50_ms,"
-         "latency_p95_ms,latency_p99_ms,latency_max_ms,sched_p50_ms,"
-         "sched_p95_ms,sched_max_ms,SDK_SHA,server_version,outcome\n";
+         "max_udp_payload_bytes,period_ms,scheduled,missed_schedule,write_calls,"
+         "write_ok,write_failed,write_stopped,write_immediate_fail,skipped,"
+         "rx_unique,rx_unique_by_deadline,rx_duplicate,reordered,"
+         "missing_after_deadline,delivery_loss_pct,late,send_rate,receive_rate,"
+         "goodput_bytes_s,latency_p50_ms,latency_p95_ms,latency_p99_ms,"
+         "latency_max_ms,sched_p50_ms,sched_p95_ms,sched_max_ms,sched_rx_p50_ms,"
+         "sched_rx_p95_ms,sched_rx_max_ms,SDK_SHA,server_version,outcome\n";
 }
 
 void WriteCsvRow(std::ostream& out, CsvRow const& row) {
@@ -217,14 +254,16 @@ void WriteCsvRow(std::ostream& out, CsvRow const& row) {
       << row.stream << ',' << row.payload_bytes << ',' << row.serialized_bytes
       << ',' << row.max_udp_payload_bytes << ',' << row.period_ms << ','
       << row.counters.scheduled_measure << ','
+      << row.counters.missed_schedule << ','
       << row.counters.write_calls_measure << ','
       << row.counters.write_ok_measure << ','
       << row.counters.write_failed_measure << ','
       << row.counters.write_stopped_measure << ','
       << row.counters.write_immediate_fail_measure << ','
       << row.counters.skipped_backpressure << ','
-      << row.counters.rx_unique_measure << ',' << row.counters.rx_duplicate
-      << ',' << row.counters.reordered << ','
+      << row.counters.rx_unique_measure << ','
+      << row.counters.rx_unique_by_deadline << ','
+      << row.counters.rx_duplicate << ',' << row.counters.reordered << ','
       << row.counters.missing_after_deadline << ','
       << std::fixed << std::setprecision(3) << row.delivery_loss_pct << ','
       << row.counters.late << ',' << row.send_rate << ',' << row.receive_rate
@@ -242,6 +281,12 @@ void WriteCsvRow(std::ostream& out, CsvRow const& row) {
   WriteOptionalMs(out, row.schedule_latency.p95_ms);
   out << ',';
   WriteOptionalMs(out, row.schedule_latency.max_ms);
+  out << ',';
+  WriteOptionalMs(out, row.schedule_receive_latency.p50_ms);
+  out << ',';
+  WriteOptionalMs(out, row.schedule_receive_latency.p95_ms);
+  out << ',';
+  WriteOptionalMs(out, row.schedule_receive_latency.max_ms);
   out << ',' << row.sdk_sha << ',' << row.server_version << ',' << row.outcome
       << '\n';
 }

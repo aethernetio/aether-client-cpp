@@ -1,64 +1,108 @@
 # Copyright 2026 Aethernet Inc.
-# Configure, build, run smoke then optional full matrix.
+# Dual UDP/TCP SDK builds, logic tests, smoke (4 modes), optional full matrix.
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
-$BuildDir = Join-Path $Root "build-stream-matrix"
-$SmokeOut = Join-Path $BuildDir "stream_matrix_out_smoke"
-$FullOut = Join-Path $BuildDir "stream_matrix_out_full"
 $RunFull = ($args -contains "--full")
+$Timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 
-Push-Location $Root
-try {
-  cmake -S . -B $BuildDir -DCMAKE_BUILD_TYPE=Release -DAE_BUILD_TESTS=OFF
+function Resolve-Exe($BuildDir, $Name) {
+  $paths = @(
+    (Join-Path $BuildDir "Release\$Name.exe"),
+    (Join-Path $BuildDir "examples\benches\stream_matrix\Release\$Name.exe"),
+    (Join-Path $BuildDir "$Name.exe")
+  )
+  foreach ($p in $paths) {
+    if (Test-Path $p) { return $p }
+  }
+  throw "Executable $Name not found under $BuildDir"
+}
+
+function Build-Flavor($Flavor, $UserConfigRel, $BuildDir) {
+  Write-Host "=== Configure/build $Flavor ($UserConfigRel) ==="
+  cmake -S $Root -B $BuildDir -DCMAKE_BUILD_TYPE=Release `
+    "-DUSER_CONFIG:STRING=$UserConfigRel" -DAE_BUILD_TESTS=OFF
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   cmake --build $BuildDir --config Release --target aether_stream_matrix_bench `
     --target aether_stream_matrix_logic_test
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
 
-  $LogicTest = Join-Path $BuildDir "Release\aether_stream_matrix_logic_test.exe"
-  if (-not (Test-Path $LogicTest)) {
-    $LogicTest = Join-Path $BuildDir "aether_stream_matrix_logic_test.exe"
-  }
+function Run-LogicTest($BuildDir) {
+  $LogicTest = Resolve-Exe $BuildDir "aether_stream_matrix_logic_test"
   & $LogicTest
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
 
-  $Exe = Join-Path $BuildDir "Release\aether_stream_matrix_bench.exe"
-  if (-not (Test-Path $Exe)) {
-    $Exe = Join-Path $BuildDir "aether_stream_matrix_bench.exe"
-  }
-  if (-not (Test-Path $Exe)) {
-    Write-Error "Benchmark executable not found after build"
-  }
+function Run-Smoke($Flavor, $BuildDir, $SdkSha, $DirtyTag) {
+  $Out = Join-Path $BuildDir "artifacts\smoke_$Timestamp"
+  New-Item -ItemType Directory -Force -Path $Out | Out-Null
+  $Exe = Resolve-Exe $BuildDir "aether_stream_matrix_bench"
+  $meta = Join-Path $Out "build_meta.txt"
+  @(
+    "flavor=$Flavor"
+    "sdk_sha=$SdkSha$DirtyTag"
+    "user_config=$Flavor"
+    "build_dir=$BuildDir"
+    "exe=$Exe"
+  ) | Set-Content -Path $meta -Encoding utf8
 
+  & $Exe --smoke --output $Out --sdk-sha "$SdkSha$DirtyTag" --server-version UNKNOWN
+  $code = $LASTEXITCODE
+  Copy-Item (Join-Path $Out "results.csv") (Join-Path $Out "results_smoke.csv") -Force
+  return @{ Code = $code; Out = $Out; Exe = $Exe }
+}
+
+Push-Location $Root
+try {
   $SdkSha = (git -C $Root rev-parse HEAD).Trim()
-  $Dirty = (git -C $Root diff --quiet; if ($LASTEXITCODE -ne 0) { "dirty" } else { "clean" })
+  $DirtyTag = if (git -C $Root diff --quiet) { "" } else { "-dirty" }
 
-  Remove-Item -Recurse -Force (Join-Path $BuildDir "state") -ErrorAction SilentlyContinue
-  New-Item -ItemType Directory -Force -Path $SmokeOut | Out-Null
+  $UdpDir = Join-Path $Root "build-stream-matrix-udp"
+  $TcpDir = Join-Path $Root "build-stream-matrix-tcp"
 
-  & $Exe --smoke --output $SmokeOut --sdk-sha $SdkSha --server-version UNKNOWN
-  $SmokeCode = $LASTEXITCODE
-  Copy-Item (Join-Path $SmokeOut "results.csv") (Join-Path $SmokeOut "results_smoke.csv") -Force
+  Build-Flavor "udp" "examples/benches/stream_matrix/config/udp_only.h" $UdpDir
+  Build-Flavor "tcp" "examples/benches/stream_matrix/config/tcp_only.h" $TcpDir
 
-  if ($SmokeCode -ne 0) {
-    Write-Host "Smoke failed with exit code $SmokeCode; skipping full matrix."
-    exit $SmokeCode
+  Run-LogicTest $UdpDir
+  Run-LogicTest $TcpDir
+
+  Remove-Item -Recurse -Force (Join-Path $Root "state") -ErrorAction SilentlyContinue
+
+  $udpSmoke = Run-Smoke "udp" $UdpDir $SdkSha $DirtyTag
+  Start-Sleep -Seconds 6
+  $tcpSmoke = Run-Smoke "tcp" $TcpDir $SdkSha $DirtyTag
+
+  Write-Host "UDP smoke exit: $($udpSmoke.Code) -> $($udpSmoke.Out)"
+  Write-Host "TCP smoke exit: $($tcpSmoke.Code) -> $($tcpSmoke.Out)"
+
+  $smokeOk = ($udpSmoke.Code -eq 0) -and ($tcpSmoke.Code -eq 0)
+  if (-not $smokeOk) {
+    Write-Host "Smoke incomplete or failed (partial exit 2 expected per build)."
+    if ($udpSmoke.Code -ne 0 -and $tcpSmoke.Code -ne 0) { exit 2 }
+    exit 2
   }
 
   if ($RunFull) {
     Start-Sleep -Seconds 6
-    New-Item -ItemType Directory -Force -Path $FullOut | Out-Null
-    & $Exe --full --max-rate 128 --output $FullOut --sdk-sha $SdkSha --server-version UNKNOWN
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    Copy-Item (Join-Path $FullOut "results.csv") (Join-Path $FullOut "results_full.csv") -Force
+    foreach ($pair in @(
+        @{ Flavor = "udp"; BuildDir = $UdpDir },
+        @{ Flavor = "tcp"; BuildDir = $TcpDir }
+      )) {
+      $Out = Join-Path $pair.BuildDir "artifacts\full_$Timestamp"
+      New-Item -ItemType Directory -Force -Path $Out | Out-Null
+      $Exe = Resolve-Exe $pair.BuildDir "aether_stream_matrix_bench"
+      & $Exe --full --max-rate 128 --output $Out --sdk-sha "$SdkSha$DirtyTag" `
+        --server-version UNKNOWN
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      Copy-Item (Join-Path $Out "results.csv") (Join-Path $Out "results_full.csv") -Force
+      Write-Host "$($pair.Flavor) full matrix: $Out"
+    }
   }
 
-  Write-Host "Built SHA: $SdkSha ($Dirty)"
-  Write-Host "Executable: $Exe"
-  Write-Host "Smoke results: $SmokeOut"
-  if ($RunFull) { Write-Host "Full results: $FullOut" }
+  Write-Host "Built SHA: $SdkSha$DirtyTag"
+  exit 0
 } finally {
   Pop-Location
 }
