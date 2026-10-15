@@ -26,7 +26,6 @@
 #include "stream_matrix/bench_udp_budget.h"
 
 using namespace ae::stream_matrix_bench;
-using ae::TimePoint;
 
 static int g_failures = 0;
 
@@ -37,8 +36,8 @@ static void Expect(bool ok, char const* msg) {
   }
 }
 
-static TimePoint T(int ms) {
-  return TimePoint{} + std::chrono::milliseconds{ms};
+static BenchInstant T(int ms) {
+  return BenchInstant{} + std::chrono::milliseconds{ms};
 }
 
 static void test_late_duplicate_and_missing() {

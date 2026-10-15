@@ -17,11 +17,11 @@
 #include "aether/client_messages/p2p_stream_write_budget.h"
 
 #include <algorithm>
+#include <limits>
 #include <vector>
 
 #include "aether/config.h"
 #include "aether/crypto/key.h"
-#include "aether/crypto/sync_crypto_provider.h"
 #include "aether/prepared_packet/packet_encoder.h"
 #include "aether/prepared_packet/prepared_send_message.h"
 #include "aether/types/data_buffer.h"
@@ -55,12 +55,27 @@ std::size_t EncodedDatagramBytesForInnerPayload(DataBuffer inner) {
   return result.value();
 }
 
+std::size_t EncodedDatagramBytesForInnerPayloadSize(std::size_t inner_bytes) {
+  static thread_local std::vector<std::uint8_t> scratch;
+  if (inner_bytes > kP2pStreamWriteBudgetMaxProbePayloadBytes) {
+    auto const encoded_empty = EncodedDatagramBytesForInnerPayloadSize(0);
+    auto const encoded_one = EncodedDatagramBytesForInnerPayloadSize(1);
+    if (encoded_one <= encoded_empty ||
+        encoded_empty == std::numeric_limits<std::size_t>::max()) {
+      return std::numeric_limits<std::size_t>::max();
+    }
+    auto const per_byte = encoded_one - encoded_empty;
+    return encoded_empty + inner_bytes * per_byte;
+  }
+  scratch.assign(inner_bytes, 0xA5);
+  return EncodedDatagramBytesForInnerPayload(DataBuffer{scratch});
+}
+
 }  // namespace
 
 std::size_t EncodedP2pSendMessageDatagramBytesForInnerPayload(
     std::size_t inner_payload_bytes) {
-  std::vector<std::uint8_t> bytes(inner_payload_bytes, 0xA5);
-  return EncodedDatagramBytesForInnerPayload(DataBuffer{bytes});
+  return EncodedDatagramBytesForInnerPayloadSize(inner_payload_bytes);
 }
 
 std::size_t MaxP2pStreamWritePayloadBytesForDatagramBudget(
@@ -68,18 +83,33 @@ std::size_t MaxP2pStreamWritePayloadBytesForDatagramBudget(
   if (datagram_budget_bytes == 0) {
     return 0;
   }
+  if (datagram_budget_bytes > kP2pStreamWriteBudgetDatagramSizingMax) {
+    return datagram_budget_bytes;
+  }
   std::size_t lo = 0;
-  std::size_t hi = datagram_budget_bytes;
+  std::size_t hi = std::min(datagram_budget_bytes,
+                            kP2pStreamWriteBudgetMaxProbePayloadBytes);
   while (lo < hi) {
     std::size_t mid = lo + (hi - lo + 1) / 2;
-    if (EncodedP2pSendMessageDatagramBytesForInnerPayload(mid) <=
-        datagram_budget_bytes) {
+    if (EncodedDatagramBytesForInnerPayloadSize(mid) <= datagram_budget_bytes) {
       lo = mid;
     } else {
       hi = mid - 1;
     }
   }
   return lo;
+}
+
+std::size_t P2pStreamWritePayloadLimitFromChannelMax(
+    std::size_t channel_max_element_size) {
+  if (channel_max_element_size == 0) {
+    return 0;
+  }
+  if (channel_max_element_size > kP2pStreamWriteBudgetDatagramSizingMax) {
+    return channel_max_element_size;
+  }
+  return MaxP2pStreamWritePayloadBytesForDatagramBudget(
+      channel_max_element_size);
 }
 
 }  // namespace ae

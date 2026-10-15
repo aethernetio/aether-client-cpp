@@ -18,17 +18,26 @@
 #define AETHER_CLIENT_MESSAGES_P2P_STREAM_WRITE_BUDGET_H_
 
 #include <cstddef>
+#include <cstdint>
 
 namespace ae {
 
-// channel StreamInfo::max_element_size is the authorized datagram budget on the
-// wire (e.g. UDP payload). P2pStream::Write accepts the inner payload that
-// becomes AeMessage::data before LoginByAlias/SendMessage/crypto.
+// Channel StreamInfo::max_element_size above this is treated as a transport
+// write cap (TCP/large MTU), not a UDP datagram budget for SendMessage sizing.
+inline constexpr std::size_t kP2pStreamWriteBudgetDatagramSizingMax = 4096;
+
+// Largest inner payload materialized during EncodePacket sizing probes.
+inline constexpr std::size_t kP2pStreamWriteBudgetMaxProbePayloadBytes = 8192;
+
+// Max bytes for the DataBuffer passed as AeMessage payload (P2pStream::Write).
 std::size_t MaxP2pStreamWritePayloadBytesForDatagramBudget(
     std::size_t datagram_budget_bytes);
 
 std::size_t EncodedP2pSendMessageDatagramBytesForInnerPayload(
     std::size_t inner_payload_bytes);
+
+std::size_t P2pStreamWritePayloadLimitFromChannelMax(
+    std::size_t channel_max_element_size);
 
 }  // namespace ae
 

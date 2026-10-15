@@ -26,6 +26,7 @@
 
 #  include "aether/poller/win_poller.h"
 #  include "aether/socket_initializer.h"
+#  include "aether/stream_matrix_udp_audit.h"
 #  include "aether/types/data_buffer.h"
 
 #  include "aether/transport/system_sockets/sockets/isocket.h"
@@ -69,6 +70,8 @@ class WinSocket : public ISocket {
 
   std::atomic_bool is_recv_pending_ = false;
   std::atomic_bool is_send_pending_ = false;
+
+  void DeliverRecvBytes(std::size_t bytes);
 
   DataBuffer recv_buffer_;
 };

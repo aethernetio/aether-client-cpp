@@ -22,6 +22,7 @@
 #include <thread>
 #include <utility>
 
+#include "stream_matrix/bench_clock.h"
 #include "stream_matrix/bench_udp_budget.h"
 
 #define AE_EXAMPLE_ETHERNET 1
@@ -46,23 +47,6 @@ Duration MsToDuration(double ms) {
 }
 
 }  // namespace
-
-TimePoint StreamMatrixBench::BenchTimeToAe(
-    StreamMatrixBench::BenchClock::time_point tp) {
-  return TimePoint{} + std::chrono::duration_cast<std::chrono::microseconds>(
-                           tp.time_since_epoch());
-}
-
-StreamMatrixBench::BenchClock::time_point StreamMatrixBench::AeToBenchTime(
-    TimePoint tp) {
-  return StreamMatrixBench::BenchClock::time_point{
-      std::chrono::duration_cast<StreamMatrixBench::BenchClock::duration>(
-          tp.time_since_epoch())};
-}
-
-StreamMatrixBench::BenchClock::time_point StreamMatrixBench::BenchNow() const {
-  return BenchClock::now();
-}
 
 BenchCliOptions ParseArgs(int argc, char* argv[]) {
   BenchCliOptions options;
@@ -319,11 +303,11 @@ void StreamMatrixBench::OnReceived(DataBuffer const& data) {
   if (envelope->point_id != current_point_id_) {
     return;
   }
-  point_stats_.NoteReceivedMeasure(envelope->sequence, BenchTimeToAe(BenchNow()),
+  point_stats_.NoteReceivedMeasure(envelope->sequence, BenchNow(),
                                    envelope->payload.size());
 }
 
-void StreamMatrixBench::OnTick(StreamMatrixBench::BenchClock::time_point now) {
+void StreamMatrixBench::OnTick(BenchInstant now) {
   if (!point_active_ || !send_stream_) {
     return;
   }
@@ -342,8 +326,7 @@ void StreamMatrixBench::OnTick(StreamMatrixBench::BenchClock::time_point now) {
 
   while (next_scheduled_send_ < now && next_scheduled_send_ < measure_end_) {
     point_stats_.NoteMissedSchedule();
-    next_scheduled_send_ +=
-        std::chrono::duration_cast<BenchClock::duration>(MsToDuration(period_ms_));
+    next_scheduled_send_ += MsToBenchDuration(period_ms_);
   }
 
   while (now >= next_scheduled_send_ && now < measure_end_) {
@@ -367,8 +350,7 @@ void StreamMatrixBench::OnTick(StreamMatrixBench::BenchClock::time_point now) {
                   << '\n';
     }
 
-    point_stats_.NoteWriteCalledMeasure(sequence, BenchTimeToAe(now),
-                                        BenchTimeToAe(scheduled));
+    point_stats_.NoteWriteCalledMeasure(sequence, now, scheduled);
     auto& wa = send_stream_->Write(std::move(wire));
     write_status_subs_ += wa.status_event().Subscribe(
         [this](WriteAction::Status status) {
@@ -381,13 +363,11 @@ void StreamMatrixBench::OnTick(StreamMatrixBench::BenchClock::time_point now) {
           }
         });
 
-    next_scheduled_send_ +=
-        std::chrono::duration_cast<BenchClock::duration>(MsToDuration(period_ms_));
+    next_scheduled_send_ += MsToBenchDuration(period_ms_);
   }
 }
 
-void StreamMatrixBench::OnWarmupTick(
-    StreamMatrixBench::BenchClock::time_point now) {
+void StreamMatrixBench::OnWarmupTick(BenchInstant now) {
   if (!point_active_ || !send_stream_) {
     return;
   }
@@ -403,8 +383,7 @@ void StreamMatrixBench::OnWarmupTick(
       auto& wa = send_stream_->Write(SerializeEnvelope(envelope));
       write_status_subs_ += wa.status_event().Subscribe(
           [](WriteAction::Status) {});
-      next_warmup_send_ +=
-          std::chrono::duration_cast<BenchClock::duration>(MsToDuration(period_ms_));
+      next_warmup_send_ += MsToBenchDuration(period_ms_);
     }
   }
 }
@@ -455,17 +434,16 @@ std::optional<CsvRow> StreamMatrixBench::RunPoint(
   current_point_id_ = next_point_id_++;
 
   point_begin_ = BenchNow();
-  measure_begin_ = point_begin_ + options_.warmup;
-  measure_end_ = measure_begin_ + options_.measure;
-  collect_end_ = measure_end_ + options_.late_collect;
+  measure_begin_ =
+      point_begin_ + std::chrono::duration_cast<BenchDuration>(options_.warmup);
+  measure_end_ =
+      measure_begin_ + std::chrono::duration_cast<BenchDuration>(options_.measure);
+  collect_end_ =
+      measure_end_ + std::chrono::duration_cast<BenchDuration>(options_.late_collect);
 
-  point_stats_.BeginPoint(BenchTimeToAe(measure_begin_),
-                          BenchTimeToAe(measure_end_),
-                          BenchTimeToAe(collect_end_));
+  point_stats_.BeginPoint(measure_begin_, measure_end_, collect_end_);
   next_scheduled_send_ = measure_begin_;
-  next_warmup_send_ =
-      point_begin_ + std::chrono::duration_cast<BenchClock::duration>(
-                         MsToDuration(period_ms_));
+  next_warmup_send_ = point_begin_ + MsToBenchDuration(period_ms_);
   point_active_ = true;
   accept_measure_ = false;
   write_status_subs_.Reset();

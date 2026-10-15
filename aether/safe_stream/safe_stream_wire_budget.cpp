@@ -24,6 +24,12 @@
 #include "aether/safe_stream/details/safe_stream_client_api.h"
 
 namespace ae {
+namespace {
+
+inline constexpr std::size_t kSafeStreamPackProbeMaxBytes = 8192;
+inline constexpr std::size_t kSafeStreamPackLinearThreshold = 1u << 20;
+
+}  // namespace
 
 DataBuffer PackSafeStreamClientSend(std::uint16_t begin_offset,
                                     std::uint16_t delta_offset,
@@ -36,8 +42,17 @@ DataBuffer PackSafeStreamClientSend(std::uint16_t begin_offset,
 }
 
 std::size_t PackedSafeStreamSendBytes(std::size_t send_data_bytes) {
-  std::vector<std::uint8_t> bytes(send_data_bytes, 0x5A);
-  return PackSafeStreamClientSend(0, 0, 0, DataBuffer{bytes}).size();
+  static thread_local std::vector<std::uint8_t> scratch;
+  if (send_data_bytes > kSafeStreamPackProbeMaxBytes) {
+    auto const hdr = PackedSafeStreamSendBytes(0);
+    auto const one = PackedSafeStreamSendBytes(1);
+    if (one <= hdr) {
+      return std::numeric_limits<std::size_t>::max();
+    }
+    return hdr + send_data_bytes * (one - hdr);
+  }
+  scratch.assign(send_data_bytes, 0x5A);
+  return PackSafeStreamClientSend(0, 0, 0, DataBuffer{scratch}).size();
 }
 
 std::size_t MaxSafeStreamSendDataBytesForPackedSendBudget(
@@ -45,11 +60,16 @@ std::size_t MaxSafeStreamSendDataBytesForPackedSendBudget(
   if (max_packed_send_bytes == 0) {
     return 0;
   }
-  if (PackedSafeStreamSendBytes(0) > max_packed_send_bytes) {
+  auto const header = PackedSafeStreamSendBytes(0);
+  if (header > max_packed_send_bytes) {
     return 0;
   }
+  if (max_packed_send_bytes > kSafeStreamPackLinearThreshold) {
+    return max_packed_send_bytes - header;
+  }
   std::size_t lo = 0;
-  std::size_t hi = max_packed_send_bytes;
+  std::size_t hi =
+      std::min(max_packed_send_bytes, kSafeStreamPackProbeMaxBytes);
   while (lo < hi) {
     std::size_t mid = lo + (hi - lo + 1) / 2;
     if (PackedSafeStreamSendBytes(mid) <= max_packed_send_bytes) {

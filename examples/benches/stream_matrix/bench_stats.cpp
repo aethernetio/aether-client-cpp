@@ -23,8 +23,8 @@
 
 namespace ae::stream_matrix_bench {
 
-void PointStats::BeginPoint(TimePoint measure_begin, TimePoint measure_end,
-                            TimePoint collect_end) {
+void PointStats::BeginPoint(BenchInstant measure_begin, BenchInstant measure_end,
+                            BenchInstant collect_end) {
   measure_begin_ = measure_begin;
   measure_end_ = measure_end;
   collect_end_ = collect_end;
@@ -41,11 +41,13 @@ void PointStats::BeginPoint(TimePoint measure_begin, TimePoint measure_end,
 
 void PointStats::NoteScheduledMeasure() { ++counters_.scheduled_measure; }
 
-void PointStats::NoteMissedSchedule() { ++counters_.missed_schedule; }
+void PointStats::NoteMissedSchedule(std::uint64_t count) {
+  counters_.missed_schedule += count;
+}
 
 void PointStats::NoteWriteCalledMeasure(std::uint64_t sequence,
-                                        TimePoint send_time,
-                                        TimePoint scheduled_time) {
+                                        BenchInstant send_time,
+                                        BenchInstant scheduled_time) {
   ++counters_.write_calls_measure;
   measure_sends_[sequence] = SendRecord{
       .sequence = sequence,
@@ -53,9 +55,7 @@ void PointStats::NoteWriteCalledMeasure(std::uint64_t sequence,
       .scheduled_time = scheduled_time,
       .in_measure = true,
   };
-  auto sched_ms = std::chrono::duration<double, std::milli>(send_time -
-                                                            scheduled_time)
-                      .count();
+  auto sched_ms = BenchInstantDeltaMs(scheduled_time, send_time);
   schedule_latency_ms_.push_back(sched_ms);
 }
 
@@ -77,7 +77,7 @@ void PointStats::NoteSkippedBackpressure() {
   ++counters_.skipped_backpressure;
 }
 
-void PointStats::NoteFirstReceive(std::uint64_t sequence, TimePoint recv_time,
+void PointStats::NoteFirstReceive(std::uint64_t sequence, BenchInstant recv_time,
                                   std::size_t payload_bytes,
                                   bool in_measure_window) {
   auto send_it = measure_sends_.find(sequence);
@@ -104,21 +104,17 @@ void PointStats::NoteFirstReceive(std::uint64_t sequence, TimePoint recv_time,
     ++counters_.late;
   }
 
-  auto ms = std::chrono::duration<double, std::milli>(recv_time -
-                                                      send_it->second.send_time)
-                .count();
+  auto ms = BenchInstantDeltaMs(send_it->second.send_time, recv_time);
   send_receive_latency_ms_.push_back(ms);
   ++counters_.latency_samples;
 
   auto sched_ms =
-      std::chrono::duration<double, std::milli>(recv_time -
-                                                send_it->second.scheduled_time)
-          .count();
+      BenchInstantDeltaMs(send_it->second.scheduled_time, recv_time);
   schedule_receive_latency_ms_.push_back(sched_ms);
 }
 
 void PointStats::NoteReceivedMeasure(std::uint64_t sequence,
-                                     TimePoint recv_time,
+                                     BenchInstant recv_time,
                                      std::size_t payload_bytes) {
   if (measure_sends_.count(sequence) == 0) {
     return;
@@ -136,7 +132,7 @@ void PointStats::NoteReceivedMeasure(std::uint64_t sequence,
   NoteReceivedLate(sequence, recv_time, payload_bytes);
 }
 
-void PointStats::NoteReceivedLate(std::uint64_t sequence, TimePoint recv_time,
+void PointStats::NoteReceivedLate(std::uint64_t sequence, BenchInstant recv_time,
                                   std::size_t payload_bytes) {
   if (measure_sends_.count(sequence) == 0) {
     return;
@@ -207,27 +203,30 @@ ScheduleReceiveLatencySummary PointStats::ScheduleReceiveLatency() const {
 }
 
 double PointStats::GoodputBytesPerSec() const {
-  auto window = std::chrono::duration<double>(measure_end_ - measure_begin_);
-  if (window.count() <= 0.0) {
+  auto window_s = std::chrono::duration_cast<std::chrono::duration<double>>(
+      measure_end_ - measure_begin_);
+  if (window_s.count() <= 0.0) {
     return 0.0;
   }
-  return static_cast<double>(goodput_payload_bytes_) / window.count();
+  return static_cast<double>(goodput_payload_bytes_) / window_s.count();
 }
 
 double PointStats::SendRatePerSec() const {
-  auto window = std::chrono::duration<double>(measure_end_ - measure_begin_);
-  if (window.count() <= 0.0) {
+  auto window_s = std::chrono::duration_cast<std::chrono::duration<double>>(
+      measure_end_ - measure_begin_);
+  if (window_s.count() <= 0.0) {
     return 0.0;
   }
-  return static_cast<double>(counters_.write_calls_measure) / window.count();
+  return static_cast<double>(counters_.write_calls_measure) / window_s.count();
 }
 
 double PointStats::ReceiveRatePerSec() const {
-  auto window = std::chrono::duration<double>(measure_end_ - measure_begin_);
-  if (window.count() <= 0.0) {
+  auto window_s = std::chrono::duration_cast<std::chrono::duration<double>>(
+      measure_end_ - measure_begin_);
+  if (window_s.count() <= 0.0) {
     return 0.0;
   }
-  return static_cast<double>(counters_.rx_unique_measure) / window.count();
+  return static_cast<double>(counters_.rx_unique_measure) / window_s.count();
 }
 
 static void WriteOptionalMs(std::ostream& out, std::optional<double> v) {

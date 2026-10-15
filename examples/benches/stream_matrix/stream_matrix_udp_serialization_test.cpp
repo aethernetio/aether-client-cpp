@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <cstdint>
 #include <cstdlib>
 #include <iostream>
 #include <string_view>
@@ -102,6 +103,23 @@ void test_large_user_messages_remain_valid() {
          "large downstream budget must allow 1600 B SafeStream send fragments");
 }
 
+void test_tcp_channel_max_skips_datagram_sizing() {
+  auto const tcp_like_max = static_cast<std::size_t>(65536);
+  Expect(P2pStreamWritePayloadLimitFromChannelMax(tcp_like_max) == tcp_like_max,
+         "large channel max must pass through without datagram sizing");
+  auto const huge = static_cast<std::size_t>(UINT32_MAX);
+  Expect(P2pStreamWritePayloadLimitFromChannelMax(huge) == huge,
+         "UINT32_MAX channel max must not allocate probe payloads");
+}
+
+void test_zero_budget_yields_zero_limits() {
+  Expect(MaxP2pStreamWritePayloadBytesForDatagramBudget(0) == 0,
+         "zero datagram budget");
+  Expect(P2pStreamWritePayloadLimitFromChannelMax(0) == 0, "zero channel max");
+  Expect(MaxSafeStreamSendDataBytesForDownstreamMaxElementSize(0) == 0,
+         "zero downstream max");
+}
+
 }  // namespace
 }  // namespace ae::stream_matrix_bench
 
@@ -111,6 +129,8 @@ int main() {
   ae::stream_matrix_bench::test_no_double_subtraction_at_boundary();
   ae::stream_matrix_bench::test_small_datagram_budget_no_overflow();
   ae::stream_matrix_bench::test_large_user_messages_remain_valid();
+  ae::stream_matrix_bench::test_tcp_channel_max_skips_datagram_sizing();
+  ae::stream_matrix_bench::test_zero_budget_yields_zero_limits();
   std::cout << "stream_matrix_udp_serialization_test: OK\n";
   return 0;
 }

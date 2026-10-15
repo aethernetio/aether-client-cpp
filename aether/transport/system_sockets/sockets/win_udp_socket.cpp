@@ -28,7 +28,7 @@
 
 namespace ae {
 WinUdpSocket::WinUdpSocket(Ptr<IPoller> const& poller)
-    : WinSocket{*poller, 1200} {
+    : WinSocket{*poller, 2048} {
   bool created = false;
 
   // ::socket() sets WSA_FLAG_OVERLAPPED by default that allows us to use iocp

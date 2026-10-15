@@ -25,6 +25,7 @@
 #include "aether/safe_stream/details/safe_stream_client_api.h"
 #include "aether/safe_stream/details/safe_stream_data_message.h"
 #include "aether/safe_stream/safe_stream_wire_budget.h"
+#include "aether/stream_matrix_bench_trace.h"
 #include "aether/safe_stream/details/safe_stream_recv_action.h"
 #include "aether/safe_stream/details/safe_stream_send_action.h"
 #include "aether/safe_stream/safe_stream_config.h"
@@ -141,6 +142,13 @@ class SafeStream final : public ByteStream,  // NOLINT
       std::uint16_t begin_offset,
       DataMessage&& data_message) override {  // NOLINT (*param-not-moved)
     assert(out_);
+    NotifyStreamMatrixSafeStreamSend(
+        StreamMatrixSafeStreamSendTrace{.side = '?',
+                                        .begin_offset = begin_offset,
+                                        .delta_offset = data_message.delta_offset,
+                                        .repeat_count = data_message.repeat_count,
+                                        .reset = data_message.reset,
+                                        .data_bytes = data_message.data.size()});
     auto api_adapter = ApiCallAdapter{api_client_, *out_};
     if (data_message.reset) {
       api_adapter->SendReset(begin_offset, data_message.delta_offset,

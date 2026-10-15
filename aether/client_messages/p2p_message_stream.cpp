@@ -108,9 +108,9 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
       return min->rec_element_size;
     });
     stream_info_.max_element_size =
-        MaxP2pStreamWritePayloadBytesForDatagramBudget(min_datagram_budget);
+        P2pStreamWritePayloadLimitFromChannelMax(min_datagram_budget);
     stream_info_.rec_element_size =
-        MaxP2pStreamWritePayloadBytesForDatagramBudget(min_rec_datagram);
+        P2pStreamWritePayloadLimitFromChannelMax(min_rec_datagram);
     // if any linked or unlinked or all error
     stream_info_.link_state = std::invoke([&]() {
       if (std::any_of(std::begin(infos), std::end(infos), [](auto const& i) {

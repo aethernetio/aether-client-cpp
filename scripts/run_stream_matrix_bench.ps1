@@ -25,11 +25,15 @@ function Build-Flavor($Flavor, $UserConfigRel, $BuildDir) {
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   cmake --build $BuildDir --config Release --target aether_stream_matrix_bench `
-    --target aether_stream_matrix_logic_test
+    --target aether_stream_matrix_logic_test `
+    --target aether_stream_matrix_schedule_test
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
 function Run-LogicTest($BuildDir) {
+  $ScheduleTest = Resolve-Exe $BuildDir "aether_stream_matrix_schedule_test"
+  & $ScheduleTest
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   $LogicTest = Resolve-Exe $BuildDir "aether_stream_matrix_logic_test"
   & $LogicTest
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
