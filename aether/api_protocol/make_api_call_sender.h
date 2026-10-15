@@ -105,23 +105,30 @@ class Operation final {
    * no operation member may be accessed afterward.
    */
   void start() & noexcept {
-    auto api_context = protocol_context_ == nullptr
-                           ? ApiContext<Api>{*api_}
-                           : ApiContext<Api>{*api_, *protocol_context_};
-    auto promise = std::invoke(fn_, api_context);
-    if (!promise) {
-      ex::set_stopped(std::move(receiver_));
-      return;
-    }
+    auto run = [this](ApiContext<Api>& api_context) {
+      auto promise = std::invoke(fn_, api_context);
+      if (!promise) {
+        ex::set_stopped(std::move(receiver_));
+        return;
+      }
 
-    result_subscription_ = promise.Subscribe([this](auto&& result) noexcept {
-      this->OnPromiseResult(std::forward<decltype(result)>(result));
-    });
-    auto& write_action = stream_->Write(std::move(api_context).Pack());
-    write_subscription_ = write_action.status_event().Subscribe(
-        [this](WriteAction::Status status) noexcept {
-          this->OnWriteStatus(status);
-        });
+      result_subscription_ = promise.Subscribe([this](auto&& result) noexcept {
+        this->OnPromiseResult(std::forward<decltype(result)>(result));
+      });
+      auto& write_action = stream_->Write(std::move(api_context).Pack());
+      write_subscription_ = write_action.status_event().Subscribe(
+          [this](WriteAction::Status status) noexcept {
+            this->OnWriteStatus(status);
+          });
+    };
+
+    if (protocol_context_ == nullptr) {
+      ApiContext<Api> api_context{*api_};
+      run(api_context);
+    } else {
+      ApiContext<Api> api_context{*api_, *protocol_context_};
+      run(api_context);
+    }
   }
 
  private:

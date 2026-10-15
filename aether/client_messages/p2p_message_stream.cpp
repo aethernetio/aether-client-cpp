@@ -152,11 +152,13 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
 }  // namespace p2p_stream_internal
 
 P2pStream::P2pStream(AeContext const& ae_context, Ptr<Client> const& client,
-                     Uid destination, P2pPortHandle handle)
+                     Uid destination, P2pPortHandle handle,
+                     RequestPolicy::Variant send_request_policy)
     : ae_context_{ae_context},
       client_{client},
       destination_{std::move(destination)},
       handle_{std::move(handle)},
+      send_request_policy_{std::move(send_request_policy)},
       buffer_write_{ae_context_, MethodPtr<&P2pStream::OnWrite>{this}},
       out_data_event_{ae_context_},
       stream_update_event_{ae_context_} {
@@ -230,7 +232,7 @@ void P2pStream::ConnectSend() {
                                 .GetServerConnectionFactory());
           message_send_stream_ =
               std::make_unique<p2p_stream_internal::MessageSendStream>(
-                  ae_context_, *dest_cloud_conn_, RequestPolicy::MainServer{});
+                  ae_context_, *dest_cloud_conn_, send_request_policy_);
           message_send_stream_->stream_update_event().Subscribe(
               MethodPtr<&StreamUpdateEvent::Emit>{&stream_update_event_});
           AE_TELED_DEBUG("Send connected");
@@ -256,6 +258,22 @@ WriteAction* P2pStream::OnWrite(AeMessage&& message) {
     return {};
   }
   return &message_send_stream_->Write(std::move(message));
+}
+
+StreamInfo P2pStream::SendPathStreamInfoAtPriority(
+    std::size_t priority) const {
+  if (!dest_cloud_conn_) {
+    return {};
+  }
+  StreamInfo info;
+  dest_cloud_conn_->ForServers(
+      [&](auto* sc) {
+        if (auto* con = sc->client_connection(); con != nullptr) {
+          info = con->stream_info();
+        }
+      },
+      RequestPolicy::Priority{priority});
+  return info;
 }
 
 }  // namespace ae
