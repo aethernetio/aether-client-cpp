@@ -17,11 +17,12 @@
 #include "stream_matrix/bench_limits.h"
 
 #include <algorithm>
-#include <cmath>
+
+#include "stream_matrix/bench_envelope.h"
 
 namespace ae::stream_matrix_bench {
 
-std::vector<std::size_t> DefaultPayloadSweep() {
+std::vector<std::size_t> PayloadSweepFrom100() {
   std::vector<std::size_t> sizes;
   for (std::size_t s = 100; s <= 51200; s *= 2) {
     sizes.push_back(s);
@@ -29,9 +30,11 @@ std::vector<std::size_t> DefaultPayloadSweep() {
   return sizes;
 }
 
-std::vector<double> PeriodsMsForMaxRate(double max_messages_per_sec) {
-  std::vector<double> periods_ms{1000.0, 500.0, 250.0, 125.0, 62.5, 31.25,
-                                 15.625, 7.8125};
+std::vector<double> PeriodsMsFirstSecond() { return {1000.0}; }
+
+std::vector<double> PeriodsMsFast(double max_messages_per_sec) {
+  std::vector<double> periods_ms{500.0,  250.0,  125.0,   62.5,
+                                 31.25,  15.625, 7.8125};
   if (max_messages_per_sec <= 0.0) {
     return periods_ms;
   }
@@ -44,55 +47,86 @@ std::vector<double> PeriodsMsForMaxRate(double max_messages_per_sec) {
   return periods_ms;
 }
 
-static PayloadLimitResult LimitFromSerialized(std::size_t max_serialized,
-                                              std::size_t envelope_bytes,
-                                              std::string_view reason) {
-  if (max_serialized <= envelope_bytes) {
-    return PayloadLimitResult{
-        .max_payload_bytes = 0,
-        .skip_reason = std::string{reason},
-    };
+std::vector<std::size_t> BuildSizeMatrix(std::size_t max_payload,
+                                         bool include_boundary) {
+  auto sizes = PayloadSweepFrom100();
+  sizes.erase(std::remove_if(sizes.begin(), sizes.end(),
+                             [&](std::size_t s) { return s > max_payload; }),
+              sizes.end());
+  if (include_boundary && max_payload > 0 &&
+      (sizes.empty() || sizes.back() != max_payload)) {
+    sizes.push_back(max_payload);
   }
-  return PayloadLimitResult{.max_payload_bytes = max_serialized - envelope_bytes};
+  return sizes;
+}
+
+std::size_t SerializedMeasureBytes(std::size_t payload_bytes,
+                                   std::uint64_t run_id, std::uint64_t point_id,
+                                   std::uint64_t sequence) {
+  auto payload = MakePayloadPattern(payload_bytes);
+  return SerializeEnvelope(BenchEnvelope{
+                               .kind = static_cast<std::uint8_t>(EnvelopeKind::kMeasure),
+                               .run_id = run_id,
+                               .point_id = point_id,
+                               .sequence = sequence,
+                               .payload = std::move(payload),
+                           })
+      .size();
+}
+
+static PayloadLimitResult Skip(std::string_view reason) {
+  return PayloadLimitResult{.max_payload_bytes = 0, .skip_reason = std::string{reason}};
 }
 
 PayloadLimitResult ComputePayloadLimit(BenchStreamKind stream,
                                        BenchTransportKind transport,
-                                       StreamInfo const& send_path_info,
+                                       StreamInfo const& p2p_send_info,
                                        SafeStreamLimitsDoc const& safe_doc,
-                                       std::size_t envelope_serialized_bytes) {
-  std::size_t caps[4];
-  std::size_t cap_count = 0;
-
-  auto push_cap = [&](std::size_t v) {
-    if (v > 0) {
-      caps[cap_count++] = v;
-    }
-  };
-
-  push_cap(kServerMsgMaxBytesSourceDefault);
+                                       std::size_t envelope_overhead_bytes) {
+  std::size_t max_serialized = kServerMsgMaxBytesSourceDefault;
 
   if (stream == BenchStreamKind::kP2pStream) {
-    push_cap(send_path_info.max_element_size);
-    push_cap(send_path_info.rec_element_size);
     if (transport == BenchTransportKind::kUdp) {
-      push_cap(kBenchmarkUdpPayloadBudgetBytes);
+      max_serialized = std::min(max_serialized, kBenchmarkUdpPayloadBudgetBytes);
+      if (p2p_send_info.max_element_size > 0) {
+        max_serialized =
+            std::min(max_serialized, p2p_send_info.max_element_size);
+      }
+    } else {
+      if (p2p_send_info.max_element_size > 0) {
+        max_serialized =
+            std::min(max_serialized, p2p_send_info.max_element_size);
+      }
     }
   } else {
-    push_cap(safe_doc.max_element_size_reported);
+    if (safe_doc.max_element_size_reported > 0) {
+      max_serialized =
+          std::min(max_serialized, safe_doc.max_element_size_reported);
+    }
     if (transport == BenchTransportKind::kUdp) {
-      push_cap(AE_SAFE_STREAM_CAPACITY);
-      push_cap(send_path_info.rec_element_size);
+      (void)safe_doc;
     }
   }
 
-  if (cap_count == 0) {
-    return PayloadLimitResult{.max_payload_bytes = 0,
-                              .skip_reason = "no_stream_info"};
+  if (max_serialized <= envelope_overhead_bytes) {
+    return Skip("SIZE_LIMIT");
   }
-  std::size_t min_cap = *std::min_element(caps, caps + cap_count);
-  return LimitFromSerialized(min_cap, envelope_serialized_bytes,
-                             "SIZE_LIMIT");
+
+  std::size_t lo = 0;
+  std::size_t hi = max_serialized;
+  while (lo < hi) {
+    std::size_t mid = lo + (hi - lo + 1) / 2;
+    if (SerializedMeasureBytes(mid, 1, 1, 1) <= max_serialized) {
+      lo = mid;
+    } else {
+      hi = mid - 1;
+    }
+  }
+
+  return PayloadLimitResult{
+      .max_payload_bytes = lo,
+      .max_serialized_envelope_bytes = SerializedMeasureBytes(lo, 1, 1, 1),
+  };
 }
 
 std::string_view StreamKindName(BenchStreamKind kind) {

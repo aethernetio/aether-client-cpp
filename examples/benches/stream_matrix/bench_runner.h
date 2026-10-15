@@ -17,6 +17,7 @@
 #ifndef EXAMPLES_BENCHES_STREAM_MATRIX_BENCH_RUNNER_H_
 #define EXAMPLES_BENCHES_STREAM_MATRIX_BENCH_RUNNER_H_
 
+#include <atomic>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -37,16 +38,19 @@ struct BenchCliOptions {
   bool full_matrix{false};
   double max_messages_per_sec{128.0};
   Duration warmup{std::chrono::seconds{5}};
-  Duration measure{std::chrono::seconds{30}};
-  Duration late_wait{std::chrono::seconds{10}};
+  Duration measure{std::chrono::seconds{60}};
+  Duration late_collect{std::chrono::seconds{60}};
   std::filesystem::path output_dir{"stream_matrix_out"};
   std::string sdk_sha{"UNKNOWN"};
   std::string server_version{"UNKNOWN"};
+  bool sdk_tree_dirty{false};
 };
 
-struct TransportSelection {
-  std::optional<std::size_t> udp_priority;
-  std::optional<std::size_t> tcp_priority;
+enum class SetupResult {
+  kOk,
+  kNotCompiled,
+  kTransportUnavailable,
+  kSetupFailed,
 };
 
 class StreamMatrixBench {
@@ -57,24 +61,29 @@ class StreamMatrixBench {
 
  private:
   bool PumpUntil(std::function<bool()> predicate, Duration timeout);
-  TransportSelection DiscoverTransports();
-  bool SetupMode(BenchStreamKind stream, BenchTransportKind transport,
-                 TransportSelection const& selection);
+  void PumpIdleUntil(TimePoint until);
+
+  SetupResult SetupMode(BenchStreamKind stream, BenchTransportKind transport);
+  bool RunServiceExchange();
   void TeardownStreams();
+
   std::optional<CsvRow> RunPoint(BenchStreamKind stream,
                                  BenchTransportKind transport,
-                                 std::size_t payload_bytes, double period_ms);
+                                 std::size_t payload_bytes, double period_ms,
+                                 std::string const& outcome_if_skip);
 
   void OnTick(TimePoint now);
   void OnReceived(DataBuffer const& data);
+
+  static Uid const& ParentUid();
+  CsvRow MakeOutcomeRow(BenchStreamKind stream, BenchTransportKind transport,
+                        std::string outcome, double period_ms = 0.0);
 
   BenchCliOptions options_;
   std::unique_ptr<AetherApp> app_;
   std::optional<AeContext> ae_context_;
   Client::ptr client_a_;
   Client::ptr client_b_;
-
-  static Uid const& ParentUid();
 
   SafeStreamConfig safe_stream_config_{};
   SafeStreamLimitsDoc safe_doc_{};
@@ -83,25 +92,31 @@ class StreamMatrixBench {
   std::shared_ptr<P2pStream> p2p_b_;
   std::unique_ptr<P2pSafeStream> safe_a_;
   std::unique_ptr<P2pSafeStream> safe_b_;
-  ByteIStream* active_stream_{nullptr};
-  Subscription port_sub_;
+  ByteIStream* send_stream_{nullptr};
   Subscription recv_sub_;
 
+  std::uint64_t run_id_{1};
+  std::uint64_t next_point_id_{1};
   std::uint64_t next_sequence_{1};
+  std::uint64_t current_point_id_{0};
+
   PointStats point_stats_;
   MultiSubscription write_status_subs_;
 
   bool point_active_{false};
-  bool in_measure_{false};
-  TimePoint point_begin_{};
+  bool accept_measure_{false};
   TimePoint measure_begin_{};
   TimePoint measure_end_{};
-  TimePoint deadline_{};
+  TimePoint collect_end_{};
   TimePoint next_scheduled_send_{};
   std::size_t payload_bytes_{};
   double period_ms_{1000.0};
   DataBuffer serialized_payload_;
   std::vector<std::uint8_t> payload_pattern_;
+
+  std::atomic<bool> service_rx_{false};
+  bool any_point_ok_{false};
+  int modes_setup_ok_{0};
 
   std::ofstream csv_stream_;
   std::ofstream log_stream_;
@@ -111,4 +126,4 @@ BenchCliOptions ParseArgs(int argc, char* argv[]);
 
 }  // namespace ae::stream_matrix_bench
 
-#endif  // EXAMPLES_BENCHES_STREAM_MATRIX_BENCH_RUNNER_H_
+#endif

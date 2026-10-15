@@ -1,89 +1,90 @@
 # Æther stream matrix benchmark (`aether_stream_matrix_bench`)
 
-Independent console benchmark for **message size × period × stream × transport** over
-the live Æther cloud path. One process runs **two registered clients** (`sender`, `receiver`, same parent UID
-as other SDK benches) with separate persisted UIDs; payloads traverse the real
-network.
+Console benchmark: **payload size × period × P2pStream/P2pSafeStream × UDP/TCP** over the live Æther cloud. One process, two clients (`sender` / `receiver`), shared monotonic clock.
 
-## Four modes
+## Connection model (fixed)
 
-| Stream          | Transport | Send policy                         |
-|-----------------|-----------|-------------------------------------|
-| `P2pStream`     | UDP       | `RequestPolicy::Priority{udp_idx}`  |
-| `P2pStream`     | TCP       | `RequestPolicy::Priority{tcp_idx}`  |
-| `P2pSafeStream` | UDP       | same UDP server priority on P2P base |
-| `P2pSafeStream` | TCP       | same TCP server priority on P2P base |
+- Both clients call `CreatePort(peer_uid)` **before** any measurement traffic.
+- `P2pStream` is constructed on both sides with those handles (no wait on `new_port_event` for setup).
+- SafeStream wraps both P2p legs when selected.
+- **Service envelope** (kind=`service`, 16-byte payload) verifies delivery before the matrix; not counted in stats.
 
-After connect, the bench checks `stream_info().is_reliable` (UDP → false, TCP → true).
-If the desired transport is unavailable: `TRANSPORT_UNAVAILABLE` (no fallback).
+## Transport selection (no server priority)
 
-## Limits (sources)
+Modes do **not** use `RequestPolicy::Priority`. Transport is determined by the **linked P2p** path:
 
-### Cloud server (source defaults — `aethernetio/aether`)
+- Verify `p2p_a` and `p2p_b` `stream_info()` with `VerifyP2pTransport()` (`is_reliable`: UDP=false, TCP=true).
+- SafeStream `is_reliable` is **not** used for this check.
 
-From `ClientDescriptorWork.java` (not modified by this bench):
+Compile-time SDK filter (applies to whole SDK via `USER_CONFIG`):
 
-- `msgMaxBytes = 65536`
-- `msgQueueLimit = 1000`
-- `msgTimeLimit = 60` (seconds)
+| Header | Effect |
+|--------|--------|
+| `examples/benches/stream_matrix/config/udp_only.h` | `AE_SUPPORT_UDP=1`, `AE_SUPPORT_TCP=0` |
+| `examples/benches/stream_matrix/config/tcp_only.h` | `AE_SUPPORT_UDP=0`, `AE_SUPPORT_TCP=1` |
 
-**Deployed production values:** UNKNOWN (not queried in this run). Planning uses source
-defaults. Undelivered messages below 65536 B are reported as measured loss, not as
-`SIZE_LIMIT`.
-
-### SDK
-
-- UDP socket MTU budget: **1200 B** application-visible payload cap per datagram path
-  (`unix_udp_socket`, `wifi_channel` / `ethernet_channel` UDP `max_packet_size`).
-- `AE_SAFE_STREAM_CAPACITY = 20 * 1024` (`aether/config.h`).
-- Default bench SafeStream config (same family as `send_message_delays`):
-  - `window_size = capacity/2 - 1`
-  - `max_packet_size = capacity/2 - 1`
-  - `max_repeat_count = 10`
-  - `wait_ack_timeout = 1500 ms`
-  - `send_repeat_timeout = 200 ms`
-- `AE_P2P_MESSAGE_STREAM_BUFFER_CAPACITY = 10` → local backpressure when more than ten
-  upper writes are in flight.
-
-Envelope: `BenchEnvelope{sequence, payload}` serialized with `seri::BinaryArchive`
-(reflection). Overhead is measured at startup via empty payload.
-
-## Matrix
-
-Payload sweep: 100, 200, 400, … up to mode limit (doubling).
-
-Periods (ms): 1000, 500, 250, 125, 62.5, 31.25, 15.625, 7.8125 — capped by
-`--max-rate` (messages/s, default 128).
-
-Each point: warmup (default 5 s) → measure (30 s) → late wait (10 s). Sends use
-**absolute schedule** `t0 + n × period` (monotonic clock); no wait for RX between sends.
-
-## Build (Windows x64 Release)
+Example UDP-only configure:
 
 ```powershell
-cmake -S . -B build-stream-matrix -DCMAKE_BUILD_TYPE=Release -DAE_BUILD_TESTS=OFF
-cmake --build build-stream-matrix --config Release --target aether_stream_matrix_bench
+cmake -S . -B build-stream-matrix-udp -DCMAKE_BUILD_TYPE=Release `
+  -DUSER_CONFIG=examples/benches/stream_matrix/config/udp_only.h `
+  -DAE_BUILD_TESTS=OFF
 ```
 
-## Run
+If the linked cloud path does not match the requested mode: `TRANSPORT_UNAVAILABLE` (no fallback).
+
+## Server limits (source defaults — `aethernetio/aether`)
+
+From `ClientDescriptorWork.java` / `AuthorizedApiImpl.java` (read-only reference):
+
+| Parameter | Source default | Applies to |
+|-----------|----------------|------------|
+| `msgMaxBytes` | 65536 | `Message.data.length` on send |
+| `msgQueueLimit` | 1000 | pending messages per sender |
+| `msgTimeLimit` | 60 s | queue lifetime (capped at 60 s in API) |
+
+**Deployed production values:** UNKNOWN (not queried). Undelivered messages below source limits are reported as measured loss, not `SIZE_LIMIT`.
+
+## Size rules
+
+- **UDP wire budget:** 1200 bytes **full UDP payload** (Æther framing + crypto + bench envelope + payload). Computed by binary search on serialized envelope size; IP/UDP headers excluded. Fragmentation: **not verified** in this bench.
+- **P2pStream/TCP:** no 1200 cap; limited by `min(msgMaxBytes, stream_info.max_element_size)` — not `rec_element_size` as a hard cap.
+- **P2pSafeStream:** top-level size from SafeStream config/capacity; may exceed 1200; lower legs must respect server + UDP datagram budget per SDK.
+
+## Matrix schedule
+
+1. Sizes 100, 200, 400, … at **period 1000 ms**
+2. Same sizes at 500, 250, 125, … ms (up to `--max-rate`, default 128 msg/s)
+3. Optional boundary size at computed limit
+
+Phases per point: **warmup** (idle, default 5 s) → **measure** (default 60 s, absolute send schedule) → **late collect** (default 60 s, no new sends). CLI: `--warmup-sec`, `--measure-sec`, `--late-sec`.
+
+## Build & run
 
 ```powershell
-.\scripts\run_stream_matrix_bench.ps1
+.\scripts\run_stream_matrix_bench.ps1          # smoke only
+.\scripts\run_stream_matrix_bench.ps1 --full   # smoke then full (separate output dirs)
 ```
 
-Or manually from the build directory (after removing stale state if needed):
+Logic tests (no network):
 
 ```powershell
-Remove-Item -Recurse -Force .\state -ErrorAction SilentlyContinue
-.\aether_stream_matrix_bench.exe --smoke --output stream_matrix_out
-.\aether_stream_matrix_bench.exe --full --max-rate 128 --output stream_matrix_out
+cmake --build build-stream-matrix --config Release --target aether_stream_matrix_logic_test
+.\build-stream-matrix\Release\aether_stream_matrix_logic_test.exe
 ```
 
-Outputs: `results.csv`, `run.log`, and `summary.md` (from the script).
+## Outcomes
 
-## CSV `outcome` values
+`OK`, `SETUP_FAILED`, `TRANSPORT_UNAVAILABLE`, `SKIP_SIZE_LIMIT`, `RX_MISSING`, `WRITE_BACKPRESSURE`, `NO_MEASURE_TRAFFIC`
 
-- `OK` — point completed (may include loss/backpressure in counters)
-- `SKIP_SIZE_LIMIT` — payload over computed limit for that mode
-- `TRANSPORT_UNAVAILABLE` — could not select UDP/TCP for that mode
-- `RX_MISSING` — writes succeeded but zero unique receives
+Exit codes: `0` at least one OK point; `2` setup but no OK; `3` no mode setup; `1` client acquisition failed.
+
+## Smoke baseline (2026-10-14, this host)
+
+| Mode | Result |
+|------|--------|
+| TCP P2pStream 100 B @ 1 Hz | OK — 60/60 RX, ~58 ms p50 |
+| TCP P2pSafeStream 100 B @ 1 Hz | OK — 60/60 RX |
+| UDP P2pStream / P2pSafeStream | TRANSPORT_UNAVAILABLE (cloud path linked as TCP) |
+
+Artifacts: `build-stream-matrix/stream_matrix_out_smoke/results.csv`, `run.log`.

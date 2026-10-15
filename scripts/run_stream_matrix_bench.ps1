@@ -1,55 +1,64 @@
 # Copyright 2026 Aethernet Inc.
-# Runs stream matrix benchmark (smoke then full matrix) and writes summary.md
+# Configure, build, run smoke then optional full matrix.
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $BuildDir = Join-Path $Root "build-stream-matrix"
-$OutDir = Join-Path $BuildDir "stream_matrix_out"
-$Exe = Join-Path $BuildDir "Release\aether_stream_matrix_bench.exe"
-if (-not (Test-Path $Exe)) {
-  $Exe = Join-Path $BuildDir "aether_stream_matrix_bench.exe"
-}
+$SmokeOut = Join-Path $BuildDir "stream_matrix_out_smoke"
+$FullOut = Join-Path $BuildDir "stream_matrix_out_full"
+$RunFull = ($args -contains "--full")
 
 Push-Location $Root
 try {
-  if (-not (Test-Path $BuildDir)) {
-    cmake -S . -B $BuildDir -DCMAKE_BUILD_TYPE=Release -DAE_BUILD_TESTS=OFF
-    cmake --build $BuildDir --config Release --target aether_stream_matrix_bench
+  cmake -S . -B $BuildDir -DCMAKE_BUILD_TYPE=Release -DAE_BUILD_TESTS=OFF
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  cmake --build $BuildDir --config Release --target aether_stream_matrix_bench `
+    --target aether_stream_matrix_logic_test
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  $LogicTest = Join-Path $BuildDir "Release\aether_stream_matrix_logic_test.exe"
+  if (-not (Test-Path $LogicTest)) {
+    $LogicTest = Join-Path $BuildDir "aether_stream_matrix_logic_test.exe"
+  }
+  & $LogicTest
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  $Exe = Join-Path $BuildDir "Release\aether_stream_matrix_bench.exe"
+  if (-not (Test-Path $Exe)) {
+    $Exe = Join-Path $BuildDir "aether_stream_matrix_bench.exe"
+  }
+  if (-not (Test-Path $Exe)) {
+    Write-Error "Benchmark executable not found after build"
   }
 
   $SdkSha = (git -C $Root rev-parse HEAD).Trim()
+  $Dirty = (git -C $Root diff --quiet; if ($LASTEXITCODE -ne 0) { "dirty" } else { "clean" })
+
   Remove-Item -Recurse -Force (Join-Path $BuildDir "state") -ErrorAction SilentlyContinue
-  New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
+  New-Item -ItemType Directory -Force -Path $SmokeOut | Out-Null
 
-  & $Exe --smoke --output $OutDir --sdk-sha $SdkSha --server-version UNKNOWN
-  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  & $Exe --smoke --output $SmokeOut --sdk-sha $SdkSha --server-version UNKNOWN
+  $SmokeCode = $LASTEXITCODE
+  Copy-Item (Join-Path $SmokeOut "results.csv") (Join-Path $SmokeOut "results_smoke.csv") -Force
 
-  Start-Sleep -Seconds 6
+  if ($SmokeCode -ne 0) {
+    Write-Host "Smoke failed with exit code $SmokeCode; skipping full matrix."
+    exit $SmokeCode
+  }
 
-  & $Exe --full --max-rate 128 --output $OutDir --sdk-sha $SdkSha --server-version UNKNOWN
-  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  if ($RunFull) {
+    Start-Sleep -Seconds 6
+    New-Item -ItemType Directory -Force -Path $FullOut | Out-Null
+    & $Exe --full --max-rate 128 --output $FullOut --sdk-sha $SdkSha --server-version UNKNOWN
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    Copy-Item (Join-Path $FullOut "results.csv") (Join-Path $FullOut "results_full.csv") -Force
+  }
 
-  $Csv = Join-Path $OutDir "results.csv"
-  $Summary = Join-Path $OutDir "summary.md"
-  @(
-    "# Stream matrix summary"
-    ""
-    "SDK: ``$SdkSha``"
-    ""
-    "Server deployed config: UNKNOWN (see README; source defaults 65536 / 1000 / 60 s)."
-    ""
-    "| transport | stream | payload | period_ms | outcome | goodput | p50_ms |"
-    "|---|---|---:|---:|---|---:|---:|"
-  ) | Set-Content -Encoding utf8 $Summary
-
-  Import-Csv $Csv | ForEach-Object {
-    $p50 = $_.latency_p50_ms
-    if ($p50 -eq "N/A") { $p50 = "-" }
-    "| $($_.transport) | $($_.stream) | $($_.payload_bytes) | $($_.period_ms) | $($_.outcome) | $($_.goodput_bytes_s) | $p50 |"
-  } | Add-Content -Encoding utf8 $Summary
-
-  Write-Host "Results: $Csv"
-  Write-Host "Summary: $Summary"
+  Write-Host "Built SHA: $SdkSha ($Dirty)"
+  Write-Host "Executable: $Exe"
+  Write-Host "Smoke results: $SmokeOut"
+  if ($RunFull) { Write-Host "Full results: $FullOut" }
 } finally {
   Pop-Location
 }

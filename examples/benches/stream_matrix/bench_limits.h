@@ -43,24 +43,32 @@ struct SafeStreamLimitsDoc {
 
 struct PayloadLimitResult {
   std::size_t max_payload_bytes{};
+  std::size_t max_serialized_envelope_bytes{};
   std::optional<std::string> skip_reason;
 };
 
 enum class BenchStreamKind { kP2pStream, kP2pSafeStream };
 enum class BenchTransportKind { kUdp, kTcp };
 
-std::vector<std::size_t> DefaultPayloadSweep();
-std::vector<double> PeriodsMsForMaxRate(double max_messages_per_sec);
+std::vector<std::size_t> PayloadSweepFrom100();
+std::vector<double> PeriodsMsFirstSecond();
+std::vector<double> PeriodsMsFast(double max_messages_per_sec);
+std::vector<std::size_t> BuildSizeMatrix(std::size_t max_payload,
+                                         bool include_boundary);
+
+std::size_t SerializedMeasureBytes(std::size_t payload_bytes,
+                                   std::uint64_t run_id, std::uint64_t point_id,
+                                   std::uint64_t sequence);
 
 PayloadLimitResult ComputePayloadLimit(BenchStreamKind stream,
                                        BenchTransportKind transport,
-                                       StreamInfo const& send_path_info,
+                                       StreamInfo const& p2p_send_info,
                                        SafeStreamLimitsDoc const& safe_doc,
-                                       std::size_t envelope_serialized_bytes);
+                                       std::size_t envelope_overhead_bytes);
 
 std::string_view StreamKindName(BenchStreamKind kind);
 std::string_view TransportKindName(BenchTransportKind kind);
 
 }  // namespace ae::stream_matrix_bench
 
-#endif  // EXAMPLES_BENCHES_STREAM_MATRIX_BENCH_LIMITS_H_
+#endif

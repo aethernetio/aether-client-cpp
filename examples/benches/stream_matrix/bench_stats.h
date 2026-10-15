@@ -17,11 +17,8 @@
 #ifndef EXAMPLES_BENCHES_STREAM_MATRIX_BENCH_STATS_H_
 #define EXAMPLES_BENCHES_STREAM_MATRIX_BENCH_STATS_H_
 
-#include <algorithm>
-#include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <mutex>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -36,21 +33,23 @@ struct SendRecord {
   std::uint64_t sequence{};
   TimePoint send_time{};
   TimePoint scheduled_time{};
-  bool counted_measure{};
+  bool in_measure{};
 };
 
 struct PointCounters {
-  std::uint64_t scheduled{};
-  std::uint64_t write_calls{};
-  std::uint64_t write_ok{};
-  std::uint64_t write_failed{};
-  std::uint64_t write_stopped{};
+  std::uint64_t scheduled_measure{};
+  std::uint64_t write_calls_measure{};
+  std::uint64_t write_ok_measure{};
+  std::uint64_t write_failed_measure{};
+  std::uint64_t write_stopped_measure{};
+  std::uint64_t write_immediate_fail_measure{};
   std::uint64_t skipped_backpressure{};
-  std::uint64_t rx_unique{};
+  std::uint64_t rx_unique_measure{};
   std::uint64_t rx_duplicate{};
   std::uint64_t reordered{};
   std::uint64_t late{};
   std::uint64_t missing_after_deadline{};
+  std::uint64_t latency_samples{};
 };
 
 struct LatencySummary {
@@ -60,44 +59,59 @@ struct LatencySummary {
   std::optional<double> max_ms;
 };
 
+struct ScheduleLatencySummary {
+  std::optional<double> p50_ms;
+  std::optional<double> p95_ms;
+  std::optional<double> max_ms;
+};
+
 class PointStats {
  public:
-  void ResetMeasureWindow(TimePoint measure_begin, TimePoint measure_end);
+  void BeginPoint(TimePoint measure_begin, TimePoint measure_end,
+                  TimePoint collect_end);
 
-  void NoteScheduled();
-  void NoteWriteCalled(std::uint64_t sequence, TimePoint send_time,
-                       TimePoint scheduled_time, bool in_measure);
-  void NoteWriteOk();
-  void NoteWriteFailed();
-  void NoteWriteStopped();
+  void NoteScheduledMeasure();
+  void NoteWriteCalledMeasure(std::uint64_t sequence, TimePoint send_time,
+                              TimePoint scheduled_time);
+  void NoteWriteOkMeasure();
+  void NoteWriteFailedMeasure();
+  void NoteWriteStoppedMeasure();
+  void NoteWriteImmediateFailMeasure();
   void NoteSkippedBackpressure();
 
-  void NoteReceived(std::uint64_t sequence, TimePoint recv_time,
-                    std::size_t payload_bytes);
+  void NoteReceivedMeasure(std::uint64_t sequence, TimePoint recv_time,
+                           std::size_t payload_bytes);
+  void NoteReceivedLate(std::uint64_t sequence, TimePoint recv_time,
+                        std::size_t payload_bytes);
 
-  void FinalizeAfterDeadline(TimePoint deadline);
+  void FinalizeAfterCollectEnd();
 
   PointCounters const& counters() const { return counters_; }
-  LatencySummary Latency() const;
+  LatencySummary SendReceiveLatency() const;
+  ScheduleLatencySummary ScheduleLatency() const;
   double GoodputBytesPerSec() const;
-  double SendRate() const;
-  double ReceiveRate() const;
+  double SendRatePerSec() const;
+  double ReceiveRatePerSec() const;
 
  private:
   static double PercentileMs(std::vector<double> const& sorted, double pct);
 
   TimePoint measure_begin_{};
   TimePoint measure_end_{};
+  TimePoint collect_end_{};
   PointCounters counters_{};
-  std::unordered_map<std::uint64_t, SendRecord> sends_;
-  std::unordered_set<std::uint64_t> received_unique_;
+  std::unordered_map<std::uint64_t, SendRecord> measure_sends_;
+  std::unordered_set<std::uint64_t> received_unique_measure_;
   std::uint64_t last_received_sequence_{0};
   bool have_last_sequence_{false};
-  std::vector<double> latency_ms_measure_;
-  std::size_t unique_payload_bytes_measure_{};
+  std::vector<double> send_receive_latency_ms_;
+  std::vector<double> schedule_latency_ms_;
+  std::size_t goodput_payload_bytes_{};
 };
 
 struct CsvRow {
+  std::string run_id;
+  std::string point_id;
   std::string transport;
   std::string stream;
   std::size_t payload_bytes{};
@@ -106,6 +120,7 @@ struct CsvRow {
   double period_ms{};
   PointCounters counters;
   LatencySummary latency;
+  ScheduleLatencySummary schedule_latency;
   double send_rate{};
   double receive_rate{};
   double goodput_bytes_s{};
@@ -120,4 +135,4 @@ void WriteCsvRow(std::ostream& out, CsvRow const& row);
 
 }  // namespace ae::stream_matrix_bench
 
-#endif  // EXAMPLES_BENCHES_STREAM_MATRIX_BENCH_STATS_H_
+#endif

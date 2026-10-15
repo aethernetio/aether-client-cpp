@@ -17,9 +17,7 @@
 #include "stream_matrix/bench_runner.h"
 
 #include <chrono>
-#include <cmath>
-#include <iostream>
-#include <sstream>
+#include <memory>
 #include <utility>
 
 #define AE_EXAMPLE_ETHERNET 1
@@ -27,7 +25,7 @@
 #include "../../common/aether_construct_ethernet.h"
 
 #include "stream_matrix/bench_envelope.h"
-#include "stream_matrix/bench_stats.h"
+#include "stream_matrix/bench_transport.h"
 
 namespace ae::stream_matrix_bench {
 Uid const& StreamMatrixBench::ParentUid() {
@@ -50,6 +48,9 @@ BenchCliOptions ParseArgs(int argc, char* argv[]) {
 #ifdef AETHER_STREAM_MATRIX_SDK_SHA
   options.sdk_sha = AETHER_STREAM_MATRIX_SDK_SHA;
 #endif
+#ifdef AETHER_STREAM_MATRIX_SDK_DIRTY
+  options.sdk_tree_dirty = (AETHER_STREAM_MATRIX_SDK_DIRTY != 0);
+#endif
   for (int i = 1; i < argc; ++i) {
     std::string_view arg{argv[i]};
     if (arg == "--smoke") {
@@ -63,7 +64,7 @@ BenchCliOptions ParseArgs(int argc, char* argv[]) {
     } else if (arg == "--measure-sec" && i + 1 < argc) {
       options.measure = std::chrono::seconds{std::stoll(argv[++i])};
     } else if (arg == "--late-sec" && i + 1 < argc) {
-      options.late_wait = std::chrono::seconds{std::stoll(argv[++i])};
+      options.late_collect = std::chrono::seconds{std::stoll(argv[++i])};
     } else if (arg == "--output" && i + 1 < argc) {
       options.output_dir = argv[++i];
     } else if (arg == "--sdk-sha" && i + 1 < argc) {
@@ -109,46 +110,25 @@ bool StreamMatrixBench::PumpUntil(std::function<bool()> predicate,
   return false;
 }
 
-TransportSelection StreamMatrixBench::DiscoverTransports() {
-  TransportSelection selection;
-  auto probe = std::make_shared<P2pStream>(*ae_context_, client_a_.Load(),
-                                           client_b_->uid(), P2pPortHandle{});
-  PumpUntil(
-      [&]() {
-        for (std::size_t p = 0; p < AE_CLOUD_MAX_SERVER_CONNECTIONS; ++p) {
-          auto info = probe->SendPathStreamInfoAtPriority(p);
-          if (info.link_state != LinkState::kLinked) {
-            continue;
-          }
-          if (!info.is_reliable && !selection.udp_priority) {
-            selection.udp_priority = p;
-          }
-          if (info.is_reliable && !selection.tcp_priority) {
-            selection.tcp_priority = p;
-          }
-        }
-        return selection.udp_priority && selection.tcp_priority;
-      },
-      std::chrono::seconds{120});
-  return selection;
+void StreamMatrixBench::PumpIdleUntil(TimePoint until) {
+  while (!app_->IsExited() && Now() < until) {
+    OnTick(Now());
+    auto next_time = app_->Update(Now());
+    app_->WaitUntil(std::min(next_time, std::min(until, Now() + std::chrono::milliseconds{5})));
+  }
 }
 
-bool StreamMatrixBench::SetupMode(BenchStreamKind stream,
-                                  BenchTransportKind transport,
-                                  TransportSelection const& selection) {
+SetupResult StreamMatrixBench::SetupMode(BenchStreamKind stream,
+                                         BenchTransportKind transport) {
   TeardownStreams();
   write_status_subs_.Reset();
-  port_sub_.Reset();
   recv_sub_.Reset();
+  send_stream_ = nullptr;
 
-  auto priority = transport == BenchTransportKind::kUdp
-                      ? selection.udp_priority
-                      : selection.tcp_priority;
-  if (!priority) {
-    return false;
+  if (!ModeCompiledIn(transport)) {
+    log_stream_ << "SetupMode: transport not compiled in\n";
+    return SetupResult::kNotCompiled;
   }
-
-  auto policy = RequestPolicy::Priority{*priority};
 
   using namespace std::chrono_literals;
   client_a_->connectivity_policy()
@@ -158,125 +138,164 @@ bool StreamMatrixBench::SetupMode(BenchStreamKind stream,
       ->ConfigureRxTimings(RequestPolicy::All{})
       .ForPriority<0>(RxTimingConf::Every(5s));
 
-  port_sub_ = client_b_->message_stream_manager().new_port_event().Subscribe(
-      [this, stream, policy](P2pPortHandle& port_handle) {
-        auto dest = port_handle.destination();
-        p2p_b_ = std::make_shared<P2pStream>(*ae_context_, client_b_.Load(), dest,
-                                             std::move(port_handle), policy);
-        if (stream == BenchStreamKind::kP2pSafeStream) {
-          safe_b_ = make_unique<P2pSafeStream>(*ae_context_, safe_stream_config_,
-                                              p2p_b_);
-          recv_sub_ = safe_b_->out_data_event().Subscribe(
-              [this](DataBuffer const& data) { OnReceived(data); });
-        } else {
-          recv_sub_ = p2p_b_->out_data_event().Subscribe(
-              [this](DataBuffer const& data) { OnReceived(data); });
-        }
-      });
+  auto handle_a =
+      client_a_->message_stream_manager().CreatePort(client_b_->uid());
+  auto handle_b =
+      client_b_->message_stream_manager().CreatePort(client_a_->uid());
 
-  auto handle = client_a_->message_stream_manager().CreatePort(client_b_->uid());
   p2p_a_ = std::make_shared<P2pStream>(*ae_context_, client_a_.Load(),
-                                       client_b_->uid(), std::move(handle),
-                                       policy);
+                                       client_b_->uid(), std::move(handle_a));
+  p2p_b_ = std::make_shared<P2pStream>(*ae_context_, client_b_.Load(),
+                                       client_a_->uid(), std::move(handle_b));
 
   if (!PumpUntil(
           [&]() {
-            return p2p_a_->stream_info().link_state == LinkState::kLinked;
+            return p2p_a_->stream_info().link_state == LinkState::kLinked &&
+                   p2p_b_->stream_info().link_state == LinkState::kLinked;
           },
-          std::chrono::seconds{90})) {
-    log_stream_ << "SetupMode: sender link timeout\n";
-    return false;
+          std::chrono::seconds{120})) {
+    log_stream_ << "SetupMode: link timeout\n";
+    return SetupResult::kSetupFailed;
   }
 
-  auto send_info = p2p_a_->stream_info();
-  bool want_reliable = transport == BenchTransportKind::kTcp;
-  if (send_info.is_reliable != want_reliable) {
-    log_stream_ << "TRANSPORT_MISMATCH expected reliable=" << want_reliable
-                << " got=" << send_info.is_reliable << '\n';
-    return false;
+  auto verify_a = VerifyP2pTransport(p2p_a_->stream_info(), transport);
+  auto verify_b = VerifyP2pTransport(p2p_b_->stream_info(), transport);
+  if (verify_a != TransportVerifyResult::kOk ||
+      verify_b != TransportVerifyResult::kOk) {
+    log_stream_ << "SetupMode: transport verify failed a="
+                << static_cast<int>(verify_a) << " b="
+                << static_cast<int>(verify_b) << '\n';
+    return SetupResult::kTransportUnavailable;
   }
 
   if (stream == BenchStreamKind::kP2pSafeStream) {
     safe_a_ = make_unique<P2pSafeStream>(*ae_context_, safe_stream_config_,
                                          p2p_a_);
-    active_stream_ = safe_a_.get();
+    safe_b_ = make_unique<P2pSafeStream>(*ae_context_, safe_stream_config_,
+                                         p2p_b_);
+    send_stream_ = safe_a_.get();
     safe_doc_.max_element_size_reported = safe_a_->stream_info().max_element_size;
     safe_doc_.rec_element_size_reported = safe_a_->stream_info().rec_element_size;
+    recv_sub_ = safe_b_->out_data_event().Subscribe(
+        [this](DataBuffer const& data) { OnReceived(data); });
   } else {
-    active_stream_ = p2p_a_.get();
+    send_stream_ = p2p_a_.get();
+    recv_sub_ = p2p_b_->out_data_event().Subscribe(
+        [this](DataBuffer const& data) { OnReceived(data); });
   }
 
   if (!PumpUntil(
           [&]() {
-            return active_stream_->stream_info().link_state == LinkState::kLinked;
+            return send_stream_->stream_info().link_state == LinkState::kLinked;
           },
           std::chrono::seconds{30})) {
-    log_stream_ << "SetupMode: active stream link timeout\n";
-    return false;
+    log_stream_ << "SetupMode: send stream link timeout\n";
+    return SetupResult::kSetupFailed;
   }
 
-  if (!PumpUntil([&]() { return p2p_b_ != nullptr; }, std::chrono::seconds{90})) {
-    log_stream_ << "SetupMode: receiver port timeout\n";
+  if (!RunServiceExchange()) {
+    log_stream_ << "SetupMode: service exchange failed\n";
+    return SetupResult::kSetupFailed;
+  }
+
+  return SetupResult::kOk;
+}
+
+bool StreamMatrixBench::RunServiceExchange() {
+  service_rx_.store(false);
+  auto service_payload = MakePayloadPattern(16);
+  BenchEnvelope envelope{
+      .kind = static_cast<std::uint8_t>(EnvelopeKind::kService),
+      .run_id = run_id_,
+      .point_id = 0,
+      .sequence = 0,
+      .payload = service_payload,
+  };
+  auto wire = SerializeEnvelope(envelope);
+  auto& wa = send_stream_->Write(std::move(wire));
+  write_status_subs_ += wa.status_event().Subscribe(
+      [](WriteAction::Status) {});
+  if (!PumpUntil([&]() { return service_rx_.load(); },
+                 std::chrono::seconds{45})) {
     return false;
   }
+  write_status_subs_.Reset();
   return true;
 }
 
 void StreamMatrixBench::TeardownStreams() {
-  port_sub_.Reset();
+  point_active_ = false;
+  accept_measure_ = false;
+  write_status_subs_.Reset();
   recv_sub_.Reset();
   safe_a_.reset();
   safe_b_.reset();
   p2p_a_.reset();
   p2p_b_.reset();
-  active_stream_ = nullptr;
+  send_stream_ = nullptr;
 }
 
 void StreamMatrixBench::OnReceived(DataBuffer const& data) {
-  if (!point_active_) {
-    return;
-  }
   auto envelope = DeserializeEnvelope(data);
   if (!envelope) {
     return;
   }
-  point_stats_.NoteReceived(envelope->sequence, Now(),
-                            envelope->payload.size());
+  if (IsServiceEnvelope(*envelope)) {
+    service_rx_.store(true);
+    return;
+  }
+  if (!accept_measure_ || !IsMeasureEnvelope(*envelope)) {
+    return;
+  }
+  if (envelope->point_id != current_point_id_) {
+    return;
+  }
+  point_stats_.NoteReceivedMeasure(envelope->sequence, Now(),
+                                   envelope->payload.size());
 }
 
 void StreamMatrixBench::OnTick(TimePoint now) {
-  if (!point_active_ || !active_stream_) {
+  if (!point_active_ || !send_stream_) {
     return;
   }
-
-  if (now >= deadline_) {
+  if (now >= collect_end_) {
     point_active_ = false;
+    accept_measure_ = false;
+    return;
+  }
+  if (now < measure_begin_ || now >= measure_end_) {
     return;
   }
 
-  while (now >= next_scheduled_send_ && now < deadline_) {
-    point_stats_.NoteScheduled();
-    bool in_measure = (now >= measure_begin_ && now < measure_end_);
+  while (now >= next_scheduled_send_ && now < measure_end_) {
+    point_stats_.NoteScheduledMeasure();
     auto const sequence = next_sequence_++;
 
-    BenchEnvelope envelope{.sequence = sequence, .payload = payload_pattern_};
-    auto wire = SerializeEnvelope(envelope);
+    BenchEnvelope envelope{
+        .kind = static_cast<std::uint8_t>(EnvelopeKind::kMeasure),
+        .run_id = run_id_,
+        .point_id = current_point_id_,
+        .sequence = sequence,
+        .payload = payload_pattern_,
+    };
     auto send_time = Now();
+    auto scheduled = next_scheduled_send_;
 
-    auto& wa = active_stream_->Write(std::move(wire));
+    auto& wa = send_stream_->Write(SerializeEnvelope(envelope));
     if (wa.is_finished()) {
-      point_stats_.NoteSkippedBackpressure();
+      point_stats_.NoteWriteImmediateFailMeasure();
     } else {
-      point_stats_.NoteWriteCalled(sequence, send_time, next_scheduled_send_,
-                                   in_measure);
+      point_stats_.NoteWriteCalledMeasure(sequence, send_time, scheduled);
+      auto tracked = std::make_shared<std::atomic<bool>>(false);
       write_status_subs_ += wa.status_event().Subscribe(
-          [this](WriteAction::Status status) {
+          [this, tracked](WriteAction::Status status) {
+            tracked->store(true);
             if (status == WriteAction::Status::kSuccess) {
-              point_stats_.NoteWriteOk();
+              point_stats_.NoteWriteOkMeasure();
             } else if (status == WriteAction::Status::kFail) {
-              point_stats_.NoteWriteFailed();
+              point_stats_.NoteWriteFailedMeasure();
             } else if (status == WriteAction::Status::kStop) {
-              point_stats_.NoteWriteStopped();
+              point_stats_.NoteWriteStoppedMeasure();
             }
           });
     }
@@ -286,54 +305,76 @@ void StreamMatrixBench::OnTick(TimePoint now) {
   }
 }
 
+CsvRow StreamMatrixBench::MakeOutcomeRow(BenchStreamKind stream,
+                                         BenchTransportKind transport,
+                                         std::string outcome, double period_ms) {
+  CsvRow row;
+  row.run_id = std::to_string(run_id_);
+  row.point_id = "0";
+  row.transport = std::string{TransportKindName(transport)};
+  row.stream = std::string{StreamKindName(stream)};
+  row.period_ms = period_ms;
+  row.max_udp_payload_bytes = kBenchmarkUdpPayloadBudgetBytes;
+  row.sdk_sha = options_.sdk_sha;
+  if (options_.sdk_tree_dirty) {
+    row.sdk_sha += "-dirty";
+  }
+  row.server_version = options_.server_version;
+  row.outcome = std::move(outcome);
+  return row;
+}
+
 std::optional<CsvRow> StreamMatrixBench::RunPoint(
     BenchStreamKind stream, BenchTransportKind transport,
-    std::size_t payload_bytes, double period_ms) {
-  payload_bytes_ = payload_bytes;
-  period_ms_ = period_ms;
-
-  payload_pattern_.assign(payload_bytes, 0);
-  for (std::size_t i = 0; i < payload_bytes; ++i) {
-    payload_pattern_[i] = static_cast<std::uint8_t>(i & 0xFFU);
+    std::size_t payload_bytes, double period_ms,
+    std::string const& outcome_if_skip) {
+  if (!send_stream_) {
+    return MakeOutcomeRow(stream, transport, "SETUP_FAILED", period_ms);
   }
-  serialized_payload_ = SerializeEnvelope(
-      BenchEnvelope{.sequence = 0, .payload = payload_pattern_});
-
-  auto limit = ComputePayloadLimit(
-      stream, transport, active_stream_->stream_info(), safe_doc_,
-      MeasureEnvelopeOverheadBytes());
-  if (payload_bytes > limit.max_payload_bytes) {
-    CsvRow row;
-    row.transport = std::string{TransportKindName(transport)};
-    row.stream = std::string{StreamKindName(stream)};
+  if (!outcome_if_skip.empty()) {
+    auto row = MakeOutcomeRow(stream, transport, outcome_if_skip, period_ms);
     row.payload_bytes = payload_bytes;
-    row.period_ms = period_ms;
-    row.sdk_sha = options_.sdk_sha;
-    row.server_version = options_.server_version;
-    row.outcome = "SKIP_SIZE_LIMIT";
-    row.max_udp_payload_bytes = kBenchmarkUdpPayloadBudgetBytes;
     return row;
   }
 
-  write_status_subs_.Reset();
+  payload_bytes_ = payload_bytes;
+  period_ms_ = period_ms;
+  payload_pattern_ = MakePayloadPattern(payload_bytes);
+  serialized_payload_ = SerializeEnvelope(
+      BenchEnvelope{.kind = static_cast<std::uint8_t>(EnvelopeKind::kMeasure),
+                    .run_id = run_id_,
+                    .point_id = current_point_id_,
+                    .sequence = next_sequence_,
+                    .payload = payload_pattern_});
 
-  point_begin_ = Now();
-  measure_begin_ = point_begin_ + options_.warmup;
+  write_status_subs_.Reset();
+  current_point_id_ = next_point_id_++;
+
+  auto const point_begin = Now();
+  measure_begin_ = point_begin + options_.warmup;
   measure_end_ = measure_begin_ + options_.measure;
-  deadline_ = measure_end_ + options_.late_wait;
-  point_stats_.ResetMeasureWindow(measure_begin_, measure_end_);
-  next_scheduled_send_ = point_begin_;
+  collect_end_ = measure_end_ + options_.late_collect;
+
+  point_stats_.BeginPoint(measure_begin_, measure_end_, collect_end_);
+  next_scheduled_send_ = measure_begin_;
   point_active_ = true;
+  accept_measure_ = false;
+
+  PumpIdleUntil(measure_begin_);
+  accept_measure_ = true;
 
   PumpUntil(
-      [&]() { return Now() >= deadline_; },
-      options_.warmup + options_.measure + options_.late_wait +
-          std::chrono::seconds{5});
-  point_active_ = false;
+      [&]() { return Now() >= collect_end_; },
+      std::chrono::duration_cast<Duration>(collect_end_ - Now() +
+                                           std::chrono::seconds{2}));
 
-  point_stats_.FinalizeAfterDeadline(deadline_);
+  point_active_ = false;
+  accept_measure_ = false;
+  point_stats_.FinalizeAfterCollectEnd();
 
   CsvRow row;
+  row.run_id = std::to_string(run_id_);
+  row.point_id = std::to_string(current_point_id_);
   row.transport = std::string{TransportKindName(transport)};
   row.stream = std::string{StreamKindName(stream)};
   row.payload_bytes = payload_bytes;
@@ -341,21 +382,35 @@ std::optional<CsvRow> StreamMatrixBench::RunPoint(
   row.max_udp_payload_bytes = kBenchmarkUdpPayloadBudgetBytes;
   row.period_ms = period_ms;
   row.counters = point_stats_.counters();
-  row.latency = point_stats_.Latency();
-  row.send_rate = point_stats_.SendRate();
-  row.receive_rate = point_stats_.ReceiveRate();
+  row.latency = point_stats_.SendReceiveLatency();
+  row.schedule_latency = point_stats_.ScheduleLatency();
+  row.send_rate = point_stats_.SendRatePerSec();
+  row.receive_rate = point_stats_.ReceiveRatePerSec();
   row.goodput_bytes_s = point_stats_.GoodputBytesPerSec();
-  if (row.counters.write_calls > 0) {
-    row.delivery_loss_pct =
-        100.0 * static_cast<double>(row.counters.missing_after_deadline) /
-        static_cast<double>(row.counters.write_calls);
-  }
   row.sdk_sha = options_.sdk_sha;
+  if (options_.sdk_tree_dirty) {
+    row.sdk_sha += "-dirty";
+  }
   row.server_version = options_.server_version;
-  if (row.counters.rx_unique == 0 && row.counters.write_ok > 0) {
+
+  if (row.counters.write_calls_measure > 0) {
+    row.delivery_loss_pct =
+        100.0 *
+        static_cast<double>(row.counters.missing_after_deadline) /
+        static_cast<double>(row.counters.write_calls_measure);
+  }
+
+  if (row.counters.rx_unique_measure == 0 &&
+      row.counters.write_ok_measure > 0) {
     row.outcome = "RX_MISSING";
-  } else {
+  } else if (row.counters.write_calls_measure == 0 &&
+             row.counters.skipped_backpressure > 0) {
+    row.outcome = "WRITE_BACKPRESSURE";
+  } else if (row.counters.rx_unique_measure > 0) {
     row.outcome = "OK";
+    any_point_ok_ = true;
+  } else {
+    row.outcome = "NO_MEASURE_TRAFFIC";
   }
   return row;
 }
@@ -367,6 +422,9 @@ int StreamMatrixBench::Run() {
   log_stream_.open(options_.output_dir / "run.log",
                    std::ios::out | std::ios::trunc);
   WriteCsvHeader(csv_stream_);
+
+  log_stream_ << "sdk_udp=" << kSdkUdpEnabled << " sdk_tcp=" << kSdkTcpEnabled
+              << '\n';
 
   app_ = examples::construct_aether_app();
   ae_context_.emplace(*app_);
@@ -392,72 +450,78 @@ int StreamMatrixBench::Run() {
 
   {
     auto settle_until = Now() + std::chrono::seconds{6};
-    while (Now() < settle_until && !app_->IsExited()) {
-      auto next_time = app_->Update(Now());
-      app_->WaitUntil(std::min(next_time, Now() + std::chrono::milliseconds{5}));
-    }
+    PumpIdleUntil(settle_until);
     client_a_->cloud_connection().Restream();
     client_b_->cloud_connection().Restream();
   }
-
-  auto transports = DiscoverTransports();
-  log_stream_ << "UDP priority: "
-              << (transports.udp_priority
-                      ? std::to_string(*transports.udp_priority)
-                      : "UNAVAILABLE")
-              << " TCP priority: "
-              << (transports.tcp_priority
-                      ? std::to_string(*transports.tcp_priority)
-                      : "UNAVAILABLE")
-              << '\n';
 
   struct Mode {
     BenchStreamKind stream;
     BenchTransportKind transport;
   };
-  std::vector<Mode> modes{
+  const std::vector<Mode> modes{
       {BenchStreamKind::kP2pStream, BenchTransportKind::kUdp},
       {BenchStreamKind::kP2pStream, BenchTransportKind::kTcp},
       {BenchStreamKind::kP2pSafeStream, BenchTransportKind::kUdp},
       {BenchStreamKind::kP2pSafeStream, BenchTransportKind::kTcp},
   };
 
-  std::vector<std::size_t> sizes =
-      options_.smoke ? std::vector<std::size_t>{100} : DefaultPayloadSweep();
-  auto periods = options_.smoke
-                     ? std::vector<double>{1000.0}
-                     : PeriodsMsForMaxRate(options_.max_messages_per_sec);
-
   for (auto const& mode : modes) {
-    if (!SetupMode(mode.stream, mode.transport, transports)) {
-      CsvRow row;
-      row.transport = std::string{TransportKindName(mode.transport)};
-      row.stream = std::string{StreamKindName(mode.stream)};
-      row.outcome = "TRANSPORT_UNAVAILABLE";
-      row.sdk_sha = options_.sdk_sha;
-      row.server_version = options_.server_version;
-      WriteCsvRow(csv_stream_, row);
+    auto setup = SetupMode(mode.stream, mode.transport);
+    if (setup != SetupResult::kOk) {
+      std::string outcome = "SETUP_FAILED";
+      if (setup == SetupResult::kNotCompiled) {
+        outcome = "TRANSPORT_UNAVAILABLE";
+      } else if (setup == SetupResult::kTransportUnavailable) {
+        outcome = "TRANSPORT_UNAVAILABLE";
+      }
+      WriteCsvRow(csv_stream_, MakeOutcomeRow(mode.stream, mode.transport, outcome));
+      csv_stream_.flush();
+      TeardownStreams();
       continue;
+    }
+    ++modes_setup_ok_;
+
+    PayloadLimitResult limit = ComputePayloadLimit(
+        mode.stream, mode.transport, p2p_a_->stream_info(), safe_doc_,
+        MeasureEnvelopeOverheadBytes());
+
+    std::vector<double> periods =
+        options_.smoke ? PeriodsMsFirstSecond()
+                       : PeriodsMsFirstSecond();
+    if (options_.full_matrix) {
+      auto fast = PeriodsMsFast(options_.max_messages_per_sec);
+      periods.insert(periods.end(), fast.begin(), fast.end());
     }
 
     for (double period : periods) {
-      for (auto size : sizes) {
-        auto row = RunPoint(mode.stream, mode.transport, size, period);
+      auto sizes = options_.smoke
+                       ? std::vector<std::size_t>{100}
+                       : BuildSizeMatrix(limit.max_payload_bytes, true);
+
+      for (std::size_t size : sizes) {
+        std::string skip;
+        if (size > limit.max_payload_bytes) {
+          skip = "SKIP_SIZE_LIMIT";
+        }
+        auto row = RunPoint(mode.stream, mode.transport, size, period, skip);
         if (row) {
           WriteCsvRow(csv_stream_, *row);
           csv_stream_.flush();
         }
-        TeardownStreams();
-        if (!SetupMode(mode.stream, mode.transport, transports)) {
-          break;
-        }
+        write_status_subs_.Reset();
       }
     }
     TeardownStreams();
   }
 
-  log_stream_ << "Finished\n";
+  log_stream_ << "modes_setup_ok=" << modes_setup_ok_
+              << " any_point_ok=" << any_point_ok_ << '\n';
   app_->Exit(0);
+
+  if (!any_point_ok_) {
+    return modes_setup_ok_ > 0 ? 2 : 3;
+  }
   return 0;
 }
 
