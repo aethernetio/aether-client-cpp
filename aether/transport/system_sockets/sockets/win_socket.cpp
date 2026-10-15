@@ -157,44 +157,53 @@ void WinSocket::OnError() {
 }
 
 bool WinSocket::RequestRecv() {
-  auto lock = std::scoped_lock{socket_lock_};
+  for (;;) {
+    std::optional<std::size_t> sync_bytes;
+    {
+      auto lock = std::scoped_lock{socket_lock_};
 
-  if (is_recv_pending_) {
-    return true;
-  }
+      if (is_recv_pending_) {
+        return true;
+      }
 
-  ZeroMemory(&recv_overlapped_, sizeof(recv_overlapped_));
+      ZeroMemory(&recv_overlapped_, sizeof(recv_overlapped_));
 
-  DWORD flags = 0;
-  DWORD bytes_transferred = 0;
-  auto wsabuf = WSABUF{static_cast<ULONG>(recv_buffer_.size()),
-                       reinterpret_cast<char*>(recv_buffer_.data())};
-  auto res =
-      WSARecv(socket_, &wsabuf, 1, &bytes_transferred, &flags,
-              &recv_overlapped_, nullptr);
-  if (res == SOCKET_ERROR) {
-    auto err_code = WSAGetLastError();
-    if (err_code == WSAEMSGSIZE) {
-      AE_TELED_ERROR(
-          "UDP recv WSAEMSGSIZE: datagram larger than recv buffer {} bytes",
-          recv_buffer_.size());
-      NotifyStreamMatrixUdpRecvError(static_cast<int>(err_code),
-                                     recv_buffer_.size());
-      return true;
+      DWORD flags = 0;
+      DWORD bytes_transferred = 0;
+      auto wsabuf = WSABUF{static_cast<ULONG>(recv_buffer_.size()),
+                           reinterpret_cast<char*>(recv_buffer_.data())};
+      auto res =
+          WSARecv(socket_, &wsabuf, 1, &bytes_transferred, &flags,
+                  &recv_overlapped_, nullptr);
+      if (res == SOCKET_ERROR) {
+        auto err_code = WSAGetLastError();
+        if (err_code == WSAEMSGSIZE) {
+          AE_TELED_ERROR(
+              "UDP recv WSAEMSGSIZE: datagram larger than recv buffer {} bytes",
+              recv_buffer_.size());
+          NotifyStreamMatrixUdpRecvError(static_cast<int>(err_code),
+                                         recv_buffer_.size());
+          is_recv_pending_ = false;
+          continue;
+        }
+        if (err_code == WSA_IO_PENDING) {
+          is_recv_pending_ = true;
+          return true;
+        }
+        AE_TELED_ERROR("Socket receive error {}", err_code);
+        NotifyStreamMatrixUdpRecvError(static_cast<int>(err_code),
+                                       recv_buffer_.size());
+        return false;
+      }
+
+      is_recv_pending_ = false;
+      sync_bytes = static_cast<std::size_t>(bytes_transferred);
     }
-    if (err_code == WSA_IO_PENDING) {
-      is_recv_pending_ = true;
-      return true;
+    if (sync_bytes && *sync_bytes > 0) {
+      DeliverRecvBytes(*sync_bytes);
     }
-    AE_TELED_ERROR("Socket receive error {}", err_code);
-    NotifyStreamMatrixUdpRecvError(static_cast<int>(err_code),
-                                   recv_buffer_.size());
-    return false;
+    continue;
   }
-
-  is_recv_pending_ = false;
-  DeliverRecvBytes(static_cast<std::size_t>(bytes_transferred));
-  return true;
 }
 
 std::optional<std::size_t> WinSocket::HandleRecv() {
@@ -212,6 +221,16 @@ std::optional<std::size_t> WinSocket::HandleRecv() {
   if (!res) {
     auto error_code = WSAGetLastError();
     if (error_code == WSA_IO_INCOMPLETE) {
+      return 0;
+    }
+    if (error_code == WSAEMSGSIZE) {
+      AE_TELED_ERROR(
+          "UDP overlapped recv WSAEMSGSIZE: datagram larger than buffer {} bytes",
+          recv_buffer_.size());
+      NotifyStreamMatrixUdpRecvError(static_cast<int>(error_code),
+                                     recv_buffer_.size());
+      ZeroMemory(&recv_overlapped_, sizeof(recv_overlapped_));
+      is_recv_pending_ = false;
       return 0;
     }
     AE_TELED_ERROR("Receive WSAGetOverlappedResult socket {} get error {}",

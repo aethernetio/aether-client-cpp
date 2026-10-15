@@ -104,6 +104,33 @@ std::size_t MaxBenchEnvelopeBytesForUdp(StreamInfo const& p2p_send) {
   return EstimateUdpBenchEnvelopeBudget(p2p_send).max_bench_envelope_bytes;
 }
 
+bool ApplyUdpWholeMessageEnvelopeEstimate(BenchStreamKind stream,
+                                          BenchTransportKind transport) {
+  return transport == BenchTransportKind::kUdp &&
+         stream == BenchStreamKind::kP2pStream;
+}
+
+std::string_view ClassifyUdpMeasureOutcome(
+    BenchStreamKind stream, BenchTransportKind transport,
+    std::string_view prior_outcome, std::size_t serialized_measure_bytes,
+    StreamInfo const& p2p_send, UdpSocketAuditSnapshot const& audit) {
+  if (!prior_outcome.empty()) {
+    return prior_outcome;
+  }
+  if (transport != BenchTransportKind::kUdp) {
+    return {};
+  }
+  if (audit.tx_violations != 0 || audit.rx_violations != 0) {
+    return "UDP_SOCKET_BUDGET_VIOLATION";
+  }
+  if (ApplyUdpWholeMessageEnvelopeEstimate(stream, transport) &&
+      !BenchEnvelopeWithinUdpSocketBudget(serialized_measure_bytes,
+                                          p2p_send)) {
+    return "UDP_ENVELOPE_ESTIMATE_EXCEEDED";
+  }
+  return {};
+}
+
 void InstallUdpSocketPayloadAudit() {
   ae::SetStreamMatrixUdpPayloadAudit(&AuditTx, &AuditRx);
 }

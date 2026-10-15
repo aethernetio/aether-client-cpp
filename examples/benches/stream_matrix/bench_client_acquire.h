@@ -31,9 +31,13 @@ struct ClientSelectOutcome {
 };
 
 void WriteSdkTransportCompileFlags(std::ostream& out);
+void WriteBenchTransportPolicy(std::ostream& out);
 void WriteClientSelectDiagnostics(std::ostream& out, char const* role,
                                   ClientSelectOutcome const& select,
                                   Client::ptr const& client);
+void WriteClientAcquireFailureHints(std::ostream& out,
+                                    ClientSelectOutcome const& select_a,
+                                    ClientSelectOutcome const& select_b);
 
 }  // namespace ae::stream_matrix_bench
 
