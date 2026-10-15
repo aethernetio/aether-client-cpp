@@ -50,9 +50,9 @@ void WriteBenchTransportPolicy(std::ostream& out) {
     out << "reg_hypothesis: AE_SUPPORT_TCP=0 filters TCP registration endpoints "
            "(FilterProtocol); not proven alone but breaks typical bootstrap\n";
   }
-  if (kBenchMatrixUdpEnabled && kSdkTcpEnabled) {
-    out << "bench_policy: matrix UDP-only; TCP compiled for registration "
-           "bootstrap; P2P restream until VerifyP2pStreamTransport(UDP)\n";
+  if (kBenchMatrixUdpEnabled && !kSdkTcpEnabled) {
+    out << "bench_policy: UDP-only SDK; clients must load from persistent "
+           "state/ prepared by aether_stream_matrix_bootstrap (TCP process)\n";
   }
 }
 

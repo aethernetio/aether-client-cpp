@@ -35,7 +35,7 @@ inline constexpr bool kSdkTcpEnabled = AE_SUPPORT_TCP != 0;
     AE_STREAM_MATRIX_BENCH_UDP_MEASURE_ONLY
 inline constexpr bool kBenchMatrixUdpEnabled = true;
 inline constexpr bool kBenchMatrixTcpEnabled = false;
-inline constexpr bool kBenchRegBootstrapMayUseTcp = true;
+inline constexpr bool kBenchRegBootstrapMayUseTcp = false;
 #elif defined(AE_STREAM_MATRIX_BENCH_TCP_MEASURE_ONLY) && \
     AE_STREAM_MATRIX_BENCH_TCP_MEASURE_ONLY
 inline constexpr bool kBenchMatrixUdpEnabled = false;

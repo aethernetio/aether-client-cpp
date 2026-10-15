@@ -2,68 +2,45 @@
 
 Console benchmark: **payload size × period × P2pStream/P2pSafeStream × UDP/TCP** over the live Æther cloud. One process, two clients (`sender` / `receiver`), shared monotonic clock.
 
-## Dual SDK builds (required for smoke)
+## Dual SDK builds + TCP bootstrap
 
-Smoke needs **four modes** from **two** Release builds (do not reuse one build tree for both transports):
+Æther **client registration requires TCP**. UDP measurement uses a **UDP-only SDK** (`AE_SUPPORT_TCP=0`) that loads clients from persistent `state/` prepared by a **separate TCP process**.
 
-| Build dir | `USER_CONFIG` | Modes in-process |
-|-----------|---------------|------------------|
-| `build-stream-matrix-udp` | `examples/benches/stream_matrix/config/udp_only.h` | UDP P2pStream + P2pSafeStream (matrix) |
-| `build-stream-matrix-tcp` | `examples/benches/stream_matrix/config/tcp_only.h` | TCP P2pStream + P2pSafeStream |
+| Step | Build / tool | Role |
+|------|----------------|------|
+| 1 | `aether_stream_matrix_bootstrap` (TCP SDK, `AE_FILTRATION=ON`) | Register sender/receiver, save `state/`, verify reload |
+| 2 | `build-stream-matrix-tcp` | TCP matrix smoke (own copy of seed state) |
+| 3 | `build-stream-matrix-udp` (`udp_only.h`) | UDP matrix smoke (seed state copy; **no in-process registration**) |
 
-**UDP build:** `udp_only.h` enables **TCP for registration/bootstrap** (`FilterProtocol`) but matrix modes are **UDP-only**. `SetupMode` **Restream**s until `VerifyP2pStreamTransport(UDP)` passes — measured sends must not use TCP. Script still runs TCP smoke before UDP smoke (shared `state/` when persistence is available).
+Orchestration: `scripts/run_stream_matrix_bench.ps1` (Release tests → bootstrap if needed → TCP smoke → UDP smoke → optional `--full` after 4/4).
 
-Pass config as a **string** (CMake `CACHE PATH` strips `.h` on Windows):
+Configure with **filtration** so startup does not `CleanUp()` domain storage:
 
 ```powershell
 cmake -S . -B build-stream-matrix-udp -DCMAKE_BUILD_TYPE=Release `
   "-DUSER_CONFIG:STRING=examples/benches/stream_matrix/config/udp_only.h" `
-  -DAE_BUILD_TESTS=OFF
+  -DAE_BUILD_TESTS=OFF -DAE_FILTRATION=ON
 ```
 
-Orchestration: `scripts/run_stream_matrix_bench.ps1` (logic tests → **TCP smoke** → **UDP smoke** with shared `state/` → optional `--full` matrix on both exes).
+## UDP-only bench behaviour
+
+- Missing `state/` → exit **4**, log `REGISTRATION_STATE_MISSING` (no UDP registration attempt).
+- Transport selection uses SDK channel list with **TCP compiled out**; no bench `Restream` hacks.
+- `VerifyP2pStreamTransport(UDP)` on measured P2P traffic.
 
 ## Connection model
 
 - Both clients call `CreatePort(peer_uid)` before measurement traffic.
 - Symmetric `P2pStream`; optional `P2pSafeStream` wrapper on both sides.
-- **Service exchange** (bidirectional, unique `run_id` + attempt `sequence`) before the matrix; not counted in stats.
-- Each run gets a new **`run_id`**; measure points use `point_id` + `sequence` validation.
+- **Service exchange** before the matrix; each run has a new **`run_id`**.
 
-## Transport verification
+## Stats, scheduler, UDP budget
 
-- `VerifyP2pStreamTransport()` checks aggregated send `stream_info`, priority-0 send path, and linked channel endpoint protocol(s) when exposed (no mixed UDP/TCP on linked legs).
-- Disabled-at-compile transport → `TRANSPORT_UNAVAILABLE` (not a network fault).
-
-## Stats (per point)
-
-- Warmup: **traffic** (`kWarmup` envelopes), excluded from measure counters.
-- Measure window: unique in-window RX, goodput, send/receive rates.
-- Late collect: unique late RX (once per sequence), duplicates, latency sample once per sequence; no new measure sends.
-- After collect: `missing_after_deadline` among scheduled measure sends.
-- Latencies: write→receive, scheduled→write, scheduled→receive.
-
-## UDP 1200-byte socket payload budget
-
-- Budget applies to **UDP datagram payload** after Æther framing + encryption + `SendMessage` body (IP/UDP headers excluded).
-- **Envelope estimate** in `bench_udp_budget.cpp` (36 + 96 B + envelope) does **not** prove on-wire size.
-- **Socket audit** (`stream_matrix_udp_audit` on UDP TX/RX in `udp.cpp`) counts datagram payloads; \>1200 B → `UDP_SOCKET_BUDGET_VIOLATION`. **SafeStream per-datagram audit: not verified** (whole-message path only).
-- TCP and top-level SafeStream message size are not capped at 1200 B.
+- Scheduler: `EvaluateScheduleSlot()` (see `aether_stream_matrix_schedule_test`).
+- Bench timing: `steady_clock`; SDK pump uses `ae::Now()` with duration-only waits.
+- UDP **envelope estimate** (36+96 B) is not proof of wire size; **socket audit** on UDP TX/RX flags \>1200 B. SafeStream per-datagram audit: **not verified**.
 
 ## Smoke vs full matrix
 
-- **Smoke:** 100 B @ 1 msg/s per mode; all scheduled sends OK; all unique by collect deadline; transport verified; exit **0** only if **both** builds pass their two modes. Partial → exit **2**.
-- **Full matrix** (`--full`): only after smoke **0**; loss allowed as measurement; sizes 100, 200, …; periods 1000 ms then halving down to `--max-rate`.
-
-## Artifacts
-
-Per build under `build-stream-matrix-{udp,tcp}/artifacts/smoke_<timestamp>/` and `full_<timestamp>/`: `results.csv`, `run.log`, `build_meta.txt` (SHA, flavor, exe path).
-
-## Logic tests (Release / NDEBUG)
-
-```powershell
-cmake --build build-stream-matrix-udp --config Release --target aether_stream_matrix_logic_test
-.\build-stream-matrix-udp\Release\aether_stream_matrix_logic_test.exe
-```
-
-Non-zero exit on failure (no `assert` dependency).
+- **Smoke:** 100 B @ 1 Hz per mode; exit **0** only when **four** modes pass (both builds).
+- **Full matrix:** only after 4/4 smoke (`--full`).

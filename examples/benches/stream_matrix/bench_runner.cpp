@@ -31,14 +31,12 @@
 #include "../../common/aether_construct_ethernet.h"
 
 #include "stream_matrix/bench_envelope.h"
+#include "stream_matrix/bench_persistence.h"
+#include "stream_matrix/bench_shared.h"
 #include "stream_matrix/bench_transport.h"
 
 namespace ae::stream_matrix_bench {
-Uid const& StreamMatrixBench::ParentUid() {
-  static Uid const kUid =
-      Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4");
-  return kUid;
-}
+Uid const& StreamMatrixBench::ParentUid() { return StreamMatrixParentUid(); }
 
 BenchCliOptions ParseArgs(int argc, char* argv[]) {
   BenchCliOptions options;
@@ -177,53 +175,37 @@ SetupResult StreamMatrixBench::SetupMode(BenchStreamKind stream,
   p2p_b_ = std::make_shared<P2pStream>(*ae_context_, client_b_.Load(),
                                        client_a_->uid(), std::move(handle_b));
 
-  auto linked = [&]() {
-    return p2p_a_->stream_info().link_state == LinkState::kLinked &&
-           p2p_b_->stream_info().link_state == LinkState::kLinked;
-  };
-  auto verified = [&]() {
-    return VerifyP2pStreamTransport(*p2p_a_, transport) ==
-               TransportVerifyResult::kOk &&
-           VerifyP2pStreamTransport(*p2p_b_, transport) ==
-               TransportVerifyResult::kOk;
-  };
-  auto log_path = [this](char const* tag, P2pStream const& stream) {
-    auto view = stream.InspectSendPathTransport();
-    log_stream_ << tag << " send_path linked_udp=" << view.linked_udp_endpoint
-                << " linked_tcp=" << view.linked_tcp_endpoint
-                << " agg_reliable=" << view.aggregated.is_reliable
-                << " p0_reliable=" << view.at_priority0.is_reliable << '\n';
-  };
-
-  if (!PumpUntil(linked, std::chrono::seconds{120})) {
+  if (!PumpUntil(
+          [&]() {
+            return p2p_a_->stream_info().link_state == LinkState::kLinked &&
+                   p2p_b_->stream_info().link_state == LinkState::kLinked;
+          },
+          std::chrono::seconds{120})) {
     log_stream_ << "SetupMode: link timeout\n";
     return SetupResult::kSetupFailed;
   }
 
-  int restream_attempts = 0;
-  while (!verified() && restream_attempts < 8) {
-    auto verify_a = VerifyP2pStreamTransport(*p2p_a_, transport);
-    auto verify_b = VerifyP2pStreamTransport(*p2p_b_, transport);
-    log_stream_ << "SetupMode: transport verify attempt=" << restream_attempts
-                << " a=" << static_cast<int>(verify_a)
-                << " b=" << static_cast<int>(verify_b) << " want="
+  auto verify_a = VerifyP2pStreamTransport(*p2p_a_, transport);
+  auto verify_b = VerifyP2pStreamTransport(*p2p_b_, transport);
+  if (verify_a != TransportVerifyResult::kOk ||
+      verify_b != TransportVerifyResult::kOk) {
+    log_stream_ << "SetupMode: transport verify failed a="
+                << static_cast<int>(verify_a) << " b="
+                << static_cast<int>(verify_b) << " want="
                 << TransportKindName(transport) << '\n';
+    auto log_path = [this](char const* tag, P2pStream const& stream) {
+      auto view = stream.InspectSendPathTransport();
+      log_stream_ << tag << " send_path linked_udp=" << view.linked_udp_endpoint
+                  << " linked_tcp=" << view.linked_tcp_endpoint
+                  << " agg_reliable=" << view.aggregated.is_reliable
+                  << " p0_reliable=" << view.at_priority0.is_reliable << '\n';
+    };
     log_path("p2p_a", *p2p_a_);
     log_path("p2p_b", *p2p_b_);
-    if (transport != BenchTransportKind::kUdp) {
-      break;
+    if (transport == BenchTransportKind::kUdp) {
+      log_stream_ << "SetupMode: UDP unavailable — check work-cloud UDP "
+                     "endpoints and channel rebuild (no TCP in SDK)\n";
     }
-    ++restream_attempts;
-    p2p_a_->Restream();
-    p2p_b_->Restream();
-    if (!PumpUntil(linked, std::chrono::seconds{45})) {
-      log_stream_ << "SetupMode: relink timeout after restream\n";
-      return SetupResult::kSetupFailed;
-    }
-  }
-
-  if (!verified()) {
-    log_stream_ << "SetupMode: transport verify failed after restreams\n";
     return SetupResult::kTransportUnavailable;
   }
   active_transport_ = transport;
@@ -631,6 +613,12 @@ int StreamMatrixBench::Run() {
 
   InstallUdpSocketPayloadAudit();
 
+  if (kBenchMatrixUdpEnabled && !kSdkTcpEnabled &&
+      !DomainStateHasPersistedObjects()) {
+    WriteRegistrationStateMissing(log_stream_, kDefaultDomainStateDir);
+    return 4;
+  }
+
   app_ = examples::construct_aether_app();
   ae_context_.emplace(*app_);
 
@@ -672,6 +660,10 @@ int StreamMatrixBench::Run() {
     WriteClientSelectDiagnostics(log_stream_, "sender", select_a_, client_a_);
     WriteClientSelectDiagnostics(log_stream_, "receiver", select_b_, client_b_);
     WriteClientAcquireFailureHints(log_stream_, select_a_, select_b_);
+    if (kBenchMatrixUdpEnabled && !kSdkTcpEnabled) {
+      WriteRegistrationStateMissing(log_stream_, kDefaultDomainStateDir);
+      return 4;
+    }
     return 1;
   }
 
