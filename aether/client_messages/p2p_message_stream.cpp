@@ -29,6 +29,7 @@
 
 #include "aether/channels/channel.h"
 #include "aether/client_messages/client_messages_tele.h"
+#include "aether/client_messages/p2p_stream_write_budget.h"
 #include "aether/server_connections/client_server_connection.h"
 
 namespace ae {
@@ -92,21 +93,24 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
       return;
     }
 
-    // get min rec element size and min max element size
-    stream_info_.rec_element_size = std::invoke([&]() {
-      auto min = std::min_element(
-          std::begin(infos), std::end(infos), [](auto const& a, auto const& b) {
-            return a.rec_element_size < b.rec_element_size;
-          });
-      return min->rec_element_size;
-    });
-    stream_info_.max_element_size = std::invoke([&]() {
+    auto min_datagram_budget = std::invoke([&]() -> std::size_t {
       auto min = std::min_element(
           std::begin(infos), std::end(infos), [](auto const& a, auto const& b) {
             return a.max_element_size < b.max_element_size;
           });
       return min->max_element_size;
     });
+    auto min_rec_datagram = std::invoke([&]() -> std::size_t {
+      auto min = std::min_element(
+          std::begin(infos), std::end(infos), [](auto const& a, auto const& b) {
+            return a.rec_element_size < b.rec_element_size;
+          });
+      return min->rec_element_size;
+    });
+    stream_info_.max_element_size =
+        MaxP2pStreamWritePayloadBytesForDatagramBudget(min_datagram_budget);
+    stream_info_.rec_element_size =
+        MaxP2pStreamWritePayloadBytesForDatagramBudget(min_rec_datagram);
     // if any linked or unlinked or all error
     stream_info_.link_state = std::invoke([&]() {
       if (std::any_of(std::begin(infos), std::end(infos), [](auto const& i) {

@@ -192,7 +192,11 @@ list(APPEND aether_srcs
             "client_messages/p2p_message_stream.cpp"
             "client_messages/p2p_message_stream_manager.cpp"
             "client_messages/p2p_safe_message_stream.cpp"
-            "client_messages/p2p_port_handle.cpp")
+            "client_messages/p2p_port_handle.cpp"
+            "client_messages/p2p_stream_write_budget.cpp")
+
+list(APPEND aether_srcs
+            "safe_stream/safe_stream_wire_budget.cpp")
 
 list(APPEND aether_srcs
             "domain_storage/domain_storage_factory.cpp"
