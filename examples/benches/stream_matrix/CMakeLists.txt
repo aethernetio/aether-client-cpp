@@ -156,6 +156,22 @@ if(NOT CM_PLATFORM)
 
 
 
+  add_executable(aether_stream_matrix_udp_serialization_test
+
+    stream_matrix_udp_serialization_test.cpp
+
+    bench_udp_budget.cpp
+
+  )
+
+  target_link_libraries(aether_stream_matrix_udp_serialization_test PRIVATE aether)
+
+  target_include_directories(aether_stream_matrix_udp_serialization_test
+
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
+
+
   add_executable(aether_stream_matrix_schedule_test
 
     stream_matrix_schedule_test.cpp
@@ -197,6 +213,8 @@ if(NOT CM_PLATFORM)
 
     target_compile_options(aether_stream_matrix_logic_test PRIVATE -Wall -Werror)
 
+    target_compile_options(aether_stream_matrix_udp_serialization_test PRIVATE -Wall -Werror)
+
     target_compile_options(aether_stream_matrix_schedule_test PRIVATE -Wall -Werror)
 
     target_compile_options(aether_stream_matrix_registration_test PRIVATE -Wall -Werror)
@@ -208,6 +226,8 @@ if(NOT CM_PLATFORM)
     target_compile_options(aether_stream_matrix_bootstrap PRIVATE /W4 /WX)
 
     target_compile_options(aether_stream_matrix_logic_test PRIVATE /W4 /WX)
+
+    target_compile_options(aether_stream_matrix_udp_serialization_test PRIVATE /W4 /WX)
 
     target_compile_options(aether_stream_matrix_schedule_test PRIVATE /W4 /WX)
 

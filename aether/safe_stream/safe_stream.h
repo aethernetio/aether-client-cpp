@@ -22,7 +22,9 @@
 #include "aether/write_action/failed_write_action.h"
 
 #include "aether/safe_stream/details/safe_stream_api.h"
+#include "aether/safe_stream/details/safe_stream_client_api.h"
 #include "aether/safe_stream/details/safe_stream_data_message.h"
+#include "aether/safe_stream/safe_stream_wire_budget.h"
 #include "aether/safe_stream/details/safe_stream_recv_action.h"
 #include "aether/safe_stream/details/safe_stream_send_action.h"
 #include "aether/safe_stream/safe_stream_config.h"
@@ -87,27 +89,6 @@ class SafeStream final : public ByteStream,  // NOLINT
 
    private:
     SafeStream* self_;
-  };
-
-  class SafeStreamApiClient : public ISafeStreamApi {
-   public:
-    // Api impl methods
-    void Ack(std::uint16_t index) override {
-      ClientMethod<&ISafeStreamApi::Ack>(index);
-    }
-    void RequestRepeat(std::uint16_t index) override {
-      ClientMethod<&ISafeStreamApi::RequestRepeat>(index);
-    }
-    void SendReset(std::uint16_t begin_offset, std::uint16_t delta_offset,
-                   std::uint8_t repeat_count, DataBuffer data) override {
-      ClientMethod<&ISafeStreamApi::SendReset>(begin_offset, delta_offset,
-                                               repeat_count, data);
-    }
-    void Send(std::uint16_t begin_offset, std::uint16_t delta_offset,
-              std::uint8_t repeat_count, DataBuffer data) override {
-      ClientMethod<&ISafeStreamApi::Send>(begin_offset, delta_offset,
-                                          repeat_count, data);
-    }
   };
 
  public:
@@ -199,9 +180,6 @@ class SafeStream final : public ByteStream,  // NOLINT
   void WriteOut(DataBuffer const& data) { out_data_event_.Emit(data); }
   void OnStreamUpdate() {
     AE_TELED_DEBUG("Safe stream update");
-    static constexpr std::size_t kSendOverhead =
-        1 + sizeof(std::uint16_t) + sizeof(std::uint16_t) + 1 + 2;
-
     auto out_info = out_->stream_info();
     stream_info_.link_state = out_info.link_state;
     stream_info_.is_writable = out_info.is_writable;
@@ -210,9 +188,9 @@ class SafeStream final : public ByteStream,  // NOLINT
     stream_info_.rec_element_size = out_info.rec_element_size;
     stream_info_.max_element_size = config_.max_packet_size;
 
-    sender_.SetMaxPayload((out_info.rec_element_size > 0)
-                              ? (out_info.rec_element_size - kSendOverhead)
-                              : 0);
+    sender_.SetMaxPayload(
+        MaxSafeStreamSendDataBytesForDownstreamMaxElementSize(
+            out_info.max_element_size));
 
     stream_update_event_.Emit();
   }
