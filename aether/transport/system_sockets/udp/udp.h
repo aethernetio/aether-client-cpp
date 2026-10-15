@@ -17,6 +17,7 @@
 #define AETHER_TRANSPORT_SYSTEM_SOCKETS_UDP_UDP_H_
 
 #include "aether/config.h"
+#include "aether/stream_matrix_udp_audit.h"
 
 #if AE_SUPPORT_UDP
 
@@ -72,6 +73,7 @@ class SendAction final : public PacketSendAction {
       SetStatus(WriteAction::Status::kFail);
       return;
     }
+    NotifyStreamMatrixUdpTxPayload(data_.size());
     SetStatus(WriteAction::Status::kSuccess);
   }
 

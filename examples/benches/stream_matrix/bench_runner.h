@@ -28,6 +28,8 @@
 
 #include "aether/all.h"
 
+#include "stream_matrix/bench_client_acquire.h"
+#include "stream_matrix/bench_clock.h"
 #include "stream_matrix/bench_limits.h"
 #include "stream_matrix/bench_stats.h"
 
@@ -60,10 +62,11 @@ class StreamMatrixBench {
   int Run();
 
  private:
-  using BenchClock = std::chrono::steady_clock;
-
+  Duration SdkWaitCap(BenchDuration bench_remaining) const;
+  void PumpSdkOnce(BenchInstant bench_now, BenchDuration bench_remaining);
   bool PumpUntil(std::function<bool()> predicate, Duration timeout);
-  void PumpIdleUntil(TimePoint until);
+  void PumpBenchUntil(BenchInstant bench_until,
+                      std::function<bool()> stop_early = {});
 
   SetupResult SetupMode(BenchStreamKind stream, BenchTransportKind transport);
   bool RunServiceExchange();
@@ -74,8 +77,8 @@ class StreamMatrixBench {
                                  std::size_t payload_bytes, double period_ms,
                                  std::string const& outcome_if_skip);
 
-  void OnTick(BenchClock::time_point now);
-  void OnWarmupTick(BenchClock::time_point now);
+  void OnTick(BenchInstant now);
+  void OnWarmupTick(BenchInstant now);
   void OnReceived(DataBuffer const& data);
   bool EvaluateSmokeRow(CsvRow const& row) const;
   void SendServiceEnvelope(std::uint64_t attempt_id, std::uint64_t point_id,
@@ -90,6 +93,8 @@ class StreamMatrixBench {
   std::optional<AeContext> ae_context_;
   Client::ptr client_a_;
   Client::ptr client_b_;
+  ClientSelectOutcome select_a_{};
+  ClientSelectOutcome select_b_{};
 
   SafeStreamConfig safe_stream_config_{};
   SafeStreamLimitsDoc safe_doc_{};
@@ -116,15 +121,13 @@ class StreamMatrixBench {
 
   bool point_active_{false};
   bool accept_measure_{false};
-  BenchClock::time_point measure_begin_{};
-  BenchClock::time_point measure_end_{};
-  BenchClock::time_point collect_end_{};
-  BenchClock::time_point next_scheduled_send_{};
-  BenchClock::time_point next_warmup_send_{};
-  BenchClock::time_point point_begin_{};
+  BenchInstant measure_begin_{};
+  BenchInstant measure_end_{};
+  BenchInstant collect_end_{};
+  BenchInstant next_scheduled_send_{};
+  BenchInstant next_warmup_send_{};
+  BenchInstant point_begin_{};
 
-  static TimePoint BenchTimeToAe(BenchClock::time_point tp);
-  BenchClock::time_point BenchNow() const;
   std::size_t payload_bytes_{};
   double period_ms_{1000.0};
   DataBuffer serialized_payload_;

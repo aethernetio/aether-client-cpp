@@ -42,8 +42,10 @@ if(NOT CM_PLATFORM)
     main.cpp
     bench_limits.cpp
     bench_stats.cpp
+    bench_schedule.cpp
     bench_transport.cpp
     bench_udp_budget.cpp
+    bench_client_acquire.cpp
     bench_runner.cpp
   )
 
@@ -62,6 +64,13 @@ if(NOT CM_PLATFORM)
     bench_stats.cpp
     bench_udp_budget.cpp
   )
+
+  add_executable(aether_stream_matrix_schedule_test
+    stream_matrix_schedule_test.cpp
+    bench_schedule.cpp
+  )
+  target_include_directories(aether_stream_matrix_schedule_test
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
   target_link_libraries(aether_stream_matrix_logic_test PRIVATE aether)
   target_include_directories(aether_stream_matrix_logic_test
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
@@ -69,9 +78,11 @@ if(NOT CM_PLATFORM)
   if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES ".*Clang.*")
     target_compile_options(aether_stream_matrix_bench PRIVATE -Wall -Werror)
     target_compile_options(aether_stream_matrix_logic_test PRIVATE -Wall -Werror)
+    target_compile_options(aether_stream_matrix_schedule_test PRIVATE -Wall -Werror)
   elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     target_compile_options(aether_stream_matrix_bench PRIVATE /W4 /WX)
     target_compile_options(aether_stream_matrix_logic_test PRIVATE /W4 /WX)
+    target_compile_options(aether_stream_matrix_schedule_test PRIVATE /W4 /WX)
   endif()
 else()
   message(FATAL_ERROR "stream_matrix bench is desktop-only")

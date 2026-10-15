@@ -18,6 +18,8 @@
 #define EXAMPLES_BENCHES_STREAM_MATRIX_BENCH_UDP_BUDGET_H_
 
 #include <cstddef>
+#include <cstdint>
+#include <ostream>
 
 #include "aether/stream_api/istream.h"
 
@@ -29,6 +31,16 @@ struct UdpBudgetEstimate {
   std::size_t ae_message_wrap_bytes{};
   std::size_t api_crypto_reserve_bytes{};
   std::size_t max_bench_envelope_bytes{};
+  bool envelope_estimate_only{true};
+};
+
+struct UdpSocketAuditSnapshot {
+  std::size_t max_tx_payload_bytes{};
+  std::size_t max_rx_payload_bytes{};
+  std::uint64_t tx_violations{};
+  std::uint64_t rx_violations{};
+  bool socket_observed{false};
+  bool safestream_datagram_unverified{true};
 };
 
 UdpBudgetEstimate EstimateUdpBenchEnvelopeBudget(StreamInfo const& p2p_send);
@@ -37,6 +49,11 @@ bool BenchEnvelopeWithinUdpSocketBudget(std::size_t bench_envelope_bytes,
                                         StreamInfo const& p2p_send);
 
 std::size_t MaxBenchEnvelopeBytesForUdp(StreamInfo const& p2p_send);
+
+void InstallUdpSocketPayloadAudit();
+void ResetUdpSocketPayloadAudit();
+UdpSocketAuditSnapshot UdpSocketPayloadAuditSnapshot();
+void WriteUdpAuditReport(std::ostream& out, UdpSocketAuditSnapshot const& snap);
 
 }  // namespace ae::stream_matrix_bench
 

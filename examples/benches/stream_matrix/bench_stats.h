@@ -25,14 +25,14 @@
 #include <unordered_set>
 #include <vector>
 
-#include "aether/clock.h"
+#include "stream_matrix/bench_clock.h"
 
 namespace ae::stream_matrix_bench {
 
 struct SendRecord {
   std::uint64_t sequence{};
-  TimePoint send_time{};
-  TimePoint scheduled_time{};
+  BenchInstant send_time{};
+  BenchInstant scheduled_time{};
   bool in_measure{};
 };
 
@@ -75,22 +75,22 @@ struct ScheduleReceiveLatencySummary {
 
 class PointStats {
  public:
-  void BeginPoint(TimePoint measure_begin, TimePoint measure_end,
-                  TimePoint collect_end);
+  void BeginPoint(BenchInstant measure_begin, BenchInstant measure_end,
+                  BenchInstant collect_end);
 
   void NoteScheduledMeasure();
-  void NoteMissedSchedule();
-  void NoteWriteCalledMeasure(std::uint64_t sequence, TimePoint send_time,
-                              TimePoint scheduled_time);
+  void NoteMissedSchedule(std::uint64_t count = 1);
+  void NoteWriteCalledMeasure(std::uint64_t sequence, BenchInstant send_time,
+                              BenchInstant scheduled_time);
   void NoteWriteOkMeasure();
   void NoteWriteFailedMeasure();
   void NoteWriteStoppedMeasure();
   void NoteWriteImmediateFailMeasure();
   void NoteSkippedBackpressure();
 
-  void NoteReceivedMeasure(std::uint64_t sequence, TimePoint recv_time,
+  void NoteReceivedMeasure(std::uint64_t sequence, BenchInstant recv_time,
                            std::size_t payload_bytes);
-  void NoteReceivedLate(std::uint64_t sequence, TimePoint recv_time,
+  void NoteReceivedLate(std::uint64_t sequence, BenchInstant recv_time,
                         std::size_t payload_bytes);
 
   void FinalizeAfterCollectEnd();
@@ -106,9 +106,9 @@ class PointStats {
  private:
   static double PercentileMs(std::vector<double> const& sorted, double pct);
 
-  TimePoint measure_begin_{};
-  TimePoint measure_end_{};
-  TimePoint collect_end_{};
+  BenchInstant measure_begin_{};
+  BenchInstant measure_end_{};
+  BenchInstant collect_end_{};
   PointCounters counters_{};
   std::unordered_map<std::uint64_t, SendRecord> measure_sends_;
   std::unordered_set<std::uint64_t> received_unique_measure_;
@@ -120,7 +120,7 @@ class PointStats {
   std::vector<double> schedule_receive_latency_ms_;
   std::size_t goodput_payload_bytes_{};
 
-  void NoteFirstReceive(std::uint64_t sequence, TimePoint recv_time,
+  void NoteFirstReceive(std::uint64_t sequence, BenchInstant recv_time,
                         std::size_t payload_bytes, bool in_measure_window);
 };
 

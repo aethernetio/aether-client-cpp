@@ -17,6 +17,7 @@ cmake_minimum_required(VERSION 3.16.0)
 list(APPEND aether_srcs
             "aether_app.cpp"
             "aether.cpp"
+            "stream_matrix_udp_audit.cpp"
             "adapter_registry.cpp"
             "client_connectivity_policy.cpp"
             "client.cpp"

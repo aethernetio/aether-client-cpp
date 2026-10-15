@@ -22,6 +22,8 @@
 #include <thread>
 #include <utility>
 
+#include "stream_matrix/bench_client_acquire.h"
+#include "stream_matrix/bench_schedule.h"
 #include "stream_matrix/bench_udp_budget.h"
 
 #define AE_EXAMPLE_ETHERNET 1
@@ -36,32 +38,6 @@ Uid const& StreamMatrixBench::ParentUid() {
   static Uid const kUid =
       Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4");
   return kUid;
-}
-
-namespace {
-
-Duration MsToDuration(double ms) {
-  return std::chrono::duration_cast<Duration>(
-      std::chrono::duration<double, std::milli>(ms));
-}
-
-}  // namespace
-
-TimePoint StreamMatrixBench::BenchTimeToAe(
-    StreamMatrixBench::BenchClock::time_point tp) {
-  return TimePoint{} + std::chrono::duration_cast<std::chrono::microseconds>(
-                           tp.time_since_epoch());
-}
-
-StreamMatrixBench::BenchClock::time_point StreamMatrixBench::AeToBenchTime(
-    TimePoint tp) {
-  return StreamMatrixBench::BenchClock::time_point{
-      std::chrono::duration_cast<StreamMatrixBench::BenchClock::duration>(
-          tp.time_since_epoch())};
-}
-
-StreamMatrixBench::BenchClock::time_point StreamMatrixBench::BenchNow() const {
-  return BenchClock::now();
 }
 
 BenchCliOptions ParseArgs(int argc, char* argv[]) {
@@ -114,28 +90,60 @@ StreamMatrixBench::StreamMatrixBench(BenchCliOptions options)
   safe_doc_.config = safe_stream_config_;
 }
 
+Duration StreamMatrixBench::SdkWaitCap(BenchDuration bench_remaining) const {
+  using namespace std::chrono_literals;
+  BenchDuration wait = std::min(bench_remaining, BenchDuration{5ms});
+  if (wait <= BenchDuration::zero()) {
+    return Duration::zero();
+  }
+  return std::chrono::duration_cast<Duration>(wait);
+}
+
+void StreamMatrixBench::PumpSdkOnce(BenchInstant bench_now,
+                                    BenchDuration bench_remaining) {
+  OnTick(bench_now);
+  auto next_time = app_->Update(Now());
+  Duration wait = SdkWaitCap(bench_remaining);
+  if (next_time > Now()) {
+    Duration sdk_wait =
+        std::chrono::duration_cast<Duration>(next_time - Now());
+    if (sdk_wait < wait) {
+      wait = sdk_wait;
+    }
+  }
+  if (wait > Duration::zero()) {
+    app_->WaitUntil(Now() + wait);
+  }
+}
+
 bool StreamMatrixBench::PumpUntil(std::function<bool()> predicate,
                                   Duration timeout) {
-  auto const deadline = Now() + timeout;
+  auto const bench_deadline =
+      BenchNow() + std::chrono::duration_cast<BenchDuration>(timeout);
   while (!app_->IsExited()) {
     if (predicate()) {
       return true;
     }
-    if (Now() >= deadline) {
+    BenchInstant now = BenchNow();
+    if (now >= bench_deadline) {
       return false;
     }
-    OnTick(BenchNow());
-    auto next_time = app_->Update(Now());
-    app_->WaitUntil(std::min(next_time, Now() + std::chrono::milliseconds{5}));
+    PumpSdkOnce(now, bench_deadline - now);
   }
   return false;
 }
 
-void StreamMatrixBench::PumpIdleUntil(TimePoint until) {
-  while (!app_->IsExited() && Now() < until) {
-    OnTick(BenchNow());
-    auto next_time = app_->Update(Now());
-    app_->WaitUntil(std::min(next_time, std::min(until, Now() + std::chrono::milliseconds{5})));
+void StreamMatrixBench::PumpBenchUntil(
+    BenchInstant bench_until, std::function<bool()> stop_early) {
+  while (!app_->IsExited()) {
+    BenchInstant now = BenchNow();
+    if (now >= bench_until) {
+      return;
+    }
+    if (stop_early && stop_early()) {
+      return;
+    }
+    PumpSdkOnce(now, bench_until - now);
   }
 }
 
@@ -319,11 +327,11 @@ void StreamMatrixBench::OnReceived(DataBuffer const& data) {
   if (envelope->point_id != current_point_id_) {
     return;
   }
-  point_stats_.NoteReceivedMeasure(envelope->sequence, BenchTimeToAe(BenchNow()),
+  point_stats_.NoteReceivedMeasure(envelope->sequence, BenchNow(),
                                    envelope->payload.size());
 }
 
-void StreamMatrixBench::OnTick(StreamMatrixBench::BenchClock::time_point now) {
+void StreamMatrixBench::OnTick(BenchInstant now) {
   if (!point_active_ || !send_stream_) {
     return;
   }
@@ -340,73 +348,69 @@ void StreamMatrixBench::OnTick(StreamMatrixBench::BenchClock::time_point now) {
     return;
   }
 
-  while (next_scheduled_send_ < now && next_scheduled_send_ < measure_end_) {
-    point_stats_.NoteMissedSchedule();
-    next_scheduled_send_ +=
-        std::chrono::duration_cast<BenchClock::duration>(MsToDuration(period_ms_));
+  auto const period = MsToBenchDuration(period_ms_);
+  auto decision =
+      EvaluateScheduleSlot(now, measure_end_, next_scheduled_send_, period);
+  next_scheduled_send_ = decision.next_deadline;
+  if (decision.missed_slots != 0) {
+    point_stats_.NoteMissedSchedule(decision.missed_slots);
   }
-
-  while (now >= next_scheduled_send_ && now < measure_end_) {
-    point_stats_.NoteScheduledMeasure();
-    auto const sequence = next_sequence_++;
-    auto scheduled = next_scheduled_send_;
-
-    BenchEnvelope envelope{
-        .kind = static_cast<std::uint8_t>(EnvelopeKind::kMeasure),
-        .run_id = run_id_,
-        .point_id = current_point_id_,
-        .sequence = sequence,
-        .payload = payload_pattern_,
-    };
-    auto wire = SerializeEnvelope(envelope);
-    if (active_transport_ == BenchTransportKind::kUdp &&
-        !BenchEnvelopeWithinUdpSocketBudget(wire.size(),
-                                            p2p_a_->stream_info())) {
-      log_stream_ << "point " << current_point_id_
-                  << " UDP budget exceeded envelope_bytes=" << wire.size()
-                  << '\n';
-    }
-
-    point_stats_.NoteWriteCalledMeasure(sequence, BenchTimeToAe(now),
-                                        BenchTimeToAe(scheduled));
-    auto& wa = send_stream_->Write(std::move(wire));
-    write_status_subs_ += wa.status_event().Subscribe(
-        [this](WriteAction::Status status) {
-          if (status == WriteAction::Status::kSuccess) {
-            point_stats_.NoteWriteOkMeasure();
-          } else if (status == WriteAction::Status::kFail) {
-            point_stats_.NoteWriteFailedMeasure();
-          } else if (status == WriteAction::Status::kStop) {
-            point_stats_.NoteWriteStoppedMeasure();
-          }
-        });
-
-    next_scheduled_send_ +=
-        std::chrono::duration_cast<BenchClock::duration>(MsToDuration(period_ms_));
-  }
-}
-
-void StreamMatrixBench::OnWarmupTick(
-    StreamMatrixBench::BenchClock::time_point now) {
-  if (!point_active_ || !send_stream_) {
+  if (!decision.should_send) {
     return;
   }
-  if (now < measure_begin_) {
-    if (now >= next_warmup_send_) {
-      BenchEnvelope envelope{
-          .kind = static_cast<std::uint8_t>(EnvelopeKind::kWarmup),
-          .run_id = run_id_,
-          .point_id = current_point_id_,
-          .sequence = next_sequence_++,
-          .payload = payload_pattern_,
-      };
-      auto& wa = send_stream_->Write(SerializeEnvelope(envelope));
-      write_status_subs_ += wa.status_event().Subscribe(
-          [](WriteAction::Status) {});
-      next_warmup_send_ +=
-          std::chrono::duration_cast<BenchClock::duration>(MsToDuration(period_ms_));
-    }
+
+  point_stats_.NoteScheduledMeasure();
+  auto const sequence = next_sequence_++;
+
+  BenchEnvelope envelope{
+      .kind = static_cast<std::uint8_t>(EnvelopeKind::kMeasure),
+      .run_id = run_id_,
+      .point_id = current_point_id_,
+      .sequence = sequence,
+      .payload = payload_pattern_,
+  };
+  auto wire = SerializeEnvelope(envelope);
+  if (active_transport_ == BenchTransportKind::kUdp &&
+      !BenchEnvelopeWithinUdpSocketBudget(wire.size(), p2p_a_->stream_info())) {
+    log_stream_ << "point " << current_point_id_
+                << " UDP envelope estimate exceeded wire_bytes=" << wire.size()
+                << " (estimate only; see socket audit)\n";
   }
+
+  point_stats_.NoteWriteCalledMeasure(sequence, now, decision.slot_deadline);
+  auto& wa = send_stream_->Write(std::move(wire));
+  write_status_subs_ += wa.status_event().Subscribe(
+      [this](WriteAction::Status status) {
+        if (status == WriteAction::Status::kSuccess) {
+          point_stats_.NoteWriteOkMeasure();
+        } else if (status == WriteAction::Status::kFail) {
+          point_stats_.NoteWriteFailedMeasure();
+        } else if (status == WriteAction::Status::kStop) {
+          point_stats_.NoteWriteStoppedMeasure();
+        }
+      });
+}
+
+void StreamMatrixBench::OnWarmupTick(BenchInstant now) {
+  if (!point_active_ || !send_stream_ || now >= measure_begin_) {
+    return;
+  }
+  auto const period = MsToBenchDuration(period_ms_);
+  auto decision =
+      EvaluateScheduleSlot(now, measure_begin_, next_warmup_send_, period);
+  next_warmup_send_ = decision.next_deadline;
+  if (!decision.should_send) {
+    return;
+  }
+  BenchEnvelope envelope{
+      .kind = static_cast<std::uint8_t>(EnvelopeKind::kWarmup),
+      .run_id = run_id_,
+      .point_id = current_point_id_,
+      .sequence = next_sequence_++,
+      .payload = payload_pattern_,
+  };
+  auto& wa = send_stream_->Write(SerializeEnvelope(envelope));
+  write_status_subs_ += wa.status_event().Subscribe([](WriteAction::Status) {});
 }
 
 CsvRow StreamMatrixBench::MakeOutcomeRow(BenchStreamKind stream,
@@ -454,34 +458,26 @@ std::optional<CsvRow> StreamMatrixBench::RunPoint(
   write_status_subs_.Reset();
   current_point_id_ = next_point_id_++;
 
+  if (active_transport_ == BenchTransportKind::kUdp) {
+    ResetUdpSocketPayloadAudit();
+  }
+
   point_begin_ = BenchNow();
   measure_begin_ = point_begin_ + options_.warmup;
   measure_end_ = measure_begin_ + options_.measure;
   collect_end_ = measure_end_ + options_.late_collect;
 
-  point_stats_.BeginPoint(BenchTimeToAe(measure_begin_),
-                          BenchTimeToAe(measure_end_),
-                          BenchTimeToAe(collect_end_));
+  point_stats_.BeginPoint(measure_begin_, measure_end_, collect_end_);
   next_scheduled_send_ = measure_begin_;
-  next_warmup_send_ =
-      point_begin_ + std::chrono::duration_cast<BenchClock::duration>(
-                         MsToDuration(period_ms_));
+  next_warmup_send_ = point_begin_ + MsToBenchDuration(period_ms_);
   point_active_ = true;
   accept_measure_ = false;
   write_status_subs_.Reset();
 
-  while (!app_->IsExited() && BenchNow() < measure_begin_) {
-    OnTick(BenchNow());
-    app_->Update(Now());
-    std::this_thread::sleep_for(std::chrono::milliseconds{5});
-  }
+  PumpBenchUntil(measure_begin_);
   accept_measure_ = true;
 
-  while (!app_->IsExited() && BenchNow() < collect_end_) {
-    OnTick(BenchNow());
-    app_->Update(Now());
-    std::this_thread::sleep_for(std::chrono::milliseconds{5});
-  }
+  PumpBenchUntil(collect_end_);
 
   point_active_ = false;
   accept_measure_ = false;
@@ -517,23 +513,32 @@ std::optional<CsvRow> StreamMatrixBench::RunPoint(
         static_cast<double>(row.counters.write_calls_measure);
   }
 
-  if (active_transport_ == BenchTransportKind::kUdp &&
+  if (active_transport_ == BenchTransportKind::kUdp) {
+    auto audit = UdpSocketPayloadAuditSnapshot();
+    WriteUdpAuditReport(log_stream_, audit);
+    if (audit.tx_violations != 0 || audit.rx_violations != 0) {
+      row.outcome = "UDP_SOCKET_BUDGET_VIOLATION";
+    }
+  }
+  if (row.outcome.empty() && active_transport_ == BenchTransportKind::kUdp &&
       !BenchEnvelopeWithinUdpSocketBudget(serialized_payload_.size(),
                                           p2p_a_->stream_info())) {
-    row.outcome = "UDP_BUDGET_EXCEEDED";
-  } else if (row.counters.rx_unique_measure == 0 &&
+    row.outcome = "UDP_ENVELOPE_ESTIMATE_EXCEEDED";
+  }
+  if (row.outcome.empty() && row.counters.rx_unique_measure == 0 &&
              row.counters.write_ok_measure > 0) {
     row.outcome = "RX_MISSING";
-  } else if (row.counters.write_calls_measure == 0 &&
+  } else if (row.outcome.empty() && row.counters.write_calls_measure == 0 &&
              row.counters.skipped_backpressure > 0) {
     row.outcome = "WRITE_BACKPRESSURE";
-  } else if (row.counters.write_failed_measure > 0 ||
-             row.counters.write_stopped_measure > 0 ||
-             row.counters.write_immediate_fail_measure > 0) {
+  } else if (row.outcome.empty() &&
+             (row.counters.write_failed_measure > 0 ||
+              row.counters.write_stopped_measure > 0 ||
+              row.counters.write_immediate_fail_measure > 0)) {
     row.outcome = "WRITE_ERRORS";
-  } else if (row.counters.rx_unique_by_deadline > 0) {
+  } else if (row.outcome.empty() && row.counters.rx_unique_by_deadline > 0) {
     row.outcome = "OK";
-  } else {
+  } else if (row.outcome.empty()) {
     row.outcome = "NO_MEASURE_TRAFFIC";
   }
   return row;
@@ -589,34 +594,57 @@ int StreamMatrixBench::Run() {
                    std::ios::out | std::ios::trunc);
   WriteCsvHeader(csv_stream_);
 
+  WriteSdkTransportCompileFlags(log_stream_);
   log_stream_ << "sdk_udp=" << kSdkUdpEnabled << " sdk_tcp=" << kSdkTcpEnabled
               << '\n';
+
+  InstallUdpSocketPayloadAudit();
 
   app_ = examples::construct_aether_app();
   ae_context_.emplace(*app_);
 
   app_->aether()->SelectClient(ParentUid(), "sender").result_event().Subscribe(
       [&](auto const& res) {
+        select_a_.finished = true;
         if (res) {
+          select_a_.ok = true;
           client_a_ = res.value();
+          WriteClientSelectDiagnostics(log_stream_, "sender", select_a_,
+                                       client_a_);
+        } else {
+          select_a_.ok = false;
+          select_a_.error_code = res.error();
+          WriteClientSelectDiagnostics(log_stream_, "sender", select_a_,
+                                       client_a_);
         }
       });
   app_->aether()->SelectClient(ParentUid(), "receiver").result_event().Subscribe(
       [&](auto const& res) {
+        select_b_.finished = true;
         if (res) {
+          select_b_.ok = true;
           client_b_ = res.value();
+          WriteClientSelectDiagnostics(log_stream_, "receiver", select_b_,
+                                       client_b_);
+        } else {
+          select_b_.ok = false;
+          select_b_.error_code = res.error();
+          WriteClientSelectDiagnostics(log_stream_, "receiver", select_b_,
+                                       client_b_);
         }
       });
 
   if (!PumpUntil([&]() { return client_a_ && client_b_; },
                  std::chrono::seconds{180})) {
-    log_stream_ << "Failed to acquire clients\n";
+    log_stream_ << "Failed to acquire clients (see per-role diagnostics; "
+                   "not a measure scheduler failure)\n";
+    WriteClientSelectDiagnostics(log_stream_, "sender", select_a_, client_a_);
+    WriteClientSelectDiagnostics(log_stream_, "receiver", select_b_, client_b_);
     return 1;
   }
 
   {
-    auto settle_until = Now() + std::chrono::seconds{6};
-    PumpIdleUntil(settle_until);
+    PumpBenchUntil(BenchNow() + std::chrono::seconds{6});
     client_a_->cloud_connection().Restream();
     client_b_->cloud_connection().Restream();
   }

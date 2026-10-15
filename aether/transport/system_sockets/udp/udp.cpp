@@ -86,6 +86,7 @@ void UdpBase::OnRecvData(Span<std::uint8_t> data) {
       for (auto const& d : buffers) {
         AE_TELE_DEBUG(kUdpTransportReceive, "Socket {} received data size {}",
                       endpoint_, d.size());
+        NotifyStreamMatrixUdpRxPayload(d.size());
         out_data_event_.Emit(d);
       }
     });
