@@ -34,7 +34,8 @@
 namespace ae {
 class WinSocket : public ISocket {
  public:
-  WinSocket(IPoller& poller, std::size_t max_packet_size);
+  WinSocket(IPoller& poller, std::size_t max_packet_size,
+            bool stream_socket = false);
   ~WinSocket() override;
 
   ISocket& ReadyToWrite(ReadyToWriteCb ready_to_write_cb) override;
@@ -74,6 +75,7 @@ class WinSocket : public ISocket {
   void DeliverRecvBytes(std::size_t bytes);
 
   DataBuffer recv_buffer_;
+  bool stream_socket_{false};
 };
 }  // namespace ae
 #endif

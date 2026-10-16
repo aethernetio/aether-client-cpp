@@ -19,8 +19,11 @@
 #include <chrono>
 #include <memory>
 #include <random>
+#include <sstream>
 #include <thread>
 #include <utility>
+
+#include "aether-miscpp/format/format.h"
 
 #include "stream_matrix/bench_client_acquire.h"
 #include "stream_matrix/bench_schedule.h"
@@ -36,6 +39,16 @@
 #include "stream_matrix/bench_transport.h"
 
 namespace ae::stream_matrix_bench {
+namespace {
+
+std::string UidToLogString(ae::Uid const& uid) {
+  std::ostringstream os;
+  ae::Format(os, "{}", uid);
+  return os.str();
+}
+
+}  // namespace
+
 Uid const& StreamMatrixBench::ParentUid() { return StreamMatrixParentUid(); }
 
 BenchCliOptions ParseArgs(int argc, char* argv[]) {
@@ -628,9 +641,9 @@ int StreamMatrixBench::Run() {
 
   InstallUdpSocketPayloadAudit();
 
+  auto const cwd = std::filesystem::current_path();
   if (kBenchMatrixUdpEnabled && !kSdkTcpEnabled &&
-      !DomainStateHasPersistedObjects()) {
-    WriteRegistrationStateMissing(log_stream_, kDefaultDomainStateDir);
+      !RegistrationSeedReadyForUdpBench(log_stream_, cwd)) {
     return 4;
   }
 
@@ -643,6 +656,11 @@ int StreamMatrixBench::Run() {
         if (res) {
           select_a_.ok = true;
           client_a_ = res.value();
+          if (auto marker = ReadBootstrapMarker(cwd / kBootstrapMarkerFile)) {
+            log_stream_ << "loaded_sender_uid="
+                        << UidToLogString(client_a_.Load()->uid())
+                        << " marker_sender_uid=" << marker->sender_uid << '\n';
+          }
           WriteClientSelectDiagnostics(log_stream_, "sender", select_a_,
                                        client_a_);
         } else {
@@ -658,6 +676,12 @@ int StreamMatrixBench::Run() {
         if (res) {
           select_b_.ok = true;
           client_b_ = res.value();
+          if (auto marker = ReadBootstrapMarker(cwd / kBootstrapMarkerFile)) {
+            log_stream_ << "loaded_receiver_uid="
+                        << UidToLogString(client_b_.Load()->uid())
+                        << " marker_receiver_uid=" << marker->receiver_uid
+                        << '\n';
+          }
           WriteClientSelectDiagnostics(log_stream_, "receiver", select_b_,
                                        client_b_);
         } else {

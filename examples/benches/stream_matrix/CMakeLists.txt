@@ -146,6 +146,10 @@ if(NOT CM_PLATFORM)
 
   )
 
+  if(WIN32)
+    list(APPEND _stream_matrix_logic_sources stream_matrix_win_udp_recv_test.cpp)
+  endif()
+
   add_executable(aether_stream_matrix_logic_test ${_stream_matrix_logic_sources})
 
   target_link_libraries(aether_stream_matrix_logic_test PRIVATE aether)

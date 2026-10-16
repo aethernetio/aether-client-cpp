@@ -31,7 +31,8 @@ function Build-Flavor($Flavor, $UserConfigRel, $BuildDir, [switch]$WithBootstrap
     "aether_stream_matrix_schedule_test",
     "aether_stream_matrix_registration_test",
     "aether_stream_matrix_udp_serialization_test",
-    "aether_stream_matrix_p2p_safe_loopback_test"
+    "aether_stream_matrix_p2p_safe_loopback_test",
+    "aether_stream_matrix_win_udp_recv_test"
   )
   if ($WithBootstrap) {
     $targets += "aether_stream_matrix_bootstrap"
@@ -51,6 +52,10 @@ function Run-ReleaseTests($BuildDir) {
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   & (Resolve-Exe $BuildDir "aether_stream_matrix_p2p_safe_loopback_test")
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  if ($IsWindows -or ($env:OS -match "Windows")) {
+    & (Resolve-Exe $BuildDir "aether_stream_matrix_win_udp_recv_test")
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  }
 }
 
 function Ensure-RegistrationState($TcpBuildDir, $SeedDir) {

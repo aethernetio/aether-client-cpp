@@ -106,4 +106,56 @@ void WriteRegistrationStateMissing(std::ostream& out, char const* state_dir) {
       << " (run TCP bootstrap first; AE_FILTRATION required)\n";
 }
 
+void LogBenchProcessPaths(std::ostream& out, std::filesystem::path const& cwd) {
+  std::error_code ec;
+  auto state_abs = std::filesystem::absolute(kDefaultDomainStateDir, ec);
+  out << "process_cwd=" << std::filesystem::absolute(cwd, ec).string() << '\n';
+  out << "state_dir=" << state_abs.string() << '\n';
+#if AE_FILTRATION
+  out << "AE_FILTRATION=1\n";
+#else
+  out << "AE_FILTRATION=0\n";
+#endif
+}
+
+bool RegistrationSeedReadyForUdpBench(std::ostream& out,
+                                      std::filesystem::path const& cwd) {
+  LogBenchProcessPaths(out, cwd);
+#if AE_SUPPORT_TCP != 0
+  return true;
+#endif
+#if !AE_FILTRATION
+  out << "REGISTRATION_SEED_INVALID reason=AE_FILTRATION_required_for_udp_load\n";
+  return false;
+#endif
+  auto marker_path = cwd / kBootstrapMarkerFile;
+  auto state_path = cwd / kDefaultDomainStateDir;
+  if (!DomainStateHasPersistedObjects(state_path)) {
+    out << "REGISTRATION_SEED_INVALID reason=state_missing path="
+        << state_path.string() << '\n';
+    return false;
+  }
+  auto marker = ReadBootstrapMarker(marker_path);
+  if (!marker) {
+    out << "REGISTRATION_SEED_INVALID reason=bootstrap_marker_missing path="
+        << marker_path.string() << '\n';
+    return false;
+  }
+  if (marker->sender_client_id != "sender" ||
+      marker->receiver_client_id != "receiver") {
+    out << "REGISTRATION_SEED_INVALID reason=client_id_mismatch\n";
+    return false;
+  }
+  if (marker->sender_uid.empty() || marker->receiver_uid.empty() ||
+      marker->sender_uid == "ok" || marker->receiver_uid == "ok") {
+    out << "REGISTRATION_SEED_INVALID reason=marker_uid_placeholder "
+        << "re-run TCP bootstrap to refresh marker\n";
+    return false;
+  }
+  out << "registration_seed_ok marker=" << marker_path.string() << '\n';
+  out << "registration_seed sender_uid=" << marker->sender_uid
+      << " receiver_uid=" << marker->receiver_uid << '\n';
+  return true;
+}
+
 }  // namespace ae::stream_matrix_bench

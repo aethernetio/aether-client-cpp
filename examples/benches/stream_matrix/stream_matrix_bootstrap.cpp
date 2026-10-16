@@ -17,8 +17,11 @@
 #include <chrono>
 #include <filesystem>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <string_view>
+
+#include "aether-miscpp/format/format.h"
 
 #define AE_EXAMPLE_ETHERNET 1
 
@@ -130,12 +133,17 @@ int main(int argc, char* argv[]) {
     app->Exit(1);
     return 1;
   }
+  auto uid_string = [](ae::Uid const& uid) {
+    std::ostringstream os;
+    ae::Format(os, "{}", uid);
+    return os.str();
+  };
   BootstrapMarker marker{
-      .parent_uid = "3ac93165-3d37-4970-87a6-fa4ee27744e4",
+      .parent_uid = uid_string(StreamMatrixParentUid()),
       .sender_client_id = kStreamMatrixSenderId,
       .receiver_client_id = kStreamMatrixReceiverId,
-      .sender_uid = "ok",
-      .receiver_uid = "ok",
+      .sender_uid = uid_string(sender.Load()->uid()),
+      .receiver_uid = uid_string(receiver.Load()->uid()),
   };
   WriteBootstrapMarker(marker_path, marker);
   std::cout << "bootstrap: registered and saved state\n";

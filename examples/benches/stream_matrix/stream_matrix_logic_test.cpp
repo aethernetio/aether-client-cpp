@@ -24,6 +24,7 @@
 #include "stream_matrix/bench_limits.h"
 #include "stream_matrix/bench_stats.h"
 #include "stream_matrix/bench_udp_budget.h"
+#include "stream_matrix/stream_matrix_win_udp_recv_test.h"
 
 using namespace ae::stream_matrix_bench;
 
@@ -145,6 +146,10 @@ int main() {
   test_udp_budget_boundary();
   test_period_generation_respects_max_rate();
   test_missed_schedule_counter();
+#if defined(_WIN32)
+  RunStreamMatrixWinUdpRecvTests();
+  g_failures += stream_matrix_win_udp_recv_test_failures;
+#endif
   if (g_failures != 0) {
     std::cerr << "stream_matrix_logic_test: " << g_failures << " failure(s)\n";
     return 1;

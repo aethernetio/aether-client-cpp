@@ -22,6 +22,7 @@
 #  include <mutex>
 #  include <optional>
 #  include <thread>
+#  include <utility>
 #  include <vector>
 
 #  include "aether/socket_initializer.h"
@@ -31,10 +32,29 @@
 #  include "../../common/aether_construct_ethernet.h"
 #  include "aether/transport/system_sockets/sockets/win_udp_socket.h"
 #  include "aether/types/address.h"
+#  if AE_SUPPORT_TCP
+#    include "aether/transport/system_sockets/sockets/win_tcp_socket.h"
+#  endif
 
 int stream_matrix_win_udp_recv_test_failures = 0;
 
 namespace {
+
+struct TestStats {
+  std::atomic<int> deliveries{0};
+  std::atomic<int> socket_errors{0};
+  std::atomic<int> audit_emsgsize{0};
+  std::atomic<int> iocp_completions{0};
+
+  void Reset() {
+    deliveries.store(0);
+    socket_errors.store(0);
+    audit_emsgsize.store(0);
+    iocp_completions.store(0);
+  }
+};
+
+TestStats g_stats;
 
 int g_failures = 0;
 
@@ -49,14 +69,39 @@ ae::Address Loopback() {
   return ae::Address{ae::IpV4Addr{{127, 0, 0, 1}}};
 }
 
-struct RawPeer {
+class RawPeer {
+ public:
+  RawPeer() = default;
+  RawPeer(RawPeer const&) = delete;
+  RawPeer& operator=(RawPeer const&) = delete;
+
+  RawPeer(RawPeer&& other) noexcept { MoveFrom(other); }
+  RawPeer& operator=(RawPeer&& other) noexcept {
+    if (this != &other) {
+      Close();
+      MoveFrom(other);
+    }
+    return *this;
+  }
+
+  ~RawPeer() { Close(); }
+
   SOCKET sock{INVALID_SOCKET};
   std::uint16_t port{0};
 
-  ~RawPeer() {
+ private:
+  void Close() {
     if (sock != INVALID_SOCKET) {
       closesocket(sock);
+      sock = INVALID_SOCKET;
     }
+  }
+
+  void MoveFrom(RawPeer& other) noexcept {
+    sock = other.sock;
+    port = other.port;
+    other.sock = INVALID_SOCKET;
+    other.port = 0;
   }
 };
 
@@ -89,6 +134,9 @@ std::optional<RawPeer> BindUdp(std::uint16_t port = 0) {
 
 bool SendTo(RawPeer const& from, std::uint16_t dest_port,
             std::vector<std::uint8_t> const& payload) {
+  if (from.sock == INVALID_SOCKET) {
+    return false;
+  }
   sockaddr_in dest{};
   dest.sin_family = AF_INET;
   dest.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
@@ -102,10 +150,9 @@ bool SendTo(RawPeer const& from, std::uint16_t dest_port,
 struct RecvCollector {
   mutable std::mutex mu;
   std::vector<std::vector<std::uint8_t>> payloads;
-  std::atomic<int> socket_errors{0};
-  std::atomic<int> audit_recv_errors{0};
 
   void OnData(ae::Span<std::uint8_t> span) {
+    g_stats.deliveries.fetch_add(1);
     std::vector<std::uint8_t> copy(span.begin(), span.end());
     std::scoped_lock lock{mu};
     payloads.push_back(std::move(copy));
@@ -133,10 +180,16 @@ class WinUdpSession {
   explicit WinUdpSession(ae::Ptr<ae::IPoller> const& poller) : poller_{poller} {}
 
   bool ConnectTo(RawPeer const& peer, RecvCollector& coll) {
+    if (peer.sock == INVALID_SOCKET) {
+      return false;
+    }
     socket_ = std::make_unique<ae::WinUdpSocket>(poller_);
     std::promise<bool> connected;
+    std::future<bool> connected_future = connected.get_future();
     socket_->RecvData([&](ae::Span<std::uint8_t> span) { coll.OnData(span); })
-        .Error([&]() { coll.socket_errors.fetch_add(1); });
+        .Error([&]() {
+          g_stats.socket_errors.fetch_add(1);
+        });
     ae::AddressPort dest{Loopback(), peer.port};
     socket_->Connect(dest, [&](ae::ISocket::ConnectionState state) {
       if (state == ae::ISocket::ConnectionState::kConnected) {
@@ -145,18 +198,20 @@ class WinUdpSession {
         connected.set_value(false);
       }
     });
-    return connected.get_future().wait_for(std::chrono::seconds{5}) ==
-               std::future_status::ready &&
-           connected.get_future().get();
+    if (connected_future.wait_for(std::chrono::seconds{5}) !=
+        std::future_status::ready) {
+      return false;
+    }
+    return connected_future.get();
   }
 
   std::optional<std::uint16_t> LearnLocalPort(RawPeer const& peer) {
-    if (!socket_) {
+    if (!socket_ || peer.sock == INVALID_SOCKET) {
       return std::nullopt;
     }
-    std::vector<std::uint8_t> ping{0xAB};
+    ping_payload_ = {0xAB};
     auto sent = socket_->Send(
-        ae::Span<std::uint8_t>{ping.data(), ping.size()});
+        ae::Span<std::uint8_t>{ping_payload_.data(), ping_payload_.size()});
     if (!sent || *sent == 0) {
       return std::nullopt;
     }
@@ -186,6 +241,7 @@ class WinUdpSession {
  private:
   ae::Ptr<ae::IPoller> poller_;
   std::unique_ptr<ae::WinUdpSocket> socket_;
+  std::vector<std::uint8_t> ping_payload_;
 };
 
 ae::Ptr<ae::IPoller> MakePoller() {
@@ -201,15 +257,32 @@ ae::Ptr<ae::IPoller> MakePoller() {
   return ae::Ptr<ae::IPoller>{poller_obj.Load()};
 }
 
+void AuditRecvError(int wsa_error, std::size_t) {
+  if (wsa_error == WSAEMSGSIZE) {
+    g_stats.audit_emsgsize.fetch_add(1);
+  }
+}
+
 void test_sync_and_pending_delivery() {
+  auto const deliveries_before = g_stats.deliveries.load();
   auto poller = MakePoller();
   auto tx = BindUdp();
-  Expect(tx.has_value(), "bind tx");
+  if (!tx) {
+    Expect(false, "bind tx");
+    return;
+  }
   RecvCollector coll;
   WinUdpSession rx{poller};
-  Expect(rx.ConnectTo(*tx, coll), "connect rx");
+  if (!rx.ConnectTo(*tx, coll)) {
+    Expect(false, "connect rx");
+    return;
+  }
   auto local = rx.LearnLocalPort(*tx);
-  Expect(local.has_value(), "learn rx local port");
+  if (!local) {
+    Expect(false, "learn rx local port");
+    rx.Disconnect();
+    return;
+  }
 
   Expect(SendTo(*tx, *local, {1, 2, 3}), "send sync-sized");
   Expect(coll.WaitCount(1, std::chrono::seconds{2}), "one delivery");
@@ -220,17 +293,30 @@ void test_sync_and_pending_delivery() {
   }
   Expect(SendTo(*tx, *local, med), "send pending-sized");
   Expect(coll.WaitCount(2, std::chrono::seconds{2}), "second delivery");
+  Expect(g_stats.deliveries.load() - deliveries_before >= 2,
+         "delivery counter sync/pending");
   rx.Disconnect();
 }
 
 void test_queued_burst_unique() {
   auto poller = MakePoller();
   auto tx = BindUdp();
+  if (!tx) {
+    Expect(false, "bind tx burst");
+    return;
+  }
   RecvCollector coll;
   WinUdpSession rx{poller};
-  Expect(rx.ConnectTo(*tx, coll), "connect");
+  if (!rx.ConnectTo(*tx, coll)) {
+    Expect(false, "connect burst");
+    return;
+  }
   auto local = rx.LearnLocalPort(*tx);
-  Expect(local.has_value(), "local port");
+  if (!local) {
+    Expect(false, "local port burst");
+    rx.Disconnect();
+    return;
+  }
 
   for (int i = 0; i < 8; ++i) {
     Expect(SendTo(*tx, *local, {static_cast<std::uint8_t>(i)}), "burst send");
@@ -249,26 +335,36 @@ void test_queued_burst_unique() {
   rx.Disconnect();
 }
 
-std::atomic<int> g_audit_recv_errors{0};
-
-void AuditRecvError(int, std::size_t) { g_audit_recv_errors.fetch_add(1); }
-
 void test_wsaemsgsize_no_truncated_delivery() {
-  g_audit_recv_errors.store(0);
+  g_stats.audit_emsgsize.store(0);
   ae::SetStreamMatrixUdpRecvErrorAudit(&AuditRecvError);
 
   auto poller = MakePoller();
   auto tx = BindUdp();
+  if (!tx) {
+    Expect(false, "bind tx emsgsize");
+    ae::SetStreamMatrixUdpRecvErrorAudit(nullptr);
+    return;
+  }
   RecvCollector coll;
   WinUdpSession rx{poller};
-  Expect(rx.ConnectTo(*tx, coll), "connect");
+  if (!rx.ConnectTo(*tx, coll)) {
+    Expect(false, "connect emsgsize");
+    ae::SetStreamMatrixUdpRecvErrorAudit(nullptr);
+    return;
+  }
   auto local = rx.LearnLocalPort(*tx);
-  Expect(local.has_value(), "local port");
+  if (!local) {
+    Expect(false, "local emsgsize");
+    rx.Disconnect();
+    ae::SetStreamMatrixUdpRecvErrorAudit(nullptr);
+    return;
+  }
 
   std::vector<std::uint8_t> huge(4096, 0xCD);
   Expect(SendTo(*tx, *local, huge), "oversize datagram");
-  std::this_thread::sleep_for(std::chrono::milliseconds{200});
-  Expect(g_audit_recv_errors.load() >= 1, "WSAEMSGSIZE audited");
+  std::this_thread::sleep_for(std::chrono::milliseconds{300});
+  Expect(g_stats.audit_emsgsize.load() >= 1, "WSAEMSGSIZE audited");
   Expect(coll.Count() == 0, "no truncated delivery");
 
   Expect(SendTo(*tx, *local, {0x42}), "small after EMSGSIZE");
@@ -281,9 +377,16 @@ void test_wsaemsgsize_no_truncated_delivery() {
 void test_disconnect_while_recv_posted() {
   auto poller = MakePoller();
   auto tx = BindUdp();
+  if (!tx) {
+    Expect(false, "bind tx disconnect");
+    return;
+  }
   RecvCollector coll;
   WinUdpSession rx{poller};
-  Expect(rx.ConnectTo(*tx, coll), "connect");
+  if (!rx.ConnectTo(*tx, coll)) {
+    Expect(false, "connect disconnect");
+    return;
+  }
   rx.Disconnect();
   Expect(true, "disconnect without crash");
 }
@@ -291,20 +394,25 @@ void test_disconnect_while_recv_posted() {
 void test_recv_callback_not_under_socket_lock() {
   auto poller = MakePoller();
   auto tx = BindUdp();
-  Expect(tx.has_value(), "bind tx reenter");
+  if (!tx) {
+    Expect(false, "bind tx reenter");
+    return;
+  }
   RecvCollector coll;
   std::atomic<bool> reentered_send{false};
+  std::vector<std::uint8_t> reply_storage{9, 9};
   ae::WinUdpSocket socket{poller};
   socket
       .RecvData([&](ae::Span<std::uint8_t> span) {
         coll.OnData(span);
         if (!reentered_send.exchange(true)) {
-          std::vector<std::uint8_t> reply{9, 9};
-          socket.Send(ae::Span<std::uint8_t>{reply.data(), reply.size()});
+          socket.Send(ae::Span<std::uint8_t>{reply_storage.data(),
+                                               reply_storage.size()});
         }
       })
-      .Error([&]() { coll.socket_errors.fetch_add(1); });
+      .Error([&]() { g_stats.socket_errors.fetch_add(1); });
   std::promise<bool> connected;
+  std::future<bool> connected_future = connected.get_future();
   ae::AddressPort dest{Loopback(), tx->port};
   socket.Connect(dest, [&](ae::ISocket::ConnectionState state) {
     if (state == ae::ISocket::ConnectionState::kConnected) {
@@ -313,7 +421,11 @@ void test_recv_callback_not_under_socket_lock() {
       connected.set_value(false);
     }
   });
-  Expect(connected.get_future().get(), "connect for reentrancy");
+  if (!connected_future.get()) {
+    Expect(false, "connect for reentrancy");
+    socket.Disconnect();
+    return;
+  }
   std::optional<std::uint16_t> local;
   {
     std::vector<std::uint8_t> ping{0xAB};
@@ -332,27 +444,88 @@ void test_recv_callback_not_under_socket_lock() {
       std::this_thread::sleep_for(std::chrono::milliseconds{5});
     }
   }
-  Expect(local.has_value(), "local");
+  if (!local) {
+    Expect(false, "local reenter");
+    socket.Disconnect();
+    return;
+  }
   Expect(SendTo(*tx, *local, {7}), "trigger callback");
   Expect(coll.WaitCount(1, std::chrono::seconds{2}), "delivery under reenter");
   socket.Disconnect();
 }
+
+#  if AE_SUPPORT_TCP
+void test_tcp_eof_no_recv_repost_storm() {
+  auto poller = MakePoller();
+  std::atomic<int> errors{0};
+  std::promise<std::uint16_t> listen_port;
+  std::thread server([&]() {
+    SOCKET listen_sock = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_port = 0;
+    ::bind(listen_sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+    socklen_t len = sizeof(addr);
+    ::getsockname(listen_sock, reinterpret_cast<sockaddr*>(&addr), &len);
+    listen_port.set_value(ntohs(addr.sin_port));
+    ::listen(listen_sock, 1);
+    SOCKET client = ::accept(listen_sock, nullptr, nullptr);
+    ::closesocket(listen_sock);
+    ::shutdown(client, SD_SEND);
+    ::closesocket(client);
+  });
+
+  auto port = listen_port.get_future().get();
+  ae::WinTcpSocket tcp{poller};
+  tcp.RecvData([](ae::Span<std::uint8_t>) {}).Error([&]() {
+    errors.fetch_add(1);
+  });
+  std::promise<bool> connected;
+  std::future<bool> connected_future = connected.get_future();
+  tcp.Connect({Loopback(), port}, [&](ae::ISocket::ConnectionState state) {
+    if (state == ae::ISocket::ConnectionState::kConnected) {
+      connected.set_value(true);
+    } else if (state == ae::ISocket::ConnectionState::kConnectionFailed) {
+      connected.set_value(false);
+    }
+  });
+  Expect(connected_future.get(), "tcp connect");
+  std::this_thread::sleep_for(std::chrono::milliseconds{500});
+  Expect(errors.load() >= 1, "tcp eof error callback");
+  tcp.Disconnect();
+  server.join();
+}
+#  endif
 
 }  // namespace
 
 void RunStreamMatrixWinUdpRecvTests() {
   g_failures = 0;
   stream_matrix_win_udp_recv_test_failures = 0;
+  g_stats.Reset();
   static ae::SocketInitializer wsa_init;
+  ae::SetStreamMatrixUdpRecvErrorAudit(nullptr);
+
   test_sync_and_pending_delivery();
   test_queued_burst_unique();
   test_wsaemsgsize_no_truncated_delivery();
   test_disconnect_while_recv_posted();
-  // Callback re-enter test last: issues an extra send from recv handler.
   test_recv_callback_not_under_socket_lock();
+#  if AE_SUPPORT_TCP
+  test_tcp_eof_no_recv_repost_storm();
+#  endif
+
   stream_matrix_win_udp_recv_test_failures = g_failures;
+  std::cout << "stream_matrix_win_udp_recv_test stats deliveries="
+            << g_stats.deliveries.load()
+            << " socket_errors=" << g_stats.socket_errors.load()
+            << " audit_emsgsize=" << g_stats.audit_emsgsize.load() << '\n';
   if (g_failures == 0) {
     std::cout << "stream_matrix_win_udp_recv_test: OK\n";
+  } else {
+    std::cerr << "stream_matrix_win_udp_recv_test: " << g_failures
+              << " failure(s)\n";
   }
 }
 

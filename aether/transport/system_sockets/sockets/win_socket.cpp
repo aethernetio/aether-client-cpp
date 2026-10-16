@@ -29,11 +29,13 @@
 #  include "aether/transport/transport_tele.h"
 
 namespace ae {
-WinSocket::WinSocket(IPoller& poller, std::size_t max_packet_size)
+WinSocket::WinSocket(IPoller& poller, std::size_t max_packet_size,
+                     bool stream_socket)
     : poller_{std::static_pointer_cast<IoCpPoller>(poller.Native())},
       recv_overlapped_{},
       send_overlapped_{},
-      recv_buffer_(max_packet_size) {}
+      recv_buffer_(max_packet_size),
+      stream_socket_{stream_socket} {}
 
 WinSocket::~WinSocket() { Disconnect(); }
 
@@ -126,18 +128,24 @@ void WinSocket::DeliverRecvBytes(std::size_t bytes) {
 }
 
 void WinSocket::OnRead() {
+  bool repost_recv = true;
   ae_defer[&]() {
-    // request new recv after all
-    RequestRecv();
+    if (repost_recv) {
+      RequestRecv();
+    }
   };
 
   auto res = HandleRecv();
   if (!res) {
+    repost_recv = false;
     OnError();
     return;
   }
   if (*res == 0) {
-    // No data yet
+    if (stream_socket_ && !is_recv_pending_) {
+      repost_recv = false;
+      OnError();
+    }
     return;
   }
 
@@ -199,8 +207,13 @@ bool WinSocket::RequestRecv() {
       is_recv_pending_ = false;
       sync_bytes = static_cast<std::size_t>(bytes_transferred);
     }
-    if (sync_bytes && *sync_bytes > 0) {
-      DeliverRecvBytes(*sync_bytes);
+    if (sync_bytes) {
+      if (*sync_bytes > 0) {
+        DeliverRecvBytes(*sync_bytes);
+      } else if (stream_socket_) {
+        OnError();
+        return true;
+      }
     }
     continue;
   }

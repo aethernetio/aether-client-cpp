@@ -47,6 +47,12 @@ void WriteBootstrapMarker(std::filesystem::path const& path,
 void WriteRegistrationStateMissing(std::ostream& out,
                                    char const* state_dir);
 
+// UDP-only bench: marker + state must be present before SelectClient.
+bool RegistrationSeedReadyForUdpBench(std::ostream& out,
+                                      std::filesystem::path const& cwd);
+
+void LogBenchProcessPaths(std::ostream& out, std::filesystem::path const& cwd);
+
 }  // namespace ae::stream_matrix_bench
 
 #endif
