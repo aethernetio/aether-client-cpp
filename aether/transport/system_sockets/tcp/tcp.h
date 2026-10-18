@@ -126,7 +126,6 @@ class TcpBase : public ByteIStream {
 
   AeContext ae_context_;
   AddressPort endpoint_;
-  MultiSubscription send_action_subs_;
 
   StreamInfo stream_info_;
   OutDataEvent out_data_event_;
@@ -139,6 +138,7 @@ class TcpBase : public ByteIStream {
   TaskSubscription conn_state_sub_;
   std::optional<FailedWriteAction> failed_write_;
 };
+
 }  // namespace tcp_internal
 
 template <typename Socket, std::size_t QueueSize>
@@ -187,14 +187,6 @@ class TcpTransport final : public tcp_internal::TcpBase {
       return FailedWrite();
     }
 
-    send_action_subs_ +=
-        send_action->status_event().Subscribe([this](auto status) {
-          if (status == WriteAction::Status::kFail) {
-            AE_TELED_ERROR("Send error, disconnect!");
-            stream_info_.link_state = LinkState::kLinkError;
-            Disconnect();
-          }
-        });
     return *send_action;
   }
 

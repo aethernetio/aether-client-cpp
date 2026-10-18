@@ -200,6 +200,24 @@ if(NOT CM_PLATFORM)
 
 
 
+  add_executable(aether_stream_matrix_multi_subscription_test
+    stream_matrix_multi_subscription_test.cpp
+  )
+
+  add_executable(aether_stream_matrix_handler_capacity_test
+    stream_matrix_handler_capacity_test.cpp
+  )
+
+  target_link_libraries(aether_stream_matrix_multi_subscription_test PRIVATE aether)
+
+  target_include_directories(aether_stream_matrix_multi_subscription_test
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
+  target_link_libraries(aether_stream_matrix_handler_capacity_test PRIVATE aether)
+
+  target_include_directories(aether_stream_matrix_handler_capacity_test
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
   add_executable(aether_stream_matrix_schedule_test
 
     stream_matrix_schedule_test.cpp
@@ -260,6 +278,8 @@ if(NOT CM_PLATFORM)
 
     target_compile_options(aether_stream_matrix_p2p_safe_loopback_test PRIVATE -Wall -Werror)
 
+    target_compile_options(aether_stream_matrix_multi_subscription_test PRIVATE -Wall -Werror)
+    target_compile_options(aether_stream_matrix_handler_capacity_test PRIVATE -Wall -Werror)
     target_compile_options(aether_stream_matrix_schedule_test PRIVATE -Wall -Werror)
 
     target_compile_options(aether_stream_matrix_registration_test PRIVATE -Wall -Werror)
@@ -270,6 +290,8 @@ if(NOT CM_PLATFORM)
   elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
 
     target_compile_options(aether_stream_matrix_bench PRIVATE /W4 /WX)
+    target_compile_options(aether_stream_matrix_bench PRIVATE $<$<CONFIG:Release>:/Zi>)
+    target_link_options(aether_stream_matrix_bench PRIVATE $<$<CONFIG:Release>:/DEBUG>)
 
     target_compile_options(aether_stream_matrix_bootstrap PRIVATE /W4 /WX)
 
@@ -279,6 +301,8 @@ if(NOT CM_PLATFORM)
 
     target_compile_options(aether_stream_matrix_p2p_safe_loopback_test PRIVATE /W4 /WX)
 
+    target_compile_options(aether_stream_matrix_multi_subscription_test PRIVATE /W4 /WX)
+    target_compile_options(aether_stream_matrix_handler_capacity_test PRIVATE /W4 /WX)
     target_compile_options(aether_stream_matrix_schedule_test PRIVATE /W4 /WX)
 
     target_compile_options(aether_stream_matrix_registration_test PRIVATE /W4 /WX)

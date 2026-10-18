@@ -9,6 +9,9 @@
 #include <cmath>
 #include <deque>
 #include <memory>
+#include <utility>
+
+#include "aether/events/events.h"
 
 #include "stream_matrix/bench_throughput_frame.h"
 
@@ -48,6 +51,7 @@ struct ChunkTerminalSlot {
 struct ActiveWrite {
   std::uint64_t chunk_index{};
   std::size_t bytes{};
+  WriteAction* action{};
 };
 
 struct PointSession : std::enable_shared_from_this<PointSession> {
@@ -137,34 +141,30 @@ struct PointSession : std::enable_shared_from_this<PointSession> {
     records.push_back(rec);
     auto wire = MakeThptChunk(*blob, run_id, chunk_index, byte_offset, payload_len);
     auto& wa = send_stream->Write(std::move(wire));
-    std::weak_ptr<PointSession> weak = shared_from_this();
-    bench->StreamingPointWriteSubs() += wa.status_event().Subscribe(
-        [weak, chunk_index](WriteAction::Status st) {
-          auto self = weak.lock();
-          if (!self || !self->alive.load()) {
-            return;
-          }
-          self->mark_terminal(chunk_index, st);
-          self->slot_available.store(true);
-        });
-    active.push_back(ActiveWrite{.chunk_index = chunk_index, .bytes = payload_len});
+    active.push_back(
+        ActiveWrite{.chunk_index = chunk_index, .bytes = payload_len, .action = &wa});
     note_peaks(peak_writes, peak_bytes);
     if (wa.is_finished()) {
-      WriteAction::Status st = WriteAction::Status::kSuccess;
-      mark_terminal(chunk_index, st);
+      mark_terminal(chunk_index, WriteAction::Status::kSuccess);
       slot_available.store(true);
     }
     return SubmitOutcome::kSubmitted;
   }
 
-  void drain_finished() {
+  void poll_write_completion() {
     for (auto it = active.begin(); it != active.end();) {
-      if (it->chunk_index >= terminals.size() ||
-          !terminals[it->chunk_index].terminal_set) {
-        ++it;
+      if (it->chunk_index < terminals.size() &&
+          terminals[it->chunk_index].terminal_set) {
+        it = active.erase(it);
         continue;
       }
-      it = active.erase(it);
+      if (it->action != nullptr && it->action->is_finished()) {
+        mark_terminal(it->chunk_index, WriteAction::Status::kSuccess);
+        slot_available.store(true);
+        it = active.erase(it);
+        continue;
+      }
+      ++it;
     }
   }
 };
@@ -192,7 +192,8 @@ StreamingRunResult RunOneStreamingPoint(StreamMatrixBench& bench, PointRunArgs a
   session->mode = args.mode;
   session->chunks_total = args.chunks_total;
   session->records.reserve(args.chunks_total);
-  session->terminals.assign(args.chunks_total, ChunkTerminalSlot{});
+  session->terminals.clear();
+  session->terminals.resize(args.chunks_total);
 
   std::uint64_t next_chunk = 0;
   std::uint64_t peak_writes = 0;
@@ -223,7 +224,7 @@ StreamingRunResult RunOneStreamingPoint(StreamMatrixBench& bench, PointRunArgs a
         any = true;
         bench.BenchPump(std::chrono::milliseconds{0});
         session->sync_record_terminals();
-        session->drain_finished();
+        session->poll_write_completion();
       }
       return any;
     }
@@ -257,7 +258,7 @@ StreamingRunResult RunOneStreamingPoint(StreamMatrixBench& bench, PointRunArgs a
     try_fill();
     bench.BenchPump(std::chrono::milliseconds{0});
     session->sync_record_terminals();
-    session->drain_finished();
+    session->poll_write_completion();
 
     if (next_chunk >= args.chunks_total && session->active.empty() &&
         session->receiver->Complete()) {
@@ -270,11 +271,9 @@ StreamingRunResult RunOneStreamingPoint(StreamMatrixBench& bench, PointRunArgs a
   while (BenchNow() < drain_until && !session->active.empty()) {
     bench.BenchPump(std::chrono::milliseconds{0});
     session->sync_record_terminals();
-    session->drain_finished();
+    session->poll_write_completion();
   }
   session->sync_record_terminals();
-  bench.StreamingPointWriteSubs().Reset();
-
   out.timed_out =
       BenchNow() >= point_deadline && !session->receiver->Complete();
 
