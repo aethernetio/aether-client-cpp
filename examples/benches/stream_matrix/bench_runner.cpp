@@ -63,6 +63,8 @@ BenchCliOptions ParseArgs(int argc, char* argv[]) {
     std::string_view arg{argv[i]};
     if (arg == "--smoke") {
       options.smoke = true;
+    } else if (arg == "--mi1-tcp") {
+      options.mi1_tcp = true;
     } else if (arg == "--full") {
       options.full_matrix = true;
     } else if (arg == "--run-points") {
@@ -92,7 +94,8 @@ BenchCliOptions ParseArgs(int argc, char* argv[]) {
       options.server_version = argv[++i];
     }
   }
-  if (!options.smoke && !options.full_matrix && !options.run_points) {
+  if (!options.smoke && !options.full_matrix && !options.run_points &&
+      !options.mi1_tcp) {
     options.smoke = true;
   }
   return options;
@@ -722,6 +725,10 @@ int StreamMatrixBench::Run() {
                     .count()) |
             1ULL;
   log_stream_ << "run_id=" << run_id_ << '\n';
+
+  if (options_.mi1_tcp) {
+    return RunMi1Tcp();
+  }
 
   std::vector<Mode> modes;
   if (kBenchMatrixUdpEnabled) {

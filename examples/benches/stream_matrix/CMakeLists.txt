@@ -96,6 +96,8 @@ if(NOT CM_PLATFORM)
 
     bench_runner.cpp
 
+    bench_mi1_tcp.cpp
+
   )
 
 

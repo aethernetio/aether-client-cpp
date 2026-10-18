@@ -39,6 +39,7 @@ struct BenchCliOptions {
   bool smoke{false};
   bool full_matrix{false};
   bool run_points{false};
+  bool mi1_tcp{false};
   std::optional<BenchStreamKind> only_stream;
   std::optional<BenchTransportKind> only_transport;
   std::vector<std::size_t> only_payloads;
@@ -67,6 +68,7 @@ class StreamMatrixBench {
   int Run();
 
  private:
+  int RunMi1Tcp();
   Duration SdkWaitCap(BenchDuration bench_remaining) const;
   void PumpSdkOnce(BenchInstant bench_now, BenchDuration bench_remaining);
   bool PumpUntil(std::function<bool()> predicate, Duration timeout);
