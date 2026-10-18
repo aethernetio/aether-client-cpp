@@ -23,6 +23,8 @@
 #include "stream_matrix/bench_envelope.h"
 #include "stream_matrix/bench_limits.h"
 #include "stream_matrix/bench_stats.h"
+#include "stream_matrix/bench_streaming_receiver.h"
+#include "stream_matrix/bench_throughput_frame.h"
 #include "stream_matrix/bench_udp_budget.h"
 #include "stream_matrix/stream_matrix_win_udp_recv_test.h"
 
@@ -138,6 +140,34 @@ static void test_missed_schedule_counter() {
   Expect(stats.counters().missed_schedule == 2, "missed schedule");
 }
 
+static void test_thpt_wire_discriminator() {
+  auto blob = BuildThroughputBlob();
+  auto thpt = MakeThptChunk(blob, 1, 0, 0, 1024);
+  auto env = SerializeEnvelope(BenchEnvelope{
+      .kind = static_cast<std::uint8_t>(EnvelopeKind::kService),
+      .run_id = 1,
+      .point_id = 0,
+      .sequence = 1,
+      .payload = MakePayloadPattern(8),
+  });
+  Expect(IsThptWireData(thpt), "thpt buffer recognized");
+  Expect(!IsThptWireData(env), "service envelope not thpt");
+}
+
+static void test_streaming_receiver_full_mib() {
+  auto blob = BuildThroughputBlob();
+  StreamingReceiverState rx(blob, 42);
+  std::size_t const chunk = 4096;
+  auto const chunks = (kThroughputTotalBytes + chunk - 1) / chunk;
+  for (std::uint64_t i = 0; i < chunks; ++i) {
+    auto off = i * chunk;
+    auto len = std::min(chunk, kThroughputTotalBytes - off);
+    rx.Feed(MakeThptChunk(blob, 42, i, off, len), T(static_cast<int>(i)));
+  }
+  Expect(rx.Complete(), "full mib reassembled");
+  Expect(rx.bytes_unique() == kThroughputTotalBytes, "byte count");
+}
+
 int main() {
   test_late_duplicate_and_missing();
   test_unknown_sequence_ignored();
@@ -146,6 +176,8 @@ int main() {
   test_udp_budget_boundary();
   test_period_generation_respects_max_rate();
   test_missed_schedule_counter();
+  test_thpt_wire_discriminator();
+  test_streaming_receiver_full_mib();
 #if defined(_WIN32)
   RunStreamMatrixWinUdpRecvTests();
   g_failures += stream_matrix_win_udp_recv_test_failures;

@@ -100,6 +100,10 @@ if(NOT CM_PLATFORM)
 
     bench_streaming.cpp
 
+    bench_streaming_load.cpp
+
+    bench_streaming_receiver.cpp
+
   )
 
 
@@ -147,6 +151,8 @@ if(NOT CM_PLATFORM)
     bench_stats.cpp
 
     bench_udp_budget.cpp
+
+    bench_streaming_receiver.cpp
 
   )
 

@@ -32,8 +32,11 @@
 #include "stream_matrix/bench_clock.h"
 #include "stream_matrix/bench_limits.h"
 #include "stream_matrix/bench_stats.h"
+#include "stream_matrix/bench_streaming_receiver.h"
 
 namespace ae::stream_matrix_bench {
+
+enum class LoadMode { kBurst, kBackpressure };
 
 struct BenchCliOptions {
   bool smoke{false};
@@ -45,6 +48,11 @@ struct BenchCliOptions {
   bool streaming_udp_smoke{false};
   bool streaming_udp_matrix{false};
   bool streaming_best_repeats{false};
+  bool streaming_tcp_resume{false};
+  std::optional<std::size_t> streaming_repro_chunk;
+  std::optional<std::size_t> streaming_repro_outstanding;
+  std::optional<LoadMode> streaming_repro_mode;
+  std::size_t streaming_repro_prefix_points{6};
   std::optional<BenchStreamKind> only_stream;
   std::optional<BenchTransportKind> only_transport;
   std::vector<std::size_t> only_payloads;
@@ -59,13 +67,20 @@ struct BenchCliOptions {
   bool sdk_tree_dirty{false};
 };
 
-enum class LoadMode { kBurst, kBackpressure };
-
 enum class SetupResult {
   kOk,
   kNotCompiled,
   kTransportUnavailable,
   kSetupFailed,
+};
+
+struct StreamingPlannedPoint {
+  BenchTransportKind transport;
+  BenchStreamKind stream;
+  LoadMode mode;
+  std::size_t chunk;
+  std::size_t outstanding;
+  int repeats;
 };
 
 class StreamMatrixBench {
@@ -75,12 +90,20 @@ class StreamMatrixBench {
   int Run();
   void BenchPump(BenchDuration max_wait);
   MultiSubscription& WriteStatusSubs() { return write_status_subs_; }
+  MultiSubscription& StreamingPointWriteSubs() {
+    return streaming_point_write_subs_;
+  }
+  ByteIStream* SendStream() { return send_stream_; }
 
  private:
   int RunMi1Tcp();
   int RunStreamingTcp();
   int RunStreamingUdpSafe();
   int RunStreamingBestRepeats();
+  int ExecuteStreamingPlan(std::vector<StreamingPlannedPoint> plan,
+                           std::vector<std::uint8_t> const& blob,
+                           std::filesystem::path const& csv_path,
+                           bool append_csv, bool skip_completed);
   Duration SdkWaitCap(BenchDuration bench_remaining) const;
   void PumpSdkOnce(BenchInstant bench_now, BenchDuration bench_remaining);
   bool PumpUntil(std::function<bool()> predicate, Duration timeout);
@@ -89,6 +112,16 @@ class StreamMatrixBench {
 
   SetupResult SetupMode(BenchStreamKind stream, BenchTransportKind transport);
   bool RunServiceExchange();
+  struct ServiceExchangeLog {
+    bool ok{false};
+    std::string failure_stage;
+  };
+  ServiceExchangeLog RunServiceExchangeLogged();
+  void RouteInboundForStreaming(
+      DataBuffer const& data,
+      std::shared_ptr<StreamingReceiverState> const& receiver);
+  void SetStreamingMeasureReceiver(
+      std::shared_ptr<StreamingReceiverState> const& receiver);
   void TeardownStreams();
 
   std::optional<CsvRow> RunPoint(BenchStreamKind stream,
@@ -125,6 +158,8 @@ class StreamMatrixBench {
   ByteIStream* send_stream_{nullptr};
   Subscription recv_sub_;
   Subscription recv_sub_a_;
+  Subscription measure_recv_sub_;
+  MultiSubscription streaming_point_write_subs_;
 
   std::uint64_t run_id_{};
   std::uint64_t next_point_id_{1};

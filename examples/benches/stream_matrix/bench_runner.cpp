@@ -16,6 +16,8 @@
 
 #include "stream_matrix/bench_runner.h"
 
+#include "stream_matrix/bench_streaming_receiver.h"
+
 #include <chrono>
 #include <memory>
 #include <random>
@@ -75,6 +77,25 @@ BenchCliOptions ParseArgs(int argc, char* argv[]) {
       options.streaming_udp_matrix = true;
     } else if (arg == "--streaming-best-repeats") {
       options.streaming_best_repeats = true;
+    } else if (arg == "--streaming-tcp-resume") {
+      options.streaming_tcp_resume = true;
+      options.streaming_tcp_matrix = true;
+    } else if (arg == "--streaming-repro-chunk" && i + 1 < argc) {
+      options.streaming_repro_chunk =
+          static_cast<std::size_t>(std::stoull(argv[++i]));
+    } else if (arg == "--streaming-repro-outstanding" && i + 1 < argc) {
+      options.streaming_repro_outstanding =
+          static_cast<std::size_t>(std::stoull(argv[++i]));
+    } else if (arg == "--streaming-repro-mode" && i + 1 < argc) {
+      std::string_view mode{argv[++i]};
+      if (mode == "burst") {
+        options.streaming_repro_mode = LoadMode::kBurst;
+      } else if (mode == "backpressure") {
+        options.streaming_repro_mode = LoadMode::kBackpressure;
+      }
+    } else if (arg == "--streaming-repro-prefix" && i + 1 < argc) {
+      options.streaming_repro_prefix_points =
+          static_cast<std::size_t>(std::stoull(argv[++i]));
     } else if (arg == "--full") {
       options.full_matrix = true;
     } else if (arg == "--run-points") {
@@ -309,39 +330,86 @@ void StreamMatrixBench::SendServiceEnvelope(std::uint64_t attempt_id,
       [](WriteAction::Status) {});
 }
 
-bool StreamMatrixBench::RunServiceExchange() {
+StreamMatrixBench::ServiceExchangeLog StreamMatrixBench::RunServiceExchangeLogged() {
+  ServiceExchangeLog log;
   service_rx_.store(false);
   service_echo_pending_.store(false);
   expected_service_attempt_id_ = ++service_attempt_id_;
   in_service_exchange_ = true;
 
+  log_stream_ << "service_exchange attempt=" << expected_service_attempt_id_
+              << " stage=A_to_B_write\n";
   SendServiceEnvelope(expected_service_attempt_id_, 0, *send_stream_);
   if (!PumpUntil([&]() { return service_echo_pending_.load(); },
                  std::chrono::seconds{45})) {
     in_service_exchange_ = false;
     write_status_subs_.Reset();
-    return false;
+    log.failure_stage = "B_did_not_receive_A_request";
+    log_stream_ << "service_exchange fail=" << log.failure_stage << '\n';
+    return log;
   }
+  log_stream_ << "service_exchange stage=B_received_A\n";
   ByteIStream* b_send = p2p_b_.get();
   if (safe_b_) {
     b_send = safe_b_.get();
   }
+  log_stream_ << "service_exchange stage=B_to_A_write\n";
   SendServiceEnvelope(expected_service_attempt_id_, 1, *b_send);
   if (!PumpUntil([&]() { return service_rx_.load(); },
                  std::chrono::seconds{45})) {
     in_service_exchange_ = false;
     write_status_subs_.Reset();
-    return false;
+    log.failure_stage = "A_did_not_receive_B_response";
+    log_stream_ << "service_exchange fail=" << log.failure_stage << '\n';
+    return log;
   }
   in_service_exchange_ = false;
   write_status_subs_.Reset();
-  return true;
+  log_stream_ << "service_exchange stage=A_received_B ok=1\n";
+  log.ok = true;
+  return log;
+}
+
+bool StreamMatrixBench::RunServiceExchange() {
+  return RunServiceExchangeLogged().ok;
+}
+
+void StreamMatrixBench::RouteInboundForStreaming(
+    DataBuffer const& data,
+    std::shared_ptr<StreamingReceiverState> const& receiver) {
+  if (IsThptWireData(data)) {
+    if (receiver) {
+      receiver->Feed(data, BenchNow());
+    }
+    return;
+  }
+  OnReceived(data);
+}
+
+void StreamMatrixBench::SetStreamingMeasureReceiver(
+    std::shared_ptr<StreamingReceiverState> const& receiver) {
+  measure_recv_sub_.Reset();
+  if (safe_b_) {
+    measure_recv_sub_ = safe_b_->out_data_event().Subscribe(
+        [this, receiver](DataBuffer const& data) {
+          RouteInboundForStreaming(data, receiver);
+        });
+    return;
+  }
+  if (p2p_b_) {
+    measure_recv_sub_ = p2p_b_->out_data_event().Subscribe(
+        [this, receiver](DataBuffer const& data) {
+          RouteInboundForStreaming(data, receiver);
+        });
+  }
 }
 
 void StreamMatrixBench::TeardownStreams() {
   point_active_ = false;
   accept_measure_ = false;
   write_status_subs_.Reset();
+  streaming_point_write_subs_.Reset();
+  measure_recv_sub_.Reset();
   recv_sub_.Reset();
   recv_sub_a_.Reset();
   safe_a_.reset();
@@ -745,8 +813,11 @@ int StreamMatrixBench::Run() {
   if (options_.mi1_tcp) {
     return RunMi1Tcp();
   }
+  if (options_.streaming_best_repeats) {
+    return RunStreamingBestRepeats();
+  }
   if (options_.streaming_tcp_smoke || options_.streaming_tcp_matrix ||
-      options_.streaming_best_repeats) {
+      options_.streaming_tcp_resume || options_.streaming_repro_chunk) {
     return RunStreamingTcp();
   }
   if (options_.streaming_udp_smoke || options_.streaming_udp_matrix) {
