@@ -65,6 +65,16 @@ BenchCliOptions ParseArgs(int argc, char* argv[]) {
       options.smoke = true;
     } else if (arg == "--mi1-tcp") {
       options.mi1_tcp = true;
+    } else if (arg == "--streaming-tcp-smoke") {
+      options.streaming_tcp_smoke = true;
+    } else if (arg == "--streaming-tcp-matrix") {
+      options.streaming_tcp_matrix = true;
+    } else if (arg == "--streaming-udp-smoke") {
+      options.streaming_udp_smoke = true;
+    } else if (arg == "--streaming-udp-matrix") {
+      options.streaming_udp_matrix = true;
+    } else if (arg == "--streaming-best-repeats") {
+      options.streaming_best_repeats = true;
     } else if (arg == "--full") {
       options.full_matrix = true;
     } else if (arg == "--run-points") {
@@ -95,7 +105,9 @@ BenchCliOptions ParseArgs(int argc, char* argv[]) {
     }
   }
   if (!options.smoke && !options.full_matrix && !options.run_points &&
-      !options.mi1_tcp) {
+      !options.mi1_tcp && !options.streaming_tcp_smoke &&
+      !options.streaming_tcp_matrix && !options.streaming_udp_smoke &&
+      !options.streaming_udp_matrix && !options.streaming_best_repeats) {
     options.smoke = true;
   }
   return options;
@@ -122,6 +134,10 @@ Duration StreamMatrixBench::SdkWaitCap(BenchDuration bench_remaining) const {
     return Duration::zero();
   }
   return std::chrono::duration_cast<Duration>(wait);
+}
+
+void StreamMatrixBench::BenchPump(BenchDuration max_wait) {
+  PumpSdkOnce(BenchNow(), max_wait);
 }
 
 void StreamMatrixBench::PumpSdkOnce(BenchInstant bench_now,
@@ -728,6 +744,13 @@ int StreamMatrixBench::Run() {
 
   if (options_.mi1_tcp) {
     return RunMi1Tcp();
+  }
+  if (options_.streaming_tcp_smoke || options_.streaming_tcp_matrix ||
+      options_.streaming_best_repeats) {
+    return RunStreamingTcp();
+  }
+  if (options_.streaming_udp_smoke || options_.streaming_udp_matrix) {
+    return RunStreamingUdpSafe();
   }
 
   std::vector<Mode> modes;

@@ -98,6 +98,8 @@ if(NOT CM_PLATFORM)
 
     bench_mi1_tcp.cpp
 
+    bench_streaming.cpp
+
   )
 
 

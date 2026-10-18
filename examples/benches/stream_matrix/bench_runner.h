@@ -40,6 +40,11 @@ struct BenchCliOptions {
   bool full_matrix{false};
   bool run_points{false};
   bool mi1_tcp{false};
+  bool streaming_tcp_smoke{false};
+  bool streaming_tcp_matrix{false};
+  bool streaming_udp_smoke{false};
+  bool streaming_udp_matrix{false};
+  bool streaming_best_repeats{false};
   std::optional<BenchStreamKind> only_stream;
   std::optional<BenchTransportKind> only_transport;
   std::vector<std::size_t> only_payloads;
@@ -54,6 +59,8 @@ struct BenchCliOptions {
   bool sdk_tree_dirty{false};
 };
 
+enum class LoadMode { kBurst, kBackpressure };
+
 enum class SetupResult {
   kOk,
   kNotCompiled,
@@ -66,9 +73,14 @@ class StreamMatrixBench {
   explicit StreamMatrixBench(BenchCliOptions options);
 
   int Run();
+  void BenchPump(BenchDuration max_wait);
+  MultiSubscription& WriteStatusSubs() { return write_status_subs_; }
 
  private:
   int RunMi1Tcp();
+  int RunStreamingTcp();
+  int RunStreamingUdpSafe();
+  int RunStreamingBestRepeats();
   Duration SdkWaitCap(BenchDuration bench_remaining) const;
   void PumpSdkOnce(BenchInstant bench_now, BenchDuration bench_remaining);
   bool PumpUntil(std::function<bool()> predicate, Duration timeout);
