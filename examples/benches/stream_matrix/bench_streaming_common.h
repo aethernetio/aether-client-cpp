@@ -25,8 +25,16 @@ struct StreamingRunResult {
   std::uint64_t write_fail{};
   std::uint64_t write_stop{};
   std::uint64_t write_pending{};
+  std::uint64_t write_unknown{};
   std::uint64_t generator_limit_events{};
   std::uint64_t sdk_capacity_events{};
+  std::uint64_t events_registered_start{};
+  std::uint64_t events_registered_peak{};
+  std::uint64_t events_registered_end{};
+  std::uint64_t handlers_active_start{};
+  std::uint64_t handlers_active_peak{};
+  std::uint64_t handlers_active_end{};
+  bool write_status_trusted{true};
   std::uint64_t peak_outstanding_writes{};
   std::uint64_t peak_outstanding_bytes{};
   std::uint64_t dup_chunks{};

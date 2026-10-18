@@ -41,6 +41,7 @@ class KeyRegistry {
   void Release(Key key);
   bool IsRegistered(Key key) const;
   bool IsRetiring(Key key) const;
+  std::size_t Size() const noexcept { return key_map_.size(); }
 
  private:
   enum class State : std::uint8_t { kRegistered, kRetiring };

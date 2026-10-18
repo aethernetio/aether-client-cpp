@@ -161,6 +161,52 @@ void StreamMatrixBench::BenchPump(BenchDuration max_wait) {
   PumpSdkOnce(BenchNow(), max_wait);
 }
 
+StreamMatrixBench::EventPoolUsage StreamMatrixBench::EventPoolUsageNow() const {
+  EventPoolUsage out{};
+  out.events_capacity = kEventsCapacity;
+  out.handlers_capacity = kEventsHandlerCapacity;
+  if (!ae_context_) {
+    return out;
+  }
+  auto snap = ae_context_->event_system().Usage();
+  out.registered_events = snap.registered_event_keys;
+  out.handler_relationships = snap.handler_relationships;
+  return out;
+}
+
+bool StreamMatrixBench::GeneratorWriteBudgetOk(
+    std::size_t extra_in_flight_subs) const {
+  auto const u = EventPoolUsageNow();
+  static constexpr std::size_t kSdkHeadroomEvents = 96;
+  static constexpr std::size_t kSdkHeadroomHandlers = 96;
+  static constexpr std::size_t kPerInFlightEvents = 2;
+  auto const need_events =
+      extra_in_flight_subs * kPerInFlightEvents + kSdkHeadroomEvents;
+  auto const need_handlers = extra_in_flight_subs + kSdkHeadroomHandlers;
+  if (u.registered_events + need_events > u.events_capacity) {
+    return false;
+  }
+  if (u.handler_relationships + need_handlers > u.handlers_capacity) {
+    return false;
+  }
+  return true;
+}
+
+void StreamMatrixBench::ScheduleAfterPump(std::function<void()> fn) {
+  if (!fn) {
+    return;
+  }
+  after_pump_queue_.push_back(std::move(fn));
+}
+
+void StreamMatrixBench::DrainAfterPumpQueue() {
+  while (!after_pump_queue_.empty()) {
+    auto fn = std::move(after_pump_queue_.front());
+    after_pump_queue_.pop_front();
+    fn();
+  }
+}
+
 void StreamMatrixBench::PumpSdkOnce(BenchInstant bench_now,
                                     BenchDuration bench_remaining) {
   OnTick(bench_now);
@@ -176,6 +222,7 @@ void StreamMatrixBench::PumpSdkOnce(BenchInstant bench_now,
   if (wait > Duration::zero()) {
     app_->WaitUntil(Now() + wait);
   }
+  DrainAfterPumpQueue();
 }
 
 bool StreamMatrixBench::PumpUntil(std::function<bool()> predicate,

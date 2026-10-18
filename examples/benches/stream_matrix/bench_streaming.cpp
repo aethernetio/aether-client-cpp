@@ -93,8 +93,10 @@ std::set<PointKey> LoadCompletedPointKeys(std::filesystem::path const& csv_path)
 void WriteStreamingHeader(std::ofstream& csv) {
   csv << "transport,stream,mode,block_bytes,outstanding,repeat,chunks_total,"
          "payload_bytes_total,stream_write_bytes_total,write_attempts,write_ok,"
-         "write_fail,write_stop,write_pending,generator_limit_events,"
-         "sdk_capacity_events,peak_outstanding_writes,peak_outstanding_bytes,"
+         "write_fail,write_stop,write_pending,write_unknown,generator_limit_events,"
+         "sdk_capacity_events,events_start,events_peak,events_end,handlers_start,"
+         "handlers_peak,handlers_end,write_status_trusted,peak_outstanding_writes,"
+         "peak_outstanding_bytes,"
          "dup_chunks,rx_unique_bytes,submit_duration_s,first_write_to_rx_s,"
          "first_write_to_last_rx_s,all_writes_terminal_s,goodput_mib_s,"
          "write_terminal_p50_ms,write_terminal_p95_ms,write_to_rx_p50_ms,"
@@ -115,8 +117,13 @@ void WriteStreamingRow(std::ofstream& csv, StreamingRunResult const& r,
       << r.outstanding_limit << ',' << r.repeat << ',' << r.chunks_total << ','
       << payload_total << ',' << stream_write_bytes << ',' << r.write_attempts
       << ',' << r.write_ok << ',' << r.write_fail << ',' << r.write_stop << ','
-      << r.write_pending << ',' << r.generator_limit_events << ','
-      << r.sdk_capacity_events << ',' << r.peak_outstanding_writes << ','
+      << r.write_pending << ',' << r.write_unknown << ','
+      << r.generator_limit_events << ',' << r.sdk_capacity_events << ','
+      << r.events_registered_start << ',' << r.events_registered_peak << ','
+      << r.events_registered_end << ',' << r.handlers_active_start << ','
+      << r.handlers_active_peak << ',' << r.handlers_active_end << ','
+      << (r.write_status_trusted ? 1 : 0) << ',' << r.peak_outstanding_writes
+      << ','
       << r.peak_outstanding_bytes << ',' << r.dup_chunks << ','
       << r.rx_unique_bytes << ',' << r.submit_duration_s << ',';
   if (r.first_rx_s > 0) {
@@ -157,10 +164,20 @@ void WriteSetupFailedRow(std::ofstream& csv, PlannedPoint const& p, int repeat,
   WriteStreamingRow(csv, r, sdk);
 }
 
-std::vector<PlannedPoint> BuildFullTcpPlan(StreamInfo const& info) {
+std::vector<std::size_t> StreamingOutstandingMatrix(StreamMatrixBench const& bench) {
+  auto outs = DefaultOutstandingMatrix();
+  for (auto o : DefaultHighOutstandingMatrix()) {
+    if (bench.GeneratorWriteBudgetOk(o)) {
+      outs.push_back(o);
+    }
+  }
+  return outs;
+}
+
+std::vector<PlannedPoint> BuildFullTcpPlan(StreamInfo const& info,
+                                           std::vector<std::size_t> const& outs) {
   std::vector<PlannedPoint> plan;
   auto chunks = DefaultTcpChunkMatrix(info);
-  auto outs = DefaultOutstandingMatrix();
   for (auto c : chunks) {
     for (auto o : outs) {
       for (auto mode : {LoadMode::kBurst, LoadMode::kBackpressure}) {
@@ -173,8 +190,9 @@ std::vector<PlannedPoint> BuildFullTcpPlan(StreamInfo const& info) {
 }
 
 std::vector<PlannedPoint> BuildReproPrefixPlan(StreamInfo const& info,
-                                               std::size_t count) {
-  auto full = BuildFullTcpPlan(info);
+                                               std::size_t count,
+                                               std::vector<std::size_t> const& outs) {
+  auto full = BuildFullTcpPlan(info, outs);
   if (full.size() <= count) {
     return full;
   }
@@ -209,11 +227,43 @@ struct BestPoint {
   double goodput;
 };
 
+static std::optional<std::size_t> CsvColumnIndex(std::vector<std::string> const& header,
+                                                 char const* name) {
+  for (std::size_t i = 0; i < header.size(); ++i) {
+    if (header[i] == name) {
+      return i;
+    }
+  }
+  return std::nullopt;
+}
+
+static bool CsvCellIsOne(std::vector<std::string> const& cols, std::size_t idx) {
+  return idx < cols.size() && cols[idx] == "1";
+}
+
 std::vector<BestPoint> LoadTopConfigs(std::filesystem::path const& path,
                                       int top_n) {
   std::ifstream in(path);
   std::string line;
   if (!std::getline(in, line)) {
+    return {};
+  }
+  std::stringstream header_ss(line);
+  std::string cell;
+  std::vector<std::string> header;
+  while (std::getline(header_ss, cell, ',')) {
+    header.push_back(cell);
+  }
+  auto const idx_block = CsvColumnIndex(header, "block_bytes");
+  auto const idx_out = CsvColumnIndex(header, "outstanding");
+  auto const idx_mode = CsvColumnIndex(header, "mode");
+  auto const idx_goodput = CsvColumnIndex(header, "goodput_mib_s");
+  auto const idx_delivery = CsvColumnIndex(header, "delivery_ok");
+  auto const idx_integrity = CsvColumnIndex(header, "integrity_ok");
+  auto const idx_trusted = CsvColumnIndex(header, "write_status_trusted");
+  auto const idx_budget = CsvColumnIndex(header, "budget_ok");
+  auto const idx_outcome = CsvColumnIndex(header, "outcome");
+  if (!idx_block || !idx_out || !idx_mode || !idx_goodput) {
     return {};
   }
   std::map<std::tuple<std::size_t, std::size_t, std::string>, double> best;
@@ -222,27 +272,32 @@ std::vector<BestPoint> LoadTopConfigs(std::filesystem::path const& path,
       continue;
     }
     std::stringstream ss(line);
-    std::string cell;
     std::vector<std::string> cols;
     while (std::getline(ss, cell, ',')) {
       cols.push_back(cell);
     }
-    if (cols.size() < 10) {
+    if (cols.size() < header.size()) {
       continue;
     }
-    if (cols[cols.size() - 2] != "OK" && cols[cols.size() - 3] != "1") {
+    if (idx_outcome && idx_outcome < cols.size() && cols[*idx_outcome] != "OK") {
+      continue;
+    }
+    if (!CsvCellIsOne(cols, *idx_delivery) || !CsvCellIsOne(cols, *idx_integrity)) {
+      continue;
+    }
+    if (idx_trusted && !CsvCellIsOne(cols, *idx_trusted)) {
+      continue;
+    }
+    if (idx_budget && !CsvCellIsOne(cols, *idx_budget)) {
       continue;
     }
     try {
-      auto chunk = static_cast<std::size_t>(std::stoull(cols[3]));
-      auto outstanding = static_cast<std::size_t>(std::stoull(cols[4]));
-      auto mode = cols[2];
-      double goodput = 0.0;
-      for (std::size_t i = 0; i < cols.size(); ++i) {
-        if (cols[i].find('.') != std::string::npos && i > 20) {
-          goodput = std::stod(cols[i]);
-          break;
-        }
+      auto chunk = static_cast<std::size_t>(std::stoull(cols[*idx_block]));
+      auto outstanding = static_cast<std::size_t>(std::stoull(cols[*idx_out]));
+      auto mode = cols[*idx_mode];
+      double goodput = std::stod(cols[*idx_goodput]);
+      if (goodput <= 0.0) {
+        continue;
       }
       auto key = std::make_tuple(chunk, outstanding, mode);
       best[key] = std::max(best[key], goodput);
@@ -354,14 +409,16 @@ int StreamMatrixBench::RunStreamingTcp() {
                       1024, 16, 1});
     }
   } else if (options_.streaming_repro_chunk && options_.streaming_repro_outstanding) {
+    auto const outs = StreamingOutstandingMatrix(*this);
     plan = BuildReproPrefixPlan(send_stream_->stream_info(),
-                                options_.streaming_repro_prefix_points);
+                                options_.streaming_repro_prefix_points, outs);
     LoadMode mode = options_.streaming_repro_mode.value_or(LoadMode::kBurst);
     plan.push_back({BenchTransportKind::kTcp, BenchStreamKind::kP2pStream, mode,
                     *options_.streaming_repro_chunk,
                     *options_.streaming_repro_outstanding, 1});
   } else if (options_.streaming_tcp_matrix || options_.streaming_tcp_resume) {
-    plan = BuildFullTcpPlan(send_stream_->stream_info());
+    plan = BuildFullTcpPlan(send_stream_->stream_info(),
+                            StreamingOutstandingMatrix(*this));
   }
 
   auto const csv_path = options_.output_dir / "tcp_streaming.csv";
@@ -391,7 +448,7 @@ int StreamMatrixBench::RunStreamingUdpSafe() {
     max_payload = safe_doc_.max_element_size_reported - sizeof(ThptWireHeader);
   }
   auto chunks = DefaultSafeChunkMatrix(max_payload);
-  auto outs = DefaultOutstandingMatrix();
+  auto outs = StreamingOutstandingMatrix(*this);
 
   std::vector<PlannedPoint> plan;
   if (options_.streaming_udp_smoke) {

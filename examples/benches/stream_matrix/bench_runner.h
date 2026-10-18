@@ -19,6 +19,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <deque>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -89,6 +90,15 @@ class StreamMatrixBench {
 
   int Run();
   void BenchPump(BenchDuration max_wait);
+  struct EventPoolUsage {
+    std::size_t registered_events{};
+    std::size_t handler_relationships{};
+    std::size_t events_capacity{};
+    std::size_t handlers_capacity{};
+  };
+  EventPoolUsage EventPoolUsageNow() const;
+  bool GeneratorWriteBudgetOk(std::size_t extra_in_flight_subs) const;
+  void ScheduleAfterPump(std::function<void()> fn);
   MultiSubscription& WriteStatusSubs() { return write_status_subs_; }
   MultiSubscription& StreamingPointWriteSubs() {
     return streaming_point_write_subs_;
@@ -106,6 +116,7 @@ class StreamMatrixBench {
                            bool append_csv, bool skip_completed);
   Duration SdkWaitCap(BenchDuration bench_remaining) const;
   void PumpSdkOnce(BenchInstant bench_now, BenchDuration bench_remaining);
+  void DrainAfterPumpQueue();
   bool PumpUntil(std::function<bool()> predicate, Duration timeout);
   void PumpBenchUntil(BenchInstant bench_until,
                       std::function<bool()> stop_early = {});
@@ -160,6 +171,7 @@ class StreamMatrixBench {
   Subscription recv_sub_a_;
   Subscription measure_recv_sub_;
   MultiSubscription streaming_point_write_subs_;
+  std::deque<std::function<void()>> after_pump_queue_;
 
   std::uint64_t run_id_{};
   std::uint64_t next_point_id_{1};

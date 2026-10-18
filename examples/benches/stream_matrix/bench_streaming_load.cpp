@@ -12,6 +12,8 @@
 #include <utility>
 
 #include "aether/events/events.h"
+#include "aether/write_action/failed_write_action.h"
+#include "aether/write_action/write_action.h"
 
 #include "stream_matrix/bench_throughput_frame.h"
 
@@ -33,6 +35,23 @@ double Percentile(std::vector<double> v, double pct) {
   return v[idx];
 }
 
+constexpr int kBenchStatusSuccess = 0;
+constexpr int kBenchStatusFail = 1;
+constexpr int kBenchStatusStop = 2;
+constexpr int kBenchStatusUnknown = 3;
+
+int MapWriteStatus(WriteAction::Status st) {
+  switch (st) {
+    case WriteAction::Status::kSuccess:
+      return kBenchStatusSuccess;
+    case WriteAction::Status::kFail:
+      return kBenchStatusFail;
+    case WriteAction::Status::kStop:
+      return kBenchStatusStop;
+  }
+  return kBenchStatusUnknown;
+}
+
 struct ChunkWriteRecord {
   std::uint64_t chunk_index{};
   std::size_t payload_bytes{};
@@ -48,10 +67,10 @@ struct ChunkTerminalSlot {
   int status{-1};
 };
 
-struct ActiveWrite {
+struct InFlightWrite {
   std::uint64_t chunk_index{};
   std::size_t bytes{};
-  WriteAction* action{};
+  Subscription status_sub{};
 };
 
 struct PointSession : std::enable_shared_from_this<PointSession> {
@@ -71,18 +90,18 @@ struct PointSession : std::enable_shared_from_this<PointSession> {
   std::uint64_t write_fail_events{0};
   std::vector<ChunkWriteRecord> records;
   std::vector<ChunkTerminalSlot> terminals;
-  std::deque<ActiveWrite> active;
+  std::deque<InFlightWrite> in_flight;
 
   void note_peaks(std::uint64_t& peak_writes, std::uint64_t& peak_bytes) {
-    peak_writes = std::max(peak_writes, active.size());
+    peak_writes = std::max(peak_writes, in_flight.size());
     std::uint64_t ob = 0;
-    for (auto const& a : active) {
+    for (auto const& a : in_flight) {
       ob += a.bytes;
     }
     peak_bytes = std::max(peak_bytes, ob);
   }
 
-  void mark_terminal(std::uint64_t chunk_index, WriteAction::Status st) {
+  void mark_terminal(std::uint64_t chunk_index, int bench_status) {
     if (chunk_index >= terminals.size()) {
       return;
     }
@@ -92,14 +111,41 @@ struct PointSession : std::enable_shared_from_this<PointSession> {
     }
     slot.terminal = BenchNow();
     slot.terminal_set = true;
-    if (st == WriteAction::Status::kSuccess) {
-      slot.status = 0;
-    } else if (st == WriteAction::Status::kFail) {
-      slot.status = 1;
+    slot.status = bench_status;
+    if (bench_status == kBenchStatusFail) {
       ++write_fail_events;
-    } else {
-      slot.status = 2;
     }
+  }
+
+  void remove_in_flight(std::uint64_t chunk_index) {
+    for (auto it = in_flight.begin(); it != in_flight.end(); ++it) {
+      if (it->chunk_index == chunk_index) {
+        it->status_sub.Reset();
+        in_flight.erase(it);
+        return;
+      }
+    }
+  }
+
+  void on_write_status(std::uint64_t chunk_index, WriteAction::Status st) {
+    if (!alive.load()) {
+      return;
+    }
+    remove_in_flight(chunk_index);
+    mark_terminal(chunk_index, MapWriteStatus(st));
+    slot_available.store(true);
+  }
+
+  void on_write_unknown(std::uint64_t chunk_index) {
+    if (!alive.load()) {
+      return;
+    }
+    if (chunk_index >= terminals.size() || terminals[chunk_index].terminal_set) {
+      return;
+    }
+    remove_in_flight(chunk_index);
+    mark_terminal(chunk_index, kBenchStatusUnknown);
+    slot_available.store(true);
   }
 
   void sync_record_terminals() {
@@ -117,7 +163,25 @@ struct PointSession : std::enable_shared_from_this<PointSession> {
     }
   }
 
-  enum class SubmitOutcome { kSubmitted, kOutstandingCap, kAllSubmitted, kWriteFail };
+  void prune_in_flight() {
+    for (auto it = in_flight.begin(); it != in_flight.end();) {
+      if (it->chunk_index < terminals.size() &&
+          terminals[it->chunk_index].terminal_set) {
+        it->status_sub.Reset();
+        it = in_flight.erase(it);
+      } else {
+        ++it;
+      }
+    }
+  }
+
+  enum class SubmitOutcome {
+    kSubmitted,
+    kOutstandingCap,
+    kAllSubmitted,
+    kWriteFail,
+    kResourceCap,
+  };
 
   SubmitOutcome try_submit(std::uint64_t chunk_index, std::uint64_t& peak_writes,
                            std::uint64_t& peak_bytes) {
@@ -127,47 +191,58 @@ struct PointSession : std::enable_shared_from_this<PointSession> {
     if (chunk_index >= chunks_total) {
       return SubmitOutcome::kAllSubmitted;
     }
-    if (active.size() >= outstanding_limit) {
+    if (in_flight.size() >= outstanding_limit) {
       return SubmitOutcome::kOutstandingCap;
+    }
+    if (!bench->GeneratorWriteBudgetOk(in_flight.size() + 1)) {
+      ++generator_limit_events;
+      return SubmitOutcome::kResourceCap;
     }
     auto const byte_offset = chunk_index * chunk_bytes;
     auto const remaining = kThroughputTotalBytes - byte_offset;
     auto const payload_len = std::min(chunk_bytes, remaining);
-    ChunkWriteRecord rec{
+    auto wire = MakeThptChunk(*blob, run_id, chunk_index, byte_offset, payload_len);
+    auto& wa = send_stream->Write(std::move(wire));
+    if (dynamic_cast<FailedWriteAction*>(&wa) != nullptr) {
+      ++write_fail_events;
+      return SubmitOutcome::kWriteFail;
+    }
+    records.push_back(ChunkWriteRecord{
         .chunk_index = chunk_index,
         .payload_bytes = payload_len,
         .submit = BenchNow(),
-    };
-    records.push_back(rec);
-    auto wire = MakeThptChunk(*blob, run_id, chunk_index, byte_offset, payload_len);
-    auto& wa = send_stream->Write(std::move(wire));
-    active.push_back(
-        ActiveWrite{.chunk_index = chunk_index, .bytes = payload_len, .action = &wa});
+    });
+    InFlightWrite flight{.chunk_index = chunk_index, .bytes = payload_len};
+    std::weak_ptr<PointSession> weak = shared_from_this();
+    flight.status_sub = wa.status_event().Subscribe(
+        [weak, chunk_index](WriteAction::Status st) {
+          if (auto self = weak.lock()) {
+            self->on_write_status(chunk_index, st);
+          }
+        });
+    in_flight.push_back(std::move(flight));
     note_peaks(peak_writes, peak_bytes);
     if (wa.is_finished()) {
-      mark_terminal(chunk_index, WriteAction::Status::kSuccess);
-      slot_available.store(true);
+      bench->ScheduleAfterPump([weak, chunk_index]() {
+        if (auto self = weak.lock()) {
+          if (chunk_index < self->terminals.size() &&
+              !self->terminals[chunk_index].terminal_set) {
+            self->on_write_unknown(chunk_index);
+          }
+        }
+      });
     }
     return SubmitOutcome::kSubmitted;
   }
-
-  void poll_write_completion() {
-    for (auto it = active.begin(); it != active.end();) {
-      if (it->chunk_index < terminals.size() &&
-          terminals[it->chunk_index].terminal_set) {
-        it = active.erase(it);
-        continue;
-      }
-      if (it->action != nullptr && it->action->is_finished()) {
-        mark_terminal(it->chunk_index, WriteAction::Status::kSuccess);
-        slot_available.store(true);
-        it = active.erase(it);
-        continue;
-      }
-      ++it;
-    }
-  }
 };
+
+void UpdateEventPeaks(StreamMatrixBench& bench, StreamingRunResult& out) {
+  auto const u = bench.EventPoolUsageNow();
+  out.events_registered_peak =
+      std::max(out.events_registered_peak, u.registered_events);
+  out.handlers_active_peak =
+      std::max(out.handlers_active_peak, u.handler_relationships);
+}
 
 }  // namespace
 
@@ -180,6 +255,15 @@ StreamingRunResult RunOneStreamingPoint(StreamMatrixBench& bench, PointRunArgs a
   out.chunk_bytes = args.chunk_bytes;
   out.outstanding_limit = args.outstanding_limit;
   out.chunks_total = args.chunks_total;
+  out.write_status_trusted = true;
+
+  {
+    auto const u = bench.EventPoolUsageNow();
+    out.events_registered_start = u.registered_events;
+    out.handlers_active_start = u.handler_relationships;
+    out.events_registered_peak = u.registered_events;
+    out.handlers_active_peak = u.handler_relationships;
+  }
 
   auto session = std::make_shared<PointSession>();
   session->bench = &bench;
@@ -207,12 +291,18 @@ StreamingRunResult RunOneStreamingPoint(StreamMatrixBench& bench, PointRunArgs a
     bool any = false;
     if (args.mode == LoadMode::kBurst) {
       while (next_chunk < args.chunks_total && BenchNow() < point_deadline) {
-        if (session->active.size() >= args.outstanding_limit) {
+        if (session->in_flight.size() >= args.outstanding_limit) {
           break;
         }
         auto r = session->try_submit(next_chunk, peak_writes, peak_bytes);
         if (r == PointSession::SubmitOutcome::kOutstandingCap ||
-            r == PointSession::SubmitOutcome::kAllSubmitted) {
+            r == PointSession::SubmitOutcome::kAllSubmitted ||
+            r == PointSession::SubmitOutcome::kResourceCap) {
+          break;
+        }
+        if (r == PointSession::SubmitOutcome::kWriteFail) {
+          ++out.write_fail;
+          ++out.write_attempts;
           break;
         }
         if (submit_begin.time_since_epoch().count() == 0) {
@@ -224,23 +314,31 @@ StreamingRunResult RunOneStreamingPoint(StreamMatrixBench& bench, PointRunArgs a
         any = true;
         bench.BenchPump(std::chrono::milliseconds{0});
         session->sync_record_terminals();
-        session->poll_write_completion();
+        session->prune_in_flight();
+        UpdateEventPeaks(bench, out);
       }
       return any;
     }
+    any = false;
     if (!session->slot_available.load() &&
-        session->active.size() >= args.outstanding_limit) {
+        session->in_flight.size() >= args.outstanding_limit) {
       return false;
     }
     session->slot_available.store(false);
     while (next_chunk < args.chunks_total &&
-           session->active.size() < args.outstanding_limit &&
+           session->in_flight.size() < args.outstanding_limit &&
            BenchNow() < point_deadline) {
       auto r = session->try_submit(next_chunk, peak_writes, peak_bytes);
-      if (r == PointSession::SubmitOutcome::kOutstandingCap) {
+      if (r == PointSession::SubmitOutcome::kOutstandingCap ||
+          r == PointSession::SubmitOutcome::kResourceCap) {
         break;
       }
       if (r == PointSession::SubmitOutcome::kAllSubmitted) {
+        break;
+      }
+      if (r == PointSession::SubmitOutcome::kWriteFail) {
+        ++out.write_fail;
+        ++out.write_attempts;
         break;
       }
       if (submit_begin.time_since_epoch().count() == 0) {
@@ -258,9 +356,10 @@ StreamingRunResult RunOneStreamingPoint(StreamMatrixBench& bench, PointRunArgs a
     try_fill();
     bench.BenchPump(std::chrono::milliseconds{0});
     session->sync_record_terminals();
-    session->poll_write_completion();
+    session->prune_in_flight();
+    UpdateEventPeaks(bench, out);
 
-    if (next_chunk >= args.chunks_total && session->active.empty() &&
+    if (next_chunk >= args.chunks_total && session->in_flight.empty() &&
         session->receiver->Complete()) {
       break;
     }
@@ -268,23 +367,38 @@ StreamingRunResult RunOneStreamingPoint(StreamMatrixBench& bench, PointRunArgs a
 
   session->alive.store(false);
   BenchInstant const drain_until = BenchNow() + std::chrono::seconds{2};
-  while (BenchNow() < drain_until && !session->active.empty()) {
+  while (BenchNow() < drain_until && !session->in_flight.empty()) {
     bench.BenchPump(std::chrono::milliseconds{0});
     session->sync_record_terminals();
-    session->poll_write_completion();
+    session->prune_in_flight();
+    UpdateEventPeaks(bench, out);
   }
   session->sync_record_terminals();
+  for (auto& flight : session->in_flight) {
+    flight.status_sub.Reset();
+  }
+  session->in_flight.clear();
+
+  {
+    auto const u = bench.EventPoolUsageNow();
+    out.events_registered_end = u.registered_events;
+    out.handlers_active_end = u.handler_relationships;
+  }
+
   out.timed_out =
       BenchNow() >= point_deadline && !session->receiver->Complete();
 
   for (auto const& r : session->records) {
     if (r.terminal_set) {
-      if (r.status == 0) {
+      if (r.status == kBenchStatusSuccess) {
         ++out.write_ok;
-      } else if (r.status == 1) {
+      } else if (r.status == kBenchStatusFail) {
         ++out.write_fail;
-      } else if (r.status == 2) {
+      } else if (r.status == kBenchStatusStop) {
         ++out.write_stop;
+      } else if (r.status == kBenchStatusUnknown) {
+        ++out.write_unknown;
+        out.write_status_trusted = false;
       }
       if (!have_all_terminal) {
         all_terminal = r.terminal;
@@ -294,6 +408,7 @@ StreamingRunResult RunOneStreamingPoint(StreamMatrixBench& bench, PointRunArgs a
       }
     } else {
       ++out.write_pending;
+      out.write_status_trusted = false;
     }
   }
 
@@ -306,7 +421,8 @@ StreamingRunResult RunOneStreamingPoint(StreamMatrixBench& bench, PointRunArgs a
   out.integrity_ok = !session->receiver->integrity_fail() &&
                      session->receiver->bytes_unique() == kThroughputTotalBytes &&
                      session->receiver->Complete();
-  out.delivery_ok = out.integrity_ok;
+  out.delivery_ok = out.integrity_ok && out.write_unknown == 0 &&
+                    out.write_pending == 0;
 
   out.submit_duration_s = DeltaMs(submit_begin, submit_end) / 1000.0;
   if (session->receiver->first_rx().time_since_epoch().count()) {
@@ -346,6 +462,8 @@ StreamingRunResult RunOneStreamingPoint(StreamMatrixBench& bench, PointRunArgs a
     out.outcome = "TIMEOUT";
   } else if (out.write_fail || out.write_stop) {
     out.outcome = "WRITE_ERRORS";
+  } else if (out.write_unknown || out.write_pending) {
+    out.outcome = "WRITE_UNRESOLVED";
   } else if (session->receiver->bytes_unique() < kThroughputTotalBytes) {
     out.outcome = "INCOMPLETE";
   } else {

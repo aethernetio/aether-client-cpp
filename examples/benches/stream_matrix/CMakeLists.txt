@@ -208,6 +208,14 @@ if(NOT CM_PLATFORM)
     stream_matrix_handler_capacity_test.cpp
   )
 
+  add_executable(aether_stream_matrix_write_tracking_test
+    stream_matrix_write_tracking_test.cpp
+  )
+
+  add_executable(aether_stream_matrix_tcp_send_failure_test
+    stream_matrix_tcp_send_failure_test.cpp
+  )
+
   target_link_libraries(aether_stream_matrix_multi_subscription_test PRIVATE aether)
 
   target_include_directories(aether_stream_matrix_multi_subscription_test
@@ -216,6 +224,14 @@ if(NOT CM_PLATFORM)
   target_link_libraries(aether_stream_matrix_handler_capacity_test PRIVATE aether)
 
   target_include_directories(aether_stream_matrix_handler_capacity_test
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
+  target_link_libraries(aether_stream_matrix_write_tracking_test PRIVATE aether)
+  target_include_directories(aether_stream_matrix_write_tracking_test
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
+  target_link_libraries(aether_stream_matrix_tcp_send_failure_test PRIVATE aether)
+  target_include_directories(aether_stream_matrix_tcp_send_failure_test
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 
   add_executable(aether_stream_matrix_schedule_test
@@ -280,6 +296,8 @@ if(NOT CM_PLATFORM)
 
     target_compile_options(aether_stream_matrix_multi_subscription_test PRIVATE -Wall -Werror)
     target_compile_options(aether_stream_matrix_handler_capacity_test PRIVATE -Wall -Werror)
+    target_compile_options(aether_stream_matrix_write_tracking_test PRIVATE -Wall -Werror)
+    target_compile_options(aether_stream_matrix_tcp_send_failure_test PRIVATE -Wall -Werror)
     target_compile_options(aether_stream_matrix_schedule_test PRIVATE -Wall -Werror)
 
     target_compile_options(aether_stream_matrix_registration_test PRIVATE -Wall -Werror)
@@ -303,6 +321,8 @@ if(NOT CM_PLATFORM)
 
     target_compile_options(aether_stream_matrix_multi_subscription_test PRIVATE /W4 /WX)
     target_compile_options(aether_stream_matrix_handler_capacity_test PRIVATE /W4 /WX)
+    target_compile_options(aether_stream_matrix_write_tracking_test PRIVATE /W4 /WX)
+    target_compile_options(aether_stream_matrix_tcp_send_failure_test PRIVATE /W4 /WX)
     target_compile_options(aether_stream_matrix_schedule_test PRIVATE /W4 /WX)
 
     target_compile_options(aether_stream_matrix_registration_test PRIVATE /W4 /WX)

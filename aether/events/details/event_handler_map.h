@@ -55,6 +55,7 @@ class EventHandlerMap {
   void PruneDeactivated(Key key) noexcept;
   // Get the [begin, end) range of elements with key.
   std::pair<Iterator, Iterator> Get(Key key);
+  std::size_t Size() const noexcept { return events_map_.size(); }
 
  private:
   Iterator Destroy(Iterator iterator) noexcept;

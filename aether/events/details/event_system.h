@@ -98,6 +98,15 @@ class EventSystem {
   template <typename... Args>
   void Invoke(Key key, Args... args);
 
+  struct UsageSnapshot {
+    std::size_t registered_event_keys{};
+    std::size_t handler_relationships{};
+  };
+  UsageSnapshot Usage() const {
+    auto lock = std::scoped_lock{mutex_};
+    return UsageSnapshot{key_registry_.Size(), event_handlers_map_.Size()};
+  }
+
  private:
   void ReleaseRetiringKey(Key key);
 

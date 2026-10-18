@@ -160,7 +160,11 @@ inline std::vector<std::size_t> DefaultSafeChunkMatrix(
 }
 
 inline std::vector<std::size_t> DefaultOutstandingMatrix() {
-  return {1, 4, 16, 64, 128, 256, 512};
+  return {1, 4, 16, 32, 64};
+}
+
+inline std::vector<std::size_t> DefaultHighOutstandingMatrix() {
+  return {128, 256, 512};
 }
 
 }  // namespace ae::stream_matrix_bench

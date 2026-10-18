@@ -45,6 +45,8 @@
 
 namespace ae {
 namespace tcp_internal {
+class TcpBase;
+
 template <typename Sock>
 class SendAction final : public PacketSendAction {
  public:
@@ -90,6 +92,8 @@ class SendAction final : public PacketSendAction {
   bool is_done() const override { return is_done_; }
   bool re_enqueue() const override { return reenqueue_; }
 
+  void ArmLinkWatch(TcpBase& link);
+
  protected:
   void SetStatus(WriteAction::Status status) noexcept override {
     is_done_ = true;
@@ -105,6 +109,7 @@ class SendAction final : public PacketSendAction {
   bool is_done_ = false;
   bool reenqueue_ = false;
   TaskSubscription set_status_;
+  Subscription terminal_status_sub_;
 };
 
 class TcpBase : public ByteIStream {
@@ -115,6 +120,13 @@ class TcpBase : public ByteIStream {
   StreamInfo stream_info() const override;
   OutDataEvent const& out_data_event() override;
   void Restream() override;
+
+  void NotifySendFailed() {
+    AE_TELED_ERROR("Send error, disconnect!");
+    stream_info_.link_state = LinkState::kLinkError;
+    stream_info_.is_writable = false;
+    Disconnect();
+  }
 
  protected:
   void OnConnection(ISocket::ConnectionState connection_state);
@@ -138,6 +150,19 @@ class TcpBase : public ByteIStream {
   TaskSubscription conn_state_sub_;
   std::optional<FailedWriteAction> failed_write_;
 };
+
+template <typename Sock>
+void SendAction<Sock>::ArmLinkWatch(TcpBase& link) {
+  if (terminal_status_sub_) {
+    return;
+  }
+  terminal_status_sub_ = status_event().Subscribe([&link, this](WriteAction::Status st) {
+    terminal_status_sub_.Reset();
+    if (st == WriteAction::Status::kFail || st == WriteAction::Status::kStop) {
+      link.NotifySendFailed();
+    }
+  });
+}
 
 }  // namespace tcp_internal
 
@@ -187,6 +212,7 @@ class TcpTransport final : public tcp_internal::TcpBase {
       return FailedWrite();
     }
 
+    send_action->ArmLinkWatch(*this);
     return *send_action;
   }
 
