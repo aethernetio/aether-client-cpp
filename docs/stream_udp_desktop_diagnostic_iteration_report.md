@@ -1,7 +1,7 @@
 # Desktop UDP / P2pSafeStream diagnostic iteration
 
 **Client branch:** `cursor/stream-matrix-bench` (merged from `f1cf99f` UDP line)  
-**Client HEAD (this iteration):** see git after push  
+**Client HEAD (this iteration):** `1fcb25af844efde8491f21768c567b35a7fc0624`  
 **Verified baseline referenced:** `f1cf99f91b8e6aea9988482b49c8f4e69270279f`  
 **Build:** `build-stream-matrix-udp/Release`, `AE_ADDRESS_SANITIZE=OFF`  
 **ASan producer/lifetime:** NOT_RUN (MSVC Release)
