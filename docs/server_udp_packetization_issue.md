@@ -1,107 +1,121 @@
 # Server UDP datagram coalescing (>1200 B budget)
 
-Studied Java sources at **`defaae3e566dc901c8266c7120c74f4ddf70a44f`** (local clone:
-`C:\Users\nickc\Projects\aether-server-ref`). This document does **not** assert which
-Netty/NIO/virtual backend is deployed in production; it describes behavior implied by
-the shared FastMeta flush path used on UDP connections in that tree.
+Sources: **`defaae3e566dc901c8266c7120c74f4ddf70a44f`** at
+`C:\Users\nickc\Projects\aether-server-ref`.
 
-## Minimal client reproduction (observed)
+## Evidence classes
 
-- Mode: `--streaming-udp-four-block` (4×1024 B THPT chunks, `outstanding=4`, burst).
-- Windows client default UDP RX buffer **2048 B** (`AE_WIN_UDP_RECV_BUFFER_BYTES` in
-  `aether/config.h`): run fails with **`WSAEMSGSIZE (10040)`** — datagram never
-  delivered to userspace; lower bound **>2048 B** (implies **>1200 B** budget).
-- Diagnostic RX buffer **65536 B** (`examples/benches/stream_matrix/config/udp_only.h`
-  only): application delivery completes, but socket audit records **`max_rx_payload`**
-  up to **4411 B** (four-block) and **13245 B** (full 1 MiB / o=4) with hundreds of
-  **`rx_violations`** while **client TX ≤1200 B**.
-- Artifacts (not in git): `artifacts/stream_udp_four_block_20261019/`,
-  `artifacts/stream_udp_four_block_recv64k_20261019/`,
-  `artifacts/stream_udp_mi1_o4_recv64k_20261019/`.
+| Class | Meaning in this document |
+|-------|---------------------------|
+| **Cloud observation** | Client stream-matrix audit on real route (artifacts under `artifacts/`, not in git) |
+| **Local test** | C++ loopback / unit tests in `aether-client-cpp` |
+| **Source chain** | Call graph verified in Java @ `defaae3e` |
+| **Build-time config** | Gradle dependency wiring in server repo |
+| **Deployed runtime** | **UNKNOWN** — no production packet capture or ops confirmation in this task |
 
-## Outgoing datagram formation chain (source)
+## Cloud observation (not re-run this iteration)
 
-1. **`MetaContextBase.remoteDataToArray(DataOut)`** — drains **`toRemote`** queue:
-   every pending **`LazyPacket`** is **`serialize()`d** into one contiguous buffer with
-   **no size cap**.
+- Four-block repro (`4×1024 B`, `out=4`): with Windows recv **2048 B** → **`WSAEMSGSIZE`** (no userspace RX).
+- Same repro with bench recv **65536 B** → app delivery OK, **`max_rx_payload` up to 4411 B**, **`rx_violations > 0`**, client TX ≤1200 B.
+- Artifacts: `artifacts/stream_udp_four_block_20261019/`,
+  `artifacts/stream_udp_four_block_recv64k_20261019/`.
 
-   Path: `fast-meta/src/main/java/io/aether/net/fastMeta/MetaContextBase.java` (lines
-   ~524–529 @ `defaae3e`).
+This proves **oversized server→client UDP** when the stack accepts the datagram. It does **not** alone identify which JVM FastMeta backend is live in production.
 
-2. Nested API / framing — child contexts and **`LazyPacket`** serialization append
-   protocol units back-to-back in flush order (same method; tree walk in **`size()`** /
-   child publications).
+## Build-time FastMeta backend (source repo)
 
-3. Encryption — e.g. cloud P2P **`sendEncryptedPayload`** encrypts the flushed byte
-   array as a whole before wire send.
+- `server-core/build.gradle`: `api project(':net-virtual')` — cloud server **links VirtualFastMetaNet** at build time.
+- `net-virtual/.../VirtualFastMetaNet.java` static initializer:
+  `FastMetaNet.INSTANCE.set(new VirtualFastMetaNet())`.
+- Alternate backends exist but are separate modules:
+  - `net-netty` → `NettyFastMetaNet` (also sets `INSTANCE` if loaded)
+  - `net-nio` → `NioFastMetaNet`
+- **Which `INSTANCE` wins at runtime** depends on classpath / static init order → treat **deployed backend as UNKNOWN** unless confirmed operationally.
 
-   Path: `server-cloud/.../MyWorkServerP2PRootApi.java` (`onFlushData` →
-   `sendEncryptedPayload` → `P2PStream.Out.send(encrypted)` @ `defaae3e`).
+## Chain A — Virtual UDP server (client ↔ cloud login/work socket)
 
-4. **`onFlushData` / flush callback** — user thread triggers network write with the
-   combined payload.
+**Scope:** Incoming client datagram to cloud; outbound reply on same virtual UDP session.  
+**Not** inter–work-server P2P (`P2PNet` / `MyWorkServerP2PRootApi`).
 
-5. **UDP send** — Netty UDP connection handler builds **one `DatagramPacket`** per
-   flush carrying the **entire** `remoteDataToArray` output:
+### A.1 Backend selection & UDP socket
 
-   Path: `net-netty/.../NettyServerConnectionHandler.java` **`handleFlush`** (~216–250):
-   `context.remoteDataToArray(combinedData)` → `payload = combinedData.toArray()` →
-   single **`DatagramPacket`**.
+1. `AetherCloudServer.startWorkServer()` → `FastMetaNet.INSTANCE.get().makeServer(listenUri, …)`  
+   `server-cloud/.../AetherCloudServer.java` ~68–83.
+2. `VirtualFastMetaNet.makeServer` → `new VirtualFastMetaServer<>(…)`  
+   `net-virtual/.../VirtualFastMetaNet.java` ~17.
+3. `VirtualFastMetaServer` constructor: scheme `udp` → `startUdpServer()`  
+   `VirtualFastMetaServer.java` ~47–62, ~65–124.
 
-   Virtual UDP transport: `net-virtual/.../UdpTransport.java` **`send(byte[])`** — one
-   datagram per call, no splitting.
+### A.2 Inbound datagram → MetaContext
 
-## Where datagram boundaries are lost
+4. UDP thread: `DatagramSocket.receive(packet)`  
+   `VirtualFastMetaServer.startUdpServer()` ~76–77.
+5. Per datagram virtual thread: `new UdpTransport(socket, sender)`  
+   ~86.
+6. `PooledAutoFlushContext ctx = …` + `contextConfigurator.apply(ctx)` → e.g. `LoginApiImpl`  
+   ~87–98, ~109 (`localApiMeta.makeLocal(ctx, dataIn)`).
 
-- **Queue drain semantics**: `remoteDataToArray` loops `toRemote.poll()` until empty,
-  concatenating **all** queued protocol units into **one** byte array per flush.
-- **Flush trigger**: multiple nested **`onFlushData`** / auto-flush paths can enqueue
-  several messages (e.g. multiple stream/API writes) before the transport flush runs.
-- **Post-encryption**: ciphertext is treated as an opaque blob; there is **no** step
-  that re-splits on **1200 B** (or MTU) before `DatagramPacket` creation.
+### A.3 Outbound queue → plaintext batch
 
-## Confirmed vs inferred
+7. API handlers enqueue **`LazyPacket`** instances on `MetaContextBase.toRemote` (via normal FastMeta API writes).
+8. `AutoFlushContext` timer / `notifyDataAdded` → `MetaContextBase.flush()`  
+   `fast-meta/.../AutoFlushContext.java` ~96–100, ~36–39.
+9. `MetaContextBase.runFlushLifecycle()` → registered **`flushAction`**  
+   `MetaContextBase.java` ~205–223.
+10. **`MetaContext.onFlushData` default** (`MetaContext.java` ~692–700):
+    - `onFlush(() -> { … var d = remoteDataToArray(); c.accept(d); })`
+11. **`MetaContextBase.remoteDataToArray(DataOut)`** (~524–529): **poll all `toRemote` packets**, each `packet.serialize(out)` **with no datagram size cap**.
 
-| Claim | Evidence |
-|-------|----------|
-| Client sees RX UDP payloads **>1200 B** when recv buffer allows | Stream-matrix socket audit (`udp_max_rx`, `rx_violations`) on cloud repro @65536 recv |
-| EMSGSIZE @2048 recv with no app delivery | Windows audit + `WSAEMSGSIZE` in trace |
-| Server **can** emit one UDP datagram = full `remoteDataToArray()` | **Source** @ `defaae3e` (`MetaContextBase`, `NettyServerConnectionHandler`) |
-| Production uses this exact Netty UDP handler | **Not confirmed** — only code review at pinned SHA |
-| Client SafeStream record size causes oversize UDP | **Ruled out** for server→client path (oversize on **RX** only) |
+**Earliest level with whole protocol units before merge:** **`toRemote` queue** (each `LazyPacket` before step 11 drains the queue).
 
-## Minimal fix plan (server — not applied here)
+### A.4 Encryption / framing / UDP send (Virtual)
 
-**Principle:** On each flush, **dequeue whole protocol units** (complete `LazyPacket`s /
-atomic API messages) into a batch until adding the next unit would exceed a **post-framing,
-post-encryption size budget** (≤1200 B application payload budget on the wire). Emit **one
-self-contained datagram**, then continue with the remaining queue.
+12. Virtual server registers: `ctx.onFlushData(d -> transport.send(d))`  
+    `VirtualFastMetaServer.startUdpServer()` ~99–104.
+13. For TCP-style contexts: `ctx.onFlushData(data -> transport.send(data))` after API setup  
+    ~191–199 (`createContext`).
+14. **`UdpTransport.send(byte[])`** — single `DatagramPacket` per call, no split  
+    `net-virtual/.../UdpTransport.java` ~56–58.
 
-1. Introduce a **UDP packetization helper** on the flush path (Netty UDP handler and any
-   other UDP backend sharing `remoteDataToArray`):
-   - Peek/poll `toRemote` **one packet at a time** (or use sized `remoteDataToArray` with
-     max bytes respecting **future** encrypt overhead).
-   - Account for **encryption expansion** (sym engine overhead) before calling `send`.
-   - Loop until queue empty, sending **multiple datagrams** per logical flush if needed.
+**Note:** Step 10–12 passes **already concatenated plaintext** from step 11. Any encryption/framing applied inside API/converters runs **before** bytes reach `onFlushData` (handler-specific). The coalescing boundary is **`remoteDataToArray()`**, not the UDP syscall.
 
-2. **Do not** truncate tail bytes, split ciphertext arbitrarily, or rely on IP fragmentation.
+## Chain B — Netty UDP (same SHA, separate implementation)
 
-3. **Do not** change TCP coalescing behavior for UDP’s sake.
+Documented for completeness; **do not merge with Chain A**.
 
-4. If a **single atomic protocol unit** exceeds the budget after framing + encryption,
-   document required **size contract** or existing fragmentation mechanism — **do not**
-   invent a new wire protocol in the client bench.
+1. `NettyFastMetaNet.makeServer` → `NettyFastMetaServer.startUdpServer()`  
+   `net-netty/.../NettyFastMetaServer.java` ~188–198.
+2. `UdpServerHandler.channelRead` → `NettyServerConnectionHandler.udpInit()` + `channelRead`  
+   ~303–326.
+3. **`NettyServerConnectionHandler.handleFlush`** (~216–250): `context.remoteDataToArray(combinedData)` → one `DatagramPacket`.
 
-## Verification criteria (fixed server)
+**Source-only finding @ `defaae3e`:** `initializeApis()` does **not** call `context.onFlush(handleFlush)`; `handleFlush` is **private** and **no references** in `net-netty`. `channelRead` has **`makeLocal` commented out** (~180). So this Netty UDP path appears **incomplete / not wired** at this SHA — **exclude from “proven runtime chain”** unless a different revision is deployed.
 
-- Four-block cloud repro: **`udp_max_rx ≤ 1200`**, **`rx_violations = 0`**, with default
-  **2048 B** recv buffer (no EMSGSIZE).
-- Full 1 MiB / o=4: same budget compliance; valid **goodput** only when **`budget_ok`**.
-- Unit/integration on server: flushing N small `LazyPacket`s produces **N** datagrams or
-  **minimal** coalescing bounded by 1200 B **on the wire after encrypt**.
+## Chain C — P2P between work servers (not client↔cloud repro)
 
-## Client-side note
+`P2PNet.startP2PAcceptor()` → `fastMetaNet.makeServer(p2pListenUri, WorkServerP2PRootApi…)`  
+`server-cloud/.../P2PNet.java` ~465–475.
 
-Increasing **`AE_WIN_UDP_RECV_BUFFER_BYTES`** remains a **diagnostic** knob only; it is
-not a substitute for server packetization and must not be used to claim max speed under
-budget.
+Outbound relay: `MyWorkServerP2PRootApi.sendEncryptedPayload` → `engine.encrypt(data)` → `remoteRoot.enter(P2PStream.Out.send(encrypted))`  
+~548–607.
+
+This is **server↔server P2P**, not the client matrix cloud login path. Client oversized RX may still involve **cloud client API relay** (`AuthorizedApiImpl.client` → `onFlushData` → `clientInteraction`) which again uses **`onFlushData` → `remoteDataToArray()`** pattern (`AuthorizedApiImpl.java` ~1416–1431).
+
+## Fix plan (server — not applied here)
+
+**Earliest safe hook:** before or inside step 11 — drain **`toRemote`** in **whole `LazyPacket` units**, estimating **post-framing + post-encryption size**, emitting **multiple self-contained datagrams ≤ budget** per flush cycle.
+
+Requirements:
+
+- Each datagram independently decodable on the client.
+- Never truncate a protocol unit; never split arbitrary ciphertext.
+- No reliance on IP fragmentation.
+- TCP flush/coalescing unchanged.
+
+If one atomic unit exceeds budget after all wrappers, document existing size contract or fragmentation — **no new wire protocol in the client bench**.
+
+## Verification criteria (post-fix server)
+
+- Cloud four-block @ **2048 B** recv: no EMSGSIZE, `max_rx ≤ 1200`, `rx_violations = 0`.
+- Client `EvaluateUdpBudget` → **COMPLIANT** on both TX and RX observations.
+- Virtual/Netty unit tests: N small packets → M datagrams with bounded size on wire.

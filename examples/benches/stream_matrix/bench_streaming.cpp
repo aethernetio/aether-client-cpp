@@ -114,7 +114,7 @@ void WriteStreamingHeader(std::ofstream& csv) {
          "write_terminal_p50_ms,write_terminal_p95_ms,write_to_rx_p50_ms,"
          "write_to_rx_p95_ms,write_to_rx_max_ms,udp_max_tx,udp_max_rx,"
          "udp_tx_violations,udp_rx_violations,delivery_ok,budget_ok,"
-         "integrity_ok,outcome,sdk_sha\n";
+         "valid_goodput_mib_s,udp_budget_status,integrity_ok,outcome,sdk_sha\n";
 }
 
 void WriteStreamingRow(std::ofstream& csv, StreamingRunResult const& r,
@@ -157,8 +157,12 @@ void WriteStreamingRow(std::ofstream& csv, StreamingRunResult const& r,
       << r.write_to_rx_p50_ms << ',' << r.write_to_rx_p95_ms << ','
       << r.write_to_rx_max_ms << ',' << r.udp_max_tx << ',' << r.udp_max_rx
       << ',' << r.udp_tx_violations << ',' << r.udp_rx_violations << ','
-      << (r.delivery_ok ? 1 : 0) << ',' << (r.budget_ok ? 1 : 0) << ','
-      << (r.integrity_ok ? 1 : 0) << ',' << r.outcome << ',' << sdk << '\n';
+      << (r.delivery_ok ? 1 : 0) << ',' << (r.budget_ok ? 1 : 0) << ',';
+  if (r.valid_goodput) {
+    csv << r.goodput_mib_s;
+  }
+  csv << ',' << r.udp_budget_status << ',' << (r.integrity_ok ? 1 : 0) << ','
+      << r.outcome << ',' << sdk << '\n';
   csv.flush();
 }
 
@@ -226,26 +230,26 @@ void ApplyBudgetFlags(StreamingRunResult& result) {
   snap.recv_emsgsize_budget_lower_bound =
       result.udp_recv_emsgsize_budget_lower_bound;
   snap.recv_other_errors = result.udp_recv_other_errors;
-  snap.socket_observed = result.udp_socket_observed;
+  snap.tx_observed = result.udp_tx_observed;
+  snap.rx_observed = result.udp_rx_observed;
 
   auto const verdict = EvaluateUdpBudget(snap);
-  result.budget_ok = verdict.budget_ok && verdict.budget_observed;
-  if (!verdict.budget_ok || !verdict.budget_observed) {
-    if (result.goodput_mib_s > 0.0) {
-      result.goodput_mib_s = 0.0;
+  result.budget_ok = verdict.budget_ok();
+  result.valid_goodput = result.delivery_ok && verdict.budget_ok();
+  result.udp_budget_status = UdpBudgetStatusName(verdict.status);
+  auto const budget_outcome = ClassifyUdpBudgetOutcome(verdict);
+  if (verdict.status == UdpBudgetStatus::kCompliant) {
+    if (result.delivery_ok && (result.outcome.empty() || result.outcome == "OK")) {
+      result.outcome = "OK";
     }
-    auto const budget_outcome = ClassifyUdpBudgetOutcome(verdict);
-    if (!budget_outcome.empty()) {
-      if (result.delivery_ok && verdict.budget_observed && !verdict.budget_ok) {
-        result.outcome = "OK_BUDGET_EXCEEDED";
-      } else if (result.outcome == "OK" || result.outcome.empty()) {
-        result.outcome = std::string(budget_outcome);
-      } else if (result.delivery_ok) {
-        result.outcome = std::string(budget_outcome);
-      }
+  } else if (!budget_outcome.empty()) {
+    if (result.delivery_ok && verdict.status == UdpBudgetStatus::kViolated) {
+      result.outcome = "OK_BUDGET_EXCEEDED";
+    } else if (result.outcome == "OK" || result.outcome.empty()) {
+      result.outcome = std::string(budget_outcome);
+    } else if (result.delivery_ok) {
+      result.outcome = std::string(budget_outcome);
     }
-  } else if (result.delivery_ok && (result.outcome.empty() || result.outcome == "OK")) {
-    result.outcome = "OK";
   }
 }
 
@@ -432,7 +436,8 @@ int StreamMatrixBench::ExecuteStreamingPlan(
       result.udp_recv_emsgsize_budget_lower_bound =
           audit.recv_emsgsize_budget_lower_bound;
       result.udp_recv_other_errors = audit.recv_other_errors;
-      result.udp_socket_observed = audit.socket_observed;
+      result.udp_tx_observed = audit.tx_observed;
+      result.udp_rx_observed = audit.rx_observed;
       ApplyBudgetFlags(result);
       results.push_back(result);
       WriteStreamingRow(csv, result, sdk);

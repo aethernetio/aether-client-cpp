@@ -35,6 +35,12 @@ struct UdpBudgetEstimate {
   bool envelope_estimate_only{true};
 };
 
+enum class UdpBudgetStatus {
+  kCompliant,
+  kViolated,
+  kUnverified,
+};
+
 struct UdpSocketAuditSnapshot {
   std::size_t max_tx_payload_bytes{};
   std::size_t max_rx_payload_bytes{};
@@ -46,22 +52,29 @@ struct UdpSocketAuditSnapshot {
   std::uint64_t recv_emsgsize_buffer_only{};
   std::uint64_t recv_other_errors{};
   std::size_t recv_buffer_bytes{};
-  bool socket_observed{false};
+  bool tx_observed{false};
+  bool rx_observed{false};
   bool safestream_datagram_unverified{true};
 };
 
 struct UdpBudgetVerdict {
-  bool budget_ok{false};
-  bool budget_observed{false};
+  UdpBudgetStatus status{UdpBudgetStatus::kUnverified};
+  bool tx_observed{false};
+  bool rx_observed{false};
+  bool tx_compliant{false};
+  bool rx_compliant{false};
   std::uint64_t measured_tx_oversize{};
   std::uint64_t measured_rx_oversize{};
   std::uint64_t emsgsize_budget_lower_bound{};
   std::uint64_t recv_other_errors{};
+  bool budget_ok() const { return status == UdpBudgetStatus::kCompliant; }
 };
 
 UdpBudgetVerdict EvaluateUdpBudget(UdpSocketAuditSnapshot const& snap);
 
-// Human-readable UDP budget outcome suffix; empty when budget_ok && observed.
+char const* UdpBudgetStatusName(UdpBudgetStatus status);
+
+// Human-readable UDP budget outcome suffix; empty when COMPLIANT.
 std::string_view ClassifyUdpBudgetOutcome(UdpBudgetVerdict const& verdict);
 
 UdpBudgetEstimate EstimateUdpBenchEnvelopeBudget(StreamInfo const& p2p_send);

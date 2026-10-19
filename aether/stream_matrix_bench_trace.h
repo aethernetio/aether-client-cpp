@@ -22,8 +22,14 @@
 
 namespace ae {
 
+enum class StreamMatrixSafeStreamAckRole : std::uint8_t {
+  kTx,
+  kRx,
+};
+
 struct StreamMatrixSafeStreamSendTrace {
   char side;
+  std::uint64_t correlation_id{};
   std::uint16_t begin_offset;
   std::uint16_t delta_offset;
   std::uint8_t repeat_count;
@@ -33,6 +39,7 @@ struct StreamMatrixSafeStreamSendTrace {
 
 struct StreamMatrixSafeStreamAckTrace {
   char side;
+  StreamMatrixSafeStreamAckRole role{};
   std::uint16_t ack_offset;
 };
 
@@ -58,6 +65,7 @@ using StreamMatrixWriteStatusTraceFn = void (*)(char side,
 
 void SetStreamMatrixTraceSide(char side);
 char StreamMatrixTraceSide();
+std::uint64_t NextSafeStreamTraceCorrelationId();
 
 void SetStreamMatrixBenchTrace(StreamMatrixSafeStreamSendTraceFn on_send,
                                StreamMatrixWriteStatusTraceFn on_write_status,
@@ -65,7 +73,8 @@ void SetStreamMatrixBenchTrace(StreamMatrixSafeStreamSendTraceFn on_send,
                                StreamMatrixSafeStreamRecvTraceFn on_recv = nullptr);
 
 void NotifyStreamMatrixSafeStreamSend(StreamMatrixSafeStreamSendTrace const& t);
-void NotifyStreamMatrixSafeStreamAck(std::uint16_t ack_offset);
+void NotifyStreamMatrixSafeStreamAck(std::uint16_t ack_offset,
+                                     StreamMatrixSafeStreamAckRole role);
 void NotifyStreamMatrixSafeStreamRecv(std::uint16_t begin_offset,
                                       std::uint16_t delta_offset,
                                       std::uint8_t repeat_count, bool reset,

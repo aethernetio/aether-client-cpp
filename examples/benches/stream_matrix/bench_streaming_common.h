@@ -50,6 +50,8 @@ struct StreamingRunResult {
   double last_rx_s{};
   double all_write_terminal_s{};
   double goodput_mib_s{};
+  bool valid_goodput{false};
+  std::string udp_budget_status;
   double write_terminal_p50_ms{};
   double write_terminal_p95_ms{};
   double write_to_rx_p50_ms{};
@@ -63,7 +65,8 @@ struct StreamingRunResult {
   std::uint64_t udp_recv_emsgsize_events{};
   std::uint64_t udp_recv_emsgsize_budget_lower_bound{};
   std::uint64_t udp_recv_other_errors{};
-  bool udp_socket_observed{false};
+  bool udp_tx_observed{false};
+  bool udp_rx_observed{false};
   std::string outcome;
 };
 

@@ -706,7 +706,7 @@ std::optional<CsvRow> StreamMatrixBench::RunPoint(
     row.max_udp_rx_observed = audit.max_rx_payload_bytes;
     row.udp_tx_violations = audit.tx_violations;
     row.udp_rx_violations = audit.rx_violations;
-    row.udp_socket_observed = audit.socket_observed;
+    row.udp_socket_observed = audit.tx_observed && audit.rx_observed;
     auto udp_outcome = ClassifyUdpMeasureOutcome(
         stream, transport, row.outcome, serialized_payload_.size(),
         p2p_a_->stream_info(), audit);

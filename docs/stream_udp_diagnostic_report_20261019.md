@@ -1,61 +1,56 @@
-# UDP / P2pSafeStream diagnostic iteration (2026-10-19)
+# UDP / P2pSafeStream diagnostic report (2026-10-19, rev 2)
 
 Branch: `cursor/stream-matrix-bench`  
 Client repo: `C:\Users\nickc\Projects\aether-client-cpp`  
-Prior verified HEAD: `f1cf99f` — this iteration adds budget audit fixes, loopback chaos
-tests, verbose trace hooks, and server analysis doc.
+Server sources: `C:\Users\nickc\Projects\aether-server-ref` @ **`defaae3e566dc901c8266c7120c74f4ddf70a44f`**
 
-## Answers
+## Budget audit (client, local tests)
 
-### Windows `recv` boundary loss (EMSGSIZE)
+`EvaluateUdpBudget` returns **`COMPLIANT` | `VIOLATED` | `UNVERIFIED`**:
 
-**Confirmed** when `AE_WIN_UDP_RECV_BUFFER_BYTES=2048`: oversize datagrams are dropped by
-the stack (`WSAEMSGSIZE` / 10040) before client parsing. With recv ≥ datagram size,
-application-layer delivery can succeed while audit shows **RX >1200 B**.
+- **`budget_ok`** only when **COMPLIANT** (both TX and RX observed, both directions clean).
+- TX-only or RX-only observation → **UNVERIFIED** (not a pass).
+- EMSGSIZE with recv ≥1200 → **VIOLATED** (lower bound > buffer ≥ budget).
+- EMSGSIZE with recv <1200 → **UNVERIFIED** (size not proven >1200).
+- Other recv errors → **UNVERIFIED** (`UDP_BUDGET_RX_INCOMPLETE`), not measured oversize.
+- **`goodput_mib_s`** keeps measured delivery speed; **`valid_goodput_mib_s`** CSV column empty unless COMPLIANT.
 
-### ACK semantics under loss
+Tests: `stream_matrix_udp_budget_test` (Release).
 
-Loopback chaos tests (`p2p_safe_stream_chaos_loopback_test`) with trace hooks show ACK
-offsets recorded on **`SendAck`** / inbound **`Ack`** handling; contiguous ACK tracking
-does not advance across unsent gaps. Temporary single-packet drop + SafeStream repeat
-recovers **full 4096 B** THPT RX without **write OK** vs missing bytes mismatch in
-tested scenarios. No client ACK skip bug reproduced in those scenarios.
+## ACK / SafeStream (local loopback test)
 
-### `write_ok` vs application RX
+`p2p_safe_stream_chaos_loopback_test` (Release):
 
-Cloud repro: **`delivery_ok`** could be true with **`budget_ok` false** when recv buffer
-was widened to 65536 — oversize server datagrams delivered to app. **`ApplyBudgetFlags`**
-now clears **goodput** and sets **`OK_BUDGET_EXCEEDED`** or specific **`UDP_BUDGET_*`**
-outcomes; **`budget_ok` requires observed socket audit**.
+- Tracks recv index ranges from SafeStream API recv trace.
+- Checks each **ACK_TX** against contiguous recv coverage (no gap skipping).
+- Scenarios: no loss, single fragment drop, coalesced datagram drop, ACK drop, permanent loss (no false full success).
+- **Does not** prove cloud behavior; **does not** replace server fix.
 
-### Client fixes this iteration
+No client SafeStream bug reproduced requiring protocol changes in this iteration.
 
-- **`EvaluateUdpBudget` / `ClassifyUdpBudgetOutcome`**: separate measured oversize,
-  EMSGSIZE lower-bound (recv buffer ≥1200), buffer-only EMSGSIZE, other recv errors,
-  unobserved socket.
-- Removed SafeStream **record** vs 1200 check from **`ApplyBudgetFlags`** (UDP datagram
-  audit only).
-- Verbose **`udp_datagram_trace`** only for `--streaming-udp-diagnose` /
-  `--streaming-udp-four-block`**; no per-datagram flush on normal matrix runs.
-- SafeStream **send/recv/ack** bench trace hooks for causal CSV (`stream_matrix_bench_trace`).
-- Tests: `stream_matrix_udp_budget_test`, `p2p_safe_stream_chaos_loopback_test`.
+## Trace correlation (diagnostic modes only)
 
-### Server blocker
+- Socket audit: **`socket_id`**, **`endpoint`**, **`local_event_id`** (not a content hash).
+- SafeStream: **`correlation_id`** on send; **`ack_tx` / `ack_rx`** roles.
+- Side tag from **delivering transport leg** (`SetStreamMatrixTraceSide` on loopback deliver); socket fields from **UdpBase** instance.
 
-See **`docs/server_udp_packetization_issue.md`** — **`remoteDataToArray`** drains all
-`LazyPacket`s into one buffer; Netty UDP **`handleFlush`** sends **one datagram** per
-flush. SHA **`defaae3e566dc901c8266c7120c74f4ddf70a44f`**.
+## Cloud vs source vs deployed
+
+| Item | Status |
+|------|--------|
+| Oversized RX / EMSGSIZE @2048 | **Cloud observation** (prior artifacts) |
+| `remoteDataToArray` full-queue drain | **Source chain** (Virtual + MetaContext default) |
+| `server-core` → `net-virtual` | **Build-time config** |
+| Live JVM uses Virtual vs Netty | **UNKNOWN (deployed)** |
+| Netty `handleFlush` wired on UDP @ defaae3e | **Not proven** (dead / incomplete in source) |
+
+See **`docs/server_udp_packetization_issue.md`** for file-level call graph.
+
+## Valid max speed under budget (unchanged)
+
+**out=1, 1024 B, burst, COMPLIANT audit @2048 recv:** ~**0.0084 MiB/s** (prior cloud run).  
+Recv 65536 and RX>1200 remain **diagnostic only**.
 
 ## Artifacts (local, not in git)
 
-| Path | Role |
-|------|------|
-| `artifacts/stream_udp_four_block_20261019/` | EMSGSIZE @2048 |
-| `artifacts/stream_udp_four_block_recv64k_20261019/` | RX>1200 audit |
-| `artifacts/stream_udp_mi1_o4_recv64k_20261019/` | Full MiB o=4 diagnostic |
-| `C:\Users\nickc\Projects\aether-server-ref` @ `defaae3e` | Server source review |
-
-## Valid max UDP speed (unchanged)
-
-**out=1, 1024 B, burst, budget compliant:** ~**0.0084 MiB/s** (1 MiB in ~117–132 s),
-`write_status_trusted=1`, TX/RX audit ≤1200 @2048 recv.
+`artifacts/stream_udp_four_block_*`, `stream_udp_mi1_o4_recv64k_20261019/`

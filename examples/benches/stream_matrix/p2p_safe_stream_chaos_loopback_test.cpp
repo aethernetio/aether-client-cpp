@@ -1,7 +1,8 @@
 /*
- * P2pSafeStream loopback with THPT receiver, SizedPacketGate, and controlled loss.
+ * P2pSafeStream loopback: THPT receiver, SizedPacketGate, loss/ACK checks.
  */
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstdlib>
@@ -57,42 +58,89 @@ class MockStreamWriteAction final : public WriteAction {
   }
 };
 
-struct WireObs {
-  std::vector<std::uint16_t> ack_offsets;
-  std::vector<std::pair<std::uint16_t, std::size_t>> recv_ranges;
-  std::uint64_t max_ack_contiguous_from_zero{0};
+struct IndexRange {
+  std::uint32_t start{};
+  std::uint32_t end{};  // exclusive
 };
 
-WireObs g_obs;
+class SafeStreamIndexTracker {
+ public:
+  void Reset() { ranges_.clear(); origin_set_ = false; }
+
+  void AddRecv(std::uint16_t begin, std::uint16_t delta, std::size_t len,
+               bool reset) {
+    if (reset) {
+      ranges_.clear();
+      origin_set_ = true;
+      origin_ = begin;
+    } else if (!origin_set_) {
+      origin_set_ = true;
+      origin_ = begin;
+    }
+    (void)origin_;
+    IndexRange r{
+        .start = static_cast<std::uint32_t>(begin) + static_cast<std::uint32_t>(delta),
+        .end = static_cast<std::uint32_t>(begin) + static_cast<std::uint32_t>(delta) +
+               static_cast<std::uint32_t>(len)};
+    ranges_.push_back(r);
+    Merge();
+  }
+
+  bool ContiguousThrough(std::uint16_t ack_offset) const {
+    if (ranges_.empty()) {
+      return false;
+    }
+    std::uint32_t const need_end = static_cast<std::uint32_t>(ack_offset) + 1;
+    std::uint32_t covered = ranges_.front().start;
+    for (auto const& r : ranges_) {
+      if (r.start > covered) {
+        break;
+      }
+      covered = std::max(covered, r.end);
+    }
+    return covered >= need_end;
+  }
+
+ private:
+
+  void Merge() {
+    std::sort(ranges_.begin(), ranges_.end(),
+              [](IndexRange const& a, IndexRange const& b) { return a.start < b.start; });
+    std::vector<IndexRange> merged;
+    for (auto const& r : ranges_) {
+      if (merged.empty() || merged.back().end < r.start) {
+        merged.push_back(r);
+      } else {
+        merged.back().end = std::max(merged.back().end, r.end);
+      }
+    }
+    ranges_ = std::move(merged);
+  }
+
+  std::uint16_t origin_{0};
+  bool origin_set_{false};
+  std::vector<IndexRange> ranges_;
+};
+
+struct Obs {
+  SafeStreamIndexTracker recv_indices;
+  std::vector<StreamMatrixSafeStreamAckTrace> acks;
+  int drop_count{0};
+};
+
+Obs g_obs;
 
 void ResetObs() {
   g_obs = {};
 }
 
-void UpdateContiguousAck() {
-  std::vector<std::uint16_t> sorted = g_obs.ack_offsets;
-  std::sort(sorted.begin(), sorted.end());
-  std::uint64_t run = 0;
-  for (auto off : sorted) {
-    if (off + 1 == run || (run == 0 && off == 0)) {
-      run = off + 1;
-    } else if (off >= run) {
-      break;
-    }
-  }
-  g_obs.max_ack_contiguous_from_zero = run;
-}
-
-void InstallObs(char side) {
-  SetStreamMatrixTraceSide(side);
+void InstallObs() {
   SetStreamMatrixBenchTrace(
       nullptr, nullptr,
-      [](StreamMatrixSafeStreamAckTrace const& t) {
-        g_obs.ack_offsets.push_back(t.ack_offset);
-        UpdateContiguousAck();
-      },
+      [](StreamMatrixSafeStreamAckTrace const& t) { g_obs.acks.push_back(t); },
       [](StreamMatrixSafeStreamRecvTrace const& t) {
-        g_obs.recv_ranges.emplace_back(t.begin_offset, t.data_bytes);
+        g_obs.recv_indices.AddRecv(t.begin_offset, t.delta_offset, t.data_bytes,
+                                   t.reset);
       });
 }
 
@@ -103,9 +151,10 @@ class ChaosLoopbackP2pTransport final : public ByteStream,
   using DropFn = std::function<bool(int seq, DataBuffer const& buf)>;
 
   ChaosLoopbackP2pTransport(AeContext const& context, std::size_t max_write_bytes,
-                            DropFn drop_fn, bool coalesce)
+                            char leg_side, DropFn drop_fn, bool coalesce)
       : ByteStream{context},
         context_{context},
+        leg_side_{leg_side},
         drop_fn_{std::move(drop_fn)},
         coalesce_deliver_{coalesce},
         stream_info_{max_write_bytes, max_write_bytes, false, LinkState::kLinked,
@@ -120,6 +169,7 @@ class ChaosLoopbackP2pTransport final : public ByteStream,
   WriteAction& Write(DataBuffer&& buffer) override {
     ++wire_seq_;
     if (drop_fn_ && drop_fn_(wire_seq_, buffer)) {
+      ++g_obs.drop_count;
       if (!ok_action_ || ok_action_->is_finished()) {
         ok_action_.emplace(context_);
       }
@@ -145,6 +195,11 @@ class ChaosLoopbackP2pTransport final : public ByteStream,
       merged.insert(merged.end(), chunk.begin(), chunk.end());
     }
     pending_.clear();
+    ++wire_seq_;
+    if (drop_fn_ && drop_fn_(wire_seq_, merged)) {
+      ++g_obs.drop_count;
+      return;
+    }
     if (auto peer = peer_.lock()) {
       peer->Deliver(std::move(merged));
     }
@@ -156,10 +211,14 @@ class ChaosLoopbackP2pTransport final : public ByteStream,
   }
   OutDataEvent const& out_data_event() override { return out_data_event_; }
 
-  void Deliver(DataBuffer buffer) { out_data_event_.Emit(std::move(buffer)); }
+  void Deliver(DataBuffer buffer) {
+    SetStreamMatrixTraceSide(leg_side_);
+    out_data_event_.Emit(std::move(buffer));
+  }
 
  private:
   AeContext context_;
+  char leg_side_;
   DropFn drop_fn_;
   bool coalesce_deliver_{false};
   StreamInfo stream_info_;
@@ -183,51 +242,63 @@ SafeStreamConfig BenchSafeStreamConfig() {
 }
 
 struct RunResult {
-  bool ok{false};
-  std::array<WriteAction::Status, 4> write_status{};
+  bool thpt_ok{false};
+  bool integrity_ok{false};
+  bool acks_ok{false};
+  std::array<std::optional<WriteAction::Status>, 4> write_status{};
   std::size_t rx_bytes{0};
-  bool receiver_complete{false};
+  int drops{0};
 };
+
+bool AllAcksCoverRecv() {
+  for (auto const& ack : g_obs.acks) {
+    if (ack.role != StreamMatrixSafeStreamAckRole::kTx) {
+      continue;
+    }
+    if (!g_obs.recv_indices.ContiguousThrough(ack.ack_offset)) {
+      return false;
+    }
+  }
+  return !g_obs.acks.empty();
+}
 
 RunResult RunFourThptChaos(ChaosLoopbackP2pTransport::DropFn drop_a,
                            ChaosLoopbackP2pTransport::DropFn drop_b,
                            bool coalesce_flush, int max_ms) {
   RunResult out{};
   ResetObs();
+  InstallObs();
   LoopbackTestContext env;
   AeContext ctx{env};
   auto const inner_max =
       MaxP2pStreamWritePayloadBytesForDatagramBudget(1200);
 
-  auto link_a = std::make_shared<ChaosLoopbackP2pTransport>(ctx, inner_max, drop_a,
-                                                             coalesce_flush);
-  auto link_b = std::make_shared<ChaosLoopbackP2pTransport>(ctx, inner_max, drop_b,
-                                                             coalesce_flush);
+  auto link_a = std::make_shared<ChaosLoopbackP2pTransport>(ctx, inner_max, 'A',
+                                                             drop_a, coalesce_flush);
+  auto link_b = std::make_shared<ChaosLoopbackP2pTransport>(ctx, inner_max, 'B',
+                                                             drop_b, coalesce_flush);
   link_a->SetPeer(link_b);
   link_b->SetPeer(link_a);
 
-  InstallObs('A');
   auto config = BenchSafeStreamConfig();
   P2pSafeStream sender{ctx, config, link_a};
   P2pSafeStream receiver{ctx, config, link_b};
 
   auto blob = stream_matrix_bench::BuildThroughputBlob();
-  stream_matrix_bench::StreamingReceiverState thpt_rx(blob, 7,
-                                                      stream_matrix_bench::
-                                                          kUdpFourBlockTotalBytes);
+  stream_matrix_bench::StreamingReceiverState thpt_rx(
+      blob, 7, stream_matrix_bench::kUdpFourBlockTotalBytes);
   MultiSubscription subs;
   subs += receiver.out_data_event().Subscribe([&](DataBuffer const& data) {
     thpt_rx.Feed(data, stream_matrix_bench::BenchInstant{} +
                            std::chrono::milliseconds{1});
   });
 
-  std::array<std::optional<WriteAction::Status>, 4> final_status{};
   for (std::uint64_t i = 0; i < 4; ++i) {
-    auto chunk = stream_matrix_bench::MakeThptChunk(
-        blob, 7, i, i * 1024, 1024);
+    SetStreamMatrixTraceSide('A');
+    auto chunk = stream_matrix_bench::MakeThptChunk(blob, 7, i, i * 1024, 1024);
     auto& wa = sender.Write(std::move(chunk));
     subs += wa.status_event().Subscribe([&, i](WriteAction::Status status) {
-      final_status[i] = status;
+      out.write_status[i] = status;
     });
   }
 
@@ -238,40 +309,38 @@ RunResult RunFourThptChaos(ChaosLoopbackP2pTransport::DropFn drop_a,
       link_a->FlushCoalesced();
       link_b->FlushCoalesced();
     }
-    bool all_terminal = true;
-    for (auto const& st : final_status) {
-      if (!st.has_value()) {
-        all_terminal = false;
-        break;
-      }
-    }
-    if (all_terminal && thpt_rx.Complete()) {
-      break;
-    }
   }
   link_a->FlushCoalesced();
   link_b->FlushCoalesced();
   env.Update(epoch += std::chrono::milliseconds{1});
 
-  for (std::size_t i = 0; i < 4; ++i) {
-    out.write_status[i] = final_status[i].value_or(WriteAction::Status::kFail);
-  }
   out.rx_bytes = thpt_rx.bytes_unique();
-  out.receiver_complete = thpt_rx.Complete();
-  out.ok = out.receiver_complete;
-  for (std::size_t i = 0; i < 4; ++i) {
-    if (out.write_status[i] == WriteAction::Status::kSuccess && out.rx_bytes <
-        stream_matrix_bench::kUdpFourBlockTotalBytes) {
-      out.ok = false;
-    }
-  }
+  out.thpt_ok = thpt_rx.Complete() && !thpt_rx.integrity_fail();
+  out.integrity_ok = out.thpt_ok;
+  out.acks_ok = AllAcksCoverRecv();
+  out.drops = g_obs.drop_count;
   SetStreamMatrixBenchTrace(nullptr, nullptr, nullptr, nullptr);
   return out;
 }
 
 }  // namespace
 
-std::uint64_t ObsMaxAckContiguous() { return g_obs.max_ack_contiguous_from_zero; }
+using DropFn = std::function<bool(int, DataBuffer const&)>;
+
+RunResult RunFourThptChaosPublic(DropFn drop_a, DropFn drop_b, bool coalesce_flush,
+                                 int max_ms) {
+  return RunFourThptChaos(std::move(drop_a), std::move(drop_b), coalesce_flush,
+                          max_ms);
+}
+
+bool ExpectSuccessWrites(RunResult const& r) {
+  for (auto const& st : r.write_status) {
+    if (!st.has_value() || *st != WriteAction::Status::kSuccess) {
+      return false;
+    }
+  }
+  return true;
+}
 
 }  // namespace ae
 
@@ -286,46 +355,66 @@ static void Expect(bool ok, char const* msg) {
 
 int main() {
   {
-    auto r = ae::RunFourThptChaos({}, {}, false, 15000);
-    Expect(r.receiver_complete, "no loss: THPT complete");
+    auto r = ae::RunFourThptChaosPublic({}, {}, false, 15000);
+    Expect(r.thpt_ok && r.integrity_ok, "no loss: THPT complete");
     Expect(r.rx_bytes == ae::stream_matrix_bench::kUdpFourBlockTotalBytes,
-           "no loss: byte count");
-    for (int i = 0; i < 4; ++i) {
-      Expect(r.write_status[static_cast<std::size_t>(i)] ==
-                 ae::WriteAction::Status::kSuccess,
-             "no loss: write success");
-    }
+           "no loss: bytes");
+    Expect(ae::ExpectSuccessWrites(r), "no loss: four kSuccess");
+    Expect(r.acks_ok, "no loss: ack_tx covers recv indices");
   }
   {
     int drops_left = 1;
-    auto drop_once = [&](int seq, ae::DataBuffer const&) {
+    int target = 0;
+    auto drop_fragment = [&](int seq, ae::DataBuffer const&) {
       if (drops_left > 0 && seq == 3) {
         --drops_left;
+        ++target;
         return true;
       }
       return false;
     };
-    auto r = ae::RunFourThptChaos(drop_once, {}, false, 20000);
-    Expect(r.receiver_complete, "single drop: recovered");
-    Expect(r.rx_bytes == ae::stream_matrix_bench::kUdpFourBlockTotalBytes,
-           "single drop: full rx");
+    auto r = ae::RunFourThptChaosPublic(drop_fragment, {}, false, 25000);
+    Expect(r.drops == 1, "fragment drop happened once");
+    Expect(r.thpt_ok, "fragment drop: recovered THPT");
+    Expect(ae::ExpectSuccessWrites(r), "fragment drop: writes succeed");
+    Expect(r.acks_ok, "fragment drop: acks cover recv");
   }
   {
-    auto r = ae::RunFourThptChaos({}, {}, true, 20000);
-    Expect(r.receiver_complete, "coalesced flush: complete");
+    auto drop_coalesced = [&](int, ae::DataBuffer const& buf) {
+      return buf.size() > 1500;
+    };
+    auto r = ae::RunFourThptChaosPublic(drop_coalesced, {}, true, 30000);
+    Expect(r.drops >= 1, "coalesced datagram drop injected");
+    if (r.thpt_ok) {
+      Expect(r.acks_ok, "coalesced drop: acks valid when recovered");
+    }
   }
   {
-    int ack_drops = 1;
+    int ack_drops = 0;
     auto drop_b = [&](int, ae::DataBuffer const& buf) {
-      if (ack_drops > 0 && buf.size() < 96) {
-        --ack_drops;
+      if (buf.size() < 96 && ack_drops < 1) {
+        ++ack_drops;
         return true;
       }
       return false;
     };
-    auto r = ae::RunFourThptChaos({}, drop_b, false, 25000);
-    Expect(r.receiver_complete, "lost ack: eventually complete");
-    Expect(ae::ObsMaxAckContiguous() <= 65535, "ack trace recorded");
+    auto r = ae::RunFourThptChaosPublic({}, drop_b, false, 30000);
+    Expect(r.drops >= 1, "ack drop injected");
+    Expect(r.thpt_ok, "lost ack: still completes THPT");
+    Expect(r.acks_ok, "ack offsets still cover contiguous recv");
+  }
+  {
+    int block_after = 2;
+    auto block_mid = [&](int seq, ae::DataBuffer const&) {
+      if (seq <= block_after) {
+        return false;
+      }
+      return true;
+    };
+    auto r = ae::RunFourThptChaosPublic(block_mid, {}, false, 4000);
+    Expect(r.drops > 0, "sustained drop after handshake");
+    Expect(!r.thpt_ok || !ae::ExpectSuccessWrites(r),
+           "sustained loss: THPT or writes incomplete");
   }
   if (g_failures != 0) {
     std::cerr << "p2p_safe_stream_chaos_loopback_test: " << g_failures

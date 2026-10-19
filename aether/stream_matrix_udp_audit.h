@@ -22,13 +22,28 @@
 
 namespace ae {
 
-using StreamMatrixUdpPayloadAuditFn = void (*)(std::size_t payload_bytes);
-using StreamMatrixUdpRecvErrorFn = void (*)(int wsa_error, std::size_t recv_buffer_bytes);
+struct StreamMatrixUdpPayloadEvent {
+  std::size_t payload_bytes{};
+  std::uint64_t socket_id{};
+  char const* endpoint{};  // valid for the duration of the callback only
+};
+
+struct StreamMatrixUdpRecvErrorEvent {
+  int wsa_error{};
+  std::size_t recv_buffer_bytes{};
+  std::uint64_t socket_id{};
+  char const* endpoint{};
+};
+
+using StreamMatrixUdpPayloadAuditFn = void (*)(StreamMatrixUdpPayloadEvent const&);
+using StreamMatrixUdpRecvErrorFn = void (*)(StreamMatrixUdpRecvErrorEvent const&);
 
 void SetStreamMatrixUdpPayloadAudit(StreamMatrixUdpPayloadAuditFn on_tx,
                                     StreamMatrixUdpPayloadAuditFn on_rx);
 
 void SetStreamMatrixUdpRecvErrorAudit(StreamMatrixUdpRecvErrorFn on_recv_error);
+
+void SetStreamMatrixUdpAuditContext(std::uint64_t socket_id, char const* endpoint);
 
 void NotifyStreamMatrixUdpTxPayload(std::size_t payload_bytes);
 void NotifyStreamMatrixUdpRxPayload(std::size_t payload_bytes);

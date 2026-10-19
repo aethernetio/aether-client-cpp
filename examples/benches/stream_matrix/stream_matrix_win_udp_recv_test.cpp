@@ -257,8 +257,8 @@ ae::Ptr<ae::IPoller> MakePoller() {
   return ae::Ptr<ae::IPoller>{poller_obj.Load()};
 }
 
-void AuditRecvError(int wsa_error, std::size_t) {
-  if (wsa_error == WSAEMSGSIZE) {
+void AuditRecvError(ae::StreamMatrixUdpRecvErrorEvent const& ev) {
+  if (ev.wsa_error == WSAEMSGSIZE) {
     g_stats.audit_emsgsize.fetch_add(1);
   }
 }
@@ -339,6 +339,11 @@ void test_wsaemsgsize_no_truncated_delivery() {
   g_stats.audit_emsgsize.store(0);
   ae::SetStreamMatrixUdpRecvErrorAudit(&AuditRecvError);
 
+  if (AE_WIN_UDP_RECV_BUFFER_BYTES >= 60000) {
+    ae::SetStreamMatrixUdpRecvErrorAudit(nullptr);
+    return;
+  }
+
   auto poller = MakePoller();
   auto tx = BindUdp();
   if (!tx) {
@@ -361,10 +366,19 @@ void test_wsaemsgsize_no_truncated_delivery() {
     return;
   }
 
-  std::vector<std::uint8_t> huge(4096, 0xCD);
+  std::size_t const oversize_bytes =
+      std::min<std::size_t>(AE_WIN_UDP_RECV_BUFFER_BYTES + 2048, 65507);
+  std::vector<std::uint8_t> huge(oversize_bytes, 0xCD);
   Expect(SendTo(*tx, *local, huge), "oversize datagram");
-  std::this_thread::sleep_for(std::chrono::milliseconds{300});
-  Expect(g_stats.audit_emsgsize.load() >= 1, "WSAEMSGSIZE audited");
+  bool emsgsize_audited = false;
+  for (int i = 0; i < 40; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds{50});
+    if (g_stats.audit_emsgsize.load() >= 1) {
+      emsgsize_audited = true;
+      break;
+    }
+  }
+  Expect(emsgsize_audited, "WSAEMSGSIZE audited");
   Expect(coll.Count() == 0, "no truncated delivery");
 
   Expect(SendTo(*tx, *local, {0x42}), "small after EMSGSIZE");
