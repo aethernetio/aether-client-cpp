@@ -169,12 +169,15 @@ class ChaosLoopbackP2pTransport final : public ByteStream,
   using DropFn = std::function<bool(int seq, DataBuffer const& buf)>;
 
   ChaosLoopbackP2pTransport(AeContext const& context, std::size_t max_write_bytes,
-                            char leg_side, DropFn drop_fn, bool coalesce)
+                            char leg_side, DropFn drop_fn, bool coalesce,
+                            int reorder_hold_wire_seq = 0, int duplicate_wire_seq = 0)
       : ByteStream{context},
         context_{context},
         leg_side_{leg_side},
         drop_fn_{std::move(drop_fn)},
         coalesce_deliver_{coalesce},
+        reorder_hold_wire_seq_{reorder_hold_wire_seq},
+        duplicate_wire_seq_{duplicate_wire_seq},
         stream_info_{max_write_bytes, max_write_bytes, false, LinkState::kLinked,
                      true},
         out_data_event_{context},
@@ -193,10 +196,24 @@ class ChaosLoopbackP2pTransport final : public ByteStream,
       }
       return *ok_action_;
     }
-    if (coalesce_deliver_) {
-      pending_.push_back(std::move(buffer));
-    } else if (auto peer = peer_.lock()) {
-      peer->Deliver(std::move(buffer));
+    if (reorder_hold_wire_seq_ > 0 && wire_seq_ == reorder_hold_wire_seq_) {
+      held_reorder_ = std::move(buffer);
+    } else {
+      MaybeFlushHeldReorder();
+      if (coalesce_deliver_) {
+        pending_.push_back(std::move(buffer));
+      } else if (auto peer = peer_.lock()) {
+        DataBuffer dup;
+        if (duplicate_wire_seq_ > 0 && wire_seq_ == duplicate_wire_seq_ &&
+            !duplicate_done_) {
+          dup.assign(buffer.begin(), buffer.end());
+        }
+        peer->Deliver(std::move(buffer));
+        if (!dup.empty()) {
+          duplicate_done_ = true;
+          peer->Deliver(std::move(dup));
+        }
+      }
     }
     if (!ok_action_ || ok_action_->is_finished()) {
       ok_action_.emplace(context_);
@@ -205,6 +222,7 @@ class ChaosLoopbackP2pTransport final : public ByteStream,
   }
 
   void FlushCoalesced() {
+    MaybeFlushHeldReorder();
     if (pending_.empty()) {
       return;
     }
@@ -223,6 +241,8 @@ class ChaosLoopbackP2pTransport final : public ByteStream,
     }
   }
 
+  void FlushHeldReorder() { MaybeFlushHeldReorder(); }
+
   StreamInfo stream_info() const override { return stream_info_; }
   StreamUpdateEvent const& stream_update_event() override {
     return stream_update_event_;
@@ -235,10 +255,27 @@ class ChaosLoopbackP2pTransport final : public ByteStream,
   }
 
  private:
+  void MaybeFlushHeldReorder() {
+    if (!held_reorder_.has_value()) {
+      return;
+    }
+    if (wire_seq_ <= reorder_hold_wire_seq_) {
+      return;
+    }
+    if (auto peer = peer_.lock()) {
+      peer->Deliver(std::move(*held_reorder_));
+    }
+    held_reorder_.reset();
+  }
+
   AeContext context_;
   char leg_side_;
   DropFn drop_fn_;
   bool coalesce_deliver_{false};
+  int reorder_hold_wire_seq_{0};
+  int duplicate_wire_seq_{0};
+  bool duplicate_done_{false};
+  std::optional<DataBuffer> held_reorder_;
   StreamInfo stream_info_;
   OutDataEvent out_data_event_;
   StreamUpdateEvent stream_update_event_;
@@ -271,7 +308,9 @@ struct RunResult {
 
 RunResult RunFourThptChaos(ChaosLoopbackP2pTransport::DropFn drop_a,
                            ChaosLoopbackP2pTransport::DropFn drop_b,
-                           bool coalesce_flush, int max_ms) {
+                           bool coalesce_flush, int max_ms,
+                           int reorder_hold_wire_seq = 0,
+                           int duplicate_wire_seq = 0) {
   RunResult out{};
   ResetObs();
   InstallObs();
@@ -280,10 +319,11 @@ RunResult RunFourThptChaos(ChaosLoopbackP2pTransport::DropFn drop_a,
   auto const inner_max =
       MaxP2pStreamWritePayloadBytesForDatagramBudget(1200);
 
-  auto link_a = std::make_shared<ChaosLoopbackP2pTransport>(ctx, inner_max, 'A',
-                                                             drop_a, coalesce_flush);
-  auto link_b = std::make_shared<ChaosLoopbackP2pTransport>(ctx, inner_max, 'B',
-                                                             drop_b, coalesce_flush);
+  auto link_a = std::make_shared<ChaosLoopbackP2pTransport>(
+      ctx, inner_max, 'A', drop_a, coalesce_flush, reorder_hold_wire_seq,
+      duplicate_wire_seq);
+  auto link_b = std::make_shared<ChaosLoopbackP2pTransport>(ctx, inner_max, 'B', drop_b,
+                                                           coalesce_flush);
   link_a->SetPeer(link_b);
   link_b->SetPeer(link_a);
 
@@ -319,6 +359,7 @@ RunResult RunFourThptChaos(ChaosLoopbackP2pTransport::DropFn drop_a,
   }
   link_a->FlushCoalesced();
   link_b->FlushCoalesced();
+  link_a->FlushHeldReorder();
   env.Update(epoch += std::chrono::milliseconds{1});
 
   out.rx_bytes = thpt_rx.bytes_unique();
@@ -339,9 +380,10 @@ RunResult RunFourThptChaos(ChaosLoopbackP2pTransport::DropFn drop_a,
 using DropFn = std::function<bool(int, DataBuffer const&)>;
 
 RunResult RunFourThptChaosPublic(DropFn drop_a, DropFn drop_b, bool coalesce_flush,
-                                 int max_ms) {
-  return RunFourThptChaos(std::move(drop_a), std::move(drop_b), coalesce_flush,
-                          max_ms);
+                                 int max_ms, int reorder_hold_wire_seq = 0,
+                                 int duplicate_wire_seq = 0) {
+  return RunFourThptChaos(std::move(drop_a), std::move(drop_b), coalesce_flush, max_ms,
+                          reorder_hold_wire_seq, duplicate_wire_seq);
 }
 
 bool ExpectSuccessWrites(RunResult const& r) {
@@ -432,6 +474,18 @@ int main() {
     Expect(ae::ExpectSuccessWrites(r), "lost ack: four kSuccess");
     Expect(ae::WritesMatchReceivedBytes(r), "lost ack: writes match THPT");
     Expect(r.acks_ok, "lost ack: acks valid at emission");
+  }
+  {
+    auto r = ae::RunFourThptChaosPublic({}, {}, false, 25000, 3, 0);
+    Expect(r.thpt_ok, "reorder wire seq 3: THPT complete");
+    Expect(ae::ExpectSuccessWrites(r), "reorder: four kSuccess");
+    Expect(ae::WritesMatchReceivedBytes(r), "reorder: writes match THPT");
+  }
+  {
+    auto r = ae::RunFourThptChaosPublic({}, {}, false, 25000, 0, 2);
+    Expect(r.thpt_ok, "duplicate wire seq 2: THPT complete");
+    Expect(ae::ExpectSuccessWrites(r), "duplicate: four kSuccess");
+    Expect(ae::WritesMatchReceivedBytes(r), "duplicate: writes match THPT");
   }
   {
     int block_after = 2;

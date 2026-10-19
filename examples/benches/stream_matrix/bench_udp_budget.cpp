@@ -83,7 +83,7 @@ void AuditTx(ae::StreamMatrixUdpPayloadEvent const& ev) {
             ",socket_id=" + std::to_string(ev.socket_id) +
             ",endpoint=" + (ev.endpoint ? ev.endpoint : "") +
             ",transfer_id=" + std::to_string(g_trace_options.transfer_id) +
-            ",local_event_id=" + std::to_string(id) +
+            ",datagram_id=" + std::to_string(id) +
             ",payload_bytes=" + std::to_string(ev.payload_bytes));
   g_tx_observed.store(true);
   auto const payload_bytes = ev.payload_bytes;
@@ -102,7 +102,7 @@ void AuditRx(ae::StreamMatrixUdpPayloadEvent const& ev) {
             ",socket_id=" + std::to_string(ev.socket_id) +
             ",endpoint=" + (ev.endpoint ? ev.endpoint : "") +
             ",transfer_id=" + std::to_string(g_trace_options.transfer_id) +
-            ",local_event_id=" + std::to_string(id) +
+            ",datagram_id=" + std::to_string(id) +
             ",payload_bytes=" + std::to_string(ev.payload_bytes));
   g_rx_observed.store(true);
   auto const payload_bytes = ev.payload_bytes;
@@ -132,6 +132,8 @@ void AuditRecvError(ae::StreamMatrixUdpRecvErrorEvent const& ev) {
   g_recv_buffer_bytes.store(ev.recv_buffer_bytes);
   if (ev.wsa_error == 10040) {  // WSAEMSGSIZE
     g_recv_emsgsize_events.fetch_add(1);
+    // EMSGSIZE: datagram size is strictly greater than recv buffer (not equal).
+    // When recv buffer >= UDP budget, any EMSGSIZE proves budget violation.
     if (ev.recv_buffer_bytes >= kBenchmarkUdpPayloadBudgetBytes) {
       g_recv_emsgsize_budget_lower_bound.fetch_add(1);
     } else {
@@ -140,10 +142,14 @@ void AuditRecvError(ae::StreamMatrixUdpRecvErrorEvent const& ev) {
     TraceLine("kind=recv_error,dir=rx,side=" + std::string(1, g_trace_side) +
                   ",socket_id=" + std::to_string(ev.socket_id) +
                   ",endpoint=" + (ev.endpoint ? ev.endpoint : "") +
+                  ",transfer_id=" + std::to_string(g_trace_options.transfer_id) +
                   ",wsa=" + std::to_string(ev.wsa_error) +
                   ",recv_buffer_bytes=" + std::to_string(ev.recv_buffer_bytes) +
-                  ",datagram_lower_bound_gt=" +
-                  std::to_string(ev.recv_buffer_bytes),
+                  ",datagram_min_bytes=" +
+                  std::to_string(ev.recv_buffer_bytes + 1) +
+                  ",budget_violation_implied=" +
+                  (ev.recv_buffer_bytes >= kBenchmarkUdpPayloadBudgetBytes ? "1"
+                                                                           : "0"),
               true);
   } else {
     TraceLine("kind=recv_error,dir=rx,side=" + std::string(1, g_trace_side) +
@@ -289,7 +295,10 @@ UdpBudgetVerdict EvaluateUdpBudget(UdpSocketAuditSnapshot const& snap) {
       (v.measured_rx_oversize > 0 ||
        snap.max_rx_payload_bytes > kBenchmarkUdpPayloadBudgetBytes);
   bool const rx_emsgsize_proves_violation =
-      v.emsgsize_budget_lower_bound > 0;
+      v.emsgsize_budget_lower_bound > 0 ||
+      (snap.recv_emsgsize_events > 0 &&
+       snap.recv_buffer_bytes >= kBenchmarkUdpPayloadBudgetBytes &&
+       snap.recv_emsgsize_buffer_only == 0);
 
   v.tx_compliant = v.tx_observed && !tx_oversize;
   v.rx_compliant = v.rx_observed && !rx_oversize &&

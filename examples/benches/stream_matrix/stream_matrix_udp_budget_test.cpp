@@ -5,7 +5,10 @@
 #include <cstdlib>
 #include <iostream>
 
+#include "aether/stream_api/istream.h"
+
 #include "stream_matrix/bench_limits.h"
+#include "stream_matrix/bench_transport.h"
 #include "stream_matrix/bench_udp_budget.h"
 
 using namespace ae::stream_matrix_bench;
@@ -74,6 +77,10 @@ static void test_emsgsize_at_2048_violated() {
   s.recv_buffer_bytes = 2048;
   auto v = EvaluateUdpBudget(s);
   Expect(v.status == UdpBudgetStatus::kViolated, "emsgsize@2048 violated");
+  Expect(ClassifyUdpBudgetOutcome(v) == "UDP_BUDGET_EMSGSIZE_LOWER_BOUND" ||
+             ClassifyUdpBudgetOutcome(v) == "UDP_BUDGET_VIOLATION",
+         "emsgsize@2048 outcome class");
+  Expect(!v.budget_ok(), "emsgsize@2048 not budget_ok");
 }
 
 static void test_emsgsize_at_1200_violated() {
@@ -166,6 +173,28 @@ static void test_emsgsize_lower_bound_still_violated_with_clean_max() {
          "lower bound violated despite other clean obs");
 }
 
+static void test_delivery_ok_separate_from_budget_ok() {
+  auto s = BothDirectionsClean();
+  s.max_rx_payload_bytes = 4411;
+  s.rx_violations = 1;
+  auto v = EvaluateUdpBudget(s);
+  Expect(v.status == UdpBudgetStatus::kViolated, "measured oversize violated");
+  Expect(!v.budget_ok(), "budget_ok false on violation");
+}
+
+static void test_safestream_large_message_not_envelope_blocked() {
+  ae::StreamInfo info{};
+  info.max_element_size = 1200;
+  info.link_state = ae::LinkState::kLinked;
+  UdpSocketAuditSnapshot clean{};
+  clean.tx_observed = true;
+  clean.rx_observed = true;
+  auto const out = ClassifyUdpMeasureOutcome(
+      BenchStreamKind::kP2pSafeStream, BenchTransportKind::kUdp, {}, 5000, info,
+      clean);
+  Expect(out.empty(), "SafeStream 5KiB wire estimate does not block audit");
+}
+
 int main() {
   test_compliant_both_directions();
   test_tx_only_unverified();
@@ -180,6 +209,8 @@ int main() {
   test_emsgsize_buffer_only_after_rx_observed_unverified();
   test_emsgsize_buffer_only_before_rx_still_unverified();
   test_emsgsize_lower_bound_still_violated_with_clean_max();
+  test_delivery_ok_separate_from_budget_ok();
+  test_safestream_large_message_not_envelope_blocked();
   if (g_failures != 0) {
     std::cerr << "stream_matrix_udp_budget_test: " << g_failures << " failure(s)\n";
     return 1;
