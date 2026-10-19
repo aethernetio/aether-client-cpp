@@ -18,8 +18,15 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
+#include <fstream>
+#include <memory>
+#include <mutex>
+#include <string>
 
 #include "aether/stream_matrix_udp_audit.h"
+
+#include "stream_matrix/bench_clock.h"
 
 #include "stream_matrix/bench_envelope.h"
 
@@ -34,8 +41,26 @@ std::atomic<std::size_t> g_max_rx{0};
 std::atomic<std::uint64_t> g_tx_violations{0};
 std::atomic<std::uint64_t> g_rx_violations{0};
 std::atomic<bool> g_socket_observed{false};
+std::atomic<std::uint64_t> g_recv_error_events{0};
+std::atomic<std::uint64_t> g_recv_emsgsize_events{0};
+std::mutex g_trace_mu;
+std::unique_ptr<std::ofstream> g_trace_file;
+std::atomic<std::uint64_t> g_trace_seq{0};
+BenchInstant g_trace_t0{};
+
+static void TraceLine(std::string const& line) {
+  std::lock_guard lock{g_trace_mu};
+  if (!g_trace_file || !g_trace_file->is_open()) {
+    return;
+  }
+  auto const ms = std::chrono::duration<double, std::milli>(BenchNow() - g_trace_t0)
+                      .count();
+  *g_trace_file << g_trace_seq.fetch_add(1) << ',' << ms << ',' << line << '\n';
+  g_trace_file->flush();
+}
 
 void AuditTx(std::size_t payload_bytes) {
+  TraceLine("dir=tx,payload_bytes=" + std::to_string(payload_bytes));
   g_socket_observed.store(true);
   auto prev = g_max_tx.load();
   while (payload_bytes > prev &&
@@ -47,6 +72,7 @@ void AuditTx(std::size_t payload_bytes) {
 }
 
 void AuditRx(std::size_t payload_bytes) {
+  TraceLine("dir=rx,payload_bytes=" + std::to_string(payload_bytes));
   g_socket_observed.store(true);
   auto prev = g_max_rx.load();
   while (payload_bytes > prev &&
@@ -66,6 +92,15 @@ std::size_t EstimatedUdpPayloadBytes(std::size_t bench_envelope_bytes,
   (void)socket_cap;
   return kAeMessageFixedOverheadBytes + bench_envelope_bytes +
          kApiCryptoReserveBytes;
+}
+
+void AuditRecvError(int wsa_error, std::size_t recv_buffer_bytes) {
+  g_recv_error_events.fetch_add(1);
+  if (wsa_error == 10040) {  // WSAEMSGSIZE
+    g_recv_emsgsize_events.fetch_add(1);
+  }
+  TraceLine("dir=recv_error,wsa=" + std::to_string(wsa_error) +
+            ",recv_buffer_bytes=" + std::to_string(recv_buffer_bytes));
 }
 
 }  // namespace
@@ -133,6 +168,7 @@ std::string_view ClassifyUdpMeasureOutcome(
 
 void InstallUdpSocketPayloadAudit() {
   ae::SetStreamMatrixUdpPayloadAudit(&AuditTx, &AuditRx);
+  ae::SetStreamMatrixUdpRecvErrorAudit(&AuditRecvError);
 }
 
 void ResetUdpSocketPayloadAudit() {
@@ -141,6 +177,23 @@ void ResetUdpSocketPayloadAudit() {
   g_tx_violations.store(0);
   g_rx_violations.store(0);
   g_socket_observed.store(false);
+  g_recv_error_events.store(0);
+  g_recv_emsgsize_events.store(0);
+}
+
+void BeginUdpDatagramTrace(std::filesystem::path const& path) {
+  std::lock_guard lock{g_trace_mu};
+  g_trace_file = std::make_unique<std::ofstream>(path, std::ios::trunc);
+  g_trace_seq.store(0);
+  g_trace_t0 = BenchNow();
+  if (g_trace_file && g_trace_file->is_open()) {
+    *g_trace_file << "seq,elapsed_ms,event\n";
+  }
+}
+
+void EndUdpDatagramTrace() {
+  std::lock_guard lock{g_trace_mu};
+  g_trace_file.reset();
 }
 
 UdpSocketAuditSnapshot UdpSocketPayloadAuditSnapshot() {
@@ -149,6 +202,8 @@ UdpSocketAuditSnapshot UdpSocketPayloadAuditSnapshot() {
       .max_rx_payload_bytes = g_max_rx.load(),
       .tx_violations = g_tx_violations.load(),
       .rx_violations = g_rx_violations.load(),
+      .recv_error_events = g_recv_error_events.load(),
+      .recv_emsgsize_events = g_recv_emsgsize_events.load(),
       .socket_observed = g_socket_observed.load(),
       .safestream_datagram_unverified = true,
   };

@@ -25,6 +25,7 @@ struct PointRunArgs {
   std::uint64_t chunks_total{};
   std::uint64_t run_id{};
   std::vector<std::uint8_t> const* blob{};
+  std::size_t payload_total_bytes{kThroughputTotalBytes};
   bool progress_log{false};
   std::filesystem::path progress_log_path;
   std::filesystem::path chunk_timeline_path;

@@ -5,8 +5,10 @@
  * inner write limits matching a 1200 B UDP datagram budget.
  */
 
+#include <array>
 #include <chrono>
 #include <cstdlib>
+#include <deque>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -50,6 +52,69 @@ class MockStreamWriteAction final : public WriteAction {
   explicit MockStreamWriteAction(AeContext const& context) : WriteAction{context} {
     context.scheduler().Task([&]() { SetStatus(Status::kSuccess); });
   }
+};
+
+class CoalescingLoopbackP2pTransport final : public ByteStream,
+                                            public std::enable_shared_from_this<
+                                                CoalescingLoopbackP2pTransport> {
+ public:
+  CoalescingLoopbackP2pTransport(AeContext const& context, std::size_t max_write_bytes,
+                                 bool coalesce_deliver)
+      : ByteStream{context},
+        context_{context},
+        coalesce_deliver_{coalesce_deliver},
+        stream_info_{max_write_bytes, max_write_bytes, false, LinkState::kLinked,
+                     true},
+        out_data_event_{context},
+        stream_update_event_{context} {}
+
+  void SetPeer(std::weak_ptr<CoalescingLoopbackP2pTransport> peer) {
+    peer_ = std::move(peer);
+  }
+
+  WriteAction& Write(DataBuffer&& buffer) override {
+    if (coalesce_deliver_) {
+      pending_.push_back(std::move(buffer));
+    } else if (auto peer = peer_.lock()) {
+      peer->Deliver(std::move(buffer));
+    }
+    if (!ok_action_ || ok_action_->is_finished()) {
+      ok_action_.emplace(context_);
+    }
+    return *ok_action_;
+  }
+
+  void FlushCoalesced() {
+    if (pending_.empty()) {
+      return;
+    }
+    DataBuffer merged;
+    for (auto& chunk : pending_) {
+      merged.insert(merged.end(), chunk.begin(), chunk.end());
+    }
+    pending_.clear();
+    if (auto peer = peer_.lock()) {
+      peer->Deliver(std::move(merged));
+    }
+  }
+
+  StreamInfo stream_info() const override { return stream_info_; }
+  StreamUpdateEvent const& stream_update_event() override {
+    return stream_update_event_;
+  }
+  OutDataEvent const& out_data_event() override { return out_data_event_; }
+
+  void Deliver(DataBuffer buffer) { out_data_event_.Emit(std::move(buffer)); }
+
+ private:
+  AeContext context_;
+  bool coalesce_deliver_{false};
+  StreamInfo stream_info_;
+  OutDataEvent out_data_event_;
+  StreamUpdateEvent stream_update_event_;
+  std::weak_ptr<CoalescingLoopbackP2pTransport> peer_;
+  std::deque<DataBuffer> pending_;
+  std::optional<MockStreamWriteAction> ok_action_;
 };
 
 class LoopbackP2pTransport final : public ByteStream,
@@ -123,6 +188,97 @@ bool PumpUntil(LoopbackTestContext& env, std::function<bool()> done,
   return done();
 }
 
+DataBuffer MakePayload(std::size_t payload_bytes, std::uint8_t tag) {
+  std::vector<std::uint8_t> expect(payload_bytes);
+  for (std::size_t i = 0; i < payload_bytes; ++i) {
+    expect[i] = static_cast<std::uint8_t>((i + tag * 17u) & 0xFFu);
+  }
+  return DataBuffer{std::move(expect)};
+}
+
+bool RunFourParallel(std::size_t payload_bytes, bool coalesce_flush) {
+  LoopbackTestContext env;
+  AeContext ctx{env};
+  auto const inner_max =
+      MaxP2pStreamWritePayloadBytesForDatagramBudget(1200);
+
+  std::shared_ptr<CoalescingLoopbackP2pTransport> link_a;
+  std::shared_ptr<CoalescingLoopbackP2pTransport> link_b;
+  link_a = std::make_shared<CoalescingLoopbackP2pTransport>(ctx, inner_max,
+                                                              coalesce_flush);
+  link_b = std::make_shared<CoalescingLoopbackP2pTransport>(ctx, inner_max,
+                                                              coalesce_flush);
+  link_a->SetPeer(link_b);
+  link_b->SetPeer(link_a);
+
+  auto config = BenchSafeStreamConfig();
+  P2pSafeStream sender{ctx, config, link_a};
+  P2pSafeStream receiver{ctx, config, link_b};
+
+  std::array<std::vector<std::uint8_t>, 4> received{};
+  MultiSubscription subs;
+  subs += receiver.out_data_event().Subscribe([&](DataBuffer const& data) {
+    if (data.empty()) {
+      return;
+    }
+    std::uint8_t tag = data[0] % 4;
+    received[tag].insert(received[tag].end(), data.begin(), data.end());
+  });
+
+  std::array<std::optional<WriteAction::Status>, 4> final_status{};
+  for (int i = 0; i < 4; ++i) {
+    auto& wa = sender.Write(MakePayload(payload_bytes, static_cast<std::uint8_t>(i)));
+    subs += wa.status_event().Subscribe([&, i](WriteAction::Status status) {
+      final_status[static_cast<std::size_t>(i)] = status;
+    });
+  }
+
+  auto done = [&]() {
+    for (int i = 0; i < 4; ++i) {
+      if (!final_status[static_cast<std::size_t>(i)].has_value() ||
+          *final_status[static_cast<std::size_t>(i)] != WriteAction::Status::kSuccess) {
+        return false;
+      }
+    }
+    for (int i = 0; i < 4; ++i) {
+      if (received[static_cast<std::size_t>(i)].size() < payload_bytes) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  auto epoch = TimePoint::clock::now();
+  for (int tick = 0; tick < 30000; ++tick) {
+    env.Update(epoch += std::chrono::milliseconds{1});
+    if (coalesce_flush && tick % 5 == 0) {
+      link_a->FlushCoalesced();
+      link_b->FlushCoalesced();
+    }
+    if (done()) {
+      break;
+    }
+  }
+  link_a->FlushCoalesced();
+  link_b->FlushCoalesced();
+  env.Update(epoch += std::chrono::milliseconds{1});
+
+  if (!done()) {
+    std::cerr << "FAIL four parallel coalesce=" << coalesce_flush << '\n';
+    return false;
+  }
+  for (int i = 0; i < 4; ++i) {
+    auto expect = MakePayload(payload_bytes, static_cast<std::uint8_t>(i));
+    auto const& got = received[static_cast<std::size_t>(i)];
+    if (got.size() != payload_bytes ||
+        !std::equal(got.begin(), got.end(), expect.begin())) {
+      std::cerr << "FAIL content tag=" << i << '\n';
+      return false;
+    }
+  }
+  return true;
+}
+
 bool RunOneMessage(std::size_t payload_bytes) {
   LoopbackTestContext env;
   AeContext ctx{env};
@@ -186,6 +342,14 @@ bool RunOneMessage(std::size_t payload_bytes) {
 }  // namespace ae
 
 int main() {
+  if (!ae::RunFourParallel(1024, false)) {
+    std::cerr << "FAIL: loopback four parallel 1024 B\n";
+    return 1;
+  }
+  if (!ae::RunFourParallel(1024, true)) {
+    std::cerr << "FAIL: loopback four parallel coalesced flush 1024 B\n";
+    return 1;
+  }
   if (!ae::RunOneMessage(1600)) {
     std::cerr << "FAIL: loopback 1600 B\n";
     return 1;

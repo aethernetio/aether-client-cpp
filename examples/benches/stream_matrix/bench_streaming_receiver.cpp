@@ -18,14 +18,17 @@ bool IsThptWireData(DataBuffer const& data) {
 }
 
 StreamingReceiverState::StreamingReceiverState(std::vector<std::uint8_t> const& blob,
-                                               std::uint64_t run_id)
-    : blob_{blob}, run_id_{run_id} {
-  received_.assign(kThroughputTotalBytes, false);
+                                               std::uint64_t run_id,
+                                               std::size_t expected_total_bytes)
+    : blob_{blob},
+      run_id_{run_id},
+      expected_total_bytes_{expected_total_bytes} {
+  received_.assign(expected_total_bytes_, false);
 }
 
 void StreamingReceiverState::Reset(std::uint64_t run_id) {
   run_id_ = run_id;
-  received_.assign(kThroughputTotalBytes, false);
+  received_.assign(expected_total_bytes_, false);
   seen_chunks_.clear();
   chunk_recv_.clear();
   bytes_unique_ = 0;
@@ -80,7 +83,7 @@ void StreamingReceiverState::AcceptFrame(DataBuffer const& data, BenchInstant no
 }
 
 bool StreamingReceiverState::Complete() const {
-  return bytes_unique_ == kThroughputTotalBytes &&
+  return bytes_unique_ == expected_total_bytes_ &&
          std::all_of(received_.begin(), received_.end(), [](bool b) { return b; });
 }
 

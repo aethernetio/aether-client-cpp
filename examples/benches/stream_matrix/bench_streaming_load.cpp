@@ -85,6 +85,7 @@ struct PointSession : std::enable_shared_from_this<PointSession> {
   std::size_t outstanding_limit{};
   LoadMode mode{};
   std::uint64_t chunks_total{};
+  std::size_t payload_total_bytes{kThroughputTotalBytes};
   std::atomic<bool> accept_submits{true};
   std::atomic<bool> slot_available{true};
   std::uint64_t write_calls{0};
@@ -197,7 +198,7 @@ struct PointSession : std::enable_shared_from_this<PointSession> {
       return SubmitOutcome::kResourceCap;
     }
     auto const byte_offset = chunk_index * chunk_bytes;
-    auto const remaining = kThroughputTotalBytes - byte_offset;
+    auto const remaining = payload_total_bytes - byte_offset;
     auto const payload_len = std::min(chunk_bytes, remaining);
     ++write_calls;
     auto const submit_time = BenchNow();
@@ -385,6 +386,7 @@ StreamingRunResult RunOneStreamingPoint(StreamMatrixBench& bench, PointRunArgs a
   out.chunk_bytes = args.chunk_bytes;
   out.outstanding_limit = args.outstanding_limit;
   out.chunks_total = args.chunks_total;
+  out.payload_total_bytes = args.payload_total_bytes;
   out.write_status_trusted = true;
 
   {
@@ -405,6 +407,7 @@ StreamingRunResult RunOneStreamingPoint(StreamMatrixBench& bench, PointRunArgs a
   session->outstanding_limit = args.outstanding_limit;
   session->mode = args.mode;
   session->chunks_total = args.chunks_total;
+  session->payload_total_bytes = args.payload_total_bytes;
   session->records.reserve(args.chunks_total);
   session->terminals.clear();
   session->terminals.resize(args.chunks_total);
@@ -567,7 +570,7 @@ StreamingRunResult RunOneStreamingPoint(StreamMatrixBench& bench, PointRunArgs a
   out.dup_chunks = session->receiver->dup_chunks();
   out.rx_unique_bytes = session->receiver->bytes_unique();
   out.integrity_ok = !session->receiver->integrity_fail() &&
-                     session->receiver->bytes_unique() == kThroughputTotalBytes &&
+                     session->receiver->bytes_unique() == args.payload_total_bytes &&
                      session->receiver->Complete();
   out.delivery_ok = out.integrity_ok && out.write_unknown == 0 &&
                     out.write_pending == 0;
@@ -578,7 +581,7 @@ StreamingRunResult RunOneStreamingPoint(StreamMatrixBench& bench, PointRunArgs a
     out.last_rx_s = DeltaMs(submit_begin, session->receiver->last_rx()) / 1000.0;
     if (out.delivery_ok && out.last_rx_s > 0.0) {
       out.goodput_mib_s =
-          (static_cast<double>(kThroughputTotalBytes) / (1024.0 * 1024.0)) /
+          (static_cast<double>(args.payload_total_bytes) / (1024.0 * 1024.0)) /
           out.last_rx_s;
     }
   }
@@ -612,7 +615,7 @@ StreamingRunResult RunOneStreamingPoint(StreamMatrixBench& bench, PointRunArgs a
     out.outcome = "WRITE_ERRORS";
   } else if (out.write_unknown || out.write_pending) {
     out.outcome = "WRITE_UNRESOLVED";
-  } else if (session->receiver->bytes_unique() < kThroughputTotalBytes) {
+  } else if (session->receiver->bytes_unique() < args.payload_total_bytes) {
     out.outcome = "INCOMPLETE";
   } else {
     out.outcome = "INTEGRITY_FAIL";

@@ -119,7 +119,7 @@ void WriteStreamingHeader(std::ofstream& csv) {
 
 void WriteStreamingRow(std::ofstream& csv, StreamingRunResult const& r,
                        std::string const& sdk) {
-  auto const payload_total = kThroughputTotalBytes;
+  auto const payload_total = r.payload_total_bytes;
   std::uint64_t const stream_write_bytes =
       r.chunks_total > 0
           ? r.chunks_total * (sizeof(ThptWireHeader) + r.chunk_bytes)
@@ -356,7 +356,8 @@ int StreamMatrixBench::ExecuteStreamingPlan(
                 << " stream=" << StreamKindName(p.stream) << " chunk=" << p.chunk
                 << " out=" << p.outstanding << ' ' << LoadModeName(p.mode) << '\n';
 
-    auto receiver = std::make_shared<StreamingReceiverState>(blob, run_id_);
+    auto receiver = std::make_shared<StreamingReceiverState>(
+        blob, run_id_, p.payload_total_bytes);
     SetStreamingMeasureReceiver(receiver);
 
     auto ex = RunServiceExchangeLogged();
@@ -369,8 +370,13 @@ int StreamMatrixBench::ExecuteStreamingPlan(
     }
     write_status_subs_.Reset();
     ResetUdpSocketPayloadAudit();
+    if (p.transport == BenchTransportKind::kUdp) {
+      auto const tag = PointArtifactTag(p, 0) + "_attempt" + std::to_string(run_id_);
+      BeginUdpDatagramTrace(options_.output_dir / ("udp_datagram_trace_" + tag + ".csv"));
+    }
 
-    auto const chunks_total = (kThroughputTotalBytes + p.chunk - 1) / p.chunk;
+    auto const chunks_total =
+        (p.payload_total_bytes + p.chunk - 1) / p.chunk;
     auto const point_deadline_duration = StreamingPointDeadline(options_);
     for (int rep = 0; rep < p.repeats; ++rep) {
       receiver->Reset(run_id_);
@@ -383,6 +389,7 @@ int StreamMatrixBench::ExecuteStreamingPlan(
           .chunks_total = chunks_total,
           .run_id = run_id_,
           .blob = &blob,
+          .payload_total_bytes = p.payload_total_bytes,
       };
       if (p.transport == BenchTransportKind::kUdp) {
         args.progress_log = true;
@@ -404,7 +411,13 @@ int StreamMatrixBench::ExecuteStreamingPlan(
       WriteStreamingRow(csv, result, sdk);
       log_stream_ << "POINT_END chunk=" << p.chunk << " out=" << p.outstanding << ' '
                   << LoadModeName(p.mode) << " outcome=" << result.outcome
-                  << " goodput_mib_s=" << result.goodput_mib_s << '\n';
+                  << " goodput_mib_s=" << result.goodput_mib_s
+                  << " udp_max_rx=" << result.udp_max_rx
+                  << " rx_viol=" << result.udp_rx_violations
+                  << " recv_emsgsize=" << audit.recv_emsgsize_events << '\n';
+      if (p.transport == BenchTransportKind::kUdp) {
+        EndUdpDatagramTrace();
+      }
       ++run_id_;
     }
   }
@@ -479,6 +492,18 @@ int StreamMatrixBench::RunStreamingUdpSafe() {
                 << *options_.streaming_point_deadline_s << '\n';
     plan.push_back({BenchTransportKind::kUdp, BenchStreamKind::kP2pSafeStream,
                     LoadMode::kBurst, 1024, 1, 1});
+  } else if (options_.streaming_udp_four_block) {
+    if (!options_.streaming_point_deadline_s) {
+      options_.streaming_point_deadline_s = 90;
+    }
+    log_stream_ << "streaming_udp_four_block payload=" << kUdpFourBlockTotalBytes
+                << " deadline_s=" << *options_.streaming_point_deadline_s << '\n';
+    plan.push_back({BenchTransportKind::kUdp, BenchStreamKind::kP2pSafeStream,
+                    LoadMode::kBurst, 1024, 1, 1, kUdpFourBlockTotalBytes});
+    for (int rep = 0; rep < 3; ++rep) {
+      plan.push_back({BenchTransportKind::kUdp, BenchStreamKind::kP2pSafeStream,
+                      LoadMode::kBurst, 1024, 4, 1, kUdpFourBlockTotalBytes});
+    }
   } else if (options_.streaming_udp_smoke) {
     plan.push_back({BenchTransportKind::kUdp, BenchStreamKind::kP2pSafeStream,
                     LoadMode::kBurst, 1024, 16, 1});

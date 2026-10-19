@@ -23,12 +23,14 @@ bool IsThptWireData(DataBuffer const& data);
 class StreamingReceiverState {
  public:
   StreamingReceiverState(std::vector<std::uint8_t> const& blob,
-                         std::uint64_t run_id);
+                         std::uint64_t run_id,
+                         std::size_t expected_total_bytes = kThroughputTotalBytes);
 
   void Feed(DataBuffer const& data, BenchInstant now);
   void Reset(std::uint64_t run_id);
 
   bool Complete() const;
+  std::size_t expected_total_bytes() const { return expected_total_bytes_; }
   std::size_t bytes_unique() const;
   std::uint64_t dup_chunks() const;
   bool integrity_fail() const;
@@ -45,6 +47,7 @@ class StreamingReceiverState {
   std::vector<bool> received_;
   std::unordered_map<std::uint64_t, BenchInstant> chunk_recv_;
   std::unordered_set<std::uint64_t> seen_chunks_;
+  std::size_t expected_total_bytes_{kThroughputTotalBytes};
   std::size_t bytes_unique_{0};
   std::uint64_t dup_chunks_{0};
   bool integrity_fail_{false};

@@ -51,6 +51,7 @@ struct BenchCliOptions {
   bool streaming_best_repeats{false};
   bool streaming_tcp_resume{false};
   bool streaming_udp_diagnose{false};
+  bool streaming_udp_four_block{false};
   std::optional<int> streaming_point_deadline_s;
   std::optional<std::size_t> streaming_repro_chunk;
   std::optional<std::size_t> streaming_repro_outstanding;
@@ -84,6 +85,7 @@ struct StreamingPlannedPoint {
   std::size_t chunk;
   std::size_t outstanding;
   int repeats;
+  std::size_t payload_total_bytes{1048576};
 };
 
 class StreamMatrixBench {

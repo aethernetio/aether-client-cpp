@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <string>
 
+#include "stream_matrix/bench_throughput_frame.h"
 #include "stream_matrix/bench_transport.h"
 
 namespace ae::stream_matrix_bench {
@@ -20,6 +21,7 @@ struct StreamingRunResult {
   std::size_t outstanding_limit{};
   int repeat{};
   std::uint64_t chunks_total{};
+  std::size_t payload_total_bytes{kThroughputTotalBytes};
   std::uint64_t write_attempts{};
   std::uint64_t write_ok{};
   std::uint64_t write_fail{};

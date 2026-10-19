@@ -16,4 +16,9 @@
 #undef AE_EVENTS_MAX_COUNT
 #define AE_EVENTS_MAX_COUNT 512
 
+/* Bench-only: receive oversized coalesced server datagrams for diagnosis;
+ * stream_matrix UDP audit budget remains 1200 B. */
+#undef AE_WIN_UDP_RECV_BUFFER_BYTES
+#define AE_WIN_UDP_RECV_BUFFER_BYTES 65536
+
 #endif

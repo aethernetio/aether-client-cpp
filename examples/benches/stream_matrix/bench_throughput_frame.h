@@ -19,6 +19,7 @@
 namespace ae::stream_matrix_bench {
 
 inline constexpr std::size_t kThroughputTotalBytes = 1048576;
+inline constexpr std::size_t kUdpFourBlockTotalBytes = 4096;
 inline constexpr std::uint32_t kThptMagic = 0x54504854u;  // 'THPT' LE
 
 #pragma pack(push, 1)

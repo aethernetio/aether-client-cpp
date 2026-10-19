@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <ostream>
 
 #include "aether/stream_api/istream.h"
@@ -39,6 +40,8 @@ struct UdpSocketAuditSnapshot {
   std::size_t max_rx_payload_bytes{};
   std::uint64_t tx_violations{};
   std::uint64_t rx_violations{};
+  std::uint64_t recv_error_events{};
+  std::uint64_t recv_emsgsize_events{};
   bool socket_observed{false};
   bool safestream_datagram_unverified{true};
 };
@@ -62,6 +65,8 @@ std::size_t MaxBenchEnvelopeBytesForUdp(StreamInfo const& p2p_send);
 
 void InstallUdpSocketPayloadAudit();
 void ResetUdpSocketPayloadAudit();
+void BeginUdpDatagramTrace(std::filesystem::path const& path);
+void EndUdpDatagramTrace();
 UdpSocketAuditSnapshot UdpSocketPayloadAuditSnapshot();
 void WriteUdpAuditReport(std::ostream& out, UdpSocketAuditSnapshot const& snap);
 

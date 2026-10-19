@@ -24,11 +24,12 @@
 #  include "aether-miscpp/misc/defer.h"
 #  include "aether/transport/system_sockets/sockets/get_sock_addr.h"
 
+#  include "aether/config.h"
 #  include "aether/tele.h"
 
 namespace ae {
 WinUdpSocket::WinUdpSocket(Ptr<IPoller> const& poller)
-    : WinSocket{*poller, 2048} {
+    : WinSocket{*poller, AE_WIN_UDP_RECV_BUFFER_BYTES} {
   bool created = false;
 
   // ::socket() sets WSA_FLAG_OVERLAPPED by default that allows us to use iocp
