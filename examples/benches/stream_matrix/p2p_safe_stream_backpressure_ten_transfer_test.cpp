@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <deque>
 #include <iostream>
 #include <memory>
@@ -288,8 +289,25 @@ static void Expect(bool ok, char const* msg) {
   }
 }
 
+enum class TenTransferRunMode { kAll, kStrict, kDiagnostic };
+
+static TenTransferRunMode ParseRunMode() {
+  char const* v = std::getenv("AETHER_STREAM_MATRIX_TEN_TRANSFER_PROFILE");
+  if (v == nullptr || v[0] == '\0' || std::strcmp(v, "all") == 0) {
+    return TenTransferRunMode::kAll;
+  }
+  if (std::strcmp(v, "strict") == 0) {
+    return TenTransferRunMode::kStrict;
+  }
+  if (std::strcmp(v, "diagnostic") == 0) {
+    return TenTransferRunMode::kDiagnostic;
+  }
+  std::cerr << "Unknown AETHER_STREAM_MATRIX_TEN_TRANSFER_PROFILE=" << v << '\n';
+  return TenTransferRunMode::kAll;
+}
+
 static bool RunTenTransferProfile(ae::SafeStreamConfig config, char const* profile_name,
-                                  bool enforce_success) {
+                                  bool enforce_success, std::size_t* complete_count_out) {
   ae::LoopbackTestContext env;
   ae::AeContext ctx{env};
   ae::TransportStats tx_stats{};
@@ -316,6 +334,7 @@ static bool RunTenTransferProfile(ae::SafeStreamConfig config, char const* profi
   std::vector<ae::TransferRow> rows;
   rows.reserve(10);
   bool all_success = true;
+  bool first_fail_logged = false;
   ae::TimePoint epoch = ae::TimePoint::clock::now();
 
   for (std::uint32_t transfer = 0; transfer < 10; ++transfer) {
@@ -330,6 +349,8 @@ static bool RunTenTransferProfile(ae::SafeStreamConfig config, char const* profi
     auto const expected = payload;
     bool done = false;
     bool ok = false;
+    int last_progress_tick = 0;
+    std::size_t last_rx_progress = 0;
 
     auto producer = std::make_shared<ae::stream_matrix_bench::P2pBackpressureProducer>(
         ctx, sender, std::move(payload));
@@ -346,6 +367,10 @@ static bool RunTenTransferProfile(ae::SafeStreamConfig config, char const* profi
     int unlink_tick = 0;
     for (int tick = 0; tick < 1200000 && !done; ++tick) {
       env.Update(epoch += std::chrono::milliseconds{1});
+      if (rx.size() > last_rx_progress) {
+        last_rx_progress = rx.size();
+        last_progress_tick = tick;
+      }
       auto const u = ae::Usage(env);
       row.events_peak = std::max(row.events_peak, u.registered_events);
       row.handlers_peak = std::max(row.handlers_peak, u.handler_relationships);
@@ -388,6 +413,7 @@ static bool RunTenTransferProfile(ae::SafeStreamConfig config, char const* profi
     auto const stats = producer->stats();
     row.done_calls = producer->done_calls();
     row.rx_bytes = rx.size();
+    bool const pending = !done;
     row.integrity = row.rx_bytes == expected.size() && rx == expected;
     row.success = done && ok && row.integrity;
     row.accepted = stats.accepted_writes;
@@ -406,17 +432,17 @@ static bool RunTenTransferProfile(ae::SafeStreamConfig config, char const* profi
 
     if (!row.success) {
       all_success = false;
-      if (transfer == 7) {
-        std::cout << "profile=" << profile_name << " transfer7_fail rx=" << row.rx_bytes
-                  << " fail_t=" << row.fail_t << " stop_t=" << row.stop_t
-                  << " unlink_offset=" << offset_at_unlink
-                  << " ack_budget_ms=" << ConfigMs(config.wait_ack_timeout)
-                  << " max_repeat=" << static_cast<unsigned>(config.max_repeat_count)
-                  << " repeat_period_ms=" << ConfigMs(config.send_repeat_timeout)
-                  << " est_repeat_window_ms="
-                  << (static_cast<int>(config.max_repeat_count) *
-                      ConfigMs(config.send_repeat_timeout))
-                  << '\n';
+      if (!first_fail_logged) {
+        first_fail_logged = true;
+      std::cout << "profile=" << profile_name << " first_fail transfer=" << transfer
+                << " rx=" << row.rx_bytes << " integrity=" << (row.integrity ? 1 : 0)
+                << " fail_t=" << row.fail_t << " stop_t=" << row.stop_t
+                << " pending=" << (pending ? 1 : 0) << " last_progress_tick=" << last_progress_tick
+                << " unlink_offset=" << offset_at_unlink << " unlink_tick=" << unlink_tick
+                << " ack_budget_ms=" << ConfigMs(config.wait_ack_timeout)
+                << " max_repeat=" << static_cast<unsigned>(config.max_repeat_count)
+                << " repeat_period_ms=" << ConfigMs(config.send_repeat_timeout)
+                << " success_t=" << row.success_t << " accepted=" << row.accepted << '\n';
       }
     }
     if (enforce_success) {
@@ -425,13 +451,25 @@ static bool RunTenTransferProfile(ae::SafeStreamConfig config, char const* profi
       Expect(row.buffer_after_drain == 0, "send buffer drained after transfer");
     }
     std::cout << "transfer=" << transfer << " rx=" << row.rx_bytes
-              << " ok=" << (row.success ? 1 : 0) << " done=" << row.done_calls
-              << " wb=" << row.would_block
+              << " integrity=" << (row.integrity ? 1 : 0)
+              << " ok=" << (row.success ? 1 : 0) << " fail_t=" << row.fail_t
+              << " stop_t=" << row.stop_t << " pending=" << (pending ? 1 : 0)
+              << " done=" << row.done_calls << " wb=" << row.would_block
               << " resume=" << row.resumes << " peak_buf=" << row.peak_buffer
               << " drain_buf=" << row.buffer_after_drain << " events "
               << row.events_before << '/' << row.events_peak << '/'
               << row.events_after << " handlers " << row.handlers_before << '/'
               << row.handlers_peak << '/' << row.handlers_after << '\n';
+  }
+
+  std::size_t complete_count = 0;
+  for (auto const& row : rows) {
+    if (row.success) {
+      ++complete_count;
+    }
+  }
+  if (complete_count_out != nullptr) {
+    *complete_count_out = complete_count;
   }
 
   rx_sub.Reset();
@@ -460,22 +498,32 @@ static bool RunTenTransferProfile(ae::SafeStreamConfig config, char const* profi
 }
 
 int main() {
-  bool const strict_ok =
-      RunTenTransferProfile(ae::BenchConfigStrict(), "strict", false);
-  bool const diagnostic_ok =
-      RunTenTransferProfile(ae::BenchConfigDiagnostic(), "diagnostic", true);
+  TenTransferRunMode const mode = ParseRunMode();
+  bool strict_ok = true;
+  bool diagnostic_ok = true;
+  std::size_t strict_complete = 0;
+  std::size_t diagnostic_complete = 0;
 
-  if (!strict_ok) {
-    std::cout << "strict timer profile: FAIL (documented; 200ms delivery pause vs "
-                 "1500ms ACK / 12 repeats)\n";
-  } else {
-    std::cout << "strict timer profile: PASS\n";
+  if (mode != TenTransferRunMode::kDiagnostic) {
+    strict_ok = RunTenTransferProfile(ae::BenchConfigStrict(), "strict", false,
+                                      &strict_complete);
+    std::cout << "TEN_TRANSFER_PROFILE_RESULT profile=strict complete=" << strict_complete
+              << "/10 pass=" << (strict_ok ? 1 : 0) << '\n';
+    if (mode == TenTransferRunMode::kStrict && !strict_ok) {
+      ++g_failures;
+    }
   }
-  if (!diagnostic_ok) {
-    ++g_failures;
+  if (mode != TenTransferRunMode::kStrict) {
+    diagnostic_ok = RunTenTransferProfile(ae::BenchConfigDiagnostic(), "diagnostic", true,
+                                            &diagnostic_complete);
+    std::cout << "TEN_TRANSFER_PROFILE_RESULT profile=diagnostic complete="
+              << diagnostic_complete << "/10 pass=" << (diagnostic_ok ? 1 : 0) << '\n';
+    if (!diagnostic_ok) {
+      ++g_failures;
+    }
   }
 
-  {
+  if (mode != TenTransferRunMode::kStrict) {
     ae::LoopbackTestContext fail_env;
     ae::AeContext fail_ctx{fail_env};
     ae::TransportStats fail_stats{};
@@ -522,6 +570,15 @@ int main() {
     return 1;
   }
 
-  std::cout << "p2p_safe_stream_backpressure_ten_transfer_test: OK\n";
+  std::cout << "p2p_safe_stream_backpressure_ten_transfer_test:";
+  if (mode != TenTransferRunMode::kDiagnostic) {
+    std::cout << " STRICT=" << (strict_ok ? "PASS" : "FAIL") << " complete=" << strict_complete
+              << "/10";
+  }
+  if (mode != TenTransferRunMode::kStrict) {
+    std::cout << " DIAGNOSTIC=" << (diagnostic_ok ? "PASS" : "FAIL")
+              << " complete=" << diagnostic_complete << "/10";
+  }
+  std::cout << '\n';
   return 0;
 }
