@@ -26,6 +26,7 @@ StreamMatrixWriteStatusTraceFn g_on_write_status = nullptr;
 StreamMatrixSafeStreamAckTraceFn g_on_ack = nullptr;
 StreamMatrixSafeStreamRecvTraceFn g_on_recv = nullptr;
 thread_local char g_trace_side{'?'};
+thread_local char g_last_recv_trace_side{'?'};
 std::atomic<std::uint64_t> g_ss_correlation{1};
 
 }  // namespace
@@ -57,7 +58,12 @@ void NotifyStreamMatrixSafeStreamSend(StreamMatrixSafeStreamSendTrace const& t) 
 void NotifyStreamMatrixSafeStreamAck(std::uint16_t ack_offset,
                                      StreamMatrixSafeStreamAckRole role) {
   if (g_on_ack != nullptr) {
-    g_on_ack(StreamMatrixSafeStreamAckTrace{.side = g_trace_side,
+    char const side =
+        (role == StreamMatrixSafeStreamAckRole::kTx &&
+         g_last_recv_trace_side != '?')
+            ? g_last_recv_trace_side
+            : g_trace_side;
+    g_on_ack(StreamMatrixSafeStreamAckTrace{.side = side,
                                             .role = role,
                                             .ack_offset = ack_offset});
   }
@@ -68,6 +74,7 @@ void NotifyStreamMatrixSafeStreamRecv(std::uint16_t begin_offset,
                                       std::uint8_t repeat_count, bool reset,
                                       std::size_t data_bytes) {
   if (g_on_recv != nullptr) {
+    g_last_recv_trace_side = g_trace_side;
     g_on_recv(StreamMatrixSafeStreamRecvTrace{
         .side = g_trace_side,
         .begin_offset = begin_offset,

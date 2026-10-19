@@ -202,6 +202,13 @@ if(NOT CM_PLATFORM)
   target_include_directories(aether_stream_matrix_p2p_safe_chaos_loopback_test
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 
+  add_executable(aether_stream_matrix_safe_stream_ack_check_test
+    stream_matrix_safe_stream_ack_check_test.cpp
+  )
+  target_link_libraries(aether_stream_matrix_safe_stream_ack_check_test PRIVATE aether)
+  target_include_directories(aether_stream_matrix_safe_stream_ack_check_test
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
   add_executable(aether_stream_matrix_p2p_safe_loopback_test
 
     p2p_safe_stream_loopback_test.cpp

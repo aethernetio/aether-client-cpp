@@ -106,4 +106,17 @@ std::size_t StreamingReceiverState::received_chunk_count() const {
   return seen_chunks_.size();
 }
 
+bool StreamingReceiverState::HasBytes(std::size_t byte_offset,
+                                        std::size_t len) const {
+  if (byte_offset + len > received_.size()) {
+    return false;
+  }
+  for (std::size_t i = 0; i < len; ++i) {
+    if (!received_[byte_offset + i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 }  // namespace ae::stream_matrix_bench

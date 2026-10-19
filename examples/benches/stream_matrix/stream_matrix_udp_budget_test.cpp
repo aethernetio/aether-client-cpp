@@ -120,6 +120,52 @@ static void test_tx_oversize_violated() {
   Expect(v.status == UdpBudgetStatus::kViolated, "tx oversize violated");
 }
 
+static UdpSocketAuditSnapshot EmsgsizeBufferOnlyBothDirsSnapshot() {
+  UdpSocketAuditSnapshot s{};
+  s.tx_observed = true;
+  s.rx_observed = true;
+  s.max_tx_payload_bytes = 800;
+  s.max_rx_payload_bytes = 400;
+  s.recv_buffer_bytes = 512;
+  s.recv_emsgsize_events = 1;
+  s.recv_emsgsize_buffer_only = 1;
+  return s;
+}
+
+static void test_emsgsize_buffer_only_after_rx_observed_unverified() {
+  auto s = EmsgsizeBufferOnlyBothDirsSnapshot();
+  auto v = EvaluateUdpBudget(s);
+  Expect(v.status == UdpBudgetStatus::kUnverified,
+         "RX then EMSGSIZE: not COMPLIANT");
+  Expect(!v.budget_ok(), "RX then EMSGSIZE: budget_ok false");
+  Expect(!v.rx_compliant, "RX then EMSGSIZE: rx not compliant");
+  Expect(v.tx_compliant, "TX still clean within budget");
+}
+
+static void test_emsgsize_buffer_only_before_rx_still_unverified() {
+  UdpSocketAuditSnapshot s{};
+  s.recv_emsgsize_events = 1;
+  s.recv_emsgsize_buffer_only = 1;
+  s.recv_buffer_bytes = 512;
+  s.rx_observed = true;
+  s.max_rx_payload_bytes = 400;
+  s.tx_observed = true;
+  s.max_tx_payload_bytes = 800;
+  auto v = EvaluateUdpBudget(s);
+  Expect(v.status == UdpBudgetStatus::kUnverified,
+         "EMSGSIZE then RX: not COMPLIANT");
+  Expect(!v.budget_ok(), "EMSGSIZE then RX: budget_ok false");
+}
+
+static void test_emsgsize_lower_bound_still_violated_with_clean_max() {
+  auto s = BothDirectionsClean();
+  s.recv_emsgsize_budget_lower_bound = 1;
+  s.recv_buffer_bytes = 1200;
+  auto v = EvaluateUdpBudget(s);
+  Expect(v.status == UdpBudgetStatus::kViolated,
+         "lower bound violated despite other clean obs");
+}
+
 int main() {
   test_compliant_both_directions();
   test_tx_only_unverified();
@@ -131,6 +177,9 @@ int main() {
   test_no_observations_unverified();
   test_other_recv_error_unverified_not_violated();
   test_tx_oversize_violated();
+  test_emsgsize_buffer_only_after_rx_observed_unverified();
+  test_emsgsize_buffer_only_before_rx_still_unverified();
+  test_emsgsize_lower_bound_still_violated_with_clean_max();
   if (g_failures != 0) {
     std::cerr << "stream_matrix_udp_budget_test: " << g_failures << " failure(s)\n";
     return 1;

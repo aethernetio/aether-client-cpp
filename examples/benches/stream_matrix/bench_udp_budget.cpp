@@ -292,9 +292,10 @@ UdpBudgetVerdict EvaluateUdpBudget(UdpSocketAuditSnapshot const& snap) {
       v.emsgsize_budget_lower_bound > 0;
 
   v.tx_compliant = v.tx_observed && !tx_oversize;
-  v.rx_compliant =
-      v.rx_observed && !rx_oversize && !rx_emsgsize_proves_violation &&
-      v.recv_other_errors == 0;
+  v.rx_compliant = v.rx_observed && !rx_oversize &&
+                   !rx_emsgsize_proves_violation &&
+                   snap.recv_emsgsize_buffer_only == 0 &&
+                   v.recv_other_errors == 0;
 
   if (tx_oversize || rx_oversize || rx_emsgsize_proves_violation) {
     v.status = UdpBudgetStatus::kViolated;
