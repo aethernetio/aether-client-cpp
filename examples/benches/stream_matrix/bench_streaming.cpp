@@ -212,23 +212,40 @@ std::vector<PlannedPoint> BuildReproPrefixPlan(StreamInfo const& info,
 }
 
 void ApplyBudgetFlags(StreamingRunResult& result) {
-  result.budget_ok = true;
-  if (result.transport == BenchTransportKind::kUdp) {
-    if (result.chunk_bytes + sizeof(ThptWireHeader) > kUdpBudgetPayloadBytes + sizeof(ThptWireHeader)) {
-      if (result.chunk_bytes > kUdpBudgetPayloadBytes) {
-        result.budget_ok = false;
+  if (result.transport != BenchTransportKind::kUdp) {
+    result.budget_ok = true;
+    return;
+  }
+  UdpSocketAuditSnapshot snap{};
+  snap.max_tx_payload_bytes = result.udp_max_tx;
+  snap.max_rx_payload_bytes = result.udp_max_rx;
+  snap.tx_violations = result.udp_tx_violations;
+  snap.rx_violations = result.udp_rx_violations;
+  snap.recv_error_events = result.udp_recv_error_events;
+  snap.recv_emsgsize_events = result.udp_recv_emsgsize_events;
+  snap.recv_emsgsize_budget_lower_bound =
+      result.udp_recv_emsgsize_budget_lower_bound;
+  snap.recv_other_errors = result.udp_recv_other_errors;
+  snap.socket_observed = result.udp_socket_observed;
+
+  auto const verdict = EvaluateUdpBudget(snap);
+  result.budget_ok = verdict.budget_ok && verdict.budget_observed;
+  if (!verdict.budget_ok || !verdict.budget_observed) {
+    if (result.goodput_mib_s > 0.0) {
+      result.goodput_mib_s = 0.0;
+    }
+    auto const budget_outcome = ClassifyUdpBudgetOutcome(verdict);
+    if (!budget_outcome.empty()) {
+      if (result.delivery_ok && verdict.budget_observed && !verdict.budget_ok) {
+        result.outcome = "OK_BUDGET_EXCEEDED";
+      } else if (result.outcome == "OK" || result.outcome.empty()) {
+        result.outcome = std::string(budget_outcome);
+      } else if (result.delivery_ok) {
+        result.outcome = std::string(budget_outcome);
       }
     }
-    if (result.udp_tx_violations || result.udp_rx_violations) {
-      result.budget_ok = false;
-    }
-    if (result.udp_max_tx > kUdpBudgetPayloadBytes ||
-        result.udp_max_rx > kUdpBudgetPayloadBytes) {
-      result.budget_ok = false;
-    }
-    if (!result.budget_ok && result.delivery_ok) {
-      result.outcome = "OK_BUDGET_EXCEEDED";
-    }
+  } else if (result.delivery_ok && (result.outcome.empty() || result.outcome == "OK")) {
+    result.outcome = "OK";
   }
 }
 
@@ -370,9 +387,13 @@ int StreamMatrixBench::ExecuteStreamingPlan(
     }
     write_status_subs_.Reset();
     ResetUdpSocketPayloadAudit();
-    if (p.transport == BenchTransportKind::kUdp) {
+    bool const udp_verbose_trace = options_.streaming_udp_diagnose ||
+                                   options_.streaming_udp_four_block;
+    if (p.transport == BenchTransportKind::kUdp && udp_verbose_trace) {
       auto const tag = PointArtifactTag(p, 0) + "_attempt" + std::to_string(run_id_);
-      BeginUdpDatagramTrace(options_.output_dir / ("udp_datagram_trace_" + tag + ".csv"));
+      BeginUdpDatagramTrace(
+          options_.output_dir / ("udp_datagram_trace_" + tag + ".csv"),
+          UdpDatagramTraceOptions{.verbose = true, .transfer_id = run_id_});
     }
 
     auto const chunks_total =
@@ -406,6 +427,12 @@ int StreamMatrixBench::ExecuteStreamingPlan(
       result.udp_max_rx = audit.max_rx_payload_bytes;
       result.udp_tx_violations = audit.tx_violations;
       result.udp_rx_violations = audit.rx_violations;
+      result.udp_recv_error_events = audit.recv_error_events;
+      result.udp_recv_emsgsize_events = audit.recv_emsgsize_events;
+      result.udp_recv_emsgsize_budget_lower_bound =
+          audit.recv_emsgsize_budget_lower_bound;
+      result.udp_recv_other_errors = audit.recv_other_errors;
+      result.udp_socket_observed = audit.socket_observed;
       ApplyBudgetFlags(result);
       results.push_back(result);
       WriteStreamingRow(csv, result, sdk);
@@ -415,7 +442,7 @@ int StreamMatrixBench::ExecuteStreamingPlan(
                   << " udp_max_rx=" << result.udp_max_rx
                   << " rx_viol=" << result.udp_rx_violations
                   << " recv_emsgsize=" << audit.recv_emsgsize_events << '\n';
-      if (p.transport == BenchTransportKind::kUdp) {
+      if (p.transport == BenchTransportKind::kUdp && udp_verbose_trace) {
         EndUdpDatagramTrace();
       }
       ++run_id_;

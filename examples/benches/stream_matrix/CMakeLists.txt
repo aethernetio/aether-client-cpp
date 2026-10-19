@@ -186,6 +186,22 @@ if(NOT CM_PLATFORM)
 
 
 
+  add_executable(aether_stream_matrix_udp_budget_test
+    stream_matrix_udp_budget_test.cpp
+    bench_udp_budget.cpp
+  )
+  target_link_libraries(aether_stream_matrix_udp_budget_test PRIVATE aether)
+  target_include_directories(aether_stream_matrix_udp_budget_test
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
+  add_executable(aether_stream_matrix_p2p_safe_chaos_loopback_test
+    p2p_safe_stream_chaos_loopback_test.cpp
+    bench_streaming_receiver.cpp
+  )
+  target_link_libraries(aether_stream_matrix_p2p_safe_chaos_loopback_test PRIVATE aether)
+  target_include_directories(aether_stream_matrix_p2p_safe_chaos_loopback_test
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
   add_executable(aether_stream_matrix_p2p_safe_loopback_test
 
     p2p_safe_stream_loopback_test.cpp

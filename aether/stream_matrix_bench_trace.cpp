@@ -21,18 +21,51 @@ namespace {
 
 StreamMatrixSafeStreamSendTraceFn g_on_send = nullptr;
 StreamMatrixWriteStatusTraceFn g_on_write_status = nullptr;
+StreamMatrixSafeStreamAckTraceFn g_on_ack = nullptr;
+StreamMatrixSafeStreamRecvTraceFn g_on_recv = nullptr;
+thread_local char g_trace_side{'?'};
 
 }  // namespace
 
+void SetStreamMatrixTraceSide(char side) { g_trace_side = side; }
+
+char StreamMatrixTraceSide() { return g_trace_side; }
+
 void SetStreamMatrixBenchTrace(StreamMatrixSafeStreamSendTraceFn on_send,
-                               StreamMatrixWriteStatusTraceFn on_write_status) {
+                               StreamMatrixWriteStatusTraceFn on_write_status,
+                               StreamMatrixSafeStreamAckTraceFn on_ack,
+                               StreamMatrixSafeStreamRecvTraceFn on_recv) {
   g_on_send = on_send;
   g_on_write_status = on_write_status;
+  g_on_ack = on_ack;
+  g_on_recv = on_recv;
 }
 
 void NotifyStreamMatrixSafeStreamSend(StreamMatrixSafeStreamSendTrace const& t) {
   if (g_on_send != nullptr) {
     g_on_send(t);
+  }
+}
+
+void NotifyStreamMatrixSafeStreamAck(std::uint16_t ack_offset) {
+  if (g_on_ack != nullptr) {
+    g_on_ack(StreamMatrixSafeStreamAckTrace{.side = g_trace_side,
+                                            .ack_offset = ack_offset});
+  }
+}
+
+void NotifyStreamMatrixSafeStreamRecv(std::uint16_t begin_offset,
+                                      std::uint16_t delta_offset,
+                                      std::uint8_t repeat_count, bool reset,
+                                      std::size_t data_bytes) {
+  if (g_on_recv != nullptr) {
+    g_on_recv(StreamMatrixSafeStreamRecvTrace{
+        .side = g_trace_side,
+        .begin_offset = begin_offset,
+        .delta_offset = delta_offset,
+        .repeat_count = repeat_count,
+        .reset = reset,
+        .data_bytes = data_bytes});
   }
 }
 

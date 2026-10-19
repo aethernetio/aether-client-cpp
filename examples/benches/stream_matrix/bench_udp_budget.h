@@ -42,9 +42,27 @@ struct UdpSocketAuditSnapshot {
   std::uint64_t rx_violations{};
   std::uint64_t recv_error_events{};
   std::uint64_t recv_emsgsize_events{};
+  std::uint64_t recv_emsgsize_budget_lower_bound{};
+  std::uint64_t recv_emsgsize_buffer_only{};
+  std::uint64_t recv_other_errors{};
+  std::size_t recv_buffer_bytes{};
   bool socket_observed{false};
   bool safestream_datagram_unverified{true};
 };
+
+struct UdpBudgetVerdict {
+  bool budget_ok{false};
+  bool budget_observed{false};
+  std::uint64_t measured_tx_oversize{};
+  std::uint64_t measured_rx_oversize{};
+  std::uint64_t emsgsize_budget_lower_bound{};
+  std::uint64_t recv_other_errors{};
+};
+
+UdpBudgetVerdict EvaluateUdpBudget(UdpSocketAuditSnapshot const& snap);
+
+// Human-readable UDP budget outcome suffix; empty when budget_ok && observed.
+std::string_view ClassifyUdpBudgetOutcome(UdpBudgetVerdict const& verdict);
 
 UdpBudgetEstimate EstimateUdpBenchEnvelopeBudget(StreamInfo const& p2p_send);
 
@@ -65,8 +83,17 @@ std::size_t MaxBenchEnvelopeBytesForUdp(StreamInfo const& p2p_send);
 
 void InstallUdpSocketPayloadAudit();
 void ResetUdpSocketPayloadAudit();
-void BeginUdpDatagramTrace(std::filesystem::path const& path);
+struct UdpDatagramTraceOptions {
+  bool verbose{false};
+  std::uint64_t transfer_id{};
+};
+
+void BeginUdpDatagramTrace(std::filesystem::path const& path,
+                           UdpDatagramTraceOptions options = {});
 void EndUdpDatagramTrace();
+void SetUdpDatagramTraceSide(char side);
+void InstallUdpDatagramBenchTraceHooks();
+void ClearUdpDatagramBenchTraceHooks();
 UdpSocketAuditSnapshot UdpSocketPayloadAuditSnapshot();
 void WriteUdpAuditReport(std::ostream& out, UdpSocketAuditSnapshot const& snap);
 
