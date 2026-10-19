@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <memory>
 #include <vector>
 
@@ -24,6 +25,9 @@ struct PointRunArgs {
   std::uint64_t chunks_total{};
   std::uint64_t run_id{};
   std::vector<std::uint8_t> const* blob{};
+  bool progress_log{false};
+  std::filesystem::path progress_log_path;
+  std::filesystem::path chunk_timeline_path;
 };
 
 StreamingRunResult RunOneStreamingPoint(StreamMatrixBench& bench, PointRunArgs args,

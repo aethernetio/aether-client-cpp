@@ -29,6 +29,13 @@ namespace {
 inline constexpr std::chrono::seconds kPointDeadline{120};
 inline constexpr std::size_t kUdpBudgetPayloadBytes = 1200;
 
+std::chrono::seconds StreamingPointDeadline(BenchCliOptions const& options) {
+  if (options.streaming_point_deadline_s && *options.streaming_point_deadline_s > 0) {
+    return std::chrono::seconds{*options.streaming_point_deadline_s};
+  }
+  return kPointDeadline;
+}
+
 char const* LoadModeName(LoadMode m) {
   return m == LoadMode::kBurst ? "burst" : "backpressure";
 }
@@ -38,6 +45,11 @@ LoadMode ParseLoadModeName(std::string const& s) {
 }
 
 using PlannedPoint = StreamingPlannedPoint;
+
+std::string PointArtifactTag(PlannedPoint const& p, int repeat) {
+  return std::to_string(p.chunk) + '_' + std::to_string(p.outstanding) + '_' +
+         LoadModeName(p.mode) + "_r" + std::to_string(repeat);
+}
 
 std::string SdkSha(BenchCliOptions const& opt) {
   std::string sdk = opt.sdk_sha;
@@ -359,9 +371,10 @@ int StreamMatrixBench::ExecuteStreamingPlan(
     ResetUdpSocketPayloadAudit();
 
     auto const chunks_total = (kThroughputTotalBytes + p.chunk - 1) / p.chunk;
+    auto const point_deadline_duration = StreamingPointDeadline(options_);
     for (int rep = 0; rep < p.repeats; ++rep) {
       receiver->Reset(run_id_);
-      BenchInstant const deadline = BenchNow() + kPointDeadline;
+      BenchInstant const deadline = BenchNow() + point_deadline_duration;
       PointRunArgs args{
           .mode = p.mode,
           .stream_kind = p.stream,
@@ -371,6 +384,13 @@ int StreamMatrixBench::ExecuteStreamingPlan(
           .run_id = run_id_,
           .blob = &blob,
       };
+      if (p.transport == BenchTransportKind::kUdp) {
+        args.progress_log = true;
+        auto const tag = PointArtifactTag(p, rep);
+        args.progress_log_path = options_.output_dir / ("progress_" + tag + ".log");
+        args.chunk_timeline_path =
+            options_.output_dir / ("chunk_timeline_" + tag + ".csv");
+      }
       auto result = RunOneStreamingPoint(*this, args, receiver, deadline);
       result.transport = p.transport;
       result.repeat = rep;
@@ -451,7 +471,15 @@ int StreamMatrixBench::RunStreamingUdpSafe() {
   auto outs = StreamingOutstandingMatrix(*this);
 
   std::vector<PlannedPoint> plan;
-  if (options_.streaming_udp_smoke) {
+  if (options_.streaming_udp_diagnose) {
+    if (!options_.streaming_point_deadline_s) {
+      options_.streaming_point_deadline_s = 180;
+    }
+    log_stream_ << "streaming_udp_diagnose chunk=1024 outstanding=1 burst deadline_s="
+                << *options_.streaming_point_deadline_s << '\n';
+    plan.push_back({BenchTransportKind::kUdp, BenchStreamKind::kP2pSafeStream,
+                    LoadMode::kBurst, 1024, 1, 1});
+  } else if (options_.streaming_udp_smoke) {
     plan.push_back({BenchTransportKind::kUdp, BenchStreamKind::kP2pSafeStream,
                     LoadMode::kBurst, 1024, 16, 1});
   } else if (options_.streaming_repro_chunk && options_.streaming_repro_outstanding) {

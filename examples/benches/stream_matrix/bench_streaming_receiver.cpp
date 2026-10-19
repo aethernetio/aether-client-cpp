@@ -99,4 +99,8 @@ BenchInstant StreamingReceiverState::recv_time_for_chunk(
   return it->second;
 }
 
+std::size_t StreamingReceiverState::received_chunk_count() const {
+  return seen_chunks_.size();
+}
+
 }  // namespace ae::stream_matrix_bench

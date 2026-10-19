@@ -51,7 +51,6 @@ class DelayedWriteAction final : public WriteAction {
       : WriteAction{ctx}, terminal_{terminal} {
     ctx.scheduler().Task([this]() { SetStatus(terminal_); });
   }
-
  private:
   WriteAction::Status terminal_;
 };
@@ -146,6 +145,21 @@ void test_delayed_completion() {
   sub.Reset();
 }
 
+void test_terminal_after_submits_stopped() {
+  TestEnv env;
+  AeContext ctx{env};
+  Tracker tr;
+  OwnedWriteAction wa{ctx};
+  Subscription sub = tr.attach(ctx, wa, 0);
+  Pump(env, 2);
+  Expect(tr.live_subs == 1, "still in flight before complete");
+  wa.Complete(WriteAction::Status::kSuccess);
+  Pump(env, 4);
+  Expect(tr.success == 1, "terminal after late complete");
+  Expect(tr.live_subs == 0, "sub released");
+  sub.Reset();
+}
+
 void test_owner_drops_after_completion() {
   TestEnv env;
   AeContext ctx{env};
@@ -197,6 +211,7 @@ void test_sliding_window_subs() {
 int main() {
   test_success_fail_stop();
   test_delayed_completion();
+  test_terminal_after_submits_stopped();
   test_owner_drops_after_completion();
   test_sliding_window_subs();
   if (g_failures != 0) {

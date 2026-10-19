@@ -50,6 +50,8 @@ struct BenchCliOptions {
   bool streaming_udp_matrix{false};
   bool streaming_best_repeats{false};
   bool streaming_tcp_resume{false};
+  bool streaming_udp_diagnose{false};
+  std::optional<int> streaming_point_deadline_s;
   std::optional<std::size_t> streaming_repro_chunk;
   std::optional<std::size_t> streaming_repro_outstanding;
   std::optional<LoadMode> streaming_repro_mode;
@@ -104,6 +106,7 @@ class StreamMatrixBench {
     return streaming_point_write_subs_;
   }
   ByteIStream* SendStream() { return send_stream_; }
+  void AppendRunLog(std::string const& line);
 
  private:
   int RunMi1Tcp();

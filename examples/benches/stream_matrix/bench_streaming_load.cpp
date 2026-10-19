@@ -8,7 +8,9 @@
 #include <chrono>
 #include <cmath>
 #include <deque>
+#include <fstream>
 #include <memory>
+#include <sstream>
 #include <utility>
 
 #include "aether/events/events.h"
@@ -83,8 +85,10 @@ struct PointSession : std::enable_shared_from_this<PointSession> {
   std::size_t outstanding_limit{};
   LoadMode mode{};
   std::uint64_t chunks_total{};
-  std::atomic<bool> alive{true};
+  std::atomic<bool> accept_submits{true};
   std::atomic<bool> slot_available{true};
+  std::uint64_t write_calls{0};
+  std::uint64_t write_accepted{0};
   std::uint64_t generator_limit_events{0};
   std::uint64_t sdk_capacity_events{0};
   std::uint64_t write_fail_events{0};
@@ -128,18 +132,12 @@ struct PointSession : std::enable_shared_from_this<PointSession> {
   }
 
   void on_write_status(std::uint64_t chunk_index, WriteAction::Status st) {
-    if (!alive.load()) {
-      return;
-    }
     remove_in_flight(chunk_index);
     mark_terminal(chunk_index, MapWriteStatus(st));
     slot_available.store(true);
   }
 
   void on_write_unknown(std::uint64_t chunk_index) {
-    if (!alive.load()) {
-      return;
-    }
     if (chunk_index >= terminals.size() || terminals[chunk_index].terminal_set) {
       return;
     }
@@ -185,7 +183,7 @@ struct PointSession : std::enable_shared_from_this<PointSession> {
 
   SubmitOutcome try_submit(std::uint64_t chunk_index, std::uint64_t& peak_writes,
                            std::uint64_t& peak_bytes) {
-    if (!alive.load()) {
+    if (!accept_submits.load()) {
       return SubmitOutcome::kAllSubmitted;
     }
     if (chunk_index >= chunks_total) {
@@ -201,16 +199,19 @@ struct PointSession : std::enable_shared_from_this<PointSession> {
     auto const byte_offset = chunk_index * chunk_bytes;
     auto const remaining = kThroughputTotalBytes - byte_offset;
     auto const payload_len = std::min(chunk_bytes, remaining);
+    ++write_calls;
+    auto const submit_time = BenchNow();
     auto wire = MakeThptChunk(*blob, run_id, chunk_index, byte_offset, payload_len);
     auto& wa = send_stream->Write(std::move(wire));
     if (dynamic_cast<FailedWriteAction*>(&wa) != nullptr) {
       ++write_fail_events;
       return SubmitOutcome::kWriteFail;
     }
+    ++write_accepted;
     records.push_back(ChunkWriteRecord{
         .chunk_index = chunk_index,
         .payload_bytes = payload_len,
-        .submit = BenchNow(),
+        .submit = submit_time,
     });
     InFlightWrite flight{.chunk_index = chunk_index, .bytes = payload_len};
     std::weak_ptr<PointSession> weak = shared_from_this();
@@ -242,6 +243,135 @@ void UpdateEventPeaks(StreamMatrixBench& bench, StreamingRunResult& out) {
       std::max(out.events_registered_peak, u.registered_events);
   out.handlers_active_peak =
       std::max(out.handlers_active_peak, u.handler_relationships);
+}
+
+struct LiveWriteCounts {
+  int ok{0};
+  int fail{0};
+  int stop{0};
+  int unknown{0};
+  int pending{0};
+};
+
+LiveWriteCounts CountWriteStatuses(PointSession const& session) {
+  LiveWriteCounts c{};
+  for (auto const& r : session.records) {
+    if (r.chunk_index >= session.terminals.size() ||
+        !session.terminals[r.chunk_index].terminal_set) {
+      ++c.pending;
+      continue;
+    }
+    switch (session.terminals[r.chunk_index].status) {
+      case kBenchStatusSuccess:
+        ++c.ok;
+        break;
+      case kBenchStatusFail:
+        ++c.fail;
+        break;
+      case kBenchStatusStop:
+        ++c.stop;
+        break;
+      default:
+        ++c.unknown;
+        break;
+    }
+  }
+  return c;
+}
+
+void WriteChunkTimeline(std::filesystem::path const& path, BenchInstant point_start,
+                        PointSession const& session,
+                        StreamingReceiverState const& receiver) {
+  std::ofstream out(path, std::ios::trunc);
+  if (!out) {
+    return;
+  }
+  out << "chunk_index,write_ms,rx_ms,terminal_ms,status\n";
+  for (auto const& r : session.records) {
+    double write_ms = DeltaMs(point_start, r.submit);
+    double rx_ms = 0.0;
+    auto rx = receiver.recv_time_for_chunk(r.chunk_index);
+    if (rx.time_since_epoch().count()) {
+      rx_ms = DeltaMs(point_start, rx);
+    }
+    double term_ms = 0.0;
+    int status = -1;
+    if (r.terminal_set) {
+      term_ms = DeltaMs(point_start, r.terminal);
+      status = r.status;
+    } else if (r.chunk_index < session.terminals.size() &&
+               session.terminals[r.chunk_index].terminal_set) {
+      term_ms = DeltaMs(point_start, session.terminals[r.chunk_index].terminal);
+      status = session.terminals[r.chunk_index].status;
+    }
+    out << r.chunk_index << ',' << write_ms << ',' << rx_ms << ',' << term_ms
+        << ',' << status << '\n';
+  }
+}
+
+void MaybeLogProgress(StreamMatrixBench& bench, PointRunArgs const& args,
+                      BenchInstant point_start, BenchInstant now,
+                      BenchInstant& last_progress_at, PointSession const& session,
+                      StreamingReceiverState const& receiver,
+                      std::uint64_t next_chunk_index) {
+  if (!args.progress_log) {
+    return;
+  }
+  if (last_progress_at.time_since_epoch().count() &&
+      now - last_progress_at < std::chrono::seconds{1}) {
+    return;
+  }
+  last_progress_at = now;
+  auto const counts = CountWriteStatuses(session);
+  double last_rx_age_ms = -1.0;
+  if (receiver.last_rx().time_since_epoch().count()) {
+    last_rx_age_ms = DeltaMs(receiver.last_rx(), now);
+  }
+  double last_terminal_age_ms = -1.0;
+  BenchInstant last_term{};
+  for (auto const& slot : session.terminals) {
+    if (slot.terminal_set && slot.terminal > last_term) {
+      last_term = slot.terminal;
+    }
+  }
+  if (last_term.time_since_epoch().count()) {
+    last_terminal_age_ms = DeltaMs(last_term, now);
+  }
+  std::ostringstream os;
+  os << "PROGRESS elapsed_s=" << (DeltaMs(point_start, now) / 1000.0)
+     << " write_calls=" << session.write_calls
+     << " write_accepted=" << session.write_accepted
+     << " rx_chunks=" << receiver.received_chunk_count()
+     << " rx_bytes=" << receiver.bytes_unique() << " write_ok=" << counts.ok
+     << " write_fail=" << counts.fail << " write_stop=" << counts.stop
+     << " write_pending=" << counts.pending << " write_unknown=" << counts.unknown
+     << " last_rx_age_ms=" << last_rx_age_ms
+     << " last_terminal_age_ms=" << last_terminal_age_ms
+     << " in_flight=" << session.in_flight.size()
+     << " next_chunk=" << next_chunk_index;
+  bench.AppendRunLog(os.str());
+  if (!args.progress_log_path.empty()) {
+    std::ofstream pl(args.progress_log_path, std::ios::app);
+    if (pl) {
+      pl << os.str() << '\n';
+    }
+  }
+}
+
+bool PointFullyResolved(PointSession const& session,
+                        StreamingReceiverState const& receiver) {
+  if (!receiver.Complete()) {
+    return false;
+  }
+  if (!session.in_flight.empty()) {
+    return false;
+  }
+  for (std::size_t i = 0; i < session.records.size(); ++i) {
+    if (i >= session.terminals.size() || !session.terminals[i].terminal_set) {
+      return false;
+    }
+  }
+  return true;
 }
 
 }  // namespace
@@ -352,32 +482,51 @@ StreamingRunResult RunOneStreamingPoint(StreamMatrixBench& bench, PointRunArgs a
     return any;
   };
 
-  while (BenchNow() < point_deadline && session->alive.load()) {
-    try_fill();
+  BenchInstant const point_start = BenchNow();
+  BenchInstant last_progress_at{};
+  if (args.progress_log && !args.progress_log_path.empty()) {
+    std::ofstream pl(args.progress_log_path, std::ios::trunc);
+    if (pl) {
+      pl << "chunk_bytes=" << args.chunk_bytes
+         << " outstanding=" << args.outstanding_limit << '\n';
+    }
+  }
+
+  while (BenchNow() < point_deadline) {
+    if (session->accept_submits.load()) {
+      try_fill();
+      if (next_chunk >= args.chunks_total) {
+        session->accept_submits.store(false);
+      }
+    }
     bench.BenchPump(std::chrono::milliseconds{0});
     session->sync_record_terminals();
     session->prune_in_flight();
     UpdateEventPeaks(bench, out);
+    MaybeLogProgress(bench, args, point_start, BenchNow(), last_progress_at, *session,
+                     *session->receiver, next_chunk);
 
-    if (next_chunk >= args.chunks_total && session->in_flight.empty() &&
-        session->receiver->Complete()) {
+    if (PointFullyResolved(*session, *session->receiver)) {
       break;
     }
   }
 
-  session->alive.store(false);
-  BenchInstant const drain_until = BenchNow() + std::chrono::seconds{2};
-  while (BenchNow() < drain_until && !session->in_flight.empty()) {
-    bench.BenchPump(std::chrono::milliseconds{0});
-    session->sync_record_terminals();
-    session->prune_in_flight();
-    UpdateEventPeaks(bench, out);
-  }
+  session->accept_submits.store(false);
+  bench.BenchPump(std::chrono::milliseconds{0});
   session->sync_record_terminals();
+  session->prune_in_flight();
+  MaybeLogProgress(bench, args, point_start, BenchNow(), last_progress_at, *session,
+                   *session->receiver, next_chunk);
+
   for (auto& flight : session->in_flight) {
     flight.status_sub.Reset();
   }
   session->in_flight.clear();
+
+  if (args.progress_log && !args.chunk_timeline_path.empty()) {
+    WriteChunkTimeline(args.chunk_timeline_path, point_start, *session,
+                       *session->receiver);
+  }
 
   {
     auto const u = bench.EventPoolUsageNow();
@@ -385,8 +534,7 @@ StreamingRunResult RunOneStreamingPoint(StreamMatrixBench& bench, PointRunArgs a
     out.handlers_active_end = u.handler_relationships;
   }
 
-  out.timed_out =
-      BenchNow() >= point_deadline && !session->receiver->Complete();
+  out.timed_out = BenchNow() >= point_deadline && !session->receiver->Complete();
 
   for (auto const& r : session->records) {
     if (r.terminal_set) {
