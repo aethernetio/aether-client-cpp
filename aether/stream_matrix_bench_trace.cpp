@@ -16,6 +16,8 @@
 
 #include "aether/stream_matrix_bench_trace.h"
 
+#include <atomic>
+
 namespace ae {
 namespace {
 
@@ -24,12 +26,17 @@ StreamMatrixWriteStatusTraceFn g_on_write_status = nullptr;
 StreamMatrixSafeStreamAckTraceFn g_on_ack = nullptr;
 StreamMatrixSafeStreamRecvTraceFn g_on_recv = nullptr;
 thread_local char g_trace_side{'?'};
+std::atomic<std::uint64_t> g_ss_correlation{1};
 
 }  // namespace
 
 void SetStreamMatrixTraceSide(char side) { g_trace_side = side; }
 
 char StreamMatrixTraceSide() { return g_trace_side; }
+
+std::uint64_t NextSafeStreamTraceCorrelationId() {
+  return g_ss_correlation.fetch_add(1);
+}
 
 void SetStreamMatrixBenchTrace(StreamMatrixSafeStreamSendTraceFn on_send,
                                StreamMatrixWriteStatusTraceFn on_write_status,
@@ -47,9 +54,11 @@ void NotifyStreamMatrixSafeStreamSend(StreamMatrixSafeStreamSendTrace const& t) 
   }
 }
 
-void NotifyStreamMatrixSafeStreamAck(std::uint16_t ack_offset) {
+void NotifyStreamMatrixSafeStreamAck(std::uint16_t ack_offset,
+                                     StreamMatrixSafeStreamAckRole role) {
   if (g_on_ack != nullptr) {
     g_on_ack(StreamMatrixSafeStreamAckTrace{.side = g_trace_side,
+                                            .role = role,
                                             .ack_offset = ack_offset});
   }
 }

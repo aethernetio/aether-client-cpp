@@ -46,11 +46,14 @@ template <typename Socket>
 class SendAction final : public PacketSendAction {
  public:
   SendAction(AeContext const& ae_context, Socket& socket,
-             DataBuffer&& data_buffer)
+             DataBuffer&& data_buffer, std::uint64_t audit_socket_id,
+             std::string audit_endpoint)
       : PacketSendAction{ae_context},
         ae_context_{ae_context},
         socket_{&socket},
-        data_{std::move(data_buffer)} {}
+        data_{std::move(data_buffer)},
+        audit_socket_id_{audit_socket_id},
+        audit_endpoint_{std::move(audit_endpoint)} {}
 
   AE_CLASS_MOVE_ONLY(SendAction)
 
@@ -73,6 +76,7 @@ class SendAction final : public PacketSendAction {
       SetStatus(WriteAction::Status::kFail);
       return;
     }
+    SetStreamMatrixUdpAuditContext(audit_socket_id_, audit_endpoint_.c_str());
     NotifyStreamMatrixUdpTxPayload(data_.size());
     SetStatus(WriteAction::Status::kSuccess);
   }
@@ -97,6 +101,8 @@ class SendAction final : public PacketSendAction {
   AeContext ae_context_;
   Socket* socket_;
   DataBuffer data_;
+  std::uint64_t audit_socket_id_{};
+  std::string audit_endpoint_;
   bool reenqueue_ = false;
   bool is_done_ = false;
   TaskSubscription set_status_;
@@ -120,6 +126,8 @@ class UdpBase : public ByteIStream {
 
   AeContext ae_context_;
   AddressPort endpoint_;
+  std::uint64_t socket_id_{};
+  std::string audit_endpoint_;
 
   std::mutex buffer_mutex_;
   StreamInfo stream_info_;
@@ -162,8 +170,8 @@ class UdpTransport final : public upd_internal::UdpBase {
     assert(in_data.size() != 0);
     AE_TELE_DEBUG(kUdpTransportSend, "Socket {} send data size:{}", endpoint_,
                   in_data.size());
-    auto* send_action =
-        send_queue_manager_.AddPacket(ae_context_, socket_, std::move(in_data));
+    auto* send_action = send_queue_manager_.AddPacket(
+        ae_context_, socket_, std::move(in_data), socket_id_, audit_endpoint_);
     if (send_action == nullptr) {
       AE_TELED_ERROR("Queue manager is full");
       return FailedWrite();

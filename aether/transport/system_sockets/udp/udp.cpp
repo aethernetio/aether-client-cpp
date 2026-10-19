@@ -16,13 +16,22 @@
 
 #include "aether/transport/system_sockets/udp/udp.h"
 
+#include "aether/tele.h"
+
+#include <atomic>
+
 #if SYSTEM_SOCKET_UDP_TRANSPORT_ENABLED
 
 namespace ae::upd_internal {
+namespace {
+std::atomic<std::uint64_t> g_next_udp_socket_id{1};
+}  // namespace
 
 UdpBase::UdpBase(AeContext const& ae_context, AddressPort endpoint)
     : ae_context_{ae_context},
       endpoint_{std::move(endpoint)},
+      socket_id_{g_next_udp_socket_id.fetch_add(1)},
+      audit_endpoint_{Format("{}", endpoint_)},
       stream_info_{},
       out_data_event_{ae_context_},
       stream_update_event_{ae_context_} {
@@ -86,6 +95,7 @@ void UdpBase::OnRecvData(Span<std::uint8_t> data) {
       for (auto const& d : buffers) {
         AE_TELE_DEBUG(kUdpTransportReceive, "Socket {} received data size {}",
                       endpoint_, d.size());
+        SetStreamMatrixUdpAuditContext(socket_id_, audit_endpoint_.c_str());
         NotifyStreamMatrixUdpRxPayload(d.size());
         out_data_event_.Emit(d);
       }

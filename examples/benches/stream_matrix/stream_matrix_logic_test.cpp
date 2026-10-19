@@ -87,7 +87,8 @@ static void test_udp_outcome_safestream_vs_p2p() {
   info.max_element_size = 1200;
   info.link_state = ae::LinkState::kLinked;
   UdpSocketAuditSnapshot clean{};
-  clean.socket_observed = true;
+  clean.tx_observed = true;
+  clean.rx_observed = true;
   std::size_t const large_serialized = 5000;
 
   auto safe_out = ClassifyUdpMeasureOutcome(
@@ -103,11 +104,12 @@ static void test_udp_outcome_safestream_vs_p2p() {
 
   UdpSocketAuditSnapshot bad{};
   bad.tx_violations = 1;
-  bad.socket_observed = true;
+  bad.tx_observed = true;
+  bad.rx_observed = true;
   auto safe_viol = ClassifyUdpMeasureOutcome(
       BenchStreamKind::kP2pSafeStream, BenchTransportKind::kUdp, {}, large_serialized,
       info, bad);
-  Expect(safe_viol == "UDP_SOCKET_BUDGET_VIOLATION",
+  Expect(safe_viol == "UDP_BUDGET_MEASURED_OVERSIZE",
          "SafeStream/UDP datagram audit violation");
 }
 
