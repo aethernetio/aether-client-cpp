@@ -150,6 +150,29 @@ void test_PushWrapUpdatesEnd() {
   TEST_ASSERT_EQUAL(6, buffer.size());
 }
 
+void test_RejectWrapInsertOnEmptyCapacityEight() {
+  using Buffer = CircularBuffer<8>;
+  using IndexType = Buffer::index_type;
+  Buffer buffer;
+  std::array<std::uint8_t, 3> three{1, 2, 3};
+  auto res = buffer.Insert(IndexType{6}, std::span<std::uint8_t const>(three));
+  TEST_ASSERT_FALSE(res.IsOk());
+  TEST_ASSERT_EQUAL(CircularBufferError::kDataOverflow, res.error());
+  TEST_ASSERT_EQUAL(0, buffer.size());
+}
+
+void test_RejectWrapOverwriteAfterPushTwo() {
+  using Buffer = CircularBuffer<8>;
+  using IndexType = Buffer::index_type;
+  Buffer buffer;
+  std::array<std::uint8_t, 2> two{9, 8};
+  std::array<std::uint8_t, 5> five{1, 2, 3, 4, 5};
+  TEST_ASSERT_TRUE(buffer.Push(std::span<std::uint8_t const>(two)).IsOk());
+  auto res = buffer.Insert(IndexType{6}, std::span<std::uint8_t const>(five));
+  TEST_ASSERT_FALSE(res.IsOk());
+  TEST_ASSERT_EQUAL(2, buffer.size());
+}
+
 void test_InsertGapFillFiveThenZero() {
   using Buffer = CircularBuffer<8>;
   using IndexType = Buffer::index_type;
@@ -192,6 +215,8 @@ int test_circular_buffer() {
   RUN_TEST(ae::test_circular_buffer::test_Erase);
   RUN_TEST(ae::test_circular_buffer::test_PushSixThenTwoOnCapacityEight);
   RUN_TEST(ae::test_circular_buffer::test_PushWrapUpdatesEnd);
+  RUN_TEST(ae::test_circular_buffer::test_RejectWrapInsertOnEmptyCapacityEight);
+  RUN_TEST(ae::test_circular_buffer::test_RejectWrapOverwriteAfterPushTwo);
   RUN_TEST(ae::test_circular_buffer::test_InsertGapFillFiveThenZero);
   RUN_TEST(ae::test_circular_buffer::test_PushOverTheBourder);
   return UNITY_END();
