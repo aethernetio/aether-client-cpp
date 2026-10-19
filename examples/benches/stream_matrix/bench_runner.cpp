@@ -864,10 +864,13 @@ int StreamMatrixBench::Run() {
     return RunStreamingBestRepeats();
   }
   if (options_.streaming_tcp_smoke || options_.streaming_tcp_matrix ||
-      options_.streaming_tcp_resume || options_.streaming_repro_chunk) {
+      options_.streaming_tcp_resume ||
+      (options_.streaming_repro_chunk && kBenchMatrixTcpEnabled)) {
     return RunStreamingTcp();
   }
-  if (options_.streaming_udp_smoke || options_.streaming_udp_matrix) {
+  if (options_.streaming_udp_smoke || options_.streaming_udp_matrix ||
+      (options_.streaming_repro_chunk && kBenchMatrixUdpEnabled &&
+       !kBenchMatrixTcpEnabled)) {
     return RunStreamingUdpSafe();
   }
 

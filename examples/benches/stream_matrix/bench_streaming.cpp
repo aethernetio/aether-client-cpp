@@ -454,6 +454,11 @@ int StreamMatrixBench::RunStreamingUdpSafe() {
   if (options_.streaming_udp_smoke) {
     plan.push_back({BenchTransportKind::kUdp, BenchStreamKind::kP2pSafeStream,
                     LoadMode::kBurst, 1024, 16, 1});
+  } else if (options_.streaming_repro_chunk && options_.streaming_repro_outstanding) {
+    LoadMode mode = options_.streaming_repro_mode.value_or(LoadMode::kBurst);
+    plan.push_back({BenchTransportKind::kUdp, BenchStreamKind::kP2pSafeStream,
+                    mode, *options_.streaming_repro_chunk,
+                    *options_.streaming_repro_outstanding, 1});
   } else if (options_.streaming_udp_matrix) {
     plan.push_back({BenchTransportKind::kUdp, BenchStreamKind::kP2pSafeStream,
                     LoadMode::kBurst, 1024,
