@@ -25,7 +25,6 @@
 #include "aether/write_action/failed_write_action.h"
 #include "aether/write_action/write_action.h"
 
-#include "stream_matrix/stream_matrix_p2p_backpressure_producer.h"
 
 namespace ae {
 
@@ -374,63 +373,6 @@ bool RunTryWriteWouldBlockPreservesBuffer() {
          chunk == fingerprint;
 }
 
-struct BackpressureRunStats {
-  bool ok{false};
-  std::uint64_t would_block{0};
-  std::uint64_t resumes{0};
-  std::size_t peak_buffer{0};
-  std::size_t residual{0};
-};
-
-BackpressureRunStats RunProducerOnce(std::size_t payload_bytes, int delay_ms,
-                                     int drop_every_n) {
-  BackpressureRunStats out{};
-  LoopbackTestContext env;
-  AeContext ctx{env};
-  auto const inner_max =
-      MaxP2pStreamWritePayloadBytesForDatagramBudget(1200);
-  auto link_a = std::make_shared<LoopbackP2pTransport>(ctx, inner_max);
-  auto link_b = std::make_shared<LoopbackP2pTransport>(ctx, inner_max);
-  link_a->SetPeer(link_b);
-  link_b->SetPeer(link_a);
-  auto config = BenchSafeStreamConfig();
-  P2pSafeStream sender{ctx, config, link_a};
-  P2pSafeStream receiver{ctx, config, link_b};
-
-  std::vector<std::uint8_t> payload(payload_bytes);
-  for (std::size_t i = 0; i < payload.size(); ++i) {
-    payload[i] = static_cast<std::uint8_t>((i * 131) ^ 0xA5);
-  }
-  std::vector<std::uint8_t> rx;
-  Subscription sub = receiver.out_data_event().Subscribe(
-      [&](DataBuffer const& data) {
-        rx.insert(rx.end(), data.begin(), data.end());
-      });
-
-  auto const expected = payload;
-  stream_matrix_bench::P2pBackpressureProducer producer(ctx, sender,
-                                                          std::move(payload));
-  bool done = false;
-  bool success = false;
-  producer.Start(sender.stream_info().max_element_size, [&](bool ok) {
-    success = ok;
-    done = true;
-  });
-  auto epoch = TimePoint::clock::now();
-  for (int tick = 0; tick < 800000 && !done; ++tick) {
-    env.Update(epoch += std::chrono::milliseconds{1});
-    producer.Pump();
-  }
-  auto const stats = producer.stats();
-  out.would_block = stats.would_block_count;
-  out.resumes = stats.resume_count;
-  out.peak_buffer = stats.peak_send_buffer_used;
-  out.residual = stats.residual_send_buffer_used;
-  out.ok = done && success && rx.size() == payload_bytes && rx == expected;
-  sub.Reset();
-  return out;
-}
-
 }  // namespace ae
 
 int main() {
@@ -454,29 +396,6 @@ int main() {
     std::cerr << "FAIL: TryWrite would_block preserves buffer\n";
     return 1;
   }
-  std::uint64_t total_wb = 0;
-  std::uint64_t total_resume = 0;
-  std::size_t peak_buf = 0;
-  for (int i = 0; i < 10; ++i) {
-    auto r = ae::RunProducerOnce(1024 * 1024, 2, 0);
-    if (!r.ok) {
-      std::cerr << "FAIL: backpressure producer 1MiB run " << i << '\n';
-      return 1;
-    }
-    total_wb += r.would_block;
-    total_resume += r.resumes;
-    peak_buf = std::max(peak_buf, r.peak_buffer);
-    std::cout << "bp_transfer i=" << i << " wb=" << r.would_block
-              << " resume=" << r.resumes << " peak=" << r.peak_buffer
-              << " residual=" << r.residual << '\n';
-  }
-  auto lossy = ae::RunProducerOnce(256 * 1024, 5, 17);
-  if (!lossy.ok || lossy.would_block == 0 || lossy.resumes == 0) {
-    std::cerr << "FAIL: lossy backpressure path\n";
-    return 1;
-  }
-  std::cout << "backpressure_summary would_block=" << total_wb
-            << " resumes=" << total_resume << " peak_buffer=" << peak_buf << '\n';
   std::cout << "p2p_safe_stream_loopback_test: OK\n";
   return 0;
 }

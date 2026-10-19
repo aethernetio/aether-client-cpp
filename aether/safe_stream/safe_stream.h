@@ -232,6 +232,7 @@ class SafeStream final : public ByteStream,  // NOLINT
             out_info.max_element_size));
 
     stream_update_event_.Emit();
+    ScheduleWriteCapacityNotify();
   }
 
   void OnOutData(DataBuffer const& data) {

@@ -54,6 +54,9 @@ P2pWriteOffer P2pSafeStream::TryWrite(DataBuffer const& data) {
   if (info.link_state == LinkState::kLinkError) {
     return {P2pWriteOfferResult::kError, nullptr};
   }
+  if (info.link_state != LinkState::kLinked) {
+    return {P2pWriteOfferResult::kWouldBlock, nullptr};
+  }
   if (data.size() > info.max_element_size) {
     return {P2pWriteOfferResult::kError, nullptr};
   }

@@ -197,7 +197,7 @@ struct PointSession : std::enable_shared_from_this<PointSession> {
     if (!p2p_try_write && in_flight.size() >= outstanding_limit) {
       return SubmitOutcome::kOutstandingCap;
     }
-    if (!p2p_try_write && !bench->GeneratorWriteBudgetOk(in_flight.size() + 1)) {
+    if (!bench->GeneratorWriteBudgetOk(in_flight.size() + 1)) {
       ++generator_limit_events;
       return SubmitOutcome::kResourceCap;
     }

@@ -214,9 +214,23 @@ if(NOT CM_PLATFORM)
   add_executable(aether_stream_matrix_p2p_safe_loopback_test
 
     p2p_safe_stream_loopback_test.cpp
-    stream_matrix_p2p_backpressure_producer.cpp
 
   )
+
+  add_executable(aether_stream_matrix_circular_buffer_append_test
+    stream_matrix_circular_buffer_append_test.cpp
+  )
+  target_link_libraries(aether_stream_matrix_circular_buffer_append_test PRIVATE aether)
+  target_include_directories(aether_stream_matrix_circular_buffer_append_test
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
+  add_executable(aether_stream_matrix_p2p_backpressure_ten_transfer_test
+    p2p_safe_stream_backpressure_ten_transfer_test.cpp
+    stream_matrix_p2p_backpressure_producer.cpp
+  )
+  target_link_libraries(aether_stream_matrix_p2p_backpressure_ten_transfer_test PRIVATE aether)
+  target_include_directories(aether_stream_matrix_p2p_backpressure_ten_transfer_test
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 
   target_link_libraries(aether_stream_matrix_p2p_safe_loopback_test PRIVATE aether)
 

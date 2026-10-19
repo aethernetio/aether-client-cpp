@@ -118,6 +118,38 @@ void test_Erase() {
   TEST_ASSERT_EQUAL(CircularBufferError::kEmptyBuffer, read_res4.error());
 }
 
+void test_PushSixThenTwoOnCapacityEight() {
+  using Buffer = CircularBuffer<8>;
+  Buffer buffer;
+  std::array<std::uint8_t, 6> six{};
+  std::array<std::uint8_t, 2> two{};
+  TEST_ASSERT_TRUE(buffer.Push(std::span<std::uint8_t const>(six)).IsOk());
+  TEST_ASSERT_EQUAL(6, buffer.size());
+  auto second = buffer.Push(std::span<std::uint8_t const>(two));
+  TEST_ASSERT_FALSE(second.IsOk());
+  TEST_ASSERT_EQUAL(CircularBufferError::kDataOverflow, second.error());
+  TEST_ASSERT_EQUAL(6, buffer.size());
+  std::array<std::uint8_t, 1> one{0xAB};
+  TEST_ASSERT_TRUE(buffer.Push(std::span<std::uint8_t const>(one)).IsOk());
+  TEST_ASSERT_EQUAL(7, buffer.size());
+}
+
+void test_PushWrapUpdatesEnd() {
+  using Buffer = CircularBuffer<8>;
+  using IndexType = Buffer::index_type;
+  Buffer buffer;
+  std::array<std::uint8_t, 6> six{};
+  std::array<std::uint8_t, 1> one{0x42};
+  TEST_ASSERT_TRUE(buffer.Push(std::span<std::uint8_t const>(six)).IsOk());
+  TEST_ASSERT_TRUE(buffer.Push(std::span<std::uint8_t const>(one)).IsOk());
+  TEST_ASSERT_EQUAL(7, buffer.size());
+  buffer.Erase(IndexType{4});
+  std::array<std::uint8_t, 3> three{1, 2, 3};
+  auto wrap = buffer.Push(std::span<std::uint8_t const>(three));
+  TEST_ASSERT_TRUE(wrap.IsOk());
+  TEST_ASSERT_EQUAL(6, buffer.size());
+}
+
 void test_PushOverTheBourder() {
   static constexpr std::size_t kCapacity = 30;
   using Buffer = CircularBuffer<kCapacity>;
@@ -147,6 +179,8 @@ int test_circular_buffer() {
   RUN_TEST(ae::test_circular_buffer::test_PushData);
   RUN_TEST(ae::test_circular_buffer::test_ReadData);
   RUN_TEST(ae::test_circular_buffer::test_Erase);
+  RUN_TEST(ae::test_circular_buffer::test_PushSixThenTwoOnCapacityEight);
+  RUN_TEST(ae::test_circular_buffer::test_PushWrapUpdatesEnd);
   RUN_TEST(ae::test_circular_buffer::test_PushOverTheBourder);
   return UNITY_END();
 }

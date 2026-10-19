@@ -69,9 +69,27 @@ class CircularBuffer {
    * \param pos - the position to insert at must be after begin_
    * \param data - the data to insert
    */
+  /** Maximum storable bytes (one slot reserved to distinguish empty/full). */
+  constexpr std::size_t MaxDataBytes() const noexcept {
+    return kCapacity > 0 ? kCapacity - 1 : 0;
+  }
+
   constexpr Result<index_range_type, CircularBufferError> Insert(
       index_type pos, std::span<value_type const> data) noexcept {
-    auto available = (begin_ == pos) ? kCapacity : Distance(pos, begin_);
+    if (data.size() > MaxDataBytes() - size()) {
+      return Error{CircularBufferError::kDataOverflow};
+    }
+    std::size_t available{};
+    if (pos == end_) {
+      available = AppendAvailable();
+    } else if (begin_ == pos) {
+      available = AppendAvailable();
+    } else {
+      available = Distance(pos, begin_);
+      if (begin_ != end_ && available > 0) {
+        available -= 1;
+      }
+    }
     if (data.size() > available) {
       return Error{CircularBufferError::kDataOverflow};
     }
@@ -86,8 +104,9 @@ class CircularBuffer {
       data = data.subspan(copy_size);
       pos += copy_size;
     }
-    // also move end_ to the right
-    if (IndexComparable{pos, begin_} > end_) {
+    if (start == end_) {
+      end_ = pos;
+    } else if (IndexComparable{pos, begin_} > end_) {
       end_ = pos;
     }
     // return the range of the data that was pushed
@@ -156,13 +175,9 @@ class CircularBuffer {
   constexpr index_type begin() const noexcept { return begin_; }
   constexpr index_type end() const noexcept { return end_; }
 
-  /** Bytes that can be appended at end_ without wrapping past begin_. */
+  /** Bytes that can be appended at end_ (Push). */
   constexpr std::size_t AppendAvailable() const noexcept {
-    index_type const pos = end_;
-    if (begin_ == pos) {
-      return size() == 0 ? kCapacity : 0;
-    }
-    return Distance(pos, begin_);
+    return MaxDataBytes() - size();
   }
 
   constexpr bool CanAppend(std::size_t data_size) const noexcept {
