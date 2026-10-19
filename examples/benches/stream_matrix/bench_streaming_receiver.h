@@ -38,6 +38,7 @@ class StreamingReceiverState {
   BenchInstant last_rx() const;
   BenchInstant recv_time_for_chunk(std::uint64_t chunk_index) const;
   std::size_t received_chunk_count() const;
+  bool HasBytes(std::size_t byte_offset, std::size_t len) const;
 
  private:
   void AcceptFrame(DataBuffer const& data, BenchInstant now);
