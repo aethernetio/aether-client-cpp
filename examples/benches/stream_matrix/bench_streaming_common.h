@@ -59,6 +59,11 @@ struct StreamingRunResult {
   std::size_t udp_max_rx{};
   std::uint64_t udp_tx_violations{};
   std::uint64_t udp_rx_violations{};
+  std::uint64_t udp_recv_error_events{};
+  std::uint64_t udp_recv_emsgsize_events{};
+  std::uint64_t udp_recv_emsgsize_budget_lower_bound{};
+  std::uint64_t udp_recv_other_errors{};
+  bool udp_socket_observed{false};
   std::string outcome;
 };
 

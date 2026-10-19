@@ -31,17 +31,45 @@ struct StreamMatrixSafeStreamSendTrace {
   std::size_t data_bytes;
 };
 
+struct StreamMatrixSafeStreamAckTrace {
+  char side;
+  std::uint16_t ack_offset;
+};
+
+struct StreamMatrixSafeStreamRecvTrace {
+  char side;
+  std::uint16_t begin_offset;
+  std::uint16_t delta_offset;
+  std::uint8_t repeat_count;
+  bool reset;
+  std::size_t data_bytes;
+};
+
 using StreamMatrixSafeStreamSendTraceFn =
     void (*)(StreamMatrixSafeStreamSendTrace const&);
+using StreamMatrixSafeStreamAckTraceFn =
+    void (*)(StreamMatrixSafeStreamAckTrace const&);
+using StreamMatrixSafeStreamRecvTraceFn =
+    void (*)(StreamMatrixSafeStreamRecvTrace const&);
 
 using StreamMatrixWriteStatusTraceFn = void (*)(char side,
                                                 std::size_t user_bytes,
                                                 int write_status);
 
+void SetStreamMatrixTraceSide(char side);
+char StreamMatrixTraceSide();
+
 void SetStreamMatrixBenchTrace(StreamMatrixSafeStreamSendTraceFn on_send,
-                               StreamMatrixWriteStatusTraceFn on_write_status);
+                               StreamMatrixWriteStatusTraceFn on_write_status,
+                               StreamMatrixSafeStreamAckTraceFn on_ack = nullptr,
+                               StreamMatrixSafeStreamRecvTraceFn on_recv = nullptr);
 
 void NotifyStreamMatrixSafeStreamSend(StreamMatrixSafeStreamSendTrace const& t);
+void NotifyStreamMatrixSafeStreamAck(std::uint16_t ack_offset);
+void NotifyStreamMatrixSafeStreamRecv(std::uint16_t begin_offset,
+                                      std::uint16_t delta_offset,
+                                      std::uint8_t repeat_count, bool reset,
+                                      std::size_t data_bytes);
 void NotifyStreamMatrixWriteStatus(char side, std::size_t user_bytes,
                                    int write_status);
 

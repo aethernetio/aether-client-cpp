@@ -66,6 +66,7 @@ class SafeStream final : public ByteStream,  // NOLINT
     explicit SafeStreamApiServer(SafeStream& self) : self_{&self} {}
     // Api impl methods
     void Ack(std::uint16_t index) override {
+      NotifyStreamMatrixSafeStreamAck(index);
       self_->sender_.Acknowledge(index);
     }
     void RequestRepeat(std::uint16_t index) override {
@@ -73,6 +74,8 @@ class SafeStream final : public ByteStream,  // NOLINT
     }
     void SendReset(std::uint16_t begin_offset, std::uint16_t delta_offset,
                    std::uint8_t repeat_count, DataBuffer data) override {
+      NotifyStreamMatrixSafeStreamRecv(begin_offset, delta_offset, repeat_count,
+                                       true, data.size());
       self_->receiver_.PushData(begin_offset,
                                 DataMessage{.reset = true,
                                             .repeat_count = repeat_count,
@@ -81,6 +84,8 @@ class SafeStream final : public ByteStream,  // NOLINT
     }
     void Send(std::uint16_t begin_offset, std::uint16_t delta_offset,
               std::uint8_t repeat_count, DataBuffer data) override {
+      NotifyStreamMatrixSafeStreamRecv(begin_offset, delta_offset, repeat_count,
+                                       false, data.size());
       self_->receiver_.PushData(begin_offset,
                                 DataMessage{.reset = false,
                                             .repeat_count = repeat_count,
@@ -143,7 +148,7 @@ class SafeStream final : public ByteStream,  // NOLINT
       DataMessage&& data_message) override {  // NOLINT (*param-not-moved)
     assert(out_);
     NotifyStreamMatrixSafeStreamSend(
-        StreamMatrixSafeStreamSendTrace{.side = '?',
+        StreamMatrixSafeStreamSendTrace{.side = StreamMatrixTraceSide(),
                                         .begin_offset = begin_offset,
                                         .delta_offset = data_message.delta_offset,
                                         .repeat_count = data_message.repeat_count,
@@ -168,6 +173,7 @@ class SafeStream final : public ByteStream,  // NOLINT
   // Implement ISafeStreamRecvActionDelegate
   void SendAck(std::uint16_t index) override {
     assert(out_);
+    NotifyStreamMatrixSafeStreamAck(index);
     auto api_adapter = ApiCallAdapter{api_client_, *out_};
     api_adapter->Ack(index);
     api_adapter.Flush();
