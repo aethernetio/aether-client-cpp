@@ -25,7 +25,8 @@ namespace ae {
 P2pSafeStream::P2pSafeStream(AeContext const& ae_context,
                              SafeStreamConfig const& config,
                              std::shared_ptr<ByteIStream> p2p_stream)
-    : sized_packet_gate_{ae_context},
+    : ae_context_{ae_context},
+      sized_packet_gate_{ae_context},
       safe_stream_{std::make_unique<SafeStreamImpl>(ae_context, config)},
       p2p_stream_{std::move(p2p_stream)},
       out_data_event_{ae_context},
@@ -38,8 +39,58 @@ P2pSafeStream::P2pSafeStream(AeContext const& ae_context,
 P2pSafeStream::~P2pSafeStream() = default;
 
 WriteAction& P2pSafeStream::Write(DataBuffer&& data) {
-  auto sized_data = sized_packet_gate_.WriteIn(std::move(data));
-  return safe_stream_->Write(std::move(sized_data));
+  auto offer = TryWrite(data);
+  if (offer.result == P2pWriteOfferResult::kAccepted && offer.action != nullptr) {
+    return *offer.action;
+  }
+  if (!failed_write_ || failed_write_->is_finished()) {
+    failed_write_.emplace(ae_context_);
+  }
+  return *failed_write_;
+}
+
+P2pWriteOffer P2pSafeStream::TryWrite(DataBuffer const& data) {
+  auto const info = stream_info();
+  if (info.link_state == LinkState::kLinkError) {
+    return {P2pWriteOfferResult::kError, nullptr};
+  }
+  if (data.size() > info.max_element_size) {
+    return {P2pWriteOfferResult::kError, nullptr};
+  }
+  auto const framed_size = sized_packet_gate_.FramedSizeForPayload(data.size());
+  if (!safe_stream_->CanAcceptSendBytes(framed_size)) {
+    return {P2pWriteOfferResult::kWouldBlock, nullptr};
+  }
+  DataBuffer sized_data = sized_packet_gate_.WriteIn(DataBuffer{data});
+  auto& wa = safe_stream_->Write(std::move(sized_data));
+  if (dynamic_cast<FailedWriteAction*>(&wa) != nullptr) {
+    return {P2pWriteOfferResult::kError, &wa};
+  }
+  return {P2pWriteOfferResult::kAccepted, &wa};
+}
+
+bool P2pSafeStream::CanWritePayload(std::size_t payload_bytes) const {
+  auto const info = stream_info();
+  if (info.link_state != LinkState::kLinked) {
+    return false;
+  }
+  if (payload_bytes > info.max_element_size) {
+    return false;
+  }
+  return safe_stream_->CanAcceptSendBytes(
+      sized_packet_gate_.FramedSizeForPayload(payload_bytes));
+}
+
+std::size_t P2pSafeStream::send_buffer_free_bytes() const {
+  return safe_stream_->send_buffer_free_bytes();
+}
+
+std::size_t P2pSafeStream::send_buffer_used_bytes() const {
+  return safe_stream_->send_buffer_used_bytes();
+}
+
+Event<void()> const& P2pSafeStream::write_capacity_event() const {
+  return safe_stream_->write_capacity_event();
 }
 
 StreamInfo P2pSafeStream::stream_info() const {

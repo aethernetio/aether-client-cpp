@@ -27,6 +27,7 @@ class SizedPacketGate {
       : out_data_event_{context} {}
 
   DataBuffer WriteIn(DataBuffer&& buffer);
+  std::size_t FramedSizeForPayload(std::size_t payload_bytes) const;
   void WriteOut(DataBuffer const& buffer);
   std::size_t Overhead() const;
   Event<void(DataBuffer const& data)> const& out_data_event();

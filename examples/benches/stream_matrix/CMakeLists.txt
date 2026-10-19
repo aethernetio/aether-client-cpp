@@ -104,6 +104,8 @@ if(NOT CM_PLATFORM)
 
     bench_streaming_receiver.cpp
 
+    stream_matrix_p2p_backpressure_producer.cpp
+
   )
 
 
@@ -212,6 +214,7 @@ if(NOT CM_PLATFORM)
   add_executable(aether_stream_matrix_p2p_safe_loopback_test
 
     p2p_safe_stream_loopback_test.cpp
+    stream_matrix_p2p_backpressure_producer.cpp
 
   )
 

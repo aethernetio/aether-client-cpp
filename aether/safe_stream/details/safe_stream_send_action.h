@@ -59,6 +59,7 @@ class ISafeStreamSendActionDelegate {
                                  IndexType ack_index) = 0;
   virtual void WriteStopped(IndexType buffer_begin, IndexType stop_index) = 0;
   virtual void WriteFailed(IndexType buffer_begin, IndexType failed_index) = 0;
+  virtual void OnSendCapacityAvailable() {}
 };
 
 // TODO: split on templated and not templated parts
@@ -93,8 +94,24 @@ class SafeStreamSendAction {
 
   AE_CLASS_NO_COPY_MOVE(SafeStreamSendAction)
 
+  std::size_t SendBufferFreeBytes() const noexcept {
+    return sending_buffer_.AppendAvailable();
+  }
+
+  std::size_t SendBufferUsedBytes() const noexcept {
+    return sending_buffer_.size();
+  }
+
+  bool CanSendData(std::size_t byte_count) const noexcept {
+    return sending_buffer_.CanAppend(byte_count);
+  }
+
   Result<IndexRangeType, int> SendData(std::span<std::uint8_t const> data) {
     AE_TELED_DEBUG("Send data size {}", data.size());
+    if (!CanSendData(data.size())) {
+      AE_TELED_DEBUG("Send buffer full, reject {} bytes", data.size());
+      return Error{1};
+    }
     auto res = sending_buffer_.Push(data);
     if (!res) {
       AE_TELED_ERROR("Got circular buffer error {}", res.error());
@@ -116,6 +133,7 @@ class SafeStreamSendAction {
     AE_TELED_DEBUG("Stop range {}-{}", range.left, range.right);
     delegate_->WriteStopped(sending_buffer_.begin(), range.right);
     sending_buffer_.EraseFrom(range.left);
+    delegate_->OnSendCapacityAvailable();
   }
 
   bool Acknowledge(std::uint16_t confirm_offset) {
@@ -149,6 +167,7 @@ class SafeStreamSendAction {
     // re-enqueu repeat timer for next waiting chunks
     repeat_timer_.Reset();
     EnqueueRepeatTimeout();
+    delegate_->OnSendCapacityAvailable();
     return true;
   }
 

@@ -132,6 +132,30 @@ class SafeStream final : public ByteStream,  // NOLINT
 
   StreamInfo stream_info() const override { return stream_info_; }
 
+  using WriteCapacityEvent = Event<void()>;
+
+  WriteCapacityEvent const& write_capacity_event() const {
+    return write_capacity_event_;
+  }
+
+  std::size_t send_buffer_free_bytes() const {
+    return sender_.SendBufferFreeBytes();
+  }
+
+  std::size_t send_buffer_used_bytes() const {
+    return sender_.SendBufferUsedBytes();
+  }
+
+  bool CanAcceptSendBytes(std::size_t framed_byte_count) const {
+    if (stream_info_.link_state != LinkState::kLinked) {
+      return false;
+    }
+    if (framed_byte_count > stream_info_.max_element_size) {
+      return false;
+    }
+    return sender_.CanSendData(framed_byte_count);
+  }
+
   void LinkOut(OutStream& out) override {
     out_ = &out;
     update_sub_ = out_->stream_update_event().Subscribe(
@@ -246,6 +270,18 @@ class SafeStream final : public ByteStream,  // NOLINT
                   [](auto const& e) { return e.second->is_finished(); });
   }
 
+  void OnSendCapacityAvailable() override { ScheduleWriteCapacityNotify(); }
+
+  void ScheduleWriteCapacityNotify() {
+    if (write_capacity_notify_enqueued_) {
+      return;
+    }
+    write_capacity_notify_enqueued_ = ae_context_.scheduler().Task([this]() {
+      write_capacity_notify_enqueued_.Reset();
+      write_capacity_event_.Emit();
+    });
+  }
+
   AeContext ae_context_;
   SafeStreamConfig config_;
   ProtocolContext protocol_context_;
@@ -253,6 +289,8 @@ class SafeStream final : public ByteStream,  // NOLINT
   SafeStreamApiClient api_client_;
   SafeStreamSender sender_;
   SafeStreamReceiver receiver_;
+  WriteCapacityEvent write_capacity_event_{ae_context_};
+  TaskSubscription write_capacity_notify_enqueued_;
 
   std::optional<FailedWriteAction> failed_write_;
   std::vector<std::pair<IndexType, std::unique_ptr<SSWriteAction>>> sswas_;

@@ -13,6 +13,7 @@
 #include <sstream>
 #include <utility>
 
+#include "aether/client_messages/p2p_safe_message_stream.h"
 #include "aether/events/events.h"
 #include "aether/write_action/failed_write_action.h"
 #include "aether/write_action/write_action.h"
@@ -96,6 +97,8 @@ struct PointSession : std::enable_shared_from_this<PointSession> {
   std::vector<ChunkWriteRecord> records;
   std::vector<ChunkTerminalSlot> terminals;
   std::deque<InFlightWrite> in_flight;
+  bool p2p_try_write{false};
+  Subscription capacity_sub_;
 
   void note_peaks(std::uint64_t& peak_writes, std::uint64_t& peak_bytes) {
     peak_writes = std::max(peak_writes, in_flight.size());
@@ -180,6 +183,7 @@ struct PointSession : std::enable_shared_from_this<PointSession> {
     kAllSubmitted,
     kWriteFail,
     kResourceCap,
+    kSdkWouldBlock,
   };
 
   SubmitOutcome try_submit(std::uint64_t chunk_index, std::uint64_t& peak_writes,
@@ -190,10 +194,10 @@ struct PointSession : std::enable_shared_from_this<PointSession> {
     if (chunk_index >= chunks_total) {
       return SubmitOutcome::kAllSubmitted;
     }
-    if (in_flight.size() >= outstanding_limit) {
+    if (!p2p_try_write && in_flight.size() >= outstanding_limit) {
       return SubmitOutcome::kOutstandingCap;
     }
-    if (!bench->GeneratorWriteBudgetOk(in_flight.size() + 1)) {
+    if (!p2p_try_write && !bench->GeneratorWriteBudgetOk(in_flight.size() + 1)) {
       ++generator_limit_events;
       return SubmitOutcome::kResourceCap;
     }
@@ -203,11 +207,29 @@ struct PointSession : std::enable_shared_from_this<PointSession> {
     ++write_calls;
     auto const submit_time = BenchNow();
     auto wire = MakeThptChunk(*blob, run_id, chunk_index, byte_offset, payload_len);
-    auto& wa = send_stream->Write(std::move(wire));
-    if (dynamic_cast<FailedWriteAction*>(&wa) != nullptr) {
-      ++write_fail_events;
-      return SubmitOutcome::kWriteFail;
+    WriteAction* wa_ptr = nullptr;
+    if (p2p_try_write) {
+      auto* p2p = static_cast<P2pSafeStream*>(send_stream);
+      auto offer = p2p->TryWrite(wire);
+      if (offer.result == P2pWriteOfferResult::kWouldBlock) {
+        ++sdk_capacity_events;
+        return SubmitOutcome::kSdkWouldBlock;
+      }
+      if (offer.result == P2pWriteOfferResult::kError ||
+          offer.action == nullptr) {
+        ++write_fail_events;
+        return SubmitOutcome::kWriteFail;
+      }
+      wa_ptr = offer.action;
+    } else {
+      auto& wa = send_stream->Write(std::move(wire));
+      if (dynamic_cast<FailedWriteAction*>(&wa) != nullptr) {
+        ++write_fail_events;
+        return SubmitOutcome::kWriteFail;
+      }
+      wa_ptr = &wa;
     }
+    auto& wa = *wa_ptr;
     ++write_accepted;
     records.push_back(ChunkWriteRecord{
         .chunk_index = chunk_index,
@@ -411,6 +433,17 @@ StreamingRunResult RunOneStreamingPoint(StreamMatrixBench& bench, PointRunArgs a
   session->records.reserve(args.chunks_total);
   session->terminals.clear();
   session->terminals.resize(args.chunks_total);
+  if (args.mode == LoadMode::kBackpressure) {
+    if (auto* p2p = dynamic_cast<P2pSafeStream*>(session->send_stream)) {
+      session->p2p_try_write = true;
+      std::weak_ptr<PointSession> weak = session;
+      session->capacity_sub_ = p2p->write_capacity_event().Subscribe([weak]() {
+        if (auto self = weak.lock()) {
+          self->slot_available.store(true);
+        }
+      });
+    }
+  }
 
   std::uint64_t next_chunk = 0;
   std::uint64_t peak_writes = 0;
@@ -453,17 +486,26 @@ StreamingRunResult RunOneStreamingPoint(StreamMatrixBench& bench, PointRunArgs a
       return any;
     }
     any = false;
-    if (!session->slot_available.load() &&
+    if (!session->p2p_try_write && !session->slot_available.load() &&
         session->in_flight.size() >= args.outstanding_limit) {
       return false;
     }
+    if (session->p2p_try_write && !session->slot_available.load()) {
+      return false;
+    }
     session->slot_available.store(false);
-    while (next_chunk < args.chunks_total &&
-           session->in_flight.size() < args.outstanding_limit &&
-           BenchNow() < point_deadline) {
+    while (next_chunk < args.chunks_total && BenchNow() < point_deadline) {
+      if (!session->p2p_try_write &&
+          session->in_flight.size() >= args.outstanding_limit) {
+        break;
+      }
       auto r = session->try_submit(next_chunk, peak_writes, peak_bytes);
       if (r == PointSession::SubmitOutcome::kOutstandingCap ||
           r == PointSession::SubmitOutcome::kResourceCap) {
+        break;
+      }
+      if (r == PointSession::SubmitOutcome::kSdkWouldBlock) {
+        session->slot_available.store(false);
         break;
       }
       if (r == PointSession::SubmitOutcome::kAllSubmitted) {

@@ -25,13 +25,17 @@ namespace ae {
 static constexpr std::size_t kSizedPacketOverhead =
     PacketSize::kMaxWireBytes;  // max for packet size
 
+std::size_t SizedPacketGate::FramedSizeForPayload(
+    std::size_t payload_bytes) const {
+  return payload_bytes + kSizedPacketOverhead;
+}
+
 DataBuffer SizedPacketGate::WriteIn(DataBuffer&& buffer) {
   DataBuffer write_buffer;
-  write_buffer.reserve(buffer.size() + kSizedPacketOverhead);
+  write_buffer.reserve(FramedSizeForPayload(buffer.size()));
   auto vec_buff = VectorBuffer<PacketSize>{write_buffer};
   vec_buff.Write(seri::SizeWriteTag{buffer.size()});
-  vec_buff.Write(
-      seri::DataWriteTag{std::move(buffer).data(), std::move(buffer).size()});
+  vec_buff.Write(seri::DataWriteTag{buffer.data(), buffer.size()});
 
   return write_buffer;
 }

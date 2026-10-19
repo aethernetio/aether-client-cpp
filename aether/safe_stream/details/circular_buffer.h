@@ -156,6 +156,19 @@ class CircularBuffer {
   constexpr index_type begin() const noexcept { return begin_; }
   constexpr index_type end() const noexcept { return end_; }
 
+  /** Bytes that can be appended at end_ without wrapping past begin_. */
+  constexpr std::size_t AppendAvailable() const noexcept {
+    index_type const pos = end_;
+    if (begin_ == pos) {
+      return size() == 0 ? kCapacity : 0;
+    }
+    return Distance(pos, begin_);
+  }
+
+  constexpr bool CanAppend(std::size_t data_size) const noexcept {
+    return data_size <= AppendAvailable();
+  }
+
  private:
   index_type begin_{0};
   index_type end_{0};
