@@ -150,6 +150,17 @@ void test_PushWrapUpdatesEnd() {
   TEST_ASSERT_EQUAL(6, buffer.size());
 }
 
+void test_InsertGapFillFiveThenZero() {
+  using Buffer = CircularBuffer<8>;
+  using IndexType = Buffer::index_type;
+  Buffer buffer;
+  std::array<std::uint8_t, 2> two{0x11, 0x22};
+  std::array<std::uint8_t, 5> five{3, 4, 5, 6, 7};
+  TEST_ASSERT_TRUE(buffer.Insert(IndexType{5}, std::span<std::uint8_t const>(two)).IsOk());
+  TEST_ASSERT_TRUE(buffer.Insert(IndexType{0}, std::span<std::uint8_t const>(five)).IsOk());
+  TEST_ASSERT_EQUAL(7, buffer.size());
+}
+
 void test_PushOverTheBourder() {
   static constexpr std::size_t kCapacity = 30;
   using Buffer = CircularBuffer<kCapacity>;
@@ -181,6 +192,7 @@ int test_circular_buffer() {
   RUN_TEST(ae::test_circular_buffer::test_Erase);
   RUN_TEST(ae::test_circular_buffer::test_PushSixThenTwoOnCapacityEight);
   RUN_TEST(ae::test_circular_buffer::test_PushWrapUpdatesEnd);
+  RUN_TEST(ae::test_circular_buffer::test_InsertGapFillFiveThenZero);
   RUN_TEST(ae::test_circular_buffer::test_PushOverTheBourder);
   return UNITY_END();
 }

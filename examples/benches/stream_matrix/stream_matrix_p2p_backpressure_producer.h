@@ -46,6 +46,8 @@ class P2pBackpressureProducer {
   P2pBackpressureProducerStats const& stats() const { return stats_; }
   std::size_t offset() const { return offset_; }
   bool finished() const { return finished_; }
+  bool hard_failed() const { return hard_failed_; }
+  std::uint64_t done_calls() const { return done_calls_; }
 
  private:
   struct InFlightEntry {
@@ -58,9 +60,9 @@ class P2pBackpressureProducer {
   void OnWriteTerminal(std::uint64_t write_id, WriteAction::Status st);
   void FailHard();
   void MaybeFinish();
+  void CompleteFinished();
   void TrackPeaks();
   void TrackPeaksInTerminal();
-  void DrainResidual();
 
   AeContext ctx_;
   P2pSafeStream& stream_;
@@ -80,6 +82,7 @@ class P2pBackpressureProducer {
   TaskSubscription pump_sub_;
   InFlightBudgetFn in_flight_budget_;
   DoneFn on_done_;
+  std::uint64_t done_calls_{0};
 };
 
 }  // namespace ae::stream_matrix_bench

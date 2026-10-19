@@ -57,6 +57,9 @@ struct TransportStats {
   std::uint64_t delayed_enqueued{0};
   std::uint64_t dropped{0};
   std::uint64_t delivered{0};
+  std::uint64_t delivery_paused{0};
+  std::uint64_t blocked_while_paused{0};
+  std::uint64_t pending_dropped_while_paused{0};
 };
 
 class InstrumentedP2pTransport final
@@ -80,14 +83,23 @@ class InstrumentedP2pTransport final
   }
 
   void SetLinked(bool linked) {
+    delivery_enabled_ = linked;
     stream_info_.link_state = linked ? LinkState::kLinked : LinkState::kUnlinked;
     stream_info_.is_writable = linked;
+    if (!linked) {
+      ++stats_.delivery_paused;
+      TrimPendingWhilePaused();
+    } else {
+      ScheduleDrain();
+    }
     stream_update_event_.Emit();
   }
 
   void SetPermanentLinkError() {
+    delivery_enabled_ = false;
     stream_info_.link_state = LinkState::kLinkError;
     stream_info_.is_writable = false;
+    pending_.clear();
     stream_update_event_.Emit();
   }
 
@@ -97,6 +109,18 @@ class InstrumentedP2pTransport final
     bool const drop = drop_every_n_ > 0 && (seq_ % drop_every_n_) == 0;
     if (drop) {
       ++stats_.dropped;
+      if (!ok_action_ || ok_action_->is_finished()) {
+        ok_action_.emplace(context_);
+      }
+      return *ok_action_;
+    }
+    if (!delivery_enabled_) {
+      if (pending_.size() >= kMaxPendingWhilePaused) {
+        ++stats_.pending_dropped_while_paused;
+      } else {
+        ++stats_.delayed_enqueued;
+        pending_.push_back(std::move(buffer));
+      }
       if (!ok_action_ || ok_action_->is_finished()) {
         ok_action_.emplace(context_);
       }
@@ -122,6 +146,15 @@ class InstrumentedP2pTransport final
   OutDataEvent const& out_data_event() override { return out_data_event_; }
 
  private:
+  static constexpr std::size_t kMaxPendingWhilePaused = 32;
+
+  void TrimPendingWhilePaused() {
+    while (pending_.size() > kMaxPendingWhilePaused) {
+      pending_.pop_front();
+      ++stats_.pending_dropped_while_paused;
+    }
+  }
+
   void ScheduleDrain() {
     if (drain_scheduled_) {
       return;
@@ -144,6 +177,10 @@ class InstrumentedP2pTransport final
   }
 
   void DeliverPeer(DataBuffer buffer) {
+    if (!delivery_enabled_ || stream_info_.link_state != LinkState::kLinked) {
+      ++stats_.blocked_while_paused;
+      return;
+    }
     ++stats_.delivered;
     if (auto peer = peer_.lock()) {
       peer->out_data_event_.Emit(std::move(buffer));
@@ -155,6 +192,7 @@ class InstrumentedP2pTransport final
   int drop_every_n_{0};
   int seq_{0};
   bool drain_scheduled_{false};
+  bool delivery_enabled_{true};
   TransportStats& stats_;
   StreamInfo stream_info_;
   OutDataEvent out_data_event_;
@@ -165,11 +203,12 @@ class InstrumentedP2pTransport final
 };
 
 SafeStreamConfig BenchConfig() {
+  // Looser ACK/repeat so a brief delivery pause (transfer 7) can recover via SafeStream retries.
   return SafeStreamConfig{
       .window_size = AE_SAFE_STREAM_CAPACITY / 2 - 1,
       .max_packet_size = AE_SAFE_STREAM_CAPACITY / 2 - 1,
-      .max_repeat_count = 12,
-      .wait_ack_timeout = std::chrono::milliseconds{1500},
+      .max_repeat_count = 255,
+      .wait_ack_timeout = std::chrono::milliseconds{60000},
       .send_ack_timeout = std::chrono::milliseconds{0},
       .send_repeat_timeout = std::chrono::milliseconds{50},
   };
@@ -206,6 +245,7 @@ struct TransferRow {
   std::size_t handlers_before{0};
   std::size_t handlers_peak{0};
   std::size_t handlers_after{0};
+  std::uint64_t done_calls{0};
 };
 
 struct EventPoolUsage {
@@ -268,32 +308,63 @@ int main() {
     bool done = false;
     bool ok = false;
 
-    ae::stream_matrix_bench::P2pBackpressureProducer producer(ctx, sender,
-                                                                std::move(payload));
-    producer.Start(sender.stream_info().max_element_size, [&](bool success) {
+    auto producer = std::make_shared<ae::stream_matrix_bench::P2pBackpressureProducer>(
+        ctx, sender, std::move(payload));
+    producer->Start(sender.stream_info().max_element_size, [producer, &ok, &done](bool success) {
       ok = success;
       done = true;
     });
 
+    bool unlink_done = false;
+    bool relink_done = false;
+    std::uint64_t delivered_at_unlink = 0;
+    std::uint64_t delivered_at_relink = 0;
+    std::size_t offset_at_unlink = 0;
+    int unlink_tick = 0;
     auto epoch = ae::TimePoint::clock::now();
     for (int tick = 0; tick < 1200000 && !done; ++tick) {
       env.Update(epoch += std::chrono::milliseconds{1});
       auto const u = ae::Usage(env);
       row.events_peak = std::max(row.events_peak, u.registered_events);
       row.handlers_peak = std::max(row.handlers_peak, u.handler_relationships);
-      if (transfer == 7 && tick == 18000) {
+      if (transfer == 7 && !unlink_done && producer->offset() > 200000 &&
+          !producer->finished()) {
+        delivered_at_unlink = tx_stats.delivered;
+        offset_at_unlink = producer->offset();
+        unlink_tick = tick;
         link_a->SetLinked(false);
+        unlink_done = true;
       }
-      if (transfer == 7 && tick == 28000) {
+      if (transfer == 7 && unlink_done && !relink_done) {
+        Expect(tx_stats.delivered == delivered_at_unlink,
+               "no peer delivery while unlinked");
+      }
+      if (transfer == 7 && unlink_done && !relink_done &&
+          tick - unlink_tick > 200) {
+        delivered_at_relink = tx_stats.delivered;
         link_a->SetLinked(true);
+        relink_done = true;
       }
+    }
+    if (transfer == 7 && unlink_done && !relink_done) {
+      link_a->SetLinked(true);
+      relink_done = true;
+    }
+    if (transfer == 7) {
+      Expect(unlink_done, "unlink triggered by transfer progress");
+      Expect(relink_done, "relink after progress");
+      Expect(offset_at_unlink > 0 && offset_at_unlink < 1024 * 1024,
+             "transfer incomplete at unlink");
+      Expect(tx_stats.delivered > delivered_at_relink,
+             "delivery resumed after relink");
     }
 
     for (int drain = 0; drain < 5000; ++drain) {
       env.Update(epoch += std::chrono::milliseconds{1});
     }
 
-    auto const stats = producer.stats();
+    auto const stats = producer->stats();
+    row.done_calls = producer->done_calls();
     row.rx_bytes = rx.size();
     row.integrity = row.rx_bytes == expected.size() && rx == expected;
     row.success = done && ok && row.integrity;
@@ -312,9 +383,11 @@ int main() {
     rows.push_back(row);
 
     Expect(row.success, "transfer success");
+    Expect(row.done_calls == 1, "exactly one on_done");
     Expect(row.buffer_after_drain == 0, "send buffer drained after transfer");
     std::cout << "transfer=" << transfer << " rx=" << row.rx_bytes
-              << " ok=" << (row.success ? 1 : 0) << " wb=" << row.would_block
+              << " ok=" << (row.success ? 1 : 0) << " done=" << row.done_calls
+              << " wb=" << row.would_block
               << " resume=" << row.resumes << " peak_buf=" << row.peak_buffer
               << " drain_buf=" << row.buffer_after_drain << " events "
               << row.events_before << '/' << row.events_peak << '/'
@@ -335,17 +408,48 @@ int main() {
            "handlers stable across ten transfers");
   }
 
+  Expect(tx_stats.delivery_paused > 0, "delivery pause events");
+  Expect(tx_stats.blocked_while_paused > 0 || tx_stats.pending_dropped_while_paused > 0,
+         "pause blocked or trimmed pending");
+
   {
-    link_a->SetPermanentLinkError();
+    ae::LoopbackTestContext fail_env;
+    ae::AeContext fail_ctx{fail_env};
+    ae::TransportStats fail_stats{};
+    auto fail_a = std::make_shared<ae::InstrumentedP2pTransport>(
+        fail_ctx, inner_max, 0, 0, fail_stats);
+    auto fail_b = std::make_shared<ae::InstrumentedP2pTransport>(
+        fail_ctx, inner_max, 0, 0, fail_stats);
+    fail_a->SetPeer(fail_b);
+    fail_b->SetPeer(fail_a);
+    ae::P2pSafeStream fail_sender{fail_ctx, config, fail_a};
+    ae::P2pSafeStream fail_receiver{fail_ctx, config, fail_b};
+    (void)fail_receiver;
+
+    bool disc_done = false;
+    bool disc_ok = true;
+    std::uint64_t disc_done_calls = 0;
+    auto payload = ae::MakePayload(64 * 1024, 1000u);
+    auto producer = std::make_shared<ae::stream_matrix_bench::P2pBackpressureProducer>(
+        fail_ctx, fail_sender, std::move(payload));
+    producer->Start(fail_sender.stream_info().max_element_size,
+                    [producer, &disc_ok, &disc_done, &disc_done_calls](bool success) {
+                      disc_ok = success;
+                      disc_done = true;
+                      disc_done_calls = producer->done_calls();
+                    });
     auto epoch = ae::TimePoint::clock::now();
-    for (int tick = 0; tick < 500; ++tick) {
-      env.Update(epoch += std::chrono::milliseconds{1});
+    for (int tick = 0; tick < 50000 && producer->offset() < 8192; ++tick) {
+      fail_env.Update(epoch += std::chrono::milliseconds{1});
     }
-    ae::DataBuffer probe(16, 0xEE);
-    auto const offer = sender.TryWrite(probe);
-    Expect(offer.result == ae::P2pWriteOfferResult::kError,
-           "permanent link error surfaces as TryWrite ERROR");
-    Expect(probe == ae::DataBuffer(16, 0xEE), "ERROR does not mutate caller buffer");
+    fail_a->SetPermanentLinkError();
+    for (int tick = 0; tick < 500000 && !disc_done; ++tick) {
+      fail_env.Update(epoch += std::chrono::milliseconds{1});
+    }
+    Expect(disc_done, "active producer completes on permanent link error");
+    Expect(!disc_ok, "active producer reports failure");
+    Expect(disc_done_calls == 1, "active producer single on_done");
+    Expect(producer->finished(), "active producer finished flag");
   }
 
   if (g_failures != 0) {

@@ -76,24 +76,40 @@ class CircularBuffer {
 
   constexpr Result<index_range_type, CircularBufferError> Insert(
       index_type pos, std::span<value_type const> data) noexcept {
-    if (data.size() > MaxDataBytes() - size()) {
+    auto start = pos;
+    index_type final_pos = pos;
+    {
+      auto sim_pos = pos;
+      auto sim_data = data;
+      while (!sim_data.empty()) {
+        auto const remaining = buffer_.size() - static_cast<std::size_t>(sim_pos);
+        auto const copy_size =
+            sim_data.size() > remaining ? remaining : sim_data.size();
+        sim_data = sim_data.subspan(copy_size);
+        sim_pos += copy_size;
+      }
+      final_pos = sim_pos;
+    }
+    index_type new_end = end_;
+    if (start == end_) {
+      new_end = final_pos;
+    } else if (IndexComparable{final_pos, begin_} > end_) {
+      new_end = final_pos;
+    }
+    if (Distance(begin_, new_end) > MaxDataBytes()) {
       return Error{CircularBufferError::kDataOverflow};
     }
-    std::size_t available{};
-    if (pos == end_) {
-      available = AppendAvailable();
-    } else if (begin_ == pos) {
-      available = AppendAvailable();
-    } else {
-      available = Distance(pos, begin_);
-      if (begin_ != end_ && available > 0) {
-        available -= 1;
+    bool const extending =
+        (start == end_) || (IndexComparable{final_pos, begin_} > end_);
+    if (!extending) {
+      if (data.size() > Distance(pos, end_)) {
+        return Error{CircularBufferError::kDataOverflow};
+      }
+    } else if (pos == end_) {
+      if (data.size() > AppendAvailable()) {
+        return Error{CircularBufferError::kDataOverflow};
       }
     }
-    if (data.size() > available) {
-      return Error{CircularBufferError::kDataOverflow};
-    }
-    auto start = pos;
     // copy the data into array
     // expect for 2 copies depends on does data overlaps buffer or not
     while (!data.empty()) {

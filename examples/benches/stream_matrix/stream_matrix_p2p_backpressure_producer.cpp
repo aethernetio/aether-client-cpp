@@ -25,6 +25,7 @@ void P2pBackpressureProducer::Start(std::size_t chunk_bytes, DoneFn on_done,
   in_flight_ = 0;
   next_write_id_ = 1;
   waiting_capacity_ = false;
+  done_calls_ = 0;
   stats_ = {};
   capacity_sub_.Reset();
   stream_update_sub_.Reset();
@@ -32,6 +33,9 @@ void P2pBackpressureProducer::Start(std::size_t chunk_bytes, DoneFn on_done,
   in_flight_entries_.clear();
 
   capacity_sub_ = stream_.write_capacity_event().Subscribe([this]() {
+    if (finished_ || hard_failed_) {
+      return;
+    }
     if (waiting_capacity_) {
       ++stats_.resume_count;
     }
@@ -39,6 +43,9 @@ void P2pBackpressureProducer::Start(std::size_t chunk_bytes, DoneFn on_done,
     SchedulePump();
   });
   stream_update_sub_ = stream_.stream_update_event().Subscribe([this]() {
+    if (finished_) {
+      return;
+    }
     auto const info = stream_.stream_info();
     if (info.link_state == LinkState::kLinkError) {
       FailHard();
@@ -76,11 +83,26 @@ void P2pBackpressureProducer::TrackPeaksInTerminal() {
       std::max(stats_.peak_send_buffer_in_terminal, stream_.send_buffer_used_bytes());
 }
 
-void P2pBackpressureProducer::DrainResidual() {
+void P2pBackpressureProducer::CompleteFinished() {
+  if (finished_) {
+    return;
+  }
+  finished_ = true;
+  capacity_sub_.Reset();
+  stream_update_sub_.Reset();
+  pump_sub_.Reset();
+  for (auto& e : in_flight_entries_) {
+    e.status_sub.Reset();
+  }
+  in_flight_entries_.clear();
   stats_.residual_send_buffer_used = stream_.send_buffer_used_bytes();
-  ctx_.scheduler().Task([this]() {
-    stats_.residual_send_buffer_after_drain = stream_.send_buffer_used_bytes();
-  });
+  stats_.residual_send_buffer_after_drain = stats_.residual_send_buffer_used;
+  ++done_calls_;
+  DoneFn done = std::move(on_done_);
+  on_done_ = nullptr;
+  if (done) {
+    done(terminal_ok_);
+  }
 }
 
 void P2pBackpressureProducer::FailHard() {
@@ -92,6 +114,13 @@ void P2pBackpressureProducer::FailHard() {
   ++stats_.error_count;
   pump_sub_.Reset();
   waiting_capacity_ = false;
+  if (stream_.stream_info().link_state == LinkState::kLinkError) {
+    for (auto& e : in_flight_entries_) {
+      e.status_sub.Reset();
+    }
+    in_flight_entries_.clear();
+    in_flight_ = 0;
+  }
   MaybeFinish();
 }
 
@@ -99,32 +128,20 @@ void P2pBackpressureProducer::MaybeFinish() {
   if (finished_) {
     return;
   }
-  if (hard_failed_) {
-    return;
-  }
-  bool const payload_done = offset_ >= payload_.size();
   if (in_flight_ != 0) {
     return;
   }
-  if (!hard_failed_ && !payload_done) {
-    return;
-  }
-  finished_ = true;
-  capacity_sub_.Reset();
-  stream_update_sub_.Reset();
-  pump_sub_.Reset();
-  for (auto& e : in_flight_entries_) {
-    e.status_sub.Reset();
-  }
-  in_flight_entries_.clear();
-  DrainResidual();
-  if (on_done_) {
-    on_done_(terminal_ok_);
+  bool const payload_done = offset_ >= payload_.size();
+  if (hard_failed_ || payload_done) {
+    CompleteFinished();
   }
 }
 
 void P2pBackpressureProducer::OnWriteTerminal(std::uint64_t write_id,
                                               WriteAction::Status st) {
+  if (finished_) {
+    return;
+  }
   TrackPeaksInTerminal();
   for (auto it = in_flight_entries_.begin(); it != in_flight_entries_.end(); ++it) {
     if (it->write_id != write_id) {
@@ -158,7 +175,7 @@ void P2pBackpressureProducer::OnWriteTerminal(std::uint64_t write_id,
     waiting_capacity_ = false;
   }
   MaybeFinish();
-  if (!finished_ && !waiting_capacity_) {
+  if (!finished_ && !hard_failed_ && !waiting_capacity_) {
     SchedulePump();
   }
 }
