@@ -168,6 +168,10 @@ bool WinSocket::RequestRecv() {
     AE_TELED_ERROR("Socket receive error {}", err_code);
     return false;
   }
+  // WSARecv returned 0: completion is available through the overlapped result
+  // (including synchronous success). Mark before releasing socket_lock_ so an
+  // IOCP thread cannot observe a completion with is_recv_pending_ still false.
+  is_recv_pending_ = true;
   return true;
 }
 
