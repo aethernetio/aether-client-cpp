@@ -169,8 +169,9 @@ bool WinSocket::RequestRecv() {
     return false;
   }
   // WSARecv returned 0: completion is available through the overlapped result
-  // (including synchronous success). Mark before releasing socket_lock_ so an
-  // IOCP thread cannot observe a completion with is_recv_pending_ still false.
+  // (including synchronous success). Publish is_recv_pending_ (atomic) before
+  // releasing socket_lock_. HandleRecv reads that flag before taking
+  // socket_lock_, so the mutex does not synchronize the early pending check.
   is_recv_pending_ = true;
   return true;
 }
