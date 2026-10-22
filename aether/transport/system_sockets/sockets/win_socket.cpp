@@ -73,6 +73,8 @@ std::optional<std::size_t> WinSocket::Send(Span<std::uint8_t> data) {
       AE_TELED_ERROR("Socket send error {}", error_code);
       return std::nullopt;
     }
+    is_send_pending_ = true;
+    return 0;
   } else {
     auto res = WSAGetOverlappedResult(socket_, &send_overlapped_,
                                       &bytes_transferred, false, &flags);
