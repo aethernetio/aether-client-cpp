@@ -73,6 +73,8 @@ std::optional<std::size_t> WinSocket::Send(Span<std::uint8_t> data) {
       AE_TELED_ERROR("Socket send error {}", error_code);
       return std::nullopt;
     }
+    is_send_pending_ = true;
+    return 0;
   } else {
     auto res = WSAGetOverlappedResult(socket_, &send_overlapped_,
                                       &bytes_transferred, false, &flags);
@@ -168,6 +170,11 @@ bool WinSocket::RequestRecv() {
     AE_TELED_ERROR("Socket receive error {}", err_code);
     return false;
   }
+  // WSARecv returned 0: completion is available through the overlapped result
+  // (including synchronous success). Publish is_recv_pending_ (atomic) before
+  // releasing socket_lock_. HandleRecv reads that flag before taking
+  // socket_lock_, so the mutex does not synchronize the early pending check.
+  is_recv_pending_ = true;
   return true;
 }
 

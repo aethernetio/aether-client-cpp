@@ -68,7 +68,6 @@ class SendAction final : public PacketSendAction {
       return;
     }
     if (*res == 0) {
-      reenqueue_ = true;
       return;
     }
 

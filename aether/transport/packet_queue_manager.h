@@ -59,15 +59,12 @@ class PacketQueueManager {
    */
   void Send() {
     auto lock = std::scoped_lock{queue_lock_};
-    // remove finished
-    std::size_t i = 0;
-    for (; i < queue_.size(); i++) {
-      if (!queue_[i].is_finished()) {
-        break;
-      }
+    std::size_t removed = 0;
+    while (!queue_.empty() && queue_.front().is_finished()) {
       queue_.pop();
+      ++removed;
     }
-    index_ = (index_ <= i) ? 0 : index_ - i;
+    index_ = (index_ <= removed) ? 0 : index_ - removed;
 
     // send queued packets
     for (; index_ < queue_.size(); index_++) {
