@@ -27,6 +27,7 @@
 
 #    include <mutex>
 #    include <optional>
+#    include <vector>
 
 #    include "aether/ae_context.h"
 #    include "aether/common.h"
@@ -57,6 +58,37 @@ class SendAction final : public PacketSendAction {
 
   AE_CLASS_MOVE_ONLY(SendAction)
 
+  /**
+   * \brief Merge another fully formed, not-yet-sent frame into this action.
+   * \return false if either action already started sending or other is not a
+   * single-frame action.
+   */
+  bool Absorb(SendAction&& other) noexcept {
+    if (sent_offset_ != 0 || other.sent_offset_ != 0) {
+      return false;
+    }
+    if (is_done_ || other.is_done_) {
+      return false;
+    }
+    if (socket_ != other.socket_) {
+      return false;
+    }
+    if (!other.segments_.empty() || !other.absorbed_.empty()) {
+      return false;
+    }
+    if (other.data_.empty()) {
+      return false;
+    }
+
+    EnsurePrimarySegment();
+    data_.insert(data_.end(), other.data_.begin(), other.data_.end());
+    other.data_.clear();
+    auto const absorbed_index = absorbed_.size();
+    absorbed_.push_back(std::move(other));
+    segments_.push_back({data_.size(), false, absorbed_index});
+    return true;
+  }
+
   void Send() override {
     reenqueue_ = false;
 
@@ -64,7 +96,7 @@ class SendAction final : public PacketSendAction {
     auto res = socket_->Send(Span{data_.data() + sent_offset_, size_to_send});
     if (!res) {
       AE_TELED_ERROR("Data has not been written");
-      SetStatus(WriteAction::Status::kFail);
+      AbortPending(WriteAction::Status::kFail);
       return;
     }
     if (*res == 0) {
@@ -73,17 +105,18 @@ class SendAction final : public PacketSendAction {
 
     AE_TELED_DEBUG("Data has been written size {} data {}", *res, data_);
     sent_offset_ += *res;
-
-    if (sent_offset_ >= data_.size()) {
-      SetStatus(WriteAction::Status::kSuccess);
-    }
+    OnSentProgress();
     // reenque must happen on event from socket
   }
 
   void Stop() noexcept override {
-    is_done_ = true;
-    set_status_.Reset();
-    WriteAction::SetStatus(WriteAction::Status::kStop);
+    if (segments_.empty()) {
+      is_done_ = true;
+      set_status_.Reset();
+      WriteAction::SetStatus(WriteAction::Status::kStop);
+      return;
+    }
+    AbortPending(WriteAction::Status::kStop);
   }
 
   bool is_done() const override { return is_done_; }
@@ -91,16 +124,95 @@ class SendAction final : public PacketSendAction {
 
  protected:
   void SetStatus(WriteAction::Status status) noexcept override {
-    is_done_ = true;
-    set_status_ = ae_context_.scheduler().Task(
-        [&, status]() { WriteAction::SetStatus(status); });
+    FinalizeHost(status);
   }
 
  private:
+  struct Segment {
+    std::size_t end;
+    bool is_host;
+    std::size_t absorbed_index;
+  };
+
+  SendAction& SegmentAction(Segment const& segment) noexcept {
+    return segment.is_host ? *this : absorbed_[segment.absorbed_index];
+  }
+
+  void EnsurePrimarySegment() {
+    if (!segments_.empty()) {
+      return;
+    }
+    segments_.push_back({data_.size(), true, 0});
+  }
+
+  bool HostHasMultipleSegments() const noexcept {
+    return segments_.size() > 1;
+  }
+
+  void EmitWriteStatus(SendAction& target,
+                       WriteAction::Status status) noexcept {
+    target.set_status_.Reset();
+    target.set_status_ = target.ae_context_.scheduler().Task(
+        [&target, status]() { target.WriteAction::SetStatus(status); });
+  }
+
+  void CompleteSegment(SendAction& target,
+                       WriteAction::Status status) noexcept {
+    if (&target != this) {
+      target.is_done_ = true;
+      EmitWriteStatus(target, status);
+      return;
+    }
+    if (HostHasMultipleSegments()) {
+      EmitWriteStatus(target, status);
+      return;
+    }
+    FinalizeHost(status);
+  }
+
+  void FinalizeHost(WriteAction::Status status) noexcept {
+    is_done_ = true;
+    EmitWriteStatus(*this, status);
+  }
+
+  void OnSentProgress() noexcept {
+    if (segments_.empty()) {
+      if (sent_offset_ >= data_.size()) {
+        FinalizeHost(WriteAction::Status::kSuccess);
+      }
+      return;
+    }
+
+    while (completed_segment_idx_ < segments_.size() &&
+           sent_offset_ >= segments_[completed_segment_idx_].end) {
+      CompleteSegment(SegmentAction(segments_[completed_segment_idx_]),
+                      WriteAction::Status::kSuccess);
+      ++completed_segment_idx_;
+    }
+    if (sent_offset_ >= data_.size()) {
+      is_done_ = true;
+    }
+  }
+
+  void AbortPending(WriteAction::Status status) noexcept {
+    if (segments_.empty()) {
+      FinalizeHost(status);
+      return;
+    }
+    is_done_ = true;
+    for (; completed_segment_idx_ < segments_.size();
+         ++completed_segment_idx_) {
+      CompleteSegment(SegmentAction(segments_[completed_segment_idx_]), status);
+    }
+  }
+
   AeContext ae_context_;
   Sock* socket_;
   DataBuffer data_;
+  std::vector<Segment> segments_;
+  std::vector<SendAction> absorbed_;
   std::size_t sent_offset_ = 0;
+  std::size_t completed_segment_idx_ = 0;
   bool is_done_ = false;
   bool reenqueue_ = false;
   TaskSubscription set_status_;
