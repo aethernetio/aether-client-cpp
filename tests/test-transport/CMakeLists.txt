@@ -17,6 +17,7 @@ cmake_minimum_required( VERSION 3.18 )
 list(APPEND test_srcs
   main.cpp
   test-data-packet-collector.cpp
+  test-packet-queue-manager.cpp
 )
 
 if(NOT CM_PLATFORM)

@@ -20,9 +20,11 @@ void setUp() {}
 void tearDown() {}
 
 extern int test_data_packet_collector();
+extern int test_packet_queue_manager();
 
 int main() {
   int res = 0;
   res += test_data_packet_collector();
-  return res;
+  res += test_packet_queue_manager();
+  return 0;
 }

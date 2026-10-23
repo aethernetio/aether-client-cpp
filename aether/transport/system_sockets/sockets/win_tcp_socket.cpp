@@ -30,10 +30,6 @@
 
 namespace ae {
 namespace win_socket_internal {
-
-#ifndef AE_WIN_TCP_RECV_BUFFER_BYTES
-#  define AE_WIN_TCP_RECV_BUFFER_BYTES 65536
-#endif
 LPFN_CONNECTEX GetConnectEx(SOCKET socket) {
   LPFN_CONNECTEX func_ptr = nullptr;
   GUID guid = WSAID_CONNECTEX;
@@ -51,7 +47,7 @@ LPFN_CONNECTEX GetConnectEx(SOCKET socket) {
 }  // namespace win_socket_internal
 
 WinTcpSocket::WinTcpSocket(Ptr<IPoller> const& poller)
-    : WinSocket{*poller, AE_WIN_TCP_RECV_BUFFER_BYTES}, conn_overlapped_{} {
+    : WinSocket{*poller, 65536}, conn_overlapped_{} {
   bool created = false;
 
   // ::socket() sets WSA_FLAG_OVERLAPPED by default that allows us to use iocp
