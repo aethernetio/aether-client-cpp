@@ -149,22 +149,39 @@ class SendAction final : public PacketSendAction {
     return segments_.size() > 1;
   }
 
-  void EmitWriteStatus(SendAction& target,
-                       WriteAction::Status status) noexcept {
+  void OnTerminalTaskDone() noexcept {
+    if (pending_status_tasks_ == 0) {
+      return;
+    }
+    --pending_status_tasks_;
+    TryFinishHostAction();
+  }
+
+  void ScheduleSegmentTerminal(SendAction& target,
+                               WriteAction::Status status,
+                               bool finish_action) noexcept {
+    ++pending_status_tasks_;
     target.set_status_.Reset();
-    target.set_status_ = target.ae_context_.scheduler().Task(
-        [&target, status]() { target.WriteAction::SetStatus(status); });
+    target.set_status_ = ae_context_.scheduler().Task(
+        [this, &target, status, finish_action]() {
+          if (finish_action) {
+            target.WriteAction::SetStatus(status);
+          } else {
+            target.status_event_.Emit(status);
+          }
+          OnTerminalTaskDone();
+        });
   }
 
   void CompleteSegment(SendAction& target,
                        WriteAction::Status status) noexcept {
     if (&target != this) {
       target.is_done_ = true;
-      EmitWriteStatus(target, status);
+      ScheduleSegmentTerminal(target, status, true);
       return;
     }
     if (HostHasMultipleSegments()) {
-      EmitWriteStatus(target, status);
+      ScheduleSegmentTerminal(target, status, false);
       return;
     }
     FinalizeHost(status);
@@ -172,7 +189,22 @@ class SendAction final : public PacketSendAction {
 
   void FinalizeHost(WriteAction::Status status) noexcept {
     is_done_ = true;
-    EmitWriteStatus(*this, status);
+    ++pending_status_tasks_;
+    set_status_.Reset();
+    set_status_ = ae_context_.scheduler().Task([this, status]() {
+      WriteAction::SetStatus(status);
+      OnTerminalTaskDone();
+    });
+  }
+
+  void TryFinishHostAction() noexcept {
+    if (!HostHasMultipleSegments()) {
+      return;
+    }
+    if (is_finished() || !is_done_ || pending_status_tasks_ != 0) {
+      return;
+    }
+    Finish();
   }
 
   void OnSentProgress() noexcept {
@@ -191,6 +223,7 @@ class SendAction final : public PacketSendAction {
     }
     if (sent_offset_ >= data_.size()) {
       is_done_ = true;
+      TryFinishHostAction();
     }
   }
 
@@ -204,6 +237,7 @@ class SendAction final : public PacketSendAction {
          ++completed_segment_idx_) {
       CompleteSegment(SegmentAction(segments_[completed_segment_idx_]), status);
     }
+    TryFinishHostAction();
   }
 
   AeContext ae_context_;
@@ -213,6 +247,7 @@ class SendAction final : public PacketSendAction {
   std::vector<SendAction> absorbed_;
   std::size_t sent_offset_ = 0;
   std::size_t completed_segment_idx_ = 0;
+  std::size_t pending_status_tasks_ = 0;
   bool is_done_ = false;
   bool reenqueue_ = false;
   TaskSubscription set_status_;
