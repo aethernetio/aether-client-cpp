@@ -47,7 +47,7 @@ LPFN_CONNECTEX GetConnectEx(SOCKET socket) {
 }  // namespace win_socket_internal
 
 WinTcpSocket::WinTcpSocket(Ptr<IPoller> const& poller)
-    : WinSocket{*poller, 1500}, conn_overlapped_{} {
+    : WinSocket{*poller, 65536}, conn_overlapped_{} {
   bool created = false;
 
   // ::socket() sets WSA_FLAG_OVERLAPPED by default that allows us to use iocp
