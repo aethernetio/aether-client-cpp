@@ -359,6 +359,106 @@ void test_QueueBatchStopChildBeforeSend() {
   TEST_ASSERT_TRUE(wa_child->is_finished());
 }
 
+void test_QueuePopOnlyFinishedPrefix() {
+  TestContext tctx;
+  AeContext ctx{tctx};
+  MockSock sock;
+  static constexpr std::size_t kSmallQueue = 3;
+  PacketQueueManager<SendAction, kSmallQueue> queue{ctx};
+
+  auto const h_frame = Frame(31);
+  queue.AddPacket(ctx, sock, Frame(30));
+  queue.Send();
+  Pump(tctx);
+
+  int ok_h = 0;
+  auto* h = queue.AddPacket(ctx, sock, Frame(31));
+  h->status_event().Subscribe([&](WriteAction::Status s) {
+    if (s == WriteAction::Status::kSuccess) {
+      ++ok_h;
+    }
+  });
+
+  sock.defer_next = true;
+  queue.Send();
+  AssertBuffersEqual(Frame(30), sock.sent);
+
+  int stop_z = 0;
+  auto* z = queue.AddPacket(ctx, sock, Frame(32));
+  z->status_event().Subscribe([&](WriteAction::Status s) {
+    if (s == WriteAction::Status::kStop) {
+      ++stop_z;
+    }
+  });
+  z->Stop();
+  Pump(tctx);
+
+  queue.Send();
+  h->Send();
+  Pump(tctx);
+
+  auto expect = Frame(30);
+  expect.insert(expect.end(), h_frame.begin(), h_frame.end());
+  AssertBuffersEqual(expect, sock.sent);
+  TEST_ASSERT_EQUAL(1, ok_h);
+  TEST_ASSERT_EQUAL(1, stop_z);
+}
+
+void test_QueuePopStopsAtFirstUnfinished() {
+  TestContext tctx;
+  AeContext ctx{tctx};
+  MockSock sock;
+  static constexpr std::size_t kSmallQueue = 2;
+  PacketQueueManager<SendAction, kSmallQueue> queue{ctx};
+
+  sock.defer_next = true;
+  queue.AddPacket(ctx, sock, Frame(40));
+  queue.Send();
+  TEST_ASSERT_TRUE(sock.sent.empty());
+
+  int stop_tail = 0;
+  auto* tail = queue.AddPacket(ctx, sock, Frame(41));
+  tail->status_event().Subscribe([&](WriteAction::Status s) {
+    if (s == WriteAction::Status::kStop) {
+      ++stop_tail;
+    }
+  });
+  tail->Stop();
+  TEST_ASSERT_EQUAL(1, stop_tail);
+
+  queue.Send();
+  AssertBuffersEqual(Frame(40), sock.sent);
+  TEST_ASSERT_NULL(queue.AddPacket(ctx, sock, Frame(42)));
+}
+
+void test_QueuePopAllFinishedFreesCapacity() {
+  TestContext tctx;
+  AeContext ctx{tctx};
+  MockSock sock;
+  static constexpr std::size_t kSmallQueue = 3;
+  PacketQueueManager<SendAction, kSmallQueue> queue{ctx};
+
+  auto* a = queue.AddPacket(ctx, sock, Frame(50));
+  auto* b = queue.AddPacket(ctx, sock, Frame(51));
+  auto* c = queue.AddPacket(ctx, sock, Frame(52));
+  static_cast<void>(a);
+  static_cast<void>(b);
+  c->Stop();
+  b->Stop();
+  a->Stop();
+  Pump(tctx);
+
+  queue.Send();
+  Pump(tctx);
+  queue.Send();
+  Pump(tctx);
+
+  TEST_ASSERT_NOT_NULL(queue.AddPacket(ctx, sock, Frame(53)));
+  TEST_ASSERT_NOT_NULL(queue.AddPacket(ctx, sock, Frame(54)));
+  TEST_ASSERT_NOT_NULL(queue.AddPacket(ctx, sock, Frame(55)));
+  TEST_ASSERT_NULL(queue.AddPacket(ctx, sock, Frame(56)));
+}
+
 void test_QueueSingleFrameUnchanged() {
   TestContext tctx;
   AeContext ctx{tctx};
@@ -391,6 +491,9 @@ int test_tcp_send_action() {
   RUN_TEST(test_QueueBatchHostNotFinishedAfterFirstSegment);
   RUN_TEST(test_QueueBatchFailAfterFirstSegmentKeepsFirstSuccess);
   RUN_TEST(test_QueueBatchStopChildBeforeSend);
+  RUN_TEST(test_QueuePopOnlyFinishedPrefix);
+  RUN_TEST(test_QueuePopStopsAtFirstUnfinished);
+  RUN_TEST(test_QueuePopAllFinishedFreesCapacity);
   RUN_TEST(test_QueueSingleFrameUnchanged);
   return UNITY_END();
 }
