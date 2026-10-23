@@ -63,7 +63,10 @@ class SendAction final : public PacketSendAction {
    * \return false if either action already started sending or other is not a
    * single-frame action.
    */
-  bool Absorb(SendAction&& other) noexcept {
+  bool Absorb(SendAction& other) noexcept {
+    if (this == &other) {
+      return false;
+    }
     if (send_started_ || other.send_started_) {
       return false;
     }
@@ -73,10 +76,13 @@ class SendAction final : public PacketSendAction {
     if (is_done_ || other.is_done_) {
       return false;
     }
+    if (other.batch_host_ != nullptr) {
+      return false;
+    }
     if (socket_ != other.socket_) {
       return false;
     }
-    if (!other.segments_.empty() || !other.absorbed_.empty()) {
+    if (!other.segments_.empty()) {
       return false;
     }
     if (other.data_.empty()) {
@@ -86,13 +92,15 @@ class SendAction final : public PacketSendAction {
     EnsurePrimarySegment();
     data_.insert(data_.end(), other.data_.begin(), other.data_.end());
     other.data_.clear();
-    auto const absorbed_index = absorbed_.size();
-    absorbed_.push_back(std::move(other));
-    segments_.push_back({data_.size(), false, absorbed_index});
+    other.batch_host_ = this;
+    segments_.push_back({data_.size(), &other});
     return true;
   }
 
   void Send() override {
+    if (batch_host_ != nullptr) {
+      return;
+    }
     reenqueue_ = false;
 
     auto size_to_send = data_.size() - sent_offset_;
@@ -114,6 +122,10 @@ class SendAction final : public PacketSendAction {
   }
 
   void Stop() noexcept override {
+    if (batch_host_ != nullptr) {
+      batch_host_->Stop();
+      return;
+    }
     if (segments_.empty()) {
       is_done_ = true;
       set_status_.Reset();
@@ -123,7 +135,12 @@ class SendAction final : public PacketSendAction {
     AbortPending(WriteAction::Status::kStop);
   }
 
-  bool is_done() const override { return is_done_; }
+  bool is_done() const override {
+    if (batch_host_ != nullptr && !is_done_) {
+      return true;
+    }
+    return is_done_;
+  }
   bool re_enqueue() const override { return reenqueue_; }
 
  protected:
@@ -134,19 +151,22 @@ class SendAction final : public PacketSendAction {
  private:
   struct Segment {
     std::size_t end;
-    bool is_host;
-    std::size_t absorbed_index;
+    SendAction* action;
   };
 
-  SendAction& SegmentAction(Segment const& segment) noexcept {
-    return segment.is_host ? *this : absorbed_[segment.absorbed_index];
+  void ClearBatchHostLinks() noexcept {
+    for (auto const& segment : segments_) {
+      if (segment.action != this) {
+        segment.action->batch_host_ = nullptr;
+      }
+    }
   }
 
   void EnsurePrimarySegment() {
     if (!segments_.empty()) {
       return;
     }
-    segments_.push_back({data_.size(), true, 0});
+    segments_.push_back({data_.size(), this});
   }
 
   bool HostHasMultipleSegments() const noexcept {
@@ -208,6 +228,7 @@ class SendAction final : public PacketSendAction {
     if (is_finished() || !is_done_ || pending_status_tasks_ != 0) {
       return;
     }
+    ClearBatchHostLinks();
     Finish();
   }
 
@@ -221,7 +242,7 @@ class SendAction final : public PacketSendAction {
 
     while (completed_segment_idx_ < segments_.size() &&
            sent_offset_ >= segments_[completed_segment_idx_].end) {
-      CompleteSegment(SegmentAction(segments_[completed_segment_idx_]),
+      CompleteSegment(*segments_[completed_segment_idx_].action,
                       WriteAction::Status::kSuccess);
       ++completed_segment_idx_;
     }
@@ -239,7 +260,7 @@ class SendAction final : public PacketSendAction {
     is_done_ = true;
     for (; completed_segment_idx_ < segments_.size();
          ++completed_segment_idx_) {
-      CompleteSegment(SegmentAction(segments_[completed_segment_idx_]), status);
+      CompleteSegment(*segments_[completed_segment_idx_].action, status);
     }
     TryFinishHostAction();
   }
@@ -248,7 +269,7 @@ class SendAction final : public PacketSendAction {
   Sock* socket_;
   DataBuffer data_;
   std::vector<Segment> segments_;
-  std::vector<SendAction> absorbed_;
+  SendAction* batch_host_ = nullptr;
   std::size_t sent_offset_ = 0;
   std::size_t completed_segment_idx_ = 0;
   std::size_t pending_status_tasks_ = 0;
