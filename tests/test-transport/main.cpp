@@ -21,13 +21,8 @@ void tearDown() {}
 
 extern int test_data_packet_collector();
 
-namespace ae::test_tcp_send_action {
-int test_tcp_send_action();
-}
-
 int main() {
   int res = 0;
   res += test_data_packet_collector();
-  res += ae::test_tcp_send_action::test_tcp_send_action();
   return res;
 }

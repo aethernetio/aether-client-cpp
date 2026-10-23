@@ -27,7 +27,6 @@
 
 #    include <mutex>
 #    include <optional>
-#    include <vector>
 
 #    include "aether/ae_context.h"
 #    include "aether/common.h"
@@ -58,57 +57,14 @@ class SendAction final : public PacketSendAction {
 
   AE_CLASS_MOVE_ONLY(SendAction)
 
-  /**
-   * \brief Merge another fully formed, not-yet-sent frame into this action.
-   * \return false if either action already started sending or other is not a
-   * single-frame action.
-   */
-  bool Absorb(SendAction& other) noexcept {
-    if (this == &other) {
-      return false;
-    }
-    if (send_started_ || other.send_started_) {
-      return false;
-    }
-    if (sent_offset_ != 0 || other.sent_offset_ != 0) {
-      return false;
-    }
-    if (is_done_ || other.is_done_) {
-      return false;
-    }
-    if (other.batch_host_ != nullptr) {
-      return false;
-    }
-    if (socket_ != other.socket_) {
-      return false;
-    }
-    if (!other.segments_.empty()) {
-      return false;
-    }
-    if (other.data_.empty()) {
-      return false;
-    }
-
-    EnsurePrimarySegment();
-    data_.insert(data_.end(), other.data_.begin(), other.data_.end());
-    other.data_.clear();
-    other.batch_host_ = this;
-    segments_.push_back({data_.size(), &other});
-    return true;
-  }
-
   void Send() override {
-    if (batch_host_ != nullptr) {
-      return;
-    }
     reenqueue_ = false;
 
     auto size_to_send = data_.size() - sent_offset_;
-    send_started_ = true;
     auto res = socket_->Send(Span{data_.data() + sent_offset_, size_to_send});
     if (!res) {
       AE_TELED_ERROR("Data has not been written");
-      AbortPending(WriteAction::Status::kFail);
+      SetStatus(WriteAction::Status::kFail);
       return;
     }
     if (*res == 0) {
@@ -117,164 +73,35 @@ class SendAction final : public PacketSendAction {
 
     AE_TELED_DEBUG("Data has been written size {} data {}", *res, data_);
     sent_offset_ += *res;
-    OnSentProgress();
+
+    if (sent_offset_ >= data_.size()) {
+      SetStatus(WriteAction::Status::kSuccess);
+    }
     // reenque must happen on event from socket
   }
 
   void Stop() noexcept override {
-    if (batch_host_ != nullptr) {
-      batch_host_->Stop();
-      return;
-    }
-    if (segments_.empty()) {
-      is_done_ = true;
-      set_status_.Reset();
-      WriteAction::SetStatus(WriteAction::Status::kStop);
-      return;
-    }
-    AbortPending(WriteAction::Status::kStop);
+    is_done_ = true;
+    set_status_.Reset();
+    WriteAction::SetStatus(WriteAction::Status::kStop);
   }
 
-  bool is_done() const override {
-    if (batch_host_ != nullptr && !is_done_) {
-      return true;
-    }
-    return is_done_;
-  }
+  bool is_done() const override { return is_done_; }
   bool re_enqueue() const override { return reenqueue_; }
 
  protected:
   void SetStatus(WriteAction::Status status) noexcept override {
-    FinalizeHost(status);
+    is_done_ = true;
+    set_status_ = ae_context_.scheduler().Task(
+        [&, status]() { WriteAction::SetStatus(status); });
   }
 
  private:
-  struct Segment {
-    std::size_t end;
-    SendAction* action;
-  };
-
-  void ClearBatchHostLinks() noexcept {
-    for (auto const& segment : segments_) {
-      if (segment.action != this) {
-        segment.action->batch_host_ = nullptr;
-      }
-    }
-  }
-
-  void EnsurePrimarySegment() {
-    if (!segments_.empty()) {
-      return;
-    }
-    segments_.push_back({data_.size(), this});
-  }
-
-  bool HostHasMultipleSegments() const noexcept {
-    return segments_.size() > 1;
-  }
-
-  void OnTerminalTaskDone() noexcept {
-    if (pending_status_tasks_ == 0) {
-      return;
-    }
-    --pending_status_tasks_;
-    TryFinishHostAction();
-  }
-
-  void ScheduleSegmentTerminal(SendAction& target,
-                               WriteAction::Status status,
-                               bool finish_action) noexcept {
-    ++pending_status_tasks_;
-    target.set_status_.Reset();
-    target.set_status_ = ae_context_.scheduler().Task(
-        [this, &target, status, finish_action]() {
-          if (finish_action) {
-            target.WriteAction::SetStatus(status);
-          } else {
-            target.status_event_.Emit(status);
-          }
-          OnTerminalTaskDone();
-        });
-  }
-
-  void CompleteSegment(SendAction& target,
-                       WriteAction::Status status) noexcept {
-    if (&target != this) {
-      target.is_done_ = true;
-      ScheduleSegmentTerminal(target, status, true);
-      return;
-    }
-    if (HostHasMultipleSegments()) {
-      ScheduleSegmentTerminal(target, status, false);
-      return;
-    }
-    FinalizeHost(status);
-  }
-
-  void FinalizeHost(WriteAction::Status status) noexcept {
-    is_done_ = true;
-    ++pending_status_tasks_;
-    set_status_.Reset();
-    set_status_ = ae_context_.scheduler().Task([this, status]() {
-      WriteAction::SetStatus(status);
-      OnTerminalTaskDone();
-    });
-  }
-
-  void TryFinishHostAction() noexcept {
-    if (!HostHasMultipleSegments()) {
-      return;
-    }
-    if (is_finished() || !is_done_ || pending_status_tasks_ != 0) {
-      return;
-    }
-    ClearBatchHostLinks();
-    Finish();
-  }
-
-  void OnSentProgress() noexcept {
-    if (segments_.empty()) {
-      if (sent_offset_ >= data_.size()) {
-        FinalizeHost(WriteAction::Status::kSuccess);
-      }
-      return;
-    }
-
-    while (completed_segment_idx_ < segments_.size() &&
-           sent_offset_ >= segments_[completed_segment_idx_].end) {
-      CompleteSegment(*segments_[completed_segment_idx_].action,
-                      WriteAction::Status::kSuccess);
-      ++completed_segment_idx_;
-    }
-    if (sent_offset_ >= data_.size()) {
-      is_done_ = true;
-      TryFinishHostAction();
-    }
-  }
-
-  void AbortPending(WriteAction::Status status) noexcept {
-    if (segments_.empty()) {
-      FinalizeHost(status);
-      return;
-    }
-    is_done_ = true;
-    for (; completed_segment_idx_ < segments_.size();
-         ++completed_segment_idx_) {
-      CompleteSegment(*segments_[completed_segment_idx_].action, status);
-    }
-    TryFinishHostAction();
-  }
-
   AeContext ae_context_;
   Sock* socket_;
   DataBuffer data_;
-  std::vector<Segment> segments_;
-  SendAction* batch_host_ = nullptr;
   std::size_t sent_offset_ = 0;
-  std::size_t completed_segment_idx_ = 0;
-  std::size_t pending_status_tasks_ = 0;
   bool is_done_ = false;
-  bool send_started_ = false;
   bool reenqueue_ = false;
   TaskSubscription set_status_;
 };
