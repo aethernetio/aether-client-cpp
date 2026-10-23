@@ -75,8 +75,12 @@ inline bool SetNonblocking(int sock) {
 UnixTcpSocket::UnixTcpSocket(Ptr<IPoller> const& poller)
     : UnixSocket(*poller, MakeSocket()),
       connection_state_{ConnectionState::kNone} {
-  // 1500 is our default MTU for TCP
+  // 1500 is our default MTU for TCP; benchmark may override via compile define.
+#  if defined(AE_UNIX_TCP_RECV_BUFFER_BYTES)
+  recv_buffer_.resize(AE_UNIX_TCP_RECV_BUFFER_BYTES);
+#  else
   recv_buffer_.resize(1500);
+#  endif
 }
 
 int UnixTcpSocket::MakeSocket() {
