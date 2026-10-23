@@ -64,6 +64,9 @@ class SendAction final : public PacketSendAction {
    * single-frame action.
    */
   bool Absorb(SendAction&& other) noexcept {
+    if (send_started_ || other.send_started_) {
+      return false;
+    }
     if (sent_offset_ != 0 || other.sent_offset_ != 0) {
       return false;
     }
@@ -93,6 +96,7 @@ class SendAction final : public PacketSendAction {
     reenqueue_ = false;
 
     auto size_to_send = data_.size() - sent_offset_;
+    send_started_ = true;
     auto res = socket_->Send(Span{data_.data() + sent_offset_, size_to_send});
     if (!res) {
       AE_TELED_ERROR("Data has not been written");
@@ -249,6 +253,7 @@ class SendAction final : public PacketSendAction {
   std::size_t completed_segment_idx_ = 0;
   std::size_t pending_status_tasks_ = 0;
   bool is_done_ = false;
+  bool send_started_ = false;
   bool reenqueue_ = false;
   TaskSubscription set_status_;
 };

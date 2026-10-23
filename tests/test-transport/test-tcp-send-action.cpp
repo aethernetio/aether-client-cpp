@@ -44,6 +44,8 @@ struct MockSock final : ISocket {
   std::vector<std::uint8_t> sent;
   std::optional<std::size_t> limit_next{};
   bool fail_next = false;
+  bool defer_next = false;
+  DataBuffer deferred{};
 
   ISocket& ReadyToWrite(ReadyToWriteCb) override { return *this; }
   ISocket& RecvData(RecvDataCb) override { return *this; }
@@ -55,6 +57,17 @@ struct MockSock final : ISocket {
     if (fail_next) {
       fail_next = false;
       return std::nullopt;
+    }
+    if (!deferred.empty()) {
+      sent.insert(sent.end(), deferred.begin(), deferred.end());
+      auto n = deferred.size();
+      deferred.clear();
+      return n;
+    }
+    if (defer_next) {
+      defer_next = false;
+      deferred.assign(data.begin(), data.end());
+      return 0;
     }
     auto n = data.size();
     if (limit_next) {
@@ -75,6 +88,104 @@ static DataBuffer Frame(std::uint8_t tag) {
 }
 
 static void Pump(TestContext& ctx) { static_cast<void>(ctx.Update()); }
+
+static void AssertBuffersEqual(DataBuffer const& a, DataBuffer const& b) {
+  TEST_ASSERT_EQUAL(a.size(), b.size());
+  if (a.size() == b.size()) {
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(a.data(), b.data(), a.size());
+  }
+}
+
+void test_AbsorbAllowedBeforeSend() {
+  TestContext tctx;
+  AeContext ctx{tctx};
+  MockSock sock;
+
+  SendAction host{ctx, sock, Frame(1)};
+  SendAction other{ctx, sock, Frame(2)};
+  TEST_ASSERT_TRUE(host.Absorb(std::move(other)));
+  TEST_ASSERT_TRUE(sock.sent.empty());
+}
+
+void test_AbsorbRejectedWhenHostSendPending() {
+  TestContext tctx;
+  AeContext ctx{tctx};
+  MockSock sock;
+  sock.defer_next = true;
+
+  auto const host_frame = Frame(1);
+  auto const other_frame = Frame(2);
+  SendAction host{ctx, sock, Frame(1)};
+  SendAction other{ctx, sock, Frame(2)};
+
+  int host_status = 0;
+  int other_status = 0;
+  auto sub_host = host.status_event().Subscribe([&](WriteAction::Status s) {
+    if (s == WriteAction::Status::kSuccess) {
+      ++host_status;
+    }
+  });
+  auto sub_other = other.status_event().Subscribe([&](WriteAction::Status s) {
+    if (s == WriteAction::Status::kSuccess) {
+      ++other_status;
+    }
+  });
+
+  host.Send();
+  TEST_ASSERT_FALSE(host.Absorb(std::move(other)));
+
+  host.Send();
+  Pump(tctx);
+  AssertBuffersEqual(host_frame, sock.sent);
+
+  other.Send();
+  Pump(tctx);
+  auto expect = host_frame;
+  expect.insert(expect.end(), other_frame.begin(), other_frame.end());
+  AssertBuffersEqual(expect, sock.sent);
+  TEST_ASSERT_EQUAL(1, host_status);
+  TEST_ASSERT_EQUAL(1, other_status);
+}
+
+void test_AbsorbRejectedWhenOtherSendPending() {
+  TestContext tctx;
+  AeContext ctx{tctx};
+  MockSock sock;
+  sock.defer_next = true;
+
+  auto const host_frame = Frame(10);
+  auto const other_frame = Frame(11);
+  SendAction host{ctx, sock, Frame(10)};
+  SendAction other{ctx, sock, Frame(11)};
+
+  int host_status = 0;
+  int other_status = 0;
+  host.status_event().Subscribe([&](WriteAction::Status s) {
+    if (s == WriteAction::Status::kSuccess) {
+      ++host_status;
+    }
+  });
+  other.status_event().Subscribe([&](WriteAction::Status s) {
+    if (s == WriteAction::Status::kSuccess) {
+      ++other_status;
+    }
+  });
+
+  other.Send();
+  TEST_ASSERT_FALSE(host.Absorb(std::move(other)));
+
+  other.Send();
+  Pump(tctx);
+  AssertBuffersEqual(other_frame, sock.sent);
+
+  host.Send();
+  Pump(tctx);
+  auto expect = other_frame;
+  expect.insert(expect.end(), host_frame.begin(), host_frame.end());
+  AssertBuffersEqual(expect, sock.sent);
+  TEST_ASSERT_EQUAL(1, host_status);
+  TEST_ASSERT_EQUAL(1, other_status);
+}
 
 void test_QueueBatchHostNotFinishedAfterFirstSegment() {
   TestContext tctx;
@@ -222,6 +333,9 @@ void test_QueueSingleFrameUnchanged() {
 
 int test_tcp_send_action() {
   UNITY_BEGIN();
+  RUN_TEST(test_AbsorbAllowedBeforeSend);
+  RUN_TEST(test_AbsorbRejectedWhenHostSendPending);
+  RUN_TEST(test_AbsorbRejectedWhenOtherSendPending);
   RUN_TEST(test_QueueBatchHostNotFinishedAfterFirstSegment);
   RUN_TEST(test_QueueBatchFailAfterFirstSegmentKeepsFirstSuccess);
   RUN_TEST(test_QueueSingleFrameUnchanged);
