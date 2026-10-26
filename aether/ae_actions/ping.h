@@ -48,6 +48,8 @@ class Ping {
   Ping(AeContext const& ae_context,
        CloudServerConnection& cloud_server_connection, Duration next_ping_hint,
        Duration rx_window, Duration timeout);
+  // `timeout` is the hard wait for a Pong (cleanup). Local Presence retry
+  // deadlines (pXX) are owned by LocalPresenceMachine, not this timer.
 
   AE_CLASS_NO_COPY_MOVE(Ping);
 

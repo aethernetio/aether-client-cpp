@@ -27,7 +27,6 @@ constexpr auto kDefaultTiming = RxTiming{
     .conf = RxTimingConf::Every(std::chrono::milliseconds{AE_PING_INTERVAL_MS}),
     .next_rx_point = {},
     .recordet_at = {}};
-;
 
 std::array<RxTiming, kMaxRxServerPriorities> MakeDefaultRxTimings() {
   std::array<RxTiming, kMaxRxServerPriorities> timings{};
@@ -36,130 +35,71 @@ std::array<RxTiming, kMaxRxServerPriorities> MakeDefaultRxTimings() {
 }
 }  // namespace
 
-ClientConnectivityPolicy::RxTimingConfig::RxTimingConfig(
-    ClientConnectivityPolicy& policy, RequestPolicy::Variant targets)
-    : policy_{&policy} {
-  policy_->rx_targets_ = std::move(targets);
-}
-
-ClientConnectivityPolicy::RxTimingConfig&
-ClientConnectivityPolicy::RxTimingConfig::ForAllPriorities(RxTimingConf conf) {
-  for (auto& item : policy_->rx_timings_) {
-    item.conf = conf;
-  }
-  return *this;
-}
-
-ClientConnectivityPolicy::SuspendBlocker::SuspendBlocker(
-    ClientConnectivityPolicy& policy)
-    : policy_{&policy} {
-  policy_->IncrementSuspendBlock();
-}
-
-ClientConnectivityPolicy::SuspendBlocker::~SuspendBlocker() { Reset(); }
-
-ClientConnectivityPolicy::SuspendBlocker::SuspendBlocker(
-    SuspendBlocker&& other) noexcept
-    : policy_{std::exchange(other.policy_, nullptr)} {}
-
-ClientConnectivityPolicy::SuspendBlocker&
-ClientConnectivityPolicy::SuspendBlocker::operator=(
-    SuspendBlocker&& other) noexcept {
-  if (this != &other) {
-    Reset();
-    policy_ = std::exchange(other.policy_, nullptr);
-  }
-  return *this;
-}
-
-void ClientConnectivityPolicy::SuspendBlocker::Reset() {
-  if (policy_ != nullptr) {
-    policy_->DecrementSuspendBlock();
-    policy_ = nullptr;
-  }
-}
-
 ClientConnectivityPolicy::ClientConnectivityPolicy()
     : rx_targets_{RequestPolicy::All{}}, rx_timings_{MakeDefaultRxTimings()} {}
 
 #ifdef AE_DISTILLATION
 ClientConnectivityPolicy::ClientConnectivityPolicy(ObjProp prop)
     : Base{prop},
-      rx_targets_{RequestPolicy::All{}},
-      rx_timings_{MakeDefaultRxTimings()},
-      suspend_allowed_event_{std::in_place, AeContext{*this}} {}
+      connectivity_policy_{
+          std::make_unique<ConnectivityPolicy>(AeContext{*this})} {
+  // set state from the policy
+  rx_targets_ = connectivity_policy_->rx_targets();
+  rx_timings_ = connectivity_policy_->rx_timings();
+  server_presence_ = connectivity_policy_->server_presence();
+
+  connectivity_policy_->state_changed().Subscribe([&]() {
+    // update state from the policy
+    rx_targets_ = connectivity_policy_->rx_targets();
+    rx_timings_ = connectivity_policy_->rx_timings();
+    server_presence_ = connectivity_policy_->server_presence();
+  });
+}
 #endif
 
 void ClientConnectivityPolicy::Loaded() {
-  suspend_allowed_event_.emplace(AeContext{*this});
-  ResetRuntimeState();
+  // make policy with loaded state
+  connectivity_policy_ = std::make_unique<ConnectivityPolicy>(
+      AeContext{*this}, rx_targets_, rx_timings_, server_presence_);
+  // make state actual according to policy
+  rx_targets_ = connectivity_policy_->rx_targets();
+  rx_timings_ = connectivity_policy_->rx_timings();
+  server_presence_ = connectivity_policy_->server_presence();
+
+  connectivity_policy_->state_changed().Subscribe([&]() {
+    // update state from the policy
+    rx_targets_ = connectivity_policy_->rx_targets();
+    rx_targets_ = connectivity_policy_->rx_targets();
+    server_presence_ = connectivity_policy_->server_presence();
+  });
 }
 
 auto ClientConnectivityPolicy::ConfigureRxTimings(
     RequestPolicy::Variant targets) -> RxTimingConfig {
-  return RxTimingConfig{*this, std::move(targets)};
+  return connectivity_policy_->ConfigureRxTimings(targets);
 }
 
-ClientConnectivityPolicy::SuspendBlocker
-ClientConnectivityPolicy::AcquireSuspendBlock() {
-  return SuspendBlocker{*this};
+void ClientConnectivityPolicy::ConfigureServerRxTiming(
+    ServerId server_id, RxTimingConf conf,
+    Percentile rtt_reliability_percentile) {
+  connectivity_policy_->ConfigureServerRxTiming(server_id, conf,
+                                                rtt_reliability_percentile);
+}
+
+auto ClientConnectivityPolicy::suspend_allowed_event() noexcept
+    -> Event<void()> const& {
+  return connectivity_policy_->suspend_allowed_event();
 }
 
 ConnectivityStatus ClientConnectivityPolicy::GetStatus() const noexcept {
-  auto current_time = Now();
-  auto next_service_time = TimePoint::max();
-  for (auto const& t : rx_timings_) {
-    next_service_time = std::min(
-        next_service_time,
-        (t.recordet_at > current_time) ? current_time : t.next_rx_point);
-  }
-  return ConnectivityStatus{.can_suspend = can_suspend_,
-                            .suspend_block_count = suspend_block_count_,
-                            .next_service_time = next_service_time};
+  return connectivity_policy_->GetStatus();
 }
 
 void ClientConnectivityPolicy::ResetRxTimings() {
+  connectivity_policy_->ResetRxTimings();
   for (auto& t : rx_timings_) {
     t.next_rx_point = {};
     t.recordet_at = {};
   }
 }
-
-void ClientConnectivityPolicy::ReportNextServiceTime(
-    std::size_t priority, TimePoint next_service_time) {
-  assert(priority < rx_timings_.size() && "Invalid priority value");
-
-  auto& t = rx_timings_.at(priority);
-  t.next_rx_point = next_service_time;
-  t.recordet_at = Now();
-}
-
-void ClientConnectivityPolicy::ResetRuntimeState() {
-  auto current_time = Now();
-  for (auto& t : rx_timings_) {
-    // if clock was reset, also reset next rx points
-    if (current_time < t.recordet_at) {
-      t.next_rx_point = {};
-      t.recordet_at = {};
-    }
-  }
-}
-
-void ClientConnectivityPolicy::IncrementSuspendBlock() {
-  ++suspend_block_count_;
-  can_suspend_ = false;
-}
-
-void ClientConnectivityPolicy::DecrementSuspendBlock() {
-  assert(suspend_block_count_ > 0);
-  if (suspend_block_count_ == 0) {
-    return;
-  }
-  --suspend_block_count_;
-  can_suspend_ = suspend_block_count_ == 0;
-  if (can_suspend_) {
-    suspend_allowed_event_->Emit();
-  }
-}
-
 }  // namespace ae

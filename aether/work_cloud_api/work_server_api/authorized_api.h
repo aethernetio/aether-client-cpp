@@ -24,6 +24,7 @@
 #include "aether/types/uid.h"
 
 #include "aether/work_cloud_api/ae_message.h"
+#include "aether/work_cloud_api/client_timing.h"
 #include "aether/work_cloud_api/cloud_configs.h"
 #include "aether/work_cloud_api/telemetric.h"
 
@@ -43,12 +44,14 @@ class AuthorizedApi : public DeclareApi<AuthorizedApi> {
 
   void SendTelemetry(Telemetric const& telemetric);
 
+  ApiPromise<ClientTiming> GetClientTiming(Uid uid);
+
   void ReportAppliedConfigs(std::vector<AppliedConfig> const& configs);
 
   API_LIST(METHOD(4, Ping), METHOD(6, SendMessage), METHOD(7, SendMessages),
            METHOD(11, CheckAccessForSendMessage), METHOD(12, ResolveServer),
            METHOD(13, ResolveClouds), METHOD(18, SendTelemetry),
-           METHOD(38, ReportAppliedConfigs))
+           METHOD(35, GetClientTiming), METHOD(38, ReportAppliedConfigs))
 };
 }  // namespace ae
 

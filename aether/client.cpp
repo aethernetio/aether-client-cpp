@@ -18,6 +18,7 @@
 
 #include <utility>
 
+#include "aether/ae_actions/query_peer_presence.h"
 #include "aether/ae_actions/telemetry.h"
 
 #include "aether/aether.h"
@@ -72,7 +73,7 @@ CloudServerConnections& Client::cloud_connection() {
 
 #if AE_ENABLE_PING
     ping_cloud_servers_ = std::make_unique<PingCloudServers>(
-        *aether_, *cloud_connection_, *connectivity_policy().Load());
+        *aether_, *cloud_connection_, connectivity_policy().Load()->policy());
 #endif
 
 #if TELEMETRY_ENABLED
@@ -90,6 +91,23 @@ CloudServerConnections& Client::cloud_connection() {
 ClientConnectivityPolicy::ptr const& Client::connectivity_policy() {
   assert(connectivity_policy_.is_valid());
   return connectivity_policy_;
+}
+
+bool Client::IsLocallyOnline() const {
+  if (!connectivity_policy_.is_valid()) {
+    return false;
+  }
+  return connectivity_policy_.Load()->policy().IsLocallyOnline();
+}
+
+QueryPeerPresence& Client::QueryPeerPresence(Uid peer_uid) {
+  if (query_peer_presence_ && !query_peer_presence_->is_finished() &&
+      query_peer_presence_->peer_uid() == peer_uid) {
+    return *query_peer_presence_;
+  }
+  query_peer_presence_ = std::make_unique<::ae::QueryPeerPresence>(
+      AeContext{*aether_}, *this, peer_uid);
+  return *query_peer_presence_;
 }
 
 P2pMessageStreamManager& Client::message_stream_manager() {

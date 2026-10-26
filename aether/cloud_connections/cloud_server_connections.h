@@ -94,6 +94,12 @@ class CloudServerConnections {
   void Restream();
 
   /**
+   * \brief Quarantine a server after CloudRequest response-retry exhaustion.
+   * Uses the existing quarantine / reconcile / replacement path.
+   */
+  void QuarantineForNoResponse(CloudServerConnection& server_connection);
+
+  /**
    * \brief Iterate over servers according to the request policy.
    * Calls func with CloudServerConnection* for each server.
    */

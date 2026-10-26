@@ -19,93 +19,20 @@
 
 #include <array>
 #include <cassert>
-#include <cstddef>
-#include <cstdint>
-#include <optional>
+#include <map>
 
 #include "aether-objects/obj/obj.h"
 
-#include "aether/clock.h"
-#include "aether/common.h"
-#include "aether/config.h"
-#include "aether/events/events.h"
-
-#include "aether/cloud_connections/request_policy.h"
+#include "aether/connection_manager/connectivity_policy.h"
 
 namespace ae {
-
-inline constexpr std::size_t kMaxRxServerPriorities{
-    AE_CLOUD_MAX_SERVER_CONNECTIONS};
-static_assert(kMaxRxServerPriorities > 0);
-
-struct RxTimingConf {
-  AE_REFLECT_MEMBERS(interval, rx_window)
-
-  Duration interval{};
-  Duration rx_window{};
-
-  static constexpr RxTimingConf Every(Duration i) {
-    return RxTimingConf{.interval = i, .rx_window = i};
-  }
-
-  constexpr RxTimingConf WithWindow(Duration rx_w) const {
-    return RxTimingConf{.interval = interval, .rx_window = rx_w};
-  }
-};
-
-struct RxTiming {
-  AE_REFLECT_MEMBERS(conf, next_rx_point, recordet_at)
-
-  RxTimingConf conf;
-  TimePoint next_rx_point;
-  TimePoint recordet_at;
-};
-
-struct ConnectivityStatus {
-  bool can_suspend{true};
-  std::uint8_t suspend_block_count{};
-  TimePoint next_service_time;
-};
 
 class ClientConnectivityPolicy : public Obj {
   AE_OBJECT(ClientConnectivityPolicy, Obj, 0)
 
- public:
-  class RxTimingConfig {
-   public:
-    RxTimingConfig(ClientConnectivityPolicy& policy,
-                   RequestPolicy::Variant targets);
-
-    RxTimingConfig& ForAllPriorities(RxTimingConf conf);
-    template <std::size_t Priority>
-    RxTimingConfig& ForPriority(RxTimingConf conf) {
-      static_assert(Priority < kMaxRxServerPriorities);
-      policy_->rx_timings_[Priority].conf = conf;
-      return *this;
-    }
-
-   private:
-    ClientConnectivityPolicy* policy_;
-  };
-
-  class SuspendBlocker {
-   public:
-    SuspendBlocker() = default;
-    explicit SuspendBlocker(ClientConnectivityPolicy& policy);
-    ~SuspendBlocker();
-
-    SuspendBlocker(SuspendBlocker&& other) noexcept;
-    SuspendBlocker& operator=(SuspendBlocker&& other) noexcept;
-    SuspendBlocker(SuspendBlocker const&) = delete;
-    SuspendBlocker& operator=(SuspendBlocker const&) = delete;
-
-    void Reset();
-
-   private:
-    ClientConnectivityPolicy* policy_{};
-  };
-
   ClientConnectivityPolicy();
+
+ public:
 #ifdef AE_DISTILLATION
   explicit ClientConnectivityPolicy(ObjProp prop);
 #endif
@@ -117,36 +44,31 @@ class ClientConnectivityPolicy : public Obj {
   RxTimingConfig ConfigureRxTimings(
       RequestPolicy::Variant targets = RequestPolicy::All{});
 
-  RequestPolicy::Variant const& rx_targets() const noexcept {
-    return rx_targets_;
-  }
-  std::array<RxTiming, kMaxRxServerPriorities> const& rx_timings()
-      const noexcept {
-    return rx_timings_;
-  }
-  Event<void()> const& suspend_allowed_event() noexcept {
-    return *suspend_allowed_event_;
-  }
+  // Per-server runtime config. Does not invent ONLINE until a confirming Pong.
+  void ConfigureServerRxTiming(
+      ServerId server_id, RxTimingConf conf,
+      Percentile rtt_reliability_percentile = kDefaultRttReliabilityPercentile);
+
+  Event<void()> const& suspend_allowed_event() noexcept;
 
   ConnectivityStatus GetStatus() const noexcept;
   void ResetRxTimings();
 
-  SuspendBlocker AcquireSuspendBlock();
-  void ReportNextServiceTime(std::size_t priority, TimePoint next_service_time);
+  auto& policy() noexcept {
+    assert(!!connectivity_policy_ &&
+           "The client connectivity policy is not init");
+    return *connectivity_policy_;
+  }
 
  private:
   void Loaded();
   void ResetRuntimeState();
-  void IncrementSuspendBlock();
-  void DecrementSuspendBlock();
 
   RequestPolicy::Variant rx_targets_;
   std::array<RxTiming, kMaxRxServerPriorities> rx_timings_;
+  std::map<ServerId, ServerPresenceState> server_presence_;
 
-  bool can_suspend_{true};
-  std::uint8_t suspend_block_count_{};
-
-  std::optional<Event<void()>> suspend_allowed_event_;
+  std::unique_ptr<ConnectivityPolicy> connectivity_policy_;
 };
 
 }  // namespace ae

@@ -42,6 +42,10 @@ void AuthorizedApi::SendTelemetry(Telemetric const& telemetric) {
   ClientMethod<&AuthorizedApi::SendTelemetry>(telemetric);
 }
 
+ApiPromise<ClientTiming> AuthorizedApi::GetClientTiming(Uid uid) {
+  return ClientMethod<&AuthorizedApi::GetClientTiming>(uid);
+}
+
 void AuthorizedApi::ReportAppliedConfigs(
     std::vector<AppliedConfig> const& configs) {
   ClientMethod<&AuthorizedApi::ReportAppliedConfigs>(configs);
