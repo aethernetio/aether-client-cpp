@@ -128,20 +128,13 @@ void Ping::Start(TimePoint current_time) {
     write_sub_.Reset();
   }
 
+
 #  if DEBUG
   cc->LoginApiCall([&](ApiContext<LoginApi>& api_call) {
-    api_call->GetMyIp().Subscribe([&](auto&& res) noexcept {
-      if (res) {
-        auto&& ip = std::forward<decltype(res)>(res).value();
-        AE_TELED_DEBUG("Server id: {}, our public ip: {}:{}, coords: {},{}",
-                       server_id_, ip.ip, ip.port, ip.latitude, ip.longitude);
-      } else {
-        AE_TELED_ERROR("Get my ip request error {}",
-                       std::forward<decltype(res)>(res).error());
-      }
-    });
+    api_call->GetMyIp();
   });
 #  endif
+
 }
 
 void Ping::PingResponse(RequestId request_id) {
