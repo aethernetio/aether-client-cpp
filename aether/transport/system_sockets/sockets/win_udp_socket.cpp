@@ -27,8 +27,17 @@
 #  include "aether/tele.h"
 
 namespace ae {
+
+// Outbound UDP payloads should stay near MTU to avoid IP fragmentation on send.
+// This does not cap WinSocket receive capacity below.
+static constexpr std::size_t kWinUdpPreferredSendDatagramBytes = 1200;
+
+// IOCP recv buffer must hold one complete datagram; cloud servers may aggregate
+// payloads larger than the preferred send size without changing StreamInfo MTU.
+static constexpr std::size_t kWinUdpRecvDatagramBufferBytes = 65536;
+
 WinUdpSocket::WinUdpSocket(Ptr<IPoller> const& poller)
-    : WinSocket{*poller, 1200} {
+    : WinSocket{*poller, kWinUdpRecvDatagramBufferBytes} {
   bool created = false;
 
   // ::socket() sets WSA_FLAG_OVERLAPPED by default that allows us to use iocp
