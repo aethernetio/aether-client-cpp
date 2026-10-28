@@ -25,7 +25,11 @@ ClientApiUnsafe::ClientApiUnsafe(EventSystem& event_system,
     : server_pub_key_event{event_system},
       pow_params_event{event_system},
       resolved_servers_event{event_system},
+
       ping_ack_event{event_system},
+      registration_direct_event{event_system},
+
+
       decrypt_provider_{&decrypt_provider},
       client_safe_api_{event_system} {}
 
@@ -52,6 +56,11 @@ void ClientApiUnsafe::SendPowParams(PowParams params) {
 void ClientApiUnsafe::SendResolvedServers(std::vector<ServerDescriptor> servers) {
   resolved_servers_event.Emit(std::move(servers));
 }
+
+void ClientApiUnsafe::SendRegistrationDirect(RegistrationDirectResult result) {
+  registration_direct_event.Emit(std::move(result));
+}
+
 
 void ClientApiUnsafe::PingAck() {
   ping_ack_event.Emit();
