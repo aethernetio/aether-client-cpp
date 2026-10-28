@@ -65,8 +65,43 @@ Registration::Registration(AeContext const& ae_context,
   // parent uid must not be empty
   assert(!parent_uid_.empty());
 
+
   InitConnection();
-  Run();
+
+  server_pub_key_sub_ = client_root_api_.server_pub_key_event.Subscribe(
+      [this](SignedKey const& signed_key) {
+        if (!CryptoSignVerify(signed_key.sign, signed_key.key, sign_pk_)) {
+          AE_TELE_ERROR(RegisterGetKeysVerificationFailed,
+                        "Sign verification failed");
+          return;
+        }
+        server_pub_key_ = signed_key.key;
+        root_crypto_provider_.SetEncryptionKey(server_pub_key_);
+        AE_TELED_INFO("Key received");
+        RequestPowParams();
+      });
+  pow_params_sub_ = client_root_api_.pow_params_event.Subscribe(
+      [this](PowParams const& params) {
+        pow_params_ = params;
+        MakeRegistration();
+      });
+  reg_direct_sub_ = client_root_api_.registration_direct_event.Subscribe(
+      [this](RegistrationDirectResult const& result) {
+        ephemeral_uid_ = result.ephemeral_uid;
+        client_uid_ = result.uid;
+        client_cloud_.clear();
+        for (auto const& sid : result.cloud) client_cloud_.push_back(sid);
+        ResolveCloud();
+      });
+  resolved_servers_sub_ = client_root_api_.resolved_servers_event.Subscribe(
+      [this](std::vector<ServerDescriptor> const& servers) {
+        auto cfg = OnCloudResolved(servers);
+        registration_event_.Emit(Ok(std::move(cfg)));
+        Finish();
+      });
+
+
+  GetKeys();
 }
 
 Registration::~Registration() { AE_TELED_DEBUG("~Registration"); }
@@ -100,7 +135,7 @@ void Registration::InitConnection() {
 void Registration::Restream() { root_server_select_stream_.Restream(); }
 
 
-auto Registration::GetKeys() {
+void Registration::GetKeys() {
   AE_TELE_INFO(RegisterGetKeys, "GetKeys");
   server_reg_root_api_.GetPublicKey(kDefaultCryptoLibProfile);
     return;
@@ -108,7 +143,7 @@ auto Registration::GetKeys() {
 
 
 
-auto Registration::RequestPowParams() {
+void Registration::RequestPowParams() {
   AE_TELE_INFO(RegisterRequestPowParams, "Request proof of work params");
   server_reg_root_api_.Enter(
       kDefaultCryptoLibProfile,
@@ -121,7 +156,7 @@ auto Registration::RequestPowParams() {
 
 
 
-auto Registration::MakeRegistration() {
+void Registration::MakeRegistration() {
   AE_TELE_INFO(RegisterMakeRegistration, "Make registration");
 
   auto proofs = ProofOfWork::ComputeProofOfWork(
@@ -148,7 +183,7 @@ auto Registration::MakeRegistration() {
 
 
 
-auto Registration::ResolveCloud() {
+void Registration::ResolveCloud() {
   AE_TELE_INFO(RegisterResolveCloud, "Resolve cloud as [{}]", client_cloud_);
   server_reg_root_api_.Enter(kDefaultCryptoLibProfile,
       [this](ApiContext<ServerRegistrationApi>& server_api) noexcept {
