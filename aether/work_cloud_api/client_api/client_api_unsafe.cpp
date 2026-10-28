@@ -33,4 +33,21 @@ void ClientApiUnsafe::SendSafeApiData(SubApi<ClientApiSafe> sub_api) {
     server_context().reader().Cancel();
   }
 }
+
+void ClientApiUnsafe::SendAsymmetricPublicKey(SignedKey key) {
+  server_pub_key_event.Emit(std::move(key));
+}
+
+void ClientApiUnsafe::SendPowParams(PowParams params) {
+  pow_params_event.Emit(std::move(params));
+}
+
+void ClientApiUnsafe::SendResolvedServers(std::vector<ServerDescriptor> servers) {
+  resolved_servers_event.Emit(std::move(servers));
+}
+
+void ClientApiUnsafe::PingAck() {
+  ping_ack_event.Emit();
+}
+
 }  // namespace ae

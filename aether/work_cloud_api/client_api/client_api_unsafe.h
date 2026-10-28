@@ -18,11 +18,18 @@
 #define AETHER_WORK_CLOUD_API_CLIENT_API_CLIENT_API_UNSAFE_H_
 
 #include "aether/api_protocol/api_protocol.h"
+
 #include "aether/crypto/icrypto_provider.h"
 
 #include "aether/work_cloud_api/client_api/client_api_safe.h"
+#include "aether/events/events.h"
+#include "aether/crypto/signed_key.h"
+#include "aether/work_cloud_api/server_descriptor.h"
+#include "aether/registration/api/server_registration_api.h"
 
 namespace ae {
+
+
 class ClientApiUnsafe : public DeclareApi<ClientApiUnsafe> {
  public:
   explicit ClientApiUnsafe(EventSystem& event_system,
@@ -30,9 +37,33 @@ class ClientApiUnsafe : public DeclareApi<ClientApiUnsafe> {
 
   void SendSafeApiData(SubApi<ClientApiSafe> sub_api);
 
-  ReturnResultApi return_result;
+  Event<void(SignedKey)> server_pub_key_event;
+  Event<void(PowParams)> pow_params_event;
+  Event<void(std::vector<ServerDescriptor>)> resolved_servers_event;
+  Event<void()> ping_ack_event;
 
-  API_LIST(METHOD(4, SendSafeApiData))
+  void SendAsymmetricPublicKey(SignedKey key);
+  void SendPowParams(PowParams params);
+  void SendResolvedServers(std::vector<ServerDescriptor> servers);
+  void PingAck();
+
+  API_LIST(METHOD(4, SendSafeApiData), METHOD(70, SendAsymmetricPublicKey),
+           METHOD(67, SendPowParams), METHOD(68, SendResolvedServers),
+           METHOD(24, PingAck))
+
+  ClientApiSafe& client_api_safe() { return client_safe_api_; }
+
+ private:
+  IDecryptProvider* decrypt_provider_;
+  ClientApiSafe client_safe_api_;
+};
+}  // namespace ae
+
+#endif  // AETHER_WORK_CLOUD_API_CLIENT_API_CLIENT_API_UNSAFE_H_
+
+
+API_LIST(METHOD(4, SendSafeApiData), METHOD(70, SendAsymmetricPublicKey), METHOD(67, SendPowParams), METHOD(68, SendResolvedServers), METHOD(24, PingAck))
+
 
   ClientApiSafe& client_api_safe() { return client_safe_api_; }
 
