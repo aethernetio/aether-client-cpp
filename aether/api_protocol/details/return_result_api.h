@@ -133,9 +133,11 @@ class ReturnResultApi {
     }
   }
 
+
   static consteval auto ServeApiList() {
-    return TypeList<RegSendResult, RegSendError>{};
+    return TypeList<>{};
   }
+
 };
 
 }  // namespace ae

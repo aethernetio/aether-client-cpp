@@ -110,15 +110,15 @@ struct MessageTrait<method_prt> {
   static constexpr bool kReturnValue = false;
 };
 
+
 template <typename C, typename Ret, typename... Args,
           ApiPromise<Ret> (C::*method_prt)(Args...)>
 struct MessageTrait<method_prt> {
   using args_list = TypeList<typename ArgsReplace<Args>::type...>;
-  using message_type =
-      GenericMessage<RequestId, typename ArgsReplace<Args>::type...>;
-  using return_type = Ret;
-  static constexpr bool kReturnValue = true;
+  using message_type = GenericMessage<typename ArgsReplace<Args>::type...>;
+  static constexpr bool kReturnValue = false;
 };
+
 
 template <typename Reg>
   requires(IsRegMethod<Reg>::value)
@@ -308,35 +308,15 @@ void DeclareApi<Api>::InvokeApi(DeclareApi& self,
     return (static_cast<Api&>(self).*
             RegMethod::kMethod)(std::forward<Args>(args)...);
   };
-  if constexpr (Trait::kReturnValue) {
-    // setup request id into server method invoke context
-    auto request_id = reader.TryExtract<RequestId>();
-    if (!request_id) {
-      reader.Cancel();
-      return;
-    }
-    server_context.SetRequestId(*request_id);
-    auto m = reader.TryExtract<M>();
-    if (!m) {
-      reader.Cancel();
-      return;
-    }
-    ApiPromise<typename Trait::return_type> promise =
-        std::apply(invoker, m->fields);
-    // Currently the server api implementation class responsible for invoke
-    // SendResult/SendError to actually return vale
-    // Here it looks impossible
-    // We need to switch from server method invoke context to client method
-    // invoke context
-    (void)promise;
-  } else {
-    auto m = reader.TryExtract<M>();
-    if (!m) {
-      reader.Cancel();
-      return;
-    }
-    std::apply(invoker, m->fields);
+
+  auto m = reader.TryExtract<M>();
+  if (!m) {
+    reader.Cancel();
+    return;
   }
+  std::apply(invoker, m->fields);
+}
+
 }
 
 /**
@@ -366,8 +346,7 @@ bool DeclareApi<Api>::ServerDispatchMethods(DeclareApi& self,
                 ...);
     return res;
   };
-  return dispatcher(JoinedTypeList_t<decltype(ReturnResultApi::ServeApiList()),
-                                     decltype(Api::template ApiList<Api>())>{});
+  return dispatcher(decltype(Api::template ApiList<Api>()){});
 }
 
 template <typename Api>
@@ -383,18 +362,11 @@ decltype(auto) DeclareApi<Api>::CallClientMethod(
   using AeTrait = api_class_declate_internal::ApiMessageTrait<Reg>;
   auto& packet_list = client_api_context.packet_list();
 
-  if constexpr (Trait::kReturnValue) {
-    auto& protocol_context = client_api_context.protocol_context();
-    auto id = protocol_context.NextRequestId();
-    packet_list.Push(typename AeTrait::message_type{
-        typename Trait::message_type{id, std::forward<Args>(args)...}});
-    auto& future =
-        protocol_context.template CreateFuture<typename Trait::return_type>(id);
-    return ApiPromise{future};
-  } else {
-    packet_list.Push(typename AeTrait::message_type{
-        typename Trait::message_type{std::forward<Args>(args)...}});
-  }
+
+  packet_list.Push(typename AeTrait::message_type{
+      typename Trait::message_type{std::forward<Args>(args)...}});
+}
+
 }
 
 template <typename Api>

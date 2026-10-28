@@ -42,13 +42,6 @@ class PacketReader;
 
 class ProtocolContext {
  public:
-  static constexpr auto kMaxPendingResponses =
-      AE_API_PROTOCOL_MAX_PENDING_RESPONSES;
-  static constexpr auto kFutureMaxSize = sizeof(ApiFuture<int>);
-  static constexpr auto kFutureMaxAlign = alignof(ApiFuture<int>);
-
-  static_assert(kMaxPendingResponses > 0,
-                "AE_API_PROTOCOL_MAX_PENDING_RESPONSES must be greater than 0");
 
   explicit ProtocolContext(ActionContext auto const& context)
       : ProtocolContext{
@@ -61,59 +54,11 @@ class ProtocolContext {
   TaskScheduler& scheduler() const;
   EventSystem& event_system() const;
 
-  RequestId NextRequestId();
-
-  // Create api future for specified value type with request id
-  template <typename V>
-  ApiFuture<V>& CreateFuture(RequestId request_id) {
-    using Entry = ApiFuture<V>;
-    static_assert(sizeof(Entry) <= kFutureMaxSize,
-                  "Pending response entry exceeds kFutureMaxSize");
-    static_assert(alignof(Entry) <= kFutureMaxAlign,
-                  "Pending response entry alignment exceeds kFutureMaxAlign");
-
-    PreparePendingResponseSlot();
-
-    auto* entry_ptr = futures_pool_.template create<Entry>(*this, request_id);
-    assert(entry_ptr != nullptr &&
-           "Pending response pool allocation failed after slot preparation");
-    pending_list_.emplace_back(PendingEntry{request_id, entry_ptr});
-    return *entry_ptr;
-  }
-
-  bool SetSendResultResponse(PacketReader& reader, RequestId request_id);
-  bool SetSendErrorResponse(RequestId req_id, std::uint8_t error_type,
-                            std::int32_t error_code);
-
  private:
-  using FuturesPool =
-      etl::generic_pool<kFutureMaxSize, kFutureMaxAlign, kMaxPendingResponses>;
-
-  struct PendingEntry {
-    RequestId request_id;
-    IApiFuture* response;
-  };
-
-  using PendingList = etl::vector<PendingEntry, kMaxPendingResponses>;
-
-  // Call the eviction event on pending response
-  void EvictPending(PendingEntry const& entry);
-  // Call the destructor on pending response
-  void DestroyPending(PendingEntry const& entry);
-  // Ensure we could add at least one pending response, the oldest would be
-  // evicted
-  void PreparePendingResponseSlot();
-  // Find pending entry with request id and pop it from pending list
-  PendingEntry TakePending(RequestId request_id);
-  // Pop the oldest pending response from the pending list
-  PendingEntry TakeOldestPending();
-
   TaskScheduler* scheduler_;
   EventSystem* event_system_;
-  std::uint32_t next_request_id_{};
+};
 
-  FuturesPool futures_pool_;
-  PendingList pending_list_;
 };
 }  // namespace ae
 
