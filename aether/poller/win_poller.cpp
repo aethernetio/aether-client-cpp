@@ -84,25 +84,22 @@ void IoCpPoller::Loop() {
     DWORD bytes_transferred;
     ULONG_PTR completion_key;
     LPOVERLAPPED overlapped;
-    if (!GetQueuedCompletionStatus(iocp_, &bytes_transferred, &completion_key,
-                                   &overlapped, INFINITE)) {
-      auto error = GetLastError();
-      if (error == ERROR_CONNECTION_ABORTED) {
-        // socket closed
-        continue;
-      }
-      AE_TELE_ERROR(kWinpollWaitFailed, "GetQueuedCompletionStatus error {}",
-                    error);
-      continue;
-    }
+    BOOL const gqcs_ok = GetQueuedCompletionStatus(
+        iocp_, &bytes_transferred, &completion_key, &overlapped, INFINITE);
     if (overlapped == nullptr) {
+      if (!gqcs_ok) {
+        auto const error = GetLastError();
+        if (error == ERROR_CONNECTION_ABORTED) {
+          continue;
+        }
+        AE_TELE_ERROR(kWinpollWaitFailed, "GetQueuedCompletionStatus error {}",
+                      error);
+      }
       continue;
     }
 
-    HANDLE descriptor;
-    // check if descriptor still in handles_
+    HANDLE const descriptor = reinterpret_cast<HANDLE>(completion_key);
     auto lock = std::scoped_lock{poller_mutex_};
-    descriptor = reinterpret_cast<HANDLE>(completion_key);
     auto it = event_map_.find(descriptor);
     if (it != event_map_.end()) {
       it->second(overlapped);
