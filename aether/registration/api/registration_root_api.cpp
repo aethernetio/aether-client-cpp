@@ -22,9 +22,11 @@ RegistrationRootApi::RegistrationRootApi(IEncryptProvider& root_encrypt,
                                          IEncryptProvider& global_encrypt)
     : enc_provider_{&root_encrypt}, server_registration_api_{global_encrypt} {}
 
-ApiPromise<SignedKey> RegistrationRootApi::GetPublicKey(CryptoLib crypto_lib) {
-  return ClientMethod<&RegistrationRootApi::GetPublicKey>(crypto_lib);
+
+void RegistrationRootApi::GetPublicKey(CryptoLib crypto_lib) {
+  ClientMethod<&RegistrationRootApi::GetPublicKey>(crypto_lib);
 }
+
 
 void RegistrationRootApi::Enter(CryptoLib crypto_lib,
                                 SubApi<ServerRegistrationApi> sub_api) {
@@ -34,9 +36,11 @@ void RegistrationRootApi::Enter(CryptoLib crypto_lib,
                                             std::move(server_api_data));
 }
 
-ApiPromise<InfoIp> RegistrationRootApi::GetMyIp() {
-  return ClientMethod<&RegistrationRootApi::GetMyIp>();
+
+void RegistrationRootApi::GetMyIp() {
+  ClientMethod<&RegistrationRootApi::GetMyIp>();
 }
+
 
 }  // namespace ae
 #endif

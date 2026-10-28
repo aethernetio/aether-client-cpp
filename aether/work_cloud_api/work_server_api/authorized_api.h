@@ -33,11 +33,13 @@ class AuthorizedApi : public DeclareApi<AuthorizedApi> {
  public:
   AuthorizedApi() = default;
 
-  ApiPromise<void> Ping(std::uint64_t next_connect_ms_duration,
-                        std::uint64_t rx_window_ms);
+
+void Ping(std::uint64_t next_connect_ms_duration,
+                      std::uint64_t rx_window_ms);
+
   void SendMessage(AeMessage const& message);
   void SendMessages(std::vector<AeMessage> const& messages);
-  ApiPromise<void> CheckAccessForSendMessage(Uid const& uid);
+void CheckAccessForSendMessage(Uid const& uid);
   void ResolveServer(std::vector<ServerId> const& sids);
   void ResolveClouds(std::vector<Uid> const& uids);
 

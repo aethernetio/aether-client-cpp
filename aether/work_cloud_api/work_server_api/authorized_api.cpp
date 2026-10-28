@@ -17,20 +17,24 @@
 #include "aether/work_cloud_api/work_server_api/authorized_api.h"
 
 namespace ae {
-ApiPromise<void> AuthorizedApi::Ping(std::uint64_t next_connect_ms_duration,
-                                     std::uint64_t rx_window_ms) {
-  return ClientMethod<&AuthorizedApi::Ping>(next_connect_ms_duration,
-                                            rx_window_ms);
+
+void AuthorizedApi::Ping(std::uint64_t next_connect_ms_duration,
+                                   std::uint64_t rx_window_ms) {
+  ClientMethod<&AuthorizedApi::Ping>(next_connect_ms_duration,
+                                     rx_window_ms);
 }
+
 void AuthorizedApi::SendMessage(AeMessage const& message) {
   ClientMethod<&AuthorizedApi::SendMessage>(message);
 }
 void AuthorizedApi::SendMessages(std::vector<AeMessage> const& messages) {
   ClientMethod<&AuthorizedApi::SendMessages>(messages);
 }
-ApiPromise<void> AuthorizedApi::CheckAccessForSendMessage(Uid const& uid) {
-  return ClientMethod<&AuthorizedApi::CheckAccessForSendMessage>(uid);
+
+void AuthorizedApi::CheckAccessForSendMessage(Uid const& uid) {
+  ClientMethod<&AuthorizedApi::CheckAccessForSendMessage>(uid);
 }
+
 void AuthorizedApi::ResolveServer(std::vector<ServerId> const& sids) {
   ClientMethod<&AuthorizedApi::ResolveServer>(sids);
 }
