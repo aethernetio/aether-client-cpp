@@ -47,8 +47,11 @@ Registration::Registration(AeContext const& ae_context,
       protocol_context_{ae_context_},
       root_crypto_provider_{},
       global_crypto_provider_{},
-      client_root_api_{*root_crypto_provider_.decryptor(),
+
+      client_root_api_{ae_context_.event_system(),
+                       *root_crypto_provider_.decryptor(),
                        *global_crypto_provider_.decryptor()},
+
       server_reg_root_api_{*root_crypto_provider_.encryptor(),
                            *global_crypto_provider_.encryptor()},
       root_server_select_stream_{ae_context_, reg_cloud},
