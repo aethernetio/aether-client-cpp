@@ -60,16 +60,3 @@ class ClientApiUnsafe : public DeclareApi<ClientApiUnsafe> {
 }  // namespace ae
 
 #endif  // AETHER_WORK_CLOUD_API_CLIENT_API_CLIENT_API_UNSAFE_H_
-
-
-API_LIST(METHOD(4, SendSafeApiData), METHOD(70, SendAsymmetricPublicKey), METHOD(67, SendPowParams), METHOD(68, SendResolvedServers), METHOD(24, PingAck))
-
-
-  ClientApiSafe& client_api_safe() { return client_safe_api_; }
-
- private:
-  IDecryptProvider* decrypt_provider_;
-  ClientApiSafe client_safe_api_;
-};
-}  // namespace ae
-#endif  // AETHER_WORK_CLOUD_API_CLIENT_API_CLIENT_API_UNSAFE_H_

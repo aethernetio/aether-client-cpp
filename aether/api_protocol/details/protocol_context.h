@@ -59,7 +59,6 @@ class ProtocolContext {
   EventSystem* event_system_;
 };
 
-};
 }  // namespace ae
 
 #endif  // AETHER_API_PROTOCOL_DETAILS_PROTOCOL_CONTEXT_H_

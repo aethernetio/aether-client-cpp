@@ -1,0 +1,15 @@
+# This is a generated file and its contents are an internal implementation detail.
+# The download step will be re-executed if anything in this file changes.
+# No other meaning or use of this file is supported.
+
+method=git
+command=/usr/bin/cmake;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;/home/angel/projects/aether-client-cpp/build-test/_deps/aether-objects-subbuild/aether-objects-populate-prefix/tmp/aether-objects-populate-gitclone.cmake
+source_dir=/home/angel/projects/aether-client-cpp/build-test/cpm.cache/aether-objects/72b9
+work_dir=/home/angel/projects/aether-client-cpp/build-test/cpm.cache/aether-objects
+repository=https://github.com/aethernetio/aether-objects.git
+remote=origin
+init_submodules=TRUE
+recurse_submodules=--recursive
+submodules=
+CMP0097=NEW
+      

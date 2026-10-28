@@ -24,7 +24,8 @@
 #  include "aether-miscpp/misc/override.h"
 #  include "aether/aether.h"
 #  include "aether/api_protocol/api_protocol.h"
-#  include "aether/api_protocol/make_api_call_sender.h"
+
+
 #  include "aether/crypto.h"
 #  include "aether/crypto/crypto_definitions.h"
 #  include "aether/crypto/sign.h"
@@ -95,158 +96,64 @@ void Registration::InitConnection() {
 
 void Registration::Restream() { root_server_select_stream_.Restream(); }
 
+
 auto Registration::GetKeys() {
-  return make_api_call(
-             server_reg_root_api_, protocol_context_,
-             root_server_select_stream_,
-             [this](ApiContext<RegistrationRootApi>& api_call) {
-               AE_TELE_INFO(RegisterGetKeys, "GetKeys");
-               auto promise = api_call->GetPublicKey(kDefaultCryptoLibProfile);
-#  if DEBUG
-               // For debug, call also for get my ip method to print our public
-               // ip visible to registration server
-               get_my_ip_subscription_ =
-                   api_call->GetMyIp().Subscribe([](auto&& res) {
-                     if (res) {
-                       auto& iip = res.value();
-                       AE_TELED_INFO(
-                           "Registration our public ip: {}:{}, coords: {},{}",
-                           iip.ip, iip.port, iip.latitude, iip.longitude);
-                     } else {
-                       AE_TELED_ERROR("Get my ip failed");
-                     }
-                   });
-#  endif
-               return promise;
-             }) |
-         ex::let_value([this](auto&& signed_key) noexcept {
-           return ex::create<ex::set_value_t(), ex::set_error_t(std::int32_t)>(
-               [this, signed_key = std::forward<decltype(signed_key)>(
-                          signed_key)](auto& ctx) mutable noexcept {
-                 if (!CryptoSignVerify(signed_key.sign, signed_key.key,
-                                       sign_pk_)) {
-                   AE_TELE_ERROR(RegisterGetKeysVerificationFailed,
-                                 "Sign verification failed");
-                   ex::set_error(std::move(ctx.receiver), std::int32_t{1});
-                   return;
-                 }
-                 server_pub_key_ = std::move(signed_key.key);
-                 root_crypto_provider_.SetEncryptionKey(server_pub_key_);
-                 AE_TELED_INFO("Key received");
-                 ex::set_value(std::move(ctx.receiver));
-               });
-         });
+  AE_TELE_INFO(RegisterGetKeys, "GetKeys");
+  server_reg_root_api_.GetPublicKey(kDefaultCryptoLibProfile);
+  return ex::just_value();
 }
+
+
 
 auto Registration::RequestPowParams() {
-  return make_api_call(
-             server_reg_root_api_, protocol_context_,
-             root_server_select_stream_,
-             [this](ApiContext<RegistrationRootApi>& api_call) {
-               AE_TELE_INFO(RegisterRequestPowParams,
-                            "Request proof of work params");
-               ApiPromise<PowParams> promise;
-               api_call->Enter(
-                   kDefaultCryptoLibProfile,
-                   [&promise,
-                    this](ApiContext<ServerRegistrationApi>& server_api) {
-                     server_api->SetReturnKey(
-                         root_crypto_provider_.GetDecryptionKey());
-                     promise = server_api->RequestProofOfWorkData(
-                         parent_uid_, PowMethod::kBCryptCrc32);
-                   });
-               return promise;
-             }) |
-         ex::let_value([this](auto&& pow_params) noexcept {
-           return ex::create<ex::set_value_t(), ex::set_error_t(std::int32_t)>(
-               [this, pow_params = std::forward<decltype(pow_params)>(
-                          pow_params)](auto& ctx) mutable noexcept {
-                 if (!CryptoSignVerify(pow_params.global_key.sign,
-                                       pow_params.global_key.key, sign_pk_)) {
-                   AE_TELE_ERROR(
-                       RegisterPowParamsVerificationFailed,
-                       "Proof of work params sign verification failed");
-                   ex::set_error(std::move(ctx.receiver), std::int32_t{2});
-                   return;
-                 }
-
-                 aether_global_key_ = pow_params.global_key.key;
-                 pow_params_.salt = pow_params.salt;
-                 pow_params_.max_hash_value = pow_params.max_hash_value;
-                 pow_params_.password_suffix = pow_params.password_suffix;
-                 pow_params_.pool_size = pow_params.pool_size;
-                 global_crypto_provider_.SetEncryptionKey(aether_global_key_);
-                 master_key_ = global_crypto_provider_.GetDecryptionKey();
-                 ex::set_value(std::move(ctx.receiver));
-               });
-         });
+  AE_TELE_INFO(RegisterRequestPowParams, "Request proof of work params");
+  server_reg_root_api_.Enter(
+      kDefaultCryptoLibProfile,
+      SubApi{[this](ApiContext<ServerRegistrationApi>& server_api) {
+        server_api->SetReturnKey(root_crypto_provider_.GetDecryptionKey());
+        server_api->RequestProofOfWorkData(parent_uid_, PowMethod::kBCryptCrc32);
+      }});
+  return ex::just_value();
 }
+
+
 
 auto Registration::MakeRegistration() {
-  return make_api_call(
-             server_reg_root_api_, protocol_context_,
-             root_server_select_stream_,
-             [this](ApiContext<RegistrationRootApi>& api_call) {
-               AE_TELE_INFO(RegisterMakeRegistration, "Make registration");
+  AE_TELE_INFO(RegisterMakeRegistration, "Make registration");
 
-               // Proof calculation
-               auto proofs = ProofOfWork::ComputeProofOfWork(
-                   pow_params_.pool_size, pow_params_.salt,
-                   pow_params_.password_suffix, pow_params_.max_hash_value);
+  auto proofs = ProofOfWork::ComputeProofOfWork(
+      pow_params_.pool_size, pow_params_.salt, pow_params_.password_suffix,
+      pow_params_.max_hash_value);
 
-               AE_TELE_DEBUG(RegisterKeysGenerated,
-                             "Global Pk: {}:{}, Masterkey: {}:{}",
-                             aether_global_key_.Index(), aether_global_key_,
-                             master_key_.Index(), master_key_);
+  AE_TELE_DEBUG(RegisterKeysGenerated, "Global Pk: {}:{}, Masterkey: {}:{}",
+                aether_global_key_.Index(), aether_global_key_, master_key_.Index(),
+                master_key_);
 
-               ApiPromise<RegistrationResponse> promise;
-               api_call->Enter(
-                   kDefaultCryptoLibProfile,
-                   SubApi{[this, &promise, &proofs](
-                              ApiContext<ServerRegistrationApi>& server_api) {
-                     server_api->Registration(
-                         pow_params_.salt, pow_params_.password_suffix, proofs,
-                         parent_uid_,
-                         [this, &promise](
-                             ApiContext<GlobalRegServerApi>& global_api) {
-                           // set master key and wait for confirmation
-                           global_api->SetMasterKey(master_key_);
-                           promise = global_api->Finish();
-                         });
-                   }});
-               return promise;
-             }) |
-         ex::then([this](auto&& reg_info) noexcept {
-           AE_TELE_INFO(RegisterRegistrationConfirmed,
-                        "Registration confirmed");
-           client_uid_ = reg_info.uid;
-           ephemeral_uid_ = reg_info.ephemeral_uid;
-           client_cloud_ = std::move(reg_info.cloud);
-           assert(!client_cloud_.empty() && "Client's cloud is empty");
-         });
+  server_reg_root_api_.Enter(
+      kDefaultCryptoLibProfile,
+      SubApi{[this, proofs =
+                        std::move(proofs)](ApiContext<ServerRegistrationApi>& server_api) mutable {
+        server_api->Registration(
+            pow_params_.salt, pow_params_.password_suffix, std::move(proofs),
+            parent_uid_, [this](ApiContext<GlobalRegServerApi>& global_api) {
+              global_api->SetMasterKey(master_key_);
+              global_api->Finish();
+            });
+      }});
+  return ex::just_value();
 }
+
+
 
 auto Registration::ResolveCloud() {
-  return make_api_call(
-             server_reg_root_api_, protocol_context_,
-             root_server_select_stream_,
-             [this](ApiContext<RegistrationRootApi>& api_call) {
-               AE_TELE_INFO(RegisterResolveCloud, "Resolve cloud as [{}]",
-                            client_cloud_);
-
-               ApiPromise<std::vector<ServerDescriptor>> promise;
-               api_call->Enter(
-                   kDefaultCryptoLibProfile,
-                   [this, &promise](
-                       ApiContext<ServerRegistrationApi>& server_api) noexcept {
-                     promise = server_api->ResolveServers(client_cloud_);
-                   });
-               return promise;
-             }) |
-         ex::then([this](auto&& servers) noexcept {
-           return OnCloudResolved(servers);
-         });
+  AE_TELE_INFO(RegisterResolveCloud, "Resolve cloud as [{}]", client_cloud_);
+  server_reg_root_api_.Enter(kDefaultCryptoLibProfile,
+      [this](ApiContext<ServerRegistrationApi>& server_api) noexcept {
+        server_api->ResolveServers(client_cloud_);
+      });
+  return ex::just_value();
 }
+
 
 ClientConfig Registration::OnCloudResolved(
     std::vector<ServerDescriptor> const& servers) {
@@ -293,44 +200,14 @@ ClientConfig Registration::OnCloudResolved(
   return client_config;
 }
 
+
 void Registration::Run() {
-  auto s =
-      // try to get keys a few times
-      ex::for_range(Range{0, 4},
-                    [&](auto) {
-                      return GetKeys() |
-                             ex::with_timeout(ae_context_, response_timeout_) |
-                             ex::upon_error(Override{
-                                 [&](ex::TimeoutError) {
-                                   AE_TELE_WARNING(RegisterWaitKeysTimeout,
-                                                   "WaitKeys timeout");
-                                   Restream();
-                                   return ex::for_continue;
-                                 },
-                                 [&](auto&&...) noexcept {
-                                   Restream();
-                                   return ex::for_continue;
-                                 }});
-                    }) |
-      ex::let_stopped(
-          [&]() noexcept { return ex::just_error(std::int32_t{1}); }) |
-      // perform the rest of the registration process
-      ex::let_value([&]() noexcept { return RequestPowParams(); }) |
-      ex::let_value([&]() noexcept { return MakeRegistration(); }) |
-      ex::let_value([&]() noexcept { return ResolveCloud(); }) |
-      ex::let_error(Override{
-          [&](std::int32_t e) noexcept {
-            AE_TELED_ERROR("Registration failed with error code: {}", e);
-            return ex::just_error(e);
-          },
-          [&](WriteFailed) noexcept {
-            AE_TELED_ERROR("Registration failed with write error");
-            return ex::just_error(std::int32_t{-1});
-          },
-          [&](auto&&...) noexcept {
-            AE_TELED_ERROR("Registration failed");
-            return ex::just_error(std::int32_t{-1});
-          }});
+  GetKeys();
+  RequestPowParams();
+  MakeRegistration();
+  ResolveCloud();
+}
+
 
   waiter_.emplace(ae_context_, std::move(s),
                   [&](std::optional<Result<ClientConfig, int>>&& res) noexcept {
