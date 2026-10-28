@@ -111,7 +111,7 @@ void test_TruncatedPushResponseIsRejected() {
   RequestResponseFixture fxtr;
   auto client_api = ClientResponseApi{fxtr.event_system};
 
-  DataBuffer malformed_packet = DataBuffer{2};
+  DataBuffer malformed_packet{0xFF, 0xFF};
   auto parser = ApiParser{fxtr.protocol_context, malformed_packet};
   TEST_ASSERT_FALSE(parser.Parse(client_api));
 }

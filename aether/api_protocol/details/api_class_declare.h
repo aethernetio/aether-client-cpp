@@ -256,10 +256,12 @@ class DeclareApi {
   void SendError(RequestId id, std::uint8_t error_type,
                  std::int32_t error_code);
 
+
   void set_client_context(ClientApiContext& context) {
     client_context_ = &context;
   }
   void reset_client_context() { client_context_ = nullptr; }
+
   ClientApiContext& client_context() {
     assert(client_context_ != nullptr && "Context is null");
     return *client_context_;
@@ -366,8 +368,11 @@ decltype(auto) DeclareApi<Api>::CallClientMethod(
 
 template <typename Api>
 template <auto method, typename... Args>
+
 decltype(auto) DeclareApi<Api>::ClientMethod(Args&&... args) {
+
   assert(client_context_ != nullptr && "Call client api without context");
+
   return CallClientMethod<method>(*client_context_,
                                   std::forward<Args>(args)...);
 }
