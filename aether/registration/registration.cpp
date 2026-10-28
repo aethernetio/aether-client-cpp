@@ -100,7 +100,7 @@ void Registration::Restream() { root_server_select_stream_.Restream(); }
 auto Registration::GetKeys() {
   AE_TELE_INFO(RegisterGetKeys, "GetKeys");
   server_reg_root_api_.GetPublicKey(kDefaultCryptoLibProfile);
-  return ex::just_value();
+    return;
 }
 
 
@@ -113,7 +113,7 @@ auto Registration::RequestPowParams() {
         server_api->SetReturnKey(root_crypto_provider_.GetDecryptionKey());
         server_api->RequestProofOfWorkData(parent_uid_, PowMethod::kBCryptCrc32);
       }});
-  return ex::just_value();
+    return;
 }
 
 
@@ -140,7 +140,7 @@ auto Registration::MakeRegistration() {
               global_api->Finish();
             });
       }});
-  return ex::just_value();
+    return;
 }
 
 
@@ -151,7 +151,7 @@ auto Registration::ResolveCloud() {
       [this](ApiContext<ServerRegistrationApi>& server_api) noexcept {
         server_api->ResolveServers(client_cloud_);
       });
-  return ex::just_value();
+    return;
 }
 
 
@@ -201,20 +201,13 @@ ClientConfig Registration::OnCloudResolved(
 }
 
 
+
 void Registration::Run() {
   GetKeys();
   RequestPowParams();
   MakeRegistration();
   ResolveCloud();
 }
-
-
-  waiter_.emplace(ae_context_, std::move(s),
-                  [&](std::optional<Result<ClientConfig, int>>&& res) noexcept {
-                    assert(res);
-                    registration_event_.Emit(std::move(res).value());
-                    Finish();
-                  });
-}
 }  // namespace ae
+
 #endif

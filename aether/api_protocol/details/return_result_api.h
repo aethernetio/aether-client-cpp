@@ -96,42 +96,14 @@ class ReturnResultApi {
         }});
   }
 
-  static void SendResultImpl(ServerApiContext& server_context) {
-    auto& reader = server_context.reader();
-    auto request_id = reader.TryExtract<RequestId>();
-    if (!request_id) {
-      reader.Cancel();
-      return;
-    }
-    if (!server_context.protocol_context().SetSendResultResponse(reader,
-                                                                 *request_id)) {
-      reader.Cancel();
-    }
+
+  static void SendResultImpl(ServerApiContext&) {
+    // stub: push-model does not use request-id result routing
+  }
+  static void SendErrorImpl(ServerApiContext&) {
+    // stub: push-model does not use request-id error routing
   }
 
-  static void SendErrorImpl(ServerApiContext& server_context) {
-    auto& reader = server_context.reader();
-    auto request_id = reader.TryExtract<RequestId>();
-    if (!request_id) {
-      reader.Cancel();
-      return;
-    }
-    auto error_type = reader.TryExtract<std::uint8_t>();
-    if (!error_type) {
-      reader.Cancel();
-      return;
-    }
-    auto error_code = reader.TryExtract<std::int32_t>();
-    if (!error_code) {
-      reader.Cancel();
-      return;
-    }
-
-    if (!server_context.protocol_context().SetSendErrorResponse(
-            *request_id, *error_type, *error_code)) {
-      server_context.reader().Cancel();
-    }
-  }
 
 
   static consteval auto ServeApiList() {

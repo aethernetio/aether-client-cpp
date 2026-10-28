@@ -21,7 +21,14 @@
 namespace ae {
 ClientApiUnsafe::ClientApiUnsafe(EventSystem& event_system,
                                  IDecryptProvider& decrypt_provider)
-    : decrypt_provider_{&decrypt_provider}, client_safe_api_{event_system} {}
+
+    : server_pub_key_event{event_system},
+      pow_params_event{event_system},
+      resolved_servers_event{event_system},
+      ping_ack_event{event_system},
+      decrypt_provider_{&decrypt_provider},
+      client_safe_api_{event_system} {}
+
 
 void ClientApiUnsafe::SendSafeApiData(SubApi<ClientApiSafe> sub_api) {
   auto unsafe_data = decrypt_provider_->Decrypt(std::move(sub_api).buffer());

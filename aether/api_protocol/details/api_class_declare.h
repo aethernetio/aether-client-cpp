@@ -314,10 +314,9 @@ void DeclareApi<Api>::InvokeApi(DeclareApi& self,
     reader.Cancel();
     return;
   }
-  std::apply(invoker, m->fields);
+    std::apply(invoker, m->fields);
 }
 
-}
 
 /**
  * \brief Invoke registered method
@@ -325,15 +324,12 @@ void DeclareApi<Api>::InvokeApi(DeclareApi& self,
 template <typename Api>
 template <typename RegMethod>
   requires(api_class_declate_internal::IsRegMethod<RegMethod>::value)
+
 void DeclareApi<Api>::ServerInvokeMethod(DeclareApi& self,
                                          ServerApiContext& server_context) {
-  if constexpr (std::is_same_v<ReturnResultApi::RegSendResult, RegMethod> ||
-                std::is_same_v<ReturnResultApi::RegSendError, RegMethod>) {
-    InvokeReturnResultApi<RegMethod>(server_context);
-  } else {
-    InvokeApi<RegMethod>(self, server_context);
-  }
+  InvokeApi<RegMethod>(self, server_context);
 }
+
 
 template <typename Api>
 bool DeclareApi<Api>::ServerDispatchMethods(DeclareApi& self,
@@ -365,7 +361,6 @@ decltype(auto) DeclareApi<Api>::CallClientMethod(
 
   packet_list.Push(typename AeTrait::message_type{
       typename Trait::message_type{std::forward<Args>(args)...}});
-}
 
 }
 
@@ -383,19 +378,6 @@ bool DeclareApi<Api>::LoadMethod(MessageId id) {
   return ServerDispatchMethods(*this, *server_context_, id);
 }
 
-template <typename Api>
-template <typename T>
-void DeclareApi<Api>::SendResult(RequestId id, T&& data) {
-  assert(client_context_ != nullptr && "Call client api without context");
-  ReturnResultApi::SendResult(*client_context_, id, std::forward<T>(data));
-}
-
-template <typename Api>
-void DeclareApi<Api>::SendError(RequestId id, std::uint8_t error_type,
-                                std::int32_t error_code) {
-  assert(client_context_ != nullptr && "Call client api without context");
-  ReturnResultApi::SendError(*client_context_, id, error_type, error_code);
-}
 
 }  // namespace ae
 
