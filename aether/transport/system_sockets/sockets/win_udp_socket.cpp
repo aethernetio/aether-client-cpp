@@ -26,6 +26,32 @@
 
 #  include "aether/tele.h"
 
+#  ifdef AE_BENCH_WIN_UDP_SNDBUF_BYTES
+#    include <cstdlib>
+#    include <fstream>
+
+namespace {
+
+void WriteBenchUdpSndbufDiag(int requested_bytes, int actual_bytes, int error,
+                             bool sndbuf_ok) {
+  char const* path = "win_udp_sndbuf_diag.txt";
+  char* env_path = nullptr;
+  size_t env_len = 0;
+  if (_dupenv_s(&env_path, &env_len, "AE_BENCH_UDP_SNDBUF_DIAG") == 0 &&
+      env_path != nullptr && env_path[0] != '\0') {
+    path = env_path;
+  }
+  std::ofstream out(path, std::ios::trunc);
+  out << "requested_bytes=" << requested_bytes << "\n";
+  out << "actual_bytes=" << actual_bytes << "\n";
+  out << "setsockopt_wsa_error=" << error << "\n";
+  out << "sndbuf_ok=" << (sndbuf_ok ? "true" : "false") << "\n";
+  free(env_path);
+}
+
+}  // namespace
+#  endif
+
 namespace ae {
 
 // Outbound UDP payloads should stay near MTU to avoid IP fragmentation on send.
@@ -60,6 +86,32 @@ WinUdpSocket::WinUdpSocket(Ptr<IPoller> const& poller)
     AE_TELED_ERROR("Socket make non-blocking error {}", WSAGetLastError());
     return;
   }
+
+#  ifdef AE_BENCH_WIN_UDP_SNDBUF_BYTES
+  {
+    int const requested = AE_BENCH_WIN_UDP_SNDBUF_BYTES;
+    int actual = 0;
+    int wsa_error = 0;
+    bool ok = false;
+    if (::setsockopt(sock, SOL_SOCKET, SO_SNDBUF,
+                     reinterpret_cast<char const*>(&requested),
+                     sizeof(requested)) == SOCKET_ERROR) {
+      wsa_error = static_cast<int>(WSAGetLastError());
+      WriteBenchUdpSndbufDiag(requested, -1, wsa_error, false);
+    } else {
+      int len = sizeof(actual);
+      if (::getsockopt(sock, SOL_SOCKET, SO_SNDBUF,
+                       reinterpret_cast<char*>(&actual), &len) ==
+          SOCKET_ERROR) {
+        wsa_error = static_cast<int>(WSAGetLastError());
+        WriteBenchUdpSndbufDiag(requested, -1, wsa_error, false);
+      } else {
+        ok = actual >= (requested / 2);
+        WriteBenchUdpSndbufDiag(requested, actual, 0, ok);
+      }
+    }
+  }
+#  endif
 
   created = true;
   socket_ = sock;
