@@ -20,6 +20,7 @@
 #  include <winsock2.h>
 #  include <ws2def.h>
 #  include <ws2ipdef.h>
+#  include <ws2tcpip.h>
 
 #  include "aether-miscpp/misc/defer.h"
 #  include "aether/transport/system_sockets/sockets/get_sock_addr.h"
@@ -46,6 +47,30 @@ void WriteBenchUdpSndbufDiag(int requested_bytes, int actual_bytes, int error,
   out << "actual_bytes=" << actual_bytes << "\n";
   out << "setsockopt_wsa_error=" << error << "\n";
   out << "sndbuf_ok=" << (sndbuf_ok ? "true" : "false") << "\n";
+  free(env_path);
+}
+
+}  // namespace
+#  endif
+
+#  if defined(AE_BENCH_UDP_MAX_PACKET_BYTES) && \
+      (AE_BENCH_UDP_MAX_PACKET_BYTES > 0)
+namespace {
+
+void WriteBenchUdpIpFragDiag(int requested_pmtu, int read_back_pmtu, int error,
+                             bool ip_frag_ok) {
+  char const* path = "win_udp_ip_frag_diag.txt";
+  char* env_path = nullptr;
+  size_t env_len = 0;
+  if (_dupenv_s(&env_path, &env_len, "AE_BENCH_UDP_IP_FRAG_DIAG") == 0 &&
+      env_path != nullptr && env_path[0] != '\0') {
+    path = env_path;
+  }
+  std::ofstream out(path, std::ios::trunc);
+  out << "requested_ip_mtu_discover=" << requested_pmtu << "\n";
+  out << "read_back_ip_mtu_discover=" << read_back_pmtu << "\n";
+  out << "setsockopt_wsa_error=" << error << "\n";
+  out << "ip_frag_ok=" << (ip_frag_ok ? "true" : "false") << "\n";
   free(env_path);
 }
 
@@ -109,6 +134,40 @@ WinUdpSocket::WinUdpSocket(Ptr<IPoller> const& poller)
         ok = actual >= (requested / 2);
         WriteBenchUdpSndbufDiag(requested, actual, 0, ok);
       }
+    }
+  }
+#  endif
+
+#  if defined(AE_BENCH_UDP_MAX_PACKET_BYTES) && \
+      (AE_BENCH_UDP_MAX_PACKET_BYTES > 0)
+  {
+    DWORD const requested = IP_PMTUDISC_DONT;
+    DWORD read_back = 0;
+    int wsa_error = 0;
+    bool ok = false;
+    if (::setsockopt(sock, IPPROTO_IP, IP_MTU_DISCOVER,
+                     reinterpret_cast<char const*>(&requested),
+                     sizeof(requested)) == SOCKET_ERROR) {
+      wsa_error = static_cast<int>(WSAGetLastError());
+      WriteBenchUdpIpFragDiag(static_cast<int>(requested), -1, wsa_error, false);
+    } else {
+      int len = sizeof(read_back);
+      if (::getsockopt(sock, IPPROTO_IP, IP_MTU_DISCOVER,
+                       reinterpret_cast<char*>(&read_back), &len) ==
+          SOCKET_ERROR) {
+        wsa_error = static_cast<int>(WSAGetLastError());
+        WriteBenchUdpIpFragDiag(static_cast<int>(requested), -1, wsa_error,
+                                false);
+      } else {
+        ok = read_back == IP_PMTUDISC_DONT;
+        WriteBenchUdpIpFragDiag(static_cast<int>(requested),
+                                static_cast<int>(read_back), 0, ok);
+      }
+    }
+    if (!ok) {
+      AE_TELED_ERROR("IP_MTU_DISCOVER IP_PMTUDISC_DONT failed wsa={}",
+                     wsa_error);
+      return;
     }
   }
 #  endif
