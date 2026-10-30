@@ -533,6 +533,11 @@
 #  define AE_BENCH_CONNECTION_EVENT_DIAG 0
 #endif
 
+// Optional UDP-sender ping response timeout floor (ms); 0 = use channel timeout only.
+#ifndef AE_BENCH_PING_MIN_TIMEOUT_MS
+#  define AE_BENCH_PING_MIN_TIMEOUT_MS 0
+#endif
+
 #ifndef NDEBUG
 #  define DEBUG 1
 #endif

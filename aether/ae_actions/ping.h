@@ -47,7 +47,8 @@ class Ping {
 
   Ping(AeContext const& ae_context,
        CloudServerConnection& cloud_server_connection, Duration next_ping_hint,
-       Duration rx_window, Duration timeout);
+       Duration rx_window, Duration response_timeout,
+       Duration channel_response_timeout);
 
   AE_CLASS_NO_COPY_MOVE(Ping);
 
@@ -84,7 +85,8 @@ class Ping {
   RequestState state_{RequestState::kCreated};
 #if AE_BENCH_CONNECTION_EVENT_DIAG
   RequestId diag_active_request_id_{0};
-  std::uint32_t diag_timeout_ms_{0};
+  std::uint32_t diag_original_timeout_ms_{0};
+  std::uint32_t diag_applied_timeout_ms_{0};
   bool diag_write_terminal_{false};
 #endif
 };

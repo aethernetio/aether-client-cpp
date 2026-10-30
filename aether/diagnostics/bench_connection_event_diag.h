@@ -20,8 +20,8 @@ void ResetForTest();
 void Record(char const* event, std::uint32_t server_id,
             std::uint64_t cloud_conn_instance_id,
             std::uint64_t client_conn_instance_id, std::uint32_t ping_request_id,
-            std::uint32_t timeout_ms, int write_status, int error_code,
-            std::int32_t main_server_id);
+            std::uint32_t original_timeout_ms, std::uint32_t applied_timeout_ms,
+            int write_status, int error_code, std::int32_t main_server_id);
 
 std::uint64_t DroppedCount();
 void WriteTsv(char const* path);

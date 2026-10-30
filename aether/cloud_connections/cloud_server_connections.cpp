@@ -45,7 +45,7 @@ void RecordCloudDiag(char const* event, CloudServerConnection& sc,
     client_id = cc->bench_client_instance_id();
   }
   AE_BENCH_CONN_DIAG(event, sc.server_id(), sc.bench_cloud_instance_id(),
-                     client_id, 0, 0, -1, 0, MainSelectedServerId(selected));
+                     client_id, 0, 0, 0, -1, 0, MainSelectedServerId(selected));
 }
 
 }  // namespace

@@ -72,8 +72,9 @@ int WriteStatusToInt(WriteAction::Status status) {
 }
 
 void RecordPingDiag(CloudServerConnection* cloud, char const* event,
-                    RequestId request_id, std::uint32_t timeout_ms,
-                    int write_status, int error_code) {
+                    RequestId request_id, std::uint32_t original_timeout_ms,
+                    std::uint32_t applied_timeout_ms, int write_status,
+                    int error_code) {
   if (cloud == nullptr) {
     return;
   }
@@ -83,7 +84,8 @@ void RecordPingDiag(CloudServerConnection* cloud, char const* event,
     client_id = cc->bench_client_instance_id();
   }
   AE_BENCH_CONN_DIAG(event, cloud->server_id(), cloud_id, client_id, request_id,
-                     timeout_ms, write_status, error_code, -1);
+                     original_timeout_ms, applied_timeout_ms, write_status,
+                     error_code, -1);
 }
 #  endif
 
@@ -91,14 +93,24 @@ void RecordPingDiag(CloudServerConnection* cloud, char const* event,
 
 Ping::Ping(AeContext const& ae_context,
            CloudServerConnection& cloud_server_connection,
-           Duration next_ping_hint, Duration rx_window, Duration timeout)
+           Duration next_ping_hint, Duration rx_window,
+           Duration response_timeout, Duration channel_response_timeout)
     : ae_context_{ae_context},
       cloud_server_connection_{&cloud_server_connection},
       next_ping_hint_{next_ping_hint},
       rx_window_{rx_window},
-      timeout_{timeout},
+      timeout_{response_timeout},
       server_id_{cloud_server_connection_->server_id()},
       result_event_{ae_context_} {
+#if AE_BENCH_CONNECTION_EVENT_DIAG
+  diag_applied_timeout_ms_ = static_cast<std::uint32_t>(
+      std::chrono::duration_cast<std::chrono::milliseconds>(response_timeout)
+          .count());
+  diag_original_timeout_ms_ = static_cast<std::uint32_t>(
+      std::chrono::duration_cast<std::chrono::milliseconds>(
+          channel_response_timeout)
+          .count());
+#endif
   AE_TELE_INFO(
       kPing,
       "Ping action created to server id: {}, interval: {:%S}s, rx_window: "
@@ -122,10 +134,8 @@ void Ping::Start(TimePoint current_time) {
 #  if AE_BENCH_CONNECTION_EVENT_DIAG
   diag_write_terminal_ = false;
   diag_active_request_id_ = 0;
-  diag_timeout_ms_ = static_cast<std::uint32_t>(
-      std::chrono::duration_cast<std::chrono::milliseconds>(timeout_).count());
-  RecordPingDiag(cloud_server_connection_, "ping_start", 0, diag_timeout_ms_,
-                 -1, 0);
+  RecordPingDiag(cloud_server_connection_, "ping_start", 0,
+                 diag_original_timeout_ms_, diag_applied_timeout_ms_, -1, 0);
 #  endif
 
   auto& write_action = cc->AuthorizedApiCall(
@@ -149,7 +159,8 @@ void Ping::Start(TimePoint current_time) {
 #  if AE_BENCH_CONNECTION_EVENT_DIAG
         diag_active_request_id_ = req_id;
         RecordPingDiag(cloud_server_connection_, "ping_request", req_id,
-                       diag_timeout_ms_, -1, 0);
+                       diag_original_timeout_ms_, diag_applied_timeout_ms_, -1,
+                       0);
 #  endif
 
         auto wait_result_sub =
@@ -187,7 +198,8 @@ void Ping::Start(TimePoint current_time) {
         ev = "ping_write_stop";
       }
       RecordPingDiag(cloud_server_connection_, ev, diag_active_request_id_,
-                       diag_timeout_ms_, WriteStatusToInt(status), 0);
+                     diag_original_timeout_ms_, diag_applied_timeout_ms_,
+                     WriteStatusToInt(status), 0);
     }
 #  endif
     if (status == WriteAction::Status::kFail) {
@@ -230,7 +242,7 @@ void Ping::PingResponse(RequestId request_id) {
   if (state_ == RequestState::kPending) {
 #  if AE_BENCH_CONNECTION_EVENT_DIAG
     RecordPingDiag(cloud_server_connection_, "ping_pong", request_id,
-                   diag_timeout_ms_, -1, 0);
+                   diag_original_timeout_ms_, diag_applied_timeout_ms_, -1, 0);
 #  endif
     state_ = RequestState::kFinished;
     ResetRequestSubscriptions();
@@ -238,7 +250,7 @@ void Ping::PingResponse(RequestId request_id) {
   } else if (state_ == RequestState::kTimedOut) {
 #  if AE_BENCH_CONNECTION_EVENT_DIAG
     RecordPingDiag(cloud_server_connection_, "ping_pong_late", request_id,
-                   diag_timeout_ms_, -1, 0);
+                   diag_original_timeout_ms_, diag_applied_timeout_ms_, -1, 0);
 #  endif
     wait_result_sub_.Reset();
     state_ = RequestState::kFinished;
@@ -253,7 +265,8 @@ void Ping::PingResponseError(RequestId request_id, std::int32_t error_code) {
   if (state_ == RequestState::kPending) {
 #  if AE_BENCH_CONNECTION_EVENT_DIAG
     RecordPingDiag(cloud_server_connection_, "ping_error", request_id,
-                   diag_timeout_ms_, -1, static_cast<int>(error_code));
+                   diag_original_timeout_ms_, diag_applied_timeout_ms_, -1,
+                   static_cast<int>(error_code));
 #  endif
     state_ = RequestState::kFinished;
     ResetRequestSubscriptions();
@@ -276,13 +289,14 @@ void Ping::PingResponseTimeout(RequestId request_id) {
                 server_id_, request_id);
 #  if AE_BENCH_CONNECTION_EVENT_DIAG
   RecordPingDiag(cloud_server_connection_, "ping_timeout", request_id,
-                 diag_timeout_ms_, -1, 0);
+                 diag_original_timeout_ms_, diag_applied_timeout_ms_, -1, 0);
 #  endif
   state_ = RequestState::kTimedOut;
 #  if AE_BENCH_CONNECTION_EVENT_DIAG
   if (!diag_write_terminal_ && diag_active_request_id_.id != 0) {
     RecordPingDiag(cloud_server_connection_, "ping_write_unobserved",
-                   diag_active_request_id_, diag_timeout_ms_, -1, 0);
+                   diag_active_request_id_, diag_original_timeout_ms_,
+                   diag_applied_timeout_ms_, -1, 0);
   }
 #  endif
   timeout_sub_.Reset();
@@ -294,7 +308,8 @@ void Ping::ResetRequestSubscriptions() {
 #  if AE_BENCH_CONNECTION_EVENT_DIAG
   if (!diag_write_terminal_ && diag_active_request_id_.id != 0) {
     RecordPingDiag(cloud_server_connection_, "ping_write_unobserved",
-                   diag_active_request_id_, diag_timeout_ms_, -1, 0);
+                   diag_active_request_id_, diag_original_timeout_ms_,
+                   diag_applied_timeout_ms_, -1, 0);
   }
 #  endif
   wait_result_sub_.Reset();

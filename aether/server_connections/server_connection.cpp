@@ -77,7 +77,7 @@ void ServerConnection::Restream() {
     sid = server->server_id;
   }
   AE_BENCH_CONN_DIAG("server_restream", sid, 0, bench_client_instance_id_, 0, 0,
-                     -1, 0, -1);
+                     0, -1, 0, -1);
   // restream means something wrong with current channel
   ChannelError();
 }
@@ -253,8 +253,8 @@ void ServerConnection::ServerError() {
   if (auto server = server_.Lock()) {
     sid = server->server_id;
   }
-  AE_BENCH_CONN_DIAG("server_error", sid, 0, bench_client_instance_id_, 0, 0, -1,
-                     0, -1);
+  AE_BENCH_CONN_DIAG("server_error", sid, 0, bench_client_instance_id_, 0, 0, 0,
+                     -1, 0, -1);
   AE_TELED_ERROR("SERVER_CONNECTION_ERROR");
   channel_stream_update_sub_.Reset();
   channel_stream_out_data_sub_.Reset();
@@ -272,7 +272,7 @@ void ServerConnection::ChannelError() {
   if (auto server = server_.Lock()) {
     sid = server->server_id;
   }
-  AE_BENCH_CONN_DIAG("channel_error", sid, 0, bench_client_instance_id_, 0, 0,
+  AE_BENCH_CONN_DIAG("channel_error", sid, 0, bench_client_instance_id_, 0, 0, 0,
                      -1, 0, -1);
   AE_TELED_ERROR("Channel error");
   channel_stream_update_sub_.Reset();

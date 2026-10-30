@@ -27,6 +27,7 @@
 
 #  include "aether/cloud_connections/cloud_connections_tele.h"
 #  include "aether/diagnostics/bench_connection_event_diag.h"
+#  include "aether/diagnostics/bench_ping_min_timeout.h"
 
 namespace ae {
 
@@ -120,8 +121,12 @@ auto PingCloudServers::ServerPing::MakePing() {
             return ex::set_error(std::move(ctx.receiver), 2);
           }
 
+          Duration const channel_timeout = c->ResponseTimeout();
+          Duration const applied_timeout =
+              bench_ping_min_timeout::ApplyBenchPingMinTimeout(channel_timeout);
           ping_.emplace(ae_context_, *cloud_sc_, timing_conf_.interval,
-                        timing_conf_.rx_window, c->ResponseTimeout());
+                        timing_conf_.rx_window, applied_timeout,
+                        channel_timeout);
 
           ping_blocker_ = policy_->AcquireSuspendBlock();
           ping_->result_event().Subscribe(
@@ -193,7 +198,7 @@ void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
     client_id = cc->bench_client_instance_id();
   }
   AE_BENCH_CONN_DIAG("ping_on_result", cloud_sc_->server_id(), cloud_id,
-                     client_id, 0, 0, -1, 0, -1);
+                     client_id, 0, 0, 0, -1, 0, -1);
   cc = cloud_sc_->client_connection();
   if (cc == nullptr) {
     AE_TELED_ERROR("Client connection is null");
@@ -217,7 +222,7 @@ void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
         } else {
           AE_TELED_ERROR("Ping error!");
           AE_BENCH_CONN_DIAG("ping_on_result_restream", cloud_sc_->server_id(),
-                             cloud_id, client_id, 0, 0, -1, 0, -1);
+                             cloud_id, client_id, 0, 0, 0, -1, 0, -1);
           ScheduleRestream();
         }
       },
@@ -243,7 +248,7 @@ void PingCloudServers::ServerPing::ScheduleRestream() {
     client_id = cc->bench_client_instance_id();
   }
   AE_BENCH_CONN_DIAG("schedule_restream", cloud_sc_->server_id(), cloud_id,
-                     client_id, 0, 0, -1, 0, -1);
+                     client_id, 0, 0, 0, -1, 0, -1);
 
   // TODO: should we block till restream?
   restream_blocker_ = policy_->AcquireSuspendBlock();
@@ -255,7 +260,7 @@ void PingCloudServers::ServerPing::ScheduleRestream() {
       client_id = cc->bench_client_instance_id();
     }
     AE_BENCH_CONN_DIAG("schedule_restream_run", cloud_sc_->server_id(),
-                       cloud_id, client_id, 0, 0, -1, 0, -1);
+                       cloud_id, client_id, 0, 0, 0, -1, 0, -1);
     if (cc != nullptr) {
       cc->Restream();
     }

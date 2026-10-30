@@ -24,7 +24,8 @@ struct Row {
   std::uint64_t cloud_conn_instance_id{0};
   std::uint64_t client_conn_instance_id{0};
   std::uint32_t ping_request_id{0};
-  std::uint32_t timeout_ms{0};
+  std::uint32_t original_timeout_ms{0};
+  std::uint32_t applied_timeout_ms{0};
   int write_status{-1};
   int error_code{0};
   std::int32_t main_server_id{-1};
@@ -80,8 +81,8 @@ void ResetForTest() { Configure(4096); }
 void Record(char const* event, std::uint32_t server_id,
             std::uint64_t cloud_conn_instance_id,
             std::uint64_t client_conn_instance_id, std::uint32_t ping_request_id,
-            std::uint32_t timeout_ms, int write_status, int error_code,
-            std::int32_t main_server_id) {
+            std::uint32_t original_timeout_ms, std::uint32_t applied_timeout_ms,
+            int write_status, int error_code, std::int32_t main_server_id) {
   Row r;
   r.qpc_ns = QpcNowNs();
   r.event = event;
@@ -89,7 +90,8 @@ void Record(char const* event, std::uint32_t server_id,
   r.cloud_conn_instance_id = cloud_conn_instance_id;
   r.client_conn_instance_id = client_conn_instance_id;
   r.ping_request_id = ping_request_id;
-  r.timeout_ms = timeout_ms;
+  r.original_timeout_ms = original_timeout_ms;
+  r.applied_timeout_ms = applied_timeout_ms;
   r.write_status = write_status;
   r.error_code = error_code;
   r.main_server_id = main_server_id;
@@ -125,14 +127,15 @@ void WriteTsv(char const* path) {
   std::fprintf(
       f,
       "qpc_ns\tevent\tserver_id\tcloud_conn_instance_id\t"
-      "client_conn_instance_id\tping_request_id\ttimeout_ms\twrite_status\t"
-      "error_code\tmain_server_id\n");
+      "client_conn_instance_id\tping_request_id\toriginal_timeout_ms\t"
+      "applied_timeout_ms\twrite_status\terror_code\tmain_server_id\n");
   for (auto const& r : copy) {
-    std::fprintf(f, "%lld\t%s\t%u\t%llu\t%llu\t%u\t%u\t%d\t%d\t%d\n",
+    std::fprintf(f, "%lld\t%s\t%u\t%llu\t%llu\t%u\t%u\t%u\t%d\t%d\t%d\n",
                  static_cast<long long>(r.qpc_ns), r.event, r.server_id,
                  static_cast<unsigned long long>(r.cloud_conn_instance_id),
                  static_cast<unsigned long long>(r.client_conn_instance_id),
-                 r.ping_request_id, r.timeout_ms, r.write_status, r.error_code,
+                 r.ping_request_id, r.original_timeout_ms, r.applied_timeout_ms,
+                 r.write_status, r.error_code,
                  static_cast<int>(r.main_server_id));
   }
   std::fclose(f);
