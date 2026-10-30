@@ -177,8 +177,16 @@ EthernetChannel::EthernetChannel(ObjProp prop, ObjPtr<Aether> aether,
     }
     case Protocol::kUdp: {
       transport_properties_.connection_type = ConnectionType::kConnectionLess;
+#if defined(AE_BENCH_UDP_MAX_PACKET_BYTES) && \
+    (AE_BENCH_UDP_MAX_PACKET_BYTES > 0)
+      transport_properties_.max_packet_size =
+          static_cast<std::uint32_t>(AE_BENCH_UDP_MAX_PACKET_BYTES);
+      transport_properties_.rec_packet_size =
+          static_cast<std::uint32_t>(AE_BENCH_UDP_MAX_PACKET_BYTES);
+#else
       transport_properties_.max_packet_size = 1200;
       transport_properties_.rec_packet_size = 1200;
+#endif
       transport_properties_.reliability = Reliability::kUnreliable;
       break;
     }
