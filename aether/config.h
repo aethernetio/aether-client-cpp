@@ -528,6 +528,11 @@
 #  define AE_STATISTICS_MAX_SIZE (10 * 1024)  // 10 KB
 #endif
 
+// Bench-only connection/ping rotation trace (heap ring buffer, no per-event I/O).
+#ifndef AE_BENCH_CONNECTION_EVENT_DIAG
+#  define AE_BENCH_CONNECTION_EVENT_DIAG 0
+#endif
+
 #ifndef NDEBUG
 #  define DEBUG 1
 #endif

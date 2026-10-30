@@ -23,7 +23,10 @@
 #  include <utility>
 
 #  include "aether/cloud_connections/cloud_server_connection.h"
+#  include "aether/diagnostics/bench_connection_event_diag.h"
+#  include "aether/server_connections/client_server_connection.h"
 #  include "aether/work_cloud_api/work_server_api/authorized_api.h"
+#  include "aether/write_action/write_action.h"
 
 #  include "aether/ae_actions/ae_actions_tele.h"
 
@@ -54,6 +57,35 @@ static_assert(PromiseErrorCodeToPingErrorCode(static_cast<std::uint32_t>(
 static_assert(PromiseErrorCodeToPingErrorCode(
                   static_cast<std::uint32_t>(std::numeric_limits<int>::max()) +
                   1U) == kPingPromiseEvictedError);
+
+#  if AE_BENCH_CONNECTION_EVENT_DIAG
+int WriteStatusToInt(WriteAction::Status status) {
+  switch (status) {
+    case WriteAction::Status::kSuccess:
+      return 0;
+    case WriteAction::Status::kFail:
+      return 1;
+    case WriteAction::Status::kStop:
+      return 2;
+  }
+  return -1;
+}
+
+void RecordPingDiag(CloudServerConnection* cloud, char const* event,
+                    RequestId request_id, std::uint32_t timeout_ms,
+                    int write_status, int error_code) {
+  if (cloud == nullptr) {
+    return;
+  }
+  std::uint64_t const cloud_id = cloud->bench_cloud_instance_id();
+  std::uint64_t client_id = 0;
+  if (auto* cc = cloud->client_connection()) {
+    client_id = cc->bench_client_instance_id();
+  }
+  AE_BENCH_CONN_DIAG(event, cloud->server_id(), cloud_id, client_id, request_id,
+                     timeout_ms, write_status, error_code, -1);
+}
+#  endif
 
 }  // namespace
 
@@ -87,6 +119,14 @@ void Ping::Start(TimePoint current_time) {
     return;
   }
   state_ = RequestState::kPending;
+#  if AE_BENCH_CONNECTION_EVENT_DIAG
+  diag_write_terminal_ = false;
+  diag_active_request_id_ = 0;
+  diag_timeout_ms_ = static_cast<std::uint32_t>(
+      std::chrono::duration_cast<std::chrono::milliseconds>(timeout_).count());
+  RecordPingDiag(cloud_server_connection_, "ping_start", 0, diag_timeout_ms_,
+                 -1, 0);
+#  endif
 
   auto& write_action = cc->AuthorizedApiCall(
       [this, current_time](ApiContext<AuthorizedApi>& auth_api) {
@@ -106,6 +146,11 @@ void Ping::Start(TimePoint current_time) {
                       server_id_, req_id, timeout_);
 
         request_start_ = current_time;
+#  if AE_BENCH_CONNECTION_EVENT_DIAG
+        diag_active_request_id_ = req_id;
+        RecordPingDiag(cloud_server_connection_, "ping_request", req_id,
+                       diag_timeout_ms_, -1, 0);
+#  endif
 
         auto wait_result_sub =
             pong_promise.Subscribe([this, req_id](auto&& res) {
@@ -132,6 +177,19 @@ void Ping::Start(TimePoint current_time) {
       });
 
   write_sub_ = write_action.status_event().Subscribe([this](auto status) {
+#  if AE_BENCH_CONNECTION_EVENT_DIAG
+    if (!diag_write_terminal_) {
+      diag_write_terminal_ = true;
+      char const* ev = "ping_write_success";
+      if (status == WriteAction::Status::kFail) {
+        ev = "ping_write_fail";
+      } else if (status == WriteAction::Status::kStop) {
+        ev = "ping_write_stop";
+      }
+      RecordPingDiag(cloud_server_connection_, ev, diag_active_request_id_,
+                       diag_timeout_ms_, WriteStatusToInt(status), 0);
+    }
+#  endif
     if (status == WriteAction::Status::kFail) {
       if (state_ != RequestState::kPending) {
         return;
@@ -170,10 +228,18 @@ void Ping::PingResponse(RequestId request_id) {
   AE_TELED_DEBUG("Ping received server id {} request {} duration {}",
                  server_id_, request_id, ping_duration);
   if (state_ == RequestState::kPending) {
+#  if AE_BENCH_CONNECTION_EVENT_DIAG
+    RecordPingDiag(cloud_server_connection_, "ping_pong", request_id,
+                   diag_timeout_ms_, -1, 0);
+#  endif
     state_ = RequestState::kFinished;
     ResetRequestSubscriptions();
     result_event_.Emit(PingResult{Ok{ping_duration}});
   } else if (state_ == RequestState::kTimedOut) {
+#  if AE_BENCH_CONNECTION_EVENT_DIAG
+    RecordPingDiag(cloud_server_connection_, "ping_pong_late", request_id,
+                   diag_timeout_ms_, -1, 0);
+#  endif
     wait_result_sub_.Reset();
     state_ = RequestState::kFinished;
     result_event_.Emit(PingResult{LateDuration{ping_duration}});
@@ -185,6 +251,10 @@ void Ping::PingResponseError(RequestId request_id, std::int32_t error_code) {
                 "Ping error server id {} request {} code {}", server_id_,
                 request_id, error_code);
   if (state_ == RequestState::kPending) {
+#  if AE_BENCH_CONNECTION_EVENT_DIAG
+    RecordPingDiag(cloud_server_connection_, "ping_error", request_id,
+                   diag_timeout_ms_, -1, static_cast<int>(error_code));
+#  endif
     state_ = RequestState::kFinished;
     ResetRequestSubscriptions();
     if (error_code == -1) {
@@ -204,13 +274,29 @@ void Ping::PingResponseTimeout(RequestId request_id) {
   }
   AE_TELE_ERROR(kPingTimeoutError, "Ping timeout server id {} request {}",
                 server_id_, request_id);
+#  if AE_BENCH_CONNECTION_EVENT_DIAG
+  RecordPingDiag(cloud_server_connection_, "ping_timeout", request_id,
+                 diag_timeout_ms_, -1, 0);
+#  endif
   state_ = RequestState::kTimedOut;
+#  if AE_BENCH_CONNECTION_EVENT_DIAG
+  if (!diag_write_terminal_ && diag_active_request_id_.id != 0) {
+    RecordPingDiag(cloud_server_connection_, "ping_write_unobserved",
+                   diag_active_request_id_, diag_timeout_ms_, -1, 0);
+  }
+#  endif
   timeout_sub_.Reset();
   write_sub_.Reset();
   result_event_.Emit(PingResult{Error{2}});
 }
 
 void Ping::ResetRequestSubscriptions() {
+#  if AE_BENCH_CONNECTION_EVENT_DIAG
+  if (!diag_write_terminal_ && diag_active_request_id_.id != 0) {
+    RecordPingDiag(cloud_server_connection_, "ping_write_unobserved",
+                   diag_active_request_id_, diag_timeout_ms_, -1, 0);
+  }
+#  endif
   wait_result_sub_.Reset();
   timeout_sub_.Reset();
   write_sub_.Reset();

@@ -17,6 +17,7 @@
 #include "aether/server_connections/client_server_connection.h"
 
 #include "aether/aether.h"
+#include "aether/diagnostics/bench_connection_event_diag.h"
 #include "aether/api_protocol/api_protocol.h"
 #include "aether/client.h"
 #include "aether/crypto/ikey_provider.h"
@@ -91,8 +92,9 @@ class ClientCryptoProvider final : public ICryptoProvider {
   SyncDecryptProvider decryptor_;
 };
 
-BufferedServerConnection::BufferedServerConnection(AeContext const& ae_context,
-                                                   Ptr<Server> const& server)
+BufferedServerConnection::BufferedServerConnection(
+    AeContext const& ae_context, Ptr<Server> const& server,
+    std::uint64_t bench_client_instance_id)
     : buffer_write{ae_context,
                    [&](DataBuffer&& in_data) -> WriteAction* {
                      if (server_connection.stream_info().is_writable) {
@@ -101,6 +103,9 @@ BufferedServerConnection::BufferedServerConnection(AeContext const& ae_context,
                      return nullptr;
                    }},
       server_connection{ae_context, server} {
+#if AE_BENCH_CONNECTION_EVENT_DIAG
+  server_connection.SetBenchDiagClientInstanceId(bench_client_instance_id);
+#endif
   if (server_connection.stream_info().is_writable) {
     buffer_write.buffer_off();
   }
@@ -153,7 +158,11 @@ ClientServerConnection::ClientServerConnection(AeContext const& ae_context,
       client_api_unsafe_{ae_context.event_system(),
                          *crypto_provider_->decryptor()},
       login_api_{*crypto_provider_->encryptor()},
-      server_connection_{ae_context_, server} {
+#if AE_BENCH_CONNECTION_EVENT_DIAG
+      bench_client_instance_id_{
+          bench_conn_event_diag::AllocateClientServerConnectionInstanceId()},
+#endif
+      server_connection_{ae_context_, server, bench_client_instance_id_} {
   AE_TELED_DEBUG("Client server connection from {}:e-{} to {}", uid_,
                  ephemeral_uid_, server->server_id);
 

@@ -18,6 +18,7 @@
 #define AETHER_CLOUD_CONNECTIONS_CLOUD_SERVER_CONNECTION_H_
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 
 #include "aether-objects/ptr/ptr_view.h"
@@ -50,6 +51,10 @@ class CloudServerConnection {
   std::size_t priority() const;
   void SetPriority(std::size_t priority);
 
+  std::uint64_t bench_cloud_instance_id() const {
+    return bench_cloud_instance_id_;
+  }
+
  private:
   CloudServer& cloud_server() const;
 
@@ -58,6 +63,7 @@ class CloudServerConnection {
   IServerConnectionFactory* connection_factory_;
   std::shared_ptr<ClientServerConnection> client_connection_;
   bool is_quarantined_ = false;
+  std::uint64_t bench_cloud_instance_id_{0};
 };
 }  // namespace ae
 

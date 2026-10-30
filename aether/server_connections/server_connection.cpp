@@ -22,6 +22,7 @@
 #include "aether-miscpp/types/method_ptr.h"
 
 #include "aether/aether.h"
+#include "aether/diagnostics/bench_connection_event_diag.h"
 #include "aether/channels/channel.h"
 #include "aether/server.h"
 
@@ -38,7 +39,13 @@ ServerConnection::ServerConnection(AeContext const& ae_context,
       out_data_event_{ae_context_},
       stream_update_event_{ae_context_},
       server_error_{ae_context_},
-      channel_changed_{ae_context_} {
+      channel_changed_{ae_context_}
+#if AE_BENCH_CONNECTION_EVENT_DIAG
+      ,
+      bench_server_instance_id_{
+          bench_conn_event_diag::AllocateServerConnectionInstanceId()}
+#endif
+{
   InitChannels();
   SelectChannel();
 }
@@ -65,6 +72,12 @@ ServerConnection::OutDataEvent const& ServerConnection::out_data_event() {
 }
 
 void ServerConnection::Restream() {
+  ServerId sid{};
+  if (auto server = server_.Lock()) {
+    sid = server->server_id;
+  }
+  AE_BENCH_CONN_DIAG("server_restream", sid, 0, bench_client_instance_id_, 0, 0,
+                     -1, 0, -1);
   // restream means something wrong with current channel
   ChannelError();
 }
@@ -236,6 +249,12 @@ void ServerConnection::ChannelBuildFailed(ChannelEntry& attempted_channel) {
 }
 
 void ServerConnection::ServerError() {
+  ServerId sid{};
+  if (auto server = server_.Lock()) {
+    sid = server->server_id;
+  }
+  AE_BENCH_CONN_DIAG("server_error", sid, 0, bench_client_instance_id_, 0, 0, -1,
+                     0, -1);
   AE_TELED_ERROR("SERVER_CONNECTION_ERROR");
   channel_stream_update_sub_.Reset();
   channel_stream_out_data_sub_.Reset();
@@ -249,6 +268,12 @@ void ServerConnection::ServerError() {
 }
 
 void ServerConnection::ChannelError() {
+  ServerId sid{};
+  if (auto server = server_.Lock()) {
+    sid = server->server_id;
+  }
+  AE_BENCH_CONN_DIAG("channel_error", sid, 0, bench_client_instance_id_, 0, 0,
+                     -1, 0, -1);
   AE_TELED_ERROR("Channel error");
   channel_stream_update_sub_.Reset();
   channel_stream_out_data_sub_.Reset();

@@ -25,8 +25,30 @@
 #include "aether/server_connections/server_connection.h"
 
 #include "aether/cloud_connections/cloud_connections_tele.h"  // IWYU pragma: keep
+#include "aether/diagnostics/bench_connection_event_diag.h"
 
 namespace ae {
+namespace {
+
+std::int32_t MainSelectedServerId(
+    std::vector<CloudServerConnection*> const& selected) {
+  if (selected.empty()) {
+    return -1;
+  }
+  return static_cast<std::int32_t>(selected.front()->server_id());
+}
+
+void RecordCloudDiag(char const* event, CloudServerConnection& sc,
+                     std::vector<CloudServerConnection*> const& selected) {
+  std::uint64_t client_id = 0;
+  if (auto* cc = sc.client_connection()) {
+    client_id = cc->bench_client_instance_id();
+  }
+  AE_BENCH_CONN_DIAG(event, sc.server_id(), sc.bench_cloud_instance_id(),
+                     client_id, 0, 0, -1, 0, MainSelectedServerId(selected));
+}
+
+}  // namespace
 #if DEBUG
 auto ServerList(std::vector<CloudServerConnection*> const& servers) {
   std::vector<ServerId> sids;
@@ -209,6 +231,11 @@ bool CloudServerConnections::QuarantineServer(
   if (was_selected) {
     servers_update_event_.Emit();
   }
+  RecordCloudDiag("cloud_quarantine", server_connection, selected_servers_);
+  if (was_selected) {
+    RecordCloudDiag("cloud_selected_changed", server_connection,
+                    selected_servers_);
+  }
   server_quarantined_event_.Emit(&server_connection);
 
   // One delayed release: Disconnect + clear quarantine + reconcile. Do not
@@ -253,6 +280,8 @@ void CloudServerConnections::ReleaseQuarantinedServer(
   std::rotate(first_quarantined, server_it, server_it + 1);
   server_connection.SetQuarantine(false);
   NormalizeServerPriorities();
+  RecordCloudDiag("cloud_quarantine_release", server_connection,
+                  selected_servers_);
   server_quarantine_release_event_.Emit(&server_connection);
   ServerEntryFor(server_connection).quarantine_sub.Reset();
 
@@ -307,6 +336,7 @@ void CloudServerConnections::ReconcileServers() {
     assert(candidate_index == selected_servers_.size() &&
            "candidate must follow selected prefix");
     selected_servers_.emplace_back(candidate);
+    RecordCloudDiag("cloud_selected_append", *candidate, selected_servers_);
     candidate_index = selected_servers_.size();
     emplaced = true;
   }
@@ -314,6 +344,10 @@ void CloudServerConnections::ReconcileServers() {
     NormalizeServerPriorities();
     AE_TELED_DEBUG("Selected servers reconciled selected_count={}, list={}",
                    selected_servers_.size(), ServerList(selected_servers_));
+    if (!selected_servers_.empty()) {
+      RecordCloudDiag("cloud_selected_reconciled", *selected_servers_.front(),
+                      selected_servers_);
+    }
     servers_update_event_.Emit();
   }
 }

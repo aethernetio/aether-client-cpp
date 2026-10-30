@@ -82,6 +82,11 @@ class Ping {
 
   ResultEvent result_event_;
   RequestState state_{RequestState::kCreated};
+#if AE_BENCH_CONNECTION_EVENT_DIAG
+  RequestId diag_active_request_id_{0};
+  std::uint32_t diag_timeout_ms_{0};
+  bool diag_write_terminal_{false};
+#endif
 };
 }  // namespace ae
 #endif  // AE_ENABLE_PING
