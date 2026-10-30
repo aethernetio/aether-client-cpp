@@ -56,6 +56,10 @@ class Ping {
 
   void Start(TimePoint current_time);
 
+  bool IsPending() const noexcept {
+    return state_ == RequestState::kPending;
+  }
+
  private:
   void PingResponse(RequestId request_id);
   void PingResponseError(RequestId request_id, std::int32_t error_code);

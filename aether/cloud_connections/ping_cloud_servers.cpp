@@ -64,6 +64,9 @@ PingCloudServers::ServerPing::~ServerPing() = default;
 void PingCloudServers::ServerPing::Stop() {
   stop_ = true;
 
+#if AE_BENCH_PING_MIN_TIMEOUT_MS > 0
+  bench_ping_server_start::ClearDeferredStart(defer_state_);
+#endif
   waiter_.reset();
   start_sub_.Reset();
   rx_window_sub_.Reset();
@@ -153,6 +156,16 @@ void PingCloudServers::ServerPing::Start() {
   if (stop_) {
     return;
   }
+#if AE_BENCH_PING_MIN_TIMEOUT_MS > 0
+  if (bench_ping_server_start::TryDeferPeriodicStart(
+          defer_state_, ping_.has_value(),
+          ping_ && ping_->IsPending())) {
+    AE_TELED_DEBUG(
+        "Defer periodic Start while ping pending (bench min timeout {} ms)",
+        AE_BENCH_PING_MIN_TIMEOUT_MS);
+    return;
+  }
+#endif
   waiter_.emplace(
       ae_context_,
       EnsureLinked() |
@@ -216,11 +229,28 @@ void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
         using T = std::decay_t<decltype(value)>;
         if constexpr (std::is_same_v<T, Ok<Duration>>) {
           c->channel_statistics().AddResponseTime(value.value);
+#if AE_BENCH_PING_MIN_TIMEOUT_MS > 0
+          if (bench_ping_server_start::TakeDeferredStartAfterSuccess(
+                  defer_state_)) {
+            start_sub_ = ae_context_.scheduler().DelayedTask(
+                [&]() noexcept { Start(); }, next_ping_time_);
+          }
+#endif
         } else if constexpr (std::is_same_v<T, Ping::LateDuration>) {
           AE_TELED_DEBUG("Got late ping duration");
           c->channel_statistics().AddResponseTime(value.duration);
+#if AE_BENCH_PING_MIN_TIMEOUT_MS > 0
+          if (bench_ping_server_start::TakeDeferredStartAfterSuccess(
+                  defer_state_)) {
+            start_sub_ = ae_context_.scheduler().DelayedTask(
+                [&]() noexcept { Start(); }, next_ping_time_);
+          }
+#endif
         } else {
           AE_TELED_ERROR("Ping error!");
+#if AE_BENCH_PING_MIN_TIMEOUT_MS > 0
+          bench_ping_server_start::ClearDeferredStart(defer_state_);
+#endif
           AE_BENCH_CONN_DIAG("ping_on_result_restream", cloud_sc_->server_id(),
                              cloud_id, client_id, 0, 0, 0, -1, 0, -1);
           ScheduleRestream();
