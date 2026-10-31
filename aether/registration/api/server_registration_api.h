@@ -38,9 +38,11 @@
 #  include "aether/work_cloud_api/server_descriptor.h"
 
 namespace ae {
+
 struct PowParams {
-  AE_REFLECT_MEMBERS(salt, password_suffix, pool_size, max_hash_value,
+  AE_REFLECT_MEMBERS(parent, salt, password_suffix, pool_size, max_hash_value,
                      global_key)
+  Uid parent;
   std::string salt;
   std::string password_suffix;
   std::uint8_t pool_size;
@@ -48,13 +50,17 @@ struct PowParams {
   SignedKey global_key;
 };
 
+
 class ServerRegistrationApi : public DeclareApi<ServerRegistrationApi> {
  public:
   explicit ServerRegistrationApi(IEncryptProvider& encrypt_provider);
 
-  void Registration(std::string const& salt, std::string const& password_suffix,
-                    std::vector<std::uint32_t> const& passwords,
-                    Uid const& parent_uid_, SubApi<GlobalRegServerApi> sub_api);
+
+  void RegistrationDirect(std::string const& salt,
+                          std::string const& password_suffix,
+                          std::vector<std::uint32_t> const& passwords,
+                          Uid const& parent_uid, Key const& master_key);
+
 
 
 
@@ -67,8 +73,10 @@ class ServerRegistrationApi : public DeclareApi<ServerRegistrationApi> {
 
   void SetReturnKey(Key const& key);
 
-  API_LIST(METHOD(3, Registration), METHOD(4, RequestProofOfWorkData),
-           METHOD(5, ResolveServers), METHOD(6, SetReturnKey))
+
+  API_LIST(METHOD(4, RequestProofOfWorkData), METHOD(5, ResolveServers),
+           METHOD(6, SetReturnKey), METHOD(7, RegistrationDirect))
+
 
  private:
   IEncryptProvider* encrypt_provider_;

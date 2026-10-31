@@ -80,11 +80,22 @@ Registration::Registration(AeContext const& ae_context,
         AE_TELED_INFO("Key received");
         RequestPowParams();
       });
+
   pow_params_sub_ = client_root_api_.pow_params_event.Subscribe(
       [this](PowParams const& params) {
+        if (!CryptoSignVerify(params.global_key.sign, params.global_key.key,
+                              sign_pk_)) {
+          AE_TELE_ERROR(RegisterGetKeysVerificationFailed,
+                        "Global key sign verification failed");
+          return;
+        }
         pow_params_ = params;
+        aether_global_key_ = params.global_key.key;
+        global_crypto_provider_.SetEncryptionKey(aether_global_key_);
+        master_key_ = global_crypto_provider_.GetDecryptionKey();
         MakeRegistration();
       });
+
   reg_direct_sub_ = client_root_api_.registration_direct_event.Subscribe(
       [this](RegistrationDirectResult const& result) {
         ephemeral_uid_ = result.ephemeral_uid;
@@ -180,29 +191,33 @@ void Registration::MakeRegistration() {
       ApiContext<RegistrationRootApi>{server_reg_root_api_, protocol_context_};
   api_context->Enter(
       kDefaultCryptoLibProfile,
-      SubApi{[this, proofs =
-                        std::move(proofs)](ApiContext<ServerRegistrationApi>& server_api) mutable {
-        server_api->Registration(
-            pow_params_.salt, pow_params_.password_suffix, std::move(proofs),
-            parent_uid_, [this](ApiContext<GlobalRegServerApi>& global_api) {
-              global_api->SetMasterKey(master_key_);
-              global_api->Finish();
-            });
+
+      SubApi{[this, proofs = std::move(proofs)](
+                 ApiContext<ServerRegistrationApi>& server_api) mutable {
+        server_api->RegistrationDirect(pow_params_.salt,
+                                       pow_params_.password_suffix,
+                                       std::move(proofs), parent_uid_,
+                                       master_key_);
       }});
+
   root_server_select_stream_.Write(DataBuffer{std::move(api_context)});
 }
 
 
 
 
+
 void Registration::ResolveCloud() {
   AE_TELE_INFO(RegisterResolveCloud, "Resolve cloud as [{}]", client_cloud_);
-  server_reg_root_api_.Enter(kDefaultCryptoLibProfile,
-      [this](ApiContext<ServerRegistrationApi>& server_api) noexcept {
-        server_api->ResolveServers(client_cloud_);
-      });
-    return;
+  auto api_context =
+      ApiContext<RegistrationRootApi>{server_reg_root_api_, protocol_context_};
+  api_context->Enter(kDefaultCryptoLibProfile,
+                     SubApi{[this](ApiContext<ServerRegistrationApi>& server_api) {
+                       server_api->ResolveServers(client_cloud_);
+                     }});
+  root_server_select_stream_.Write(DataBuffer{std::move(api_context)});
 }
+
 
 
 ClientConfig Registration::OnCloudResolved(

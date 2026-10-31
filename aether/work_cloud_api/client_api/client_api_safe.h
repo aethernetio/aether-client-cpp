@@ -75,7 +75,13 @@ class ClientApiSafe : public DeclareApi<ClientApiSafe> {
 
   void SendCLoudConfig(std::vector<CloudConfig> const& configs);
 
+
   ReturnResultApi return_result;
+
+  void PingAck();
+
+  Event<void()> ping_ack_event;
+
 
   API_LIST(METHOD(3, ChangeParent), METHOD(4, ChangeAlias),
            METHOD(5, NewChildren), METHOD(6, SendMessages),
@@ -89,7 +95,9 @@ class ClientApiSafe : public DeclareApi<ClientApiSafe> {
            METHOD(17, RemoveAccessGroupsFromClient),
            METHOD(18, SendAllAccessedClients),
            METHOD(19, SendAccessCheckResults), METHOD(20, SendMessage),
-           METHOD(21, SendCLoudConfig));
+
+           METHOD(21, SendCLoudConfig), METHOD(24, PingAck));
+
 
   auto const& send_message_event() { return send_message_event_; }
   auto const& send_cloud_event() { return send_cloud_event_; }
