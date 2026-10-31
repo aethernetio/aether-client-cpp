@@ -22,8 +22,10 @@ void GlobalRegServerApi::SetMasterKey(Key const& key) {
   ClientMethod<&GlobalRegServerApi::SetMasterKey>(key);
 }
 
-ApiPromise<RegistrationResponse> GlobalRegServerApi::Finish() {
-  return ClientMethod<&GlobalRegServerApi::Finish>();
+
+void GlobalRegServerApi::Finish() {
+  ClientMethod<&GlobalRegServerApi::Finish>();
 }
+
 }  // namespace ae
 #endif

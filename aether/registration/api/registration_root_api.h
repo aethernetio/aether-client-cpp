@@ -35,10 +35,10 @@ class RegistrationRootApi : public DeclareApi<RegistrationRootApi> {
   RegistrationRootApi(IEncryptProvider& root_encrypt,
                       IEncryptProvider& global_encrypt);
 
-  ApiPromise<SignedKey> GetPublicKey(CryptoLib crypto_lib);
+void GetPublicKey(CryptoLib crypto_lib);
   void Enter(CryptoLib crypto_lib, SubApi<ServerRegistrationApi> sub_api);
 
-  ApiPromise<InfoIp> GetMyIp();
+void GetMyIp();
 
   API_LIST(METHOD(3, GetPublicKey), METHOD(4, Enter), METHOD(6, GetMyIp))
 

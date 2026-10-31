@@ -36,7 +36,9 @@ void LoginApi::LoginByAlias(Uid const& alias, SubApi<AuthorizedApi> sub_api) {
   ClientMethod<&LoginApi::LoginByAlias>(alias, std::move(enc_data));
 }
 
-ApiPromise<InfoIp> LoginApi::GetMyIp() {
-  return ClientMethod<&LoginApi::GetMyIp>();
+
+void LoginApi::GetMyIp() {
+  ClientMethod<&LoginApi::GetMyIp>();
 }
+
 }  // namespace ae

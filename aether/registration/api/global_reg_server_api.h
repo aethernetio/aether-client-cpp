@@ -42,7 +42,7 @@ class GlobalRegServerApi : public DeclareApi<GlobalRegServerApi> {
   GlobalRegServerApi() = default;
 
   void SetMasterKey(Key const& key);
-  ApiPromise<RegistrationResponse> Finish();
+void Finish();
 
   API_LIST(METHOD(3, SetMasterKey), METHOD(4, Finish));
 };

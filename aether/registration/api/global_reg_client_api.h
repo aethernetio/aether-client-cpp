@@ -1,3 +1,4 @@
+
 /*
  * Copyright 2024 Aethernet Inc.
  *
@@ -20,7 +21,7 @@
 #include "aether/config.h"
 
 #if AE_SUPPORT_REGISTRATION
-#  include "aether/api_protocol/api_protocol.h"
+#include "aether/api_protocol/api_protocol.h"
 
 namespace ae {
 class GlobalRegClientApi : public DeclareApi<GlobalRegClientApi> {

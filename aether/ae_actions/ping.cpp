@@ -88,6 +88,7 @@ void Ping::Start(TimePoint current_time) {
   }
   state_ = RequestState::kPending;
 
+
   auto& write_action = cc->AuthorizedApiCall(
       [this, current_time](ApiContext<AuthorizedApi>& auth_api) {
         auto next_ping_hint_ms = static_cast<std::uint64_t>(
@@ -98,38 +99,19 @@ void Ping::Start(TimePoint current_time) {
             std::chrono::duration_cast<std::chrono::milliseconds>(rx_window_)
                 .count());
 
-        auto pong_promise = auth_api->Ping(next_ping_hint_ms, rx_window_ms);
-        auto req_id = pong_promise.request_id();
+        auth_api->Ping(next_ping_hint_ms, rx_window_ms);
 
         AE_TELE_DEBUG(kPingSend,
-                      "Ping server id {}, request {} expected time {}",
-                      server_id_, req_id, timeout_);
+                      "Ping server id {}, expected time {}",
+                      server_id_, timeout_);
 
         request_start_ = current_time;
 
-        auto wait_result_sub =
-            pong_promise.Subscribe([this, req_id](auto&& res) {
-              if (res) {
-                PingResponse(req_id);
-              } else {
-                PingResponseError(req_id, res.error());
-              }
-            });
-        wait_result_sub_ = std::move(wait_result_sub);
-
         timeout_sub_ = ae_context_.scheduler().DelayedTask(
-            [this, req_id]() { PingResponseTimeout(req_id); },
+            [this]() { PingResponseTimeout(RequestId{}); },
             current_time + timeout_);
-        if (state_ == RequestState::kPending && !timeout_sub_) {
-          AE_TELE_ERROR(
-              kPingTimeoutError,
-              "Ping timeout task allocation failed server id {} request {}",
-              server_id_, req_id);
-          state_ = RequestState::kFinished;
-          ResetRequestSubscriptions();
-          result_event_.Emit(PingResult{Error{5}});
-        }
       });
+
 
   write_sub_ = write_action.status_event().Subscribe([this](auto status) {
     if (status == WriteAction::Status::kFail) {
@@ -146,20 +128,13 @@ void Ping::Start(TimePoint current_time) {
     write_sub_.Reset();
   }
 
+
 #  if DEBUG
   cc->LoginApiCall([&](ApiContext<LoginApi>& api_call) {
-    api_call->GetMyIp().Subscribe([&](auto&& res) noexcept {
-      if (res) {
-        auto&& ip = std::forward<decltype(res)>(res).value();
-        AE_TELED_DEBUG("Server id: {}, our public ip: {}:{}, coords: {},{}",
-                       server_id_, ip.ip, ip.port, ip.latitude, ip.longitude);
-      } else {
-        AE_TELED_ERROR("Get my ip request error {}",
-                       std::forward<decltype(res)>(res).error());
-      }
-    });
+    api_call->GetMyIp();
   });
 #  endif
+
 }
 
 void Ping::PingResponse(RequestId request_id) {

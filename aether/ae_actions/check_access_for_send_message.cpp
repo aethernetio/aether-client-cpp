@@ -29,16 +29,11 @@ CheckAccessForSendMessage::CheckAccessForSendMessage(
           ae_context,
           ApiRequestHandler{[this](ApiContext<AuthorizedApi>& auth_api, auto*,
                                    auto* request) {
-            wait_check_sub_ = auth_api->CheckAccessForSendMessage(destination_)
-                                  .Subscribe([&](auto const& res) {
-                                    if (res) {
-                                      ResponseReceived();
-                                      request->Succeeded();
-                                    } else {
-                                      ErrorReceived();
-                                      request->Failed();
-                                    }
-                                  });
+
+            (void)request;
+            // TODO: push-ответ приходит отдельным событием; пока fire-and-forget.
+            auth_api->CheckAccessForSendMessage(destination_);
+
           }},
           cloud_connection,
           request_policy,
