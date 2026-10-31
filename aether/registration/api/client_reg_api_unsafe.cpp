@@ -14,14 +14,24 @@
  * limitations under the License.
  */
 
+
 #include "aether/registration/api/client_reg_api_unsafe.h"
 
 #if AE_SUPPORT_REGISTRATION
 namespace ae {
-ClientRegRootApi::ClientRegRootApi(IDecryptProvider& root_decrypt_provider,
+
+ClientRegRootApi::ClientRegRootApi(EventSystem& event_system,
+                                   IDecryptProvider& root_decrypt_provider,
                                    IDecryptProvider& global_decrypt_provider)
-    : root_decrypt_provider_{&root_decrypt_provider},
+
+    : event_system_{event_system},
+      server_pub_key_event{event_system_},
+      pow_params_event{event_system_},
+      registration_direct_event{event_system_},
+      resolved_servers_event{event_system_},
+      root_decrypt_provider_{&root_decrypt_provider},
       global_decrypt_provider_{&global_decrypt_provider} {}
+
 
 void ClientRegRootApi::Enter(SubApi<ClientRegApiSafe> sub_api) {
   auto unsafe_data =
@@ -35,6 +45,24 @@ void ClientRegRootApi::EnterGlobal(SubApi<GlobalRegClientApi> sub_api) {
       global_decrypt_provider_->Decrypt(std::move(sub_api).buffer());
   auto parser = ApiParser{server_context().protocol_context(), unsafe_data};
   parser.Parse(global_reg_client_api_);
+}
+
+void ClientRegRootApi::SendAsymmetricPublicKey(SignedKey key) {
+  server_pub_key_event.Emit(std::move(key));
+}
+
+void ClientRegRootApi::SendPowParams(PowParams params) {
+  pow_params_event.Emit(std::move(params));
+}
+
+void ClientRegRootApi::SendRegistrationDirectResult(
+    RegistrationDirectResult result) {
+  registration_direct_event.Emit(std::move(result));
+}
+
+void ClientRegRootApi::SendResolvedServers(
+    std::vector<ServerDescriptor> servers) {
+  resolved_servers_event.Emit(std::move(servers));
 }
 
 }  // namespace ae

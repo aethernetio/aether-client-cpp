@@ -21,7 +21,18 @@
 namespace ae {
 ClientApiUnsafe::ClientApiUnsafe(EventSystem& event_system,
                                  IDecryptProvider& decrypt_provider)
-    : decrypt_provider_{&decrypt_provider}, client_safe_api_{event_system} {}
+
+    : server_pub_key_event{event_system},
+      pow_params_event{event_system},
+      resolved_servers_event{event_system},
+
+      ping_ack_event{event_system},
+      registration_direct_event{event_system},
+
+
+      decrypt_provider_{&decrypt_provider},
+      client_safe_api_{event_system} {}
+
 
 void ClientApiUnsafe::SendSafeApiData(SubApi<ClientApiSafe> sub_api) {
   auto unsafe_data = decrypt_provider_->Decrypt(std::move(sub_api).buffer());
@@ -33,4 +44,26 @@ void ClientApiUnsafe::SendSafeApiData(SubApi<ClientApiSafe> sub_api) {
     server_context().reader().Cancel();
   }
 }
+
+void ClientApiUnsafe::SendAsymmetricPublicKey(SignedKey key) {
+  server_pub_key_event.Emit(std::move(key));
+}
+
+void ClientApiUnsafe::SendPowParams(PowParams params) {
+  pow_params_event.Emit(std::move(params));
+}
+
+void ClientApiUnsafe::SendResolvedServers(std::vector<ServerDescriptor> servers) {
+  resolved_servers_event.Emit(std::move(servers));
+}
+
+void ClientApiUnsafe::SendRegistrationDirect(RegistrationDirectResult result) {
+  registration_direct_event.Emit(std::move(result));
+}
+
+
+void ClientApiUnsafe::PingAck() {
+  ping_ack_event.Emit();
+}
+
 }  // namespace ae

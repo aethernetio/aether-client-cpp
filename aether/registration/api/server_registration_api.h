@@ -56,11 +56,14 @@ class ServerRegistrationApi : public DeclareApi<ServerRegistrationApi> {
                     std::vector<std::uint32_t> const& passwords,
                     Uid const& parent_uid_, SubApi<GlobalRegServerApi> sub_api);
 
-  ApiPromise<PowParams> RequestProofOfWorkData(Uid const& parent_id,
-                                               PowMethod pow_method);
 
-  ApiPromise<std::vector<ServerDescriptor>> ResolveServers(
-      std::vector<ServerId> const& servers);
+
+  void RequestProofOfWorkData(Uid const& parent_id,
+                                 PowMethod pow_method);
+
+
+
+  void ResolveServers(std::vector<ServerId> const& servers);
 
   void SetReturnKey(Key const& key);
 

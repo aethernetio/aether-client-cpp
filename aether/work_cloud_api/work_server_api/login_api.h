@@ -31,7 +31,7 @@ class LoginApi : public DeclareApi<LoginApi> {
 
   void LoginByUid(Uid const& uid, SubApi<AuthorizedApi> sub_api);
   void LoginByAlias(Uid const& alias, SubApi<AuthorizedApi> sub_api);
-  ApiPromise<InfoIp> GetMyIp();
+void GetMyIp();
 
   API_LIST(METHOD(4, LoginByUid), METHOD(5, LoginByAlias), METHOD(6, GetMyIp))
 

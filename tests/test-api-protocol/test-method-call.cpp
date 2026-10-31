@@ -48,7 +48,7 @@ class ApiLevel0 : public ae::DeclareApi<ApiLevel0> {
   virtual ~ApiLevel0() = default;
 
   virtual void Method3(int a, std::string const& b) = 0;
-  virtual ae::ApiPromise<Number> Method4(int a) = 0;
+  virtual void Method4(int a) = 0;
   virtual void Method6(int a, ae::SubApi<ApiLevel1> sub_api) = 0;
 
   API_LIST(METHOD(3, Method3), METHOD(4, Method4), METHOD(6, Method6))
@@ -67,9 +67,11 @@ class ApiLevel0 : public test_api_protocol_method_call::ApiLevel0 {
   void Method3(int a, std::string const& b) override {
     ClientMethod<&test_api_protocol_method_call::ApiLevel0::Method3>(a, b);
   }
-  ae::ApiPromise<Number> Method4(int a) override {
-    return ClientMethod<&test_api_protocol_method_call::ApiLevel0::Method4>(a);
+
+  void Method4(int a) override {
+    ClientMethod<&test_api_protocol_method_call::ApiLevel0::Method4>(a);
   }
+
   void Method6(
       int a,
       ae::SubApi<test_api_protocol_method_call::ApiLevel1> sub_api) override {
@@ -97,10 +99,11 @@ class ApiLevel0 : public test_api_protocol_method_call::ApiLevel0 {
       : on_method3{es}, on_method4{es}, on_method6{es}, level1{es} {}
 
   void Method3(int a, std::string const& b) override { on_method3.Emit(a, b); }
-  ae::ApiPromise<Number> Method4(int a) override {
-    on_method4.Emit(a, server_context().request_id());
-    return {};
+
+  void Method4(int a) override {
+    on_method4.Emit(a);
   }
+
   void Method6(
       int a,
       ae::SubApi<test_api_protocol_method_call::ApiLevel1> sub_api) override {
@@ -111,7 +114,7 @@ class ApiLevel0 : public test_api_protocol_method_call::ApiLevel0 {
   }
 
   ae::Event<void(int a, std::string const& b)> on_method3;
-  ae::Event<void(int a, ae::RequestId req_id)> on_method4;
+  ae::Event<void(int a)> on_method4;
   ae::Event<void(int a)> on_method6;
   ApiLevel1 level1;
 };
@@ -124,53 +127,33 @@ struct MethodCallFixture {
   ae::ProtocolContext protocol_context{scheduler, event_system};
 };
 
+
 void test_ReturnResult() {
   MethodCallFixture fxtr;
-
-  bool promise_get_value = false;
 
   auto client_level0 = client::ApiLevel0{};
   auto call_context = ae::ApiContext{client_level0, fxtr.protocol_context};
 
-  auto promise = call_context->Method4(42);
-  promise.Subscribe([&](auto const& res) {
-    if (res.IsOk()) {
-      auto value = res.value().value;
-      TEST_ASSERT_EQUAL(78, value);
-      promise_get_value = true;
-    } else {
-      TEST_FAIL();
-    }
-  });
+  call_context->Method4(42);
 
   ae::DataBuffer packet = std::move(call_context);
-
-  AssertPacket(packet, ae::MessageId{4}, Skip<ae::RequestId>{}, int{42});
+  AssertPacket(packet, ae::MessageId{4}, int{42});
 
   bool level0_method4_called = false;
 
   auto server_level0 = server::ApiLevel0{fxtr.event_system};
 
-  server_level0.on_method4.Subscribe([&](int, ae::RequestId req_id) {
+  server_level0.on_method4.Subscribe([&](int a) {
     level0_method4_called = true;
-    // send response to req_id
-    auto response_context = ae::ApiContext{server_level0};
-    response_context->SendResult(req_id, Number{78});
-    auto data = std::move(response_context).Pack();
-    // simulate transport and parse response here
-    // response should be parsed by server implementation on sender side, but in
-    // our case more matter to use same protocol_context
-    auto parser = ae::ApiParser{fxtr.protocol_context, data};
-    parser.Parse(server_level0);
+    TEST_ASSERT_EQUAL(42, a);
   });
 
-  // simulate transport and parse sent packet
   auto parser = ae::ApiParser{fxtr.protocol_context, packet};
   parser.Parse(server_level0);
 
   TEST_ASSERT(level0_method4_called);
-  TEST_ASSERT(promise_get_value);
 }
+
 
 void test_MethodWithSubApi() {
   MethodCallFixture fxtr;
@@ -218,20 +201,6 @@ void test_TruncatedArgumentsDoNotInvokeMethod() {
   TEST_ASSERT_FALSE(method_called);
 }
 
-void test_TruncatedRequestIdDoesNotInvokeMethod() {
-  MethodCallFixture fxtr;
-  auto server_level0 = server::ApiLevel0{fxtr.event_system};
-  auto method_called = false;
-  Subscription subscription = server_level0.on_method4.Subscribe(
-      [&](int, RequestId) { method_called = true; });
-  (void)subscription;
-
-  auto malformed_packet = DataBuffer{4};
-  auto parser = ApiParser{fxtr.protocol_context, malformed_packet};
-
-  TEST_ASSERT_FALSE(parser.Parse(server_level0));
-  TEST_ASSERT_FALSE(method_called);
-}
 
 }  // namespace ae::test_api_protocol_method_call
 
@@ -242,6 +211,5 @@ int test_api_protocol_method_call() {
   RUN_TEST(test_ReturnResult);
   RUN_TEST(test_MethodWithSubApi);
   RUN_TEST(test_TruncatedArgumentsDoNotInvokeMethod);
-  RUN_TEST(test_TruncatedRequestIdDoesNotInvokeMethod);
   return UNITY_END();
 }

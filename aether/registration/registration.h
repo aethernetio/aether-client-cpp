@@ -52,10 +52,10 @@ class Registration : Action {
   void InitConnection();
   void Restream();
   void Run();
-  auto GetKeys();
-  auto RequestPowParams();
-  auto MakeRegistration();
-  auto ResolveCloud();
+  void GetKeys();
+  void RequestPowParams();
+  void MakeRegistration();
+  void ResolveCloud();
   ClientConfig OnCloudResolved(std::vector<ServerDescriptor> const& servers);
 
   AeContext ae_context_;
@@ -69,6 +69,10 @@ class Registration : Action {
   RootServerSelectStream root_server_select_stream_;
 
   Duration response_timeout_;
+  Subscription server_pub_key_sub_;
+  Subscription pow_params_sub_;
+  Subscription reg_direct_sub_;
+  Subscription resolved_servers_sub_;
 
   Key server_pub_key_;
   Key sign_pk_;

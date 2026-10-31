@@ -32,16 +32,20 @@ void ServerRegistrationApi::Registration(
       salt, password_suffix, passwords, parent_uid_, std::move(gr_data));
 }
 
-ApiPromise<PowParams> ServerRegistrationApi::RequestProofOfWorkData(
+
+void ServerRegistrationApi::RequestProofOfWorkData(
     Uid const& parent_id, PowMethod pow_method) {
-  return ClientMethod<&ServerRegistrationApi::RequestProofOfWorkData>(
+  ClientMethod<&ServerRegistrationApi::RequestProofOfWorkData>(
       parent_id, pow_method);
 }
 
-ApiPromise<std::vector<ServerDescriptor>> ServerRegistrationApi::ResolveServers(
+
+
+void ServerRegistrationApi::ResolveServers(
     std::vector<ServerId> const& servers) {
-  return ClientMethod<&ServerRegistrationApi::ResolveServers>(servers);
+  ClientMethod<&ServerRegistrationApi::ResolveServers>(servers);
 }
+
 
 void ServerRegistrationApi::SetReturnKey(Key const& key) {
   ClientMethod<&ServerRegistrationApi::SetReturnKey>(key);
