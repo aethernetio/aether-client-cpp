@@ -135,24 +135,33 @@ void Registration::InitConnection() {
 void Registration::Restream() { root_server_select_stream_.Restream(); }
 
 
+
 void Registration::GetKeys() {
   AE_TELE_INFO(RegisterGetKeys, "GetKeys");
-  server_reg_root_api_.GetPublicKey(kDefaultCryptoLibProfile);
-    return;
+  auto api_context =
+      ApiContext<RegistrationRootApi>{server_reg_root_api_, protocol_context_};
+  api_context->GetPublicKey(kDefaultCryptoLibProfile);
+  root_server_select_stream_.Write(DataBuffer{std::move(api_context)});
 }
+
+
 
 
 
 void Registration::RequestPowParams() {
   AE_TELE_INFO(RegisterRequestPowParams, "Request proof of work params");
-  server_reg_root_api_.Enter(
+  auto api_context =
+      ApiContext<RegistrationRootApi>{server_reg_root_api_, protocol_context_};
+  api_context->Enter(
       kDefaultCryptoLibProfile,
       SubApi{[this](ApiContext<ServerRegistrationApi>& server_api) {
         server_api->SetReturnKey(root_crypto_provider_.GetDecryptionKey());
         server_api->RequestProofOfWorkData(parent_uid_, PowMethod::kBCryptCrc32);
       }});
-    return;
+  root_server_select_stream_.Write(DataBuffer{std::move(api_context)});
 }
+
+
 
 
 
@@ -167,7 +176,9 @@ void Registration::MakeRegistration() {
                 aether_global_key_.Index(), aether_global_key_, master_key_.Index(),
                 master_key_);
 
-  server_reg_root_api_.Enter(
+  auto api_context =
+      ApiContext<RegistrationRootApi>{server_reg_root_api_, protocol_context_};
+  api_context->Enter(
       kDefaultCryptoLibProfile,
       SubApi{[this, proofs =
                         std::move(proofs)](ApiContext<ServerRegistrationApi>& server_api) mutable {
@@ -178,8 +189,9 @@ void Registration::MakeRegistration() {
               global_api->Finish();
             });
       }});
-    return;
+  root_server_select_stream_.Write(DataBuffer{std::move(api_context)});
 }
+
 
 
 
