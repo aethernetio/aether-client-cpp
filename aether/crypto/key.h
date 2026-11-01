@@ -50,6 +50,7 @@
 
 namespace ae {
 
+
 enum class CryptoKeyType : std::uint8_t {
   kHydrogenCurvePrivate = 1,
   kHydrogenCurvePublic = 2,
@@ -61,8 +62,14 @@ enum class CryptoKeyType : std::uint8_t {
   kSodiumCurvePublic = 8,
   kSodiumSignPrivate = 9,
   kSodiumSignPublic = 10,
-  kLast,
+  kP256AesGcmSymmetric = 11,
+  kP256AesGcmCurvePrivate = 12,
+  kP256AesGcmCurvePublic = 13,
+  kP256AesGcmSignPrivate = 14,
+  kP256AesGcmSignPublic = 15,
+  kLast = 16,
 };
+
 
 #  if AE_CRYPTO_ASYNC == AE_SODIUM_BOX_SEAL
 struct SodiumCurvePublicKey {
@@ -127,11 +134,86 @@ struct HydrogenSignPrivateKey {
 };
 #  endif
 
+
+// Parse-only key containers for crypto types that are not enabled locally.
+// Payloads stay opaque here, the raw bytes are preserved for pass-through.
+struct HydrogenCurvePrivateKeyView {
+  AE_REFLECT_MEMBERS(key)
+  std::array<std::uint8_t, 32> key;
+};
+
+struct HydrogenCurvePublicKeyView {
+  AE_REFLECT_MEMBERS(key)
+  std::array<std::uint8_t, 32> key;
+};
+
+struct HydrogenSecretBoxKeyView {
+  AE_REFLECT_MEMBERS(key)
+  std::array<std::uint8_t, 32> key;
+};
+
+struct HydrogenSignPrivateKeyView {
+  AE_REFLECT_MEMBERS(key)
+  std::array<std::uint8_t, 64> key;
+};
+
+struct HydrogenSignPublicKeyView {
+  AE_REFLECT_MEMBERS(key)
+  std::array<std::uint8_t, 32> key;
+};
+
+struct SodiumCurvePrivateKeyView {
+  AE_REFLECT_MEMBERS(key)
+  std::array<std::uint8_t, 32> key;
+};
+
+struct SodiumCurvePublicKeyView {
+  AE_REFLECT_MEMBERS(key)
+  std::array<std::uint8_t, 32> key;
+};
+
+struct SodiumSignPrivateKeyView {
+  AE_REFLECT_MEMBERS(key)
+  std::array<std::uint8_t, 64> key;
+};
+
+struct SodiumSignPublicKeyView {
+  AE_REFLECT_MEMBERS(key)
+  std::array<std::uint8_t, 32> key;
+};
+
+struct P256AesGcmSymmetricKey {
+  AE_REFLECT_MEMBERS(key)
+  std::array<std::uint8_t, 32> key;
+};
+
+struct P256AesGcmCurvePrivateKey {
+  AE_REFLECT_MEMBERS(key)
+  std::array<std::uint8_t, 32> key;
+};
+
+struct P256AesGcmCurvePublicKey {
+  AE_REFLECT_MEMBERS(key)
+  std::array<std::uint8_t, 64> key;
+};
+
+struct P256AesGcmSignPrivateKey {
+  AE_REFLECT_MEMBERS(key)
+  std::array<std::uint8_t, 32> key;
+};
+
+struct P256AesGcmSignPublicKey {
+  AE_REFLECT_MEMBERS(key)
+  std::array<std::uint8_t, 64> key;
+};
+
+
 struct BlankKey {
   std::array<std::uint8_t, 0> key;
 
   AE_REFLECT_MEMBERS(key)
 };
+
 
 class Key
     : public VariantType<
@@ -143,25 +225,49 @@ class Key
 #  if AE_CRYPTO_ASYNC == AE_HYDRO_CRYPTO_PK
           VPair<CryptoKeyType::kHydrogenCurvePrivate, HydrogenCurvePrivateKey>,
           VPair<CryptoKeyType::kHydrogenCurvePublic, HydrogenCurvePublicKey>,
+#  else
+          VPair<CryptoKeyType::kHydrogenCurvePrivate,
+                HydrogenCurvePrivateKeyView>,
+          VPair<CryptoKeyType::kHydrogenCurvePublic,
+                HydrogenCurvePublicKeyView>,
 #  endif
 #  if AE_CRYPTO_SYNC == AE_HYDRO_CRYPTO_SK
           VPair<CryptoKeyType::kHydrogenSecretBox, HydrogenSecretBoxKey>,
+#  else
+          VPair<CryptoKeyType::kHydrogenSecretBox, HydrogenSecretBoxKeyView>,
 #  endif
 #  if AE_CRYPTO_ASYNC == AE_SODIUM_BOX_SEAL
           VPair<CryptoKeyType::kSodiumCurvePublic, SodiumCurvePublicKey>,
           VPair<CryptoKeyType::kSodiumCurvePrivate, SodiumCurvePrivateKey>,
+#  else
+          VPair<CryptoKeyType::kSodiumCurvePublic, SodiumCurvePublicKeyView>,
+          VPair<CryptoKeyType::kSodiumCurvePrivate, SodiumCurvePrivateKeyView>,
 #  endif
 #  if AE_SIGNATURE == AE_ED25519
           VPair<CryptoKeyType::kSodiumSignPrivate, SodiumSignPrivateKey>,
           VPair<CryptoKeyType::kSodiumSignPublic, SodiumSignPublicKey>,
+#  else
+          VPair<CryptoKeyType::kSodiumSignPrivate, SodiumSignPrivateKeyView>,
+          VPair<CryptoKeyType::kSodiumSignPublic, SodiumSignPublicKeyView>,
 #  endif
 #  if AE_SIGNATURE == AE_HYDRO_SIGNATURE
           VPair<CryptoKeyType::kHydrogenSignPrivate, HydrogenSignPrivateKey>,
           VPair<CryptoKeyType::kHydrogenSignPublic, HydrogenSignPublicKey>,
+#  else
+          VPair<CryptoKeyType::kHydrogenSignPrivate, HydrogenSignPrivateKeyView>,
+          VPair<CryptoKeyType::kHydrogenSignPublic, HydrogenSignPublicKeyView>,
 #  endif
+          VPair<CryptoKeyType::kP256AesGcmSymmetric, P256AesGcmSymmetricKey>,
+          VPair<CryptoKeyType::kP256AesGcmCurvePrivate,
+                P256AesGcmCurvePrivateKey>,
+          VPair<CryptoKeyType::kP256AesGcmCurvePublic, P256AesGcmCurvePublicKey>,
+          VPair<CryptoKeyType::kP256AesGcmSignPrivate,
+                P256AesGcmSignPrivateKey>,
+          VPair<CryptoKeyType::kP256AesGcmSignPublic, P256AesGcmSignPublicKey>,
           VPair<CryptoKeyType::kLast, BlankKey>
           // leave it here to make sure type list ended without comma
           > {
+
  public:
   using VariantType::VariantType;
 
