@@ -22,15 +22,15 @@ namespace ae {
 ServerRegistrationApi::ServerRegistrationApi(IEncryptProvider& encrypt_provider)
     : encrypt_provider_{&encrypt_provider}, global_reg_server_api_{} {}
 
-void ServerRegistrationApi::Registration(
+
+void ServerRegistrationApi::RegistrationDirect(
     std::string const& salt, std::string const& password_suffix,
-    std::vector<std::uint32_t> const& passwords, Uid const& parent_uid_,
-    SubApi<GlobalRegServerApi> sub_api) {
-  auto gr_data = encrypt_provider_->Encrypt(
-      std::move(sub_api)(global_reg_server_api_, client_context()));
-  ClientMethod<&ServerRegistrationApi::Registration>(
-      salt, password_suffix, passwords, parent_uid_, std::move(gr_data));
+    std::vector<std::uint32_t> const& passwords, Uid const& parent_uid,
+    Key const& master_key) {
+  ClientMethod<&ServerRegistrationApi::RegistrationDirect>(
+      salt, password_suffix, passwords, parent_uid, master_key);
 }
+
 
 
 void ServerRegistrationApi::RequestProofOfWorkData(

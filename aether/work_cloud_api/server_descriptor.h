@@ -22,6 +22,10 @@
 #include "aether/types/address.h"
 #include "aether/types/server_id.h"
 
+
+#include "aether/crypto/signed_key.h"
+
+
 namespace ae {
 
 struct CoderAndPort {
@@ -36,11 +40,14 @@ struct IpAddressAndPort {
   std::vector<CoderAndPort> protocol_and_ports;
 };
 
+
 struct ServerDescriptor {
-  AE_REFLECT_MEMBERS(server_id, ips)
+  AE_REFLECT_MEMBERS(server_id, ips, signing_keys)
   ServerId server_id;
   std::vector<IpAddressAndPort> ips;
+  std::vector<SignedKey> signing_keys;
 };
+
 }  // namespace ae
 
 #endif  // AETHER_WORK_CLOUD_API_SERVER_DESCRIPTOR_H_

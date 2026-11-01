@@ -17,7 +17,10 @@
 #ifndef AETHER_WORK_CLOUD_API_CLIENT_API_CLIENT_API_UNSAFE_H_
 #define AETHER_WORK_CLOUD_API_CLIENT_API_CLIENT_API_UNSAFE_H_
 
+
 #include "aether/api_protocol/api_protocol.h"
+#include "aether/work_cloud_api/info_ip.h"
+
 
 #include "aether/crypto/icrypto_provider.h"
 
@@ -53,23 +56,30 @@ class ClientApiUnsafe : public DeclareApi<ClientApiUnsafe> {
   Event<void(PowParams)> pow_params_event;
   Event<void(std::vector<ServerDescriptor>)> resolved_servers_event;
 
-Event<void()> ping_ack_event;
+
   Event<void(RegistrationDirectResult)> registration_direct_event;
+  Event<void(InfoIp)> my_ip_event;
+
 
 
   void SendAsymmetricPublicKey(SignedKey key);
   void SendPowParams(PowParams params);
   void SendResolvedServers(std::vector<ServerDescriptor> servers);
 
+
   void SendRegistrationDirect(RegistrationDirectResult result);
-  void PingAck();
+  void SendMyIpInfo(InfoIp info);
+
+
 
 
 
 
   API_LIST(METHOD(4, SendSafeApiData), METHOD(70, SendAsymmetricPublicKey),
            METHOD(67, SendPowParams), METHOD(66, SendRegistrationDirect),
-           METHOD(68, SendResolvedServers), METHOD(24, PingAck))
+           METHOD(68, SendResolvedServers), METHOD(47, SendMyIpInfo))
+
+
 
 
 
