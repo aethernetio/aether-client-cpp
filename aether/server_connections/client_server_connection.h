@@ -19,6 +19,8 @@
 
 #include "aether/config.h"
 
+#include <cstdint>
+
 #include "aether/ae_context.h"
 #include "aether/common.h"
 #include "aether/crypto/icrypto_provider.h"
@@ -44,7 +46,8 @@ class BufferedServerConnection : public ByteIStream {
   using Buffer = BufferWrite<DataBuffer, kBufferCapacity>;
 
   BufferedServerConnection(AeContext const& ae_context,
-                           Ptr<Server> const& server);
+                           Ptr<Server> const& server,
+                           std::uint64_t bench_client_instance_id);
 
   WriteAction& Write(DataBuffer&& in_data) override;
   StreamUpdateEvent const& stream_update_event() override;
@@ -78,6 +81,10 @@ class ClientServerConnection {
 
   ServerConnection& server_connection();
 
+  std::uint64_t bench_client_instance_id() const {
+    return bench_client_instance_id_;
+  }
+
  private:
   void OutData(DataBuffer const& data);
 
@@ -92,6 +99,7 @@ class ClientServerConnection {
   ClientApiUnsafe client_api_unsafe_;
   LoginApi login_api_;
 
+  std::uint64_t bench_client_instance_id_{0};
   client_server_connection_internal ::BufferedServerConnection
       server_connection_;
 };

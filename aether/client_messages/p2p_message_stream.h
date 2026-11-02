@@ -60,6 +60,12 @@ class P2pStream final : public ByteIStream {
   void WriteOut(DataBuffer const& data);
   Uid const& destination() const;
 
+  // Read-only diagnostic view of the destination-cloud server pool (no I/O).
+  CloudServerConnections const* DiagnosticDestinationCloudConnections()
+      const {
+    return dest_cloud_conn_.get();
+  }
+
  private:
   static constexpr auto kBufferCapacity = AE_P2P_MESSAGE_STREAM_BUFFER_CAPACITY;
   using Buffer = BufferWrite<AeMessage, kBufferCapacity>;

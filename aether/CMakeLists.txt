@@ -170,6 +170,9 @@ list(APPEND aether_srcs
 
 
 list(APPEND aether_srcs
+            "diagnostics/bench_connection_event_diag.cpp")
+
+list(APPEND aether_srcs
             "cloud_connections/cloud_server_connection.cpp"
             "cloud_connections/cloud_server_connections.cpp"
             "cloud_connections/ping_cloud_servers.cpp"

@@ -26,6 +26,8 @@
 #  include "aether/executors/executors.h"
 
 #  include "aether/cloud_connections/cloud_connections_tele.h"
+#  include "aether/diagnostics/bench_connection_event_diag.h"
+#  include "aether/diagnostics/bench_ping_min_timeout.h"
 
 namespace ae {
 
@@ -62,6 +64,9 @@ PingCloudServers::ServerPing::~ServerPing() = default;
 void PingCloudServers::ServerPing::Stop() {
   stop_ = true;
 
+#if AE_BENCH_PING_MIN_TIMEOUT_MS > 0
+  bench_ping_server_start::ClearDeferredStart(defer_state_);
+#endif
   waiter_.reset();
   start_sub_.Reset();
   rx_window_sub_.Reset();
@@ -119,8 +124,12 @@ auto PingCloudServers::ServerPing::MakePing() {
             return ex::set_error(std::move(ctx.receiver), 2);
           }
 
+          Duration const channel_timeout = c->ResponseTimeout();
+          Duration const applied_timeout =
+              bench_ping_min_timeout::ApplyBenchPingMinTimeout(channel_timeout);
           ping_.emplace(ae_context_, *cloud_sc_, timing_conf_.interval,
-                        timing_conf_.rx_window, c->ResponseTimeout());
+                        timing_conf_.rx_window, applied_timeout,
+                        channel_timeout);
 
           ping_blocker_ = policy_->AcquireSuspendBlock();
           ping_->result_event().Subscribe(
@@ -147,6 +156,16 @@ void PingCloudServers::ServerPing::Start() {
   if (stop_) {
     return;
   }
+#if AE_BENCH_PING_MIN_TIMEOUT_MS > 0
+  if (bench_ping_server_start::TryDeferPeriodicStart(
+          defer_state_, ping_.has_value(),
+          ping_ && ping_->IsPending())) {
+    AE_TELED_DEBUG(
+        "Defer periodic Start while ping pending (bench min timeout {} ms)",
+        AE_BENCH_PING_MIN_TIMEOUT_MS);
+    return;
+  }
+#endif
   waiter_.emplace(
       ae_context_,
       EnsureLinked() |
@@ -185,7 +204,15 @@ void PingCloudServers::ServerPing::Start() {
 }
 
 void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
+  std::uint64_t const cloud_id = cloud_sc_->bench_cloud_instance_id();
+  std::uint64_t client_id = 0;
   auto* cc = cloud_sc_->client_connection();
+  if (cc != nullptr) {
+    client_id = cc->bench_client_instance_id();
+  }
+  AE_BENCH_CONN_DIAG("ping_on_result", cloud_sc_->server_id(), cloud_id,
+                     client_id, 0, 0, 0, -1, 0, -1);
+  cc = cloud_sc_->client_connection();
   if (cc == nullptr) {
     AE_TELED_ERROR("Client connection is null");
     return;
@@ -198,15 +225,34 @@ void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
   }
 
   std::visit(
-      [this, c](auto const& value) {
+      [this, c, cloud_id, client_id](auto const& value) {
         using T = std::decay_t<decltype(value)>;
         if constexpr (std::is_same_v<T, Ok<Duration>>) {
           c->channel_statistics().AddResponseTime(value.value);
+#if AE_BENCH_PING_MIN_TIMEOUT_MS > 0
+          if (bench_ping_server_start::TakeDeferredStartAfterSuccess(
+                  defer_state_)) {
+            start_sub_ = ae_context_.scheduler().DelayedTask(
+                [&]() noexcept { Start(); }, next_ping_time_);
+          }
+#endif
         } else if constexpr (std::is_same_v<T, Ping::LateDuration>) {
           AE_TELED_DEBUG("Got late ping duration");
           c->channel_statistics().AddResponseTime(value.duration);
+#if AE_BENCH_PING_MIN_TIMEOUT_MS > 0
+          if (bench_ping_server_start::TakeDeferredStartAfterSuccess(
+                  defer_state_)) {
+            start_sub_ = ae_context_.scheduler().DelayedTask(
+                [&]() noexcept { Start(); }, next_ping_time_);
+          }
+#endif
         } else {
           AE_TELED_ERROR("Ping error!");
+#if AE_BENCH_PING_MIN_TIMEOUT_MS > 0
+          bench_ping_server_start::ClearDeferredStart(defer_state_);
+#endif
+          AE_BENCH_CONN_DIAG("ping_on_result_restream", cloud_sc_->server_id(),
+                             cloud_id, client_id, 0, 0, 0, -1, 0, -1);
           ScheduleRestream();
         }
       },
@@ -226,10 +272,25 @@ void PingCloudServers::ServerPing::ScheduleRestream() {
     return;
   }
 
+  std::uint64_t const cloud_id = cloud_sc_->bench_cloud_instance_id();
+  std::uint64_t client_id = 0;
+  if (auto* cc = cloud_sc_->client_connection()) {
+    client_id = cc->bench_client_instance_id();
+  }
+  AE_BENCH_CONN_DIAG("schedule_restream", cloud_sc_->server_id(), cloud_id,
+                     client_id, 0, 0, 0, -1, 0, -1);
+
   // TODO: should we block till restream?
   restream_blocker_ = policy_->AcquireSuspendBlock();
   restream_sub_ = ae_context_.scheduler().Task([this]() {
+    std::uint64_t const cloud_id = cloud_sc_->bench_cloud_instance_id();
+    std::uint64_t client_id = 0;
     auto* cc = cloud_sc_->client_connection();
+    if (cc != nullptr) {
+      client_id = cc->bench_client_instance_id();
+    }
+    AE_BENCH_CONN_DIAG("schedule_restream_run", cloud_sc_->server_id(),
+                       cloud_id, client_id, 0, 0, 0, -1, 0, -1);
     if (cc != nullptr) {
       cc->Restream();
     }

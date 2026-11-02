@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <limits>
 
+#include "aether/diagnostics/bench_connection_event_diag.h"
 #include "aether/server.h"
 
 namespace ae {
@@ -29,7 +30,14 @@ CloudServerConnection::CloudServerConnection(
     IServerConnectionFactory& connection_factory)
     : cloud_{cloud},
       server_id_{server_id},
-      connection_factory_{&connection_factory} {}
+      connection_factory_{&connection_factory}
+#if AE_BENCH_CONNECTION_EVENT_DIAG
+      ,
+      bench_cloud_instance_id_{
+          bench_conn_event_diag::AllocateCloudServerConnectionInstanceId()}
+#endif
+{
+}
 
 void CloudServerConnection::Restream() {
   if (client_connection_) {

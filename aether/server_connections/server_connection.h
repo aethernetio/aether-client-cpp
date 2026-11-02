@@ -17,9 +17,12 @@
 #ifndef AETHER_SERVER_CONNECTIONS_SERVER_CONNECTION_H_
 #define AETHER_SERVER_CONNECTIONS_SERVER_CONNECTION_H_
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <vector>
+
+#include "aether/config.h"
 
 #include "aether-objects/ptr/ptr.h"
 #include "aether-objects/ptr/ptr_view.h"
@@ -56,6 +59,16 @@ class ServerConnection final : public ByteIStream {
 
   Ptr<Channel> current_channel() const;
 
+  std::uint64_t bench_server_instance_id() const {
+    return bench_server_instance_id_;
+  }
+
+#if AE_BENCH_CONNECTION_EVENT_DIAG
+  void SetBenchDiagClientInstanceId(std::uint64_t id) {
+    bench_client_instance_id_ = id;
+  }
+#endif
+
  private:
   friend struct ServerConnectionTestAccess;
 
@@ -78,6 +91,8 @@ class ServerConnection final : public ByteIStream {
   PtrView<Server> server_;
 
   bool full_connected_;
+  std::uint64_t bench_server_instance_id_{0};
+  std::uint64_t bench_client_instance_id_{0};
   ChannelEntry* top_channel_;
   std::unique_ptr<ByteIStream> stream_;
   std::vector<ChannelEntry> channels_;

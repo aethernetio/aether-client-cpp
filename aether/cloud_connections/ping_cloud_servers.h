@@ -31,6 +31,7 @@
 
 #  include "aether/ae_actions/ping.h"
 #  include "aether/client_connectivity_policy.h"
+#  include "aether/diagnostics/bench_ping_server_start_defer.h"
 #  include "aether/cloud_connections/cloud_server_connections.h"
 
 namespace ae {
@@ -81,6 +82,9 @@ class PingCloudServers {
     ClientConnectivityPolicy::SuspendBlocker rx_window_blocker_;
     ClientConnectivityPolicy::SuspendBlocker restream_blocker_;
     TimePoint next_ping_time_;
+#if AE_BENCH_PING_MIN_TIMEOUT_MS > 0
+    bench_ping_server_start::DeferState defer_state_;
+#endif
   };
 
  public:
