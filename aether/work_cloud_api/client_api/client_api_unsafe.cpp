@@ -26,8 +26,10 @@ ClientApiUnsafe::ClientApiUnsafe(EventSystem& event_system,
       pow_params_event{event_system},
       resolved_servers_event{event_system},
 
-      ping_ack_event{event_system},
+
       registration_direct_event{event_system},
+      my_ip_event{event_system},
+
 
 
       decrypt_provider_{&decrypt_provider},
@@ -57,13 +59,16 @@ void ClientApiUnsafe::SendResolvedServers(std::vector<ServerDescriptor> servers)
   resolved_servers_event.Emit(std::move(servers));
 }
 
+
 void ClientApiUnsafe::SendRegistrationDirect(RegistrationDirectResult result) {
   registration_direct_event.Emit(std::move(result));
 }
 
 
-void ClientApiUnsafe::PingAck() {
-  ping_ack_event.Emit();
+void ClientApiUnsafe::SendMyIpInfo(InfoIp info) {
+  my_ip_event.Emit(std::move(info));
 }
+
+
 
 }  // namespace ae

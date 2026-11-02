@@ -67,3 +67,7 @@ projects/intel_x86/linux/gcc/aether-client-cpp
 *.log
 
 build-test/
+
+# Local e2e / probe build artifacts and runtime state
+build-p2p-e2e/
+state/

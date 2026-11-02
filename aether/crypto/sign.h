@@ -38,10 +38,13 @@
 
 namespace ae {
 
+
 enum class SignatureMethod : std::uint8_t {
   kEd25519 = 1,
   kHydroSignature = 2,
+  kP256AesGcm = 3,
 };
+
 
 #  if AE_SIGNATURE == AE_ED25519
 inline constexpr auto kDefaultSignatureMethod = SignatureMethod::kEd25519;
@@ -65,15 +68,37 @@ struct SignHydrogen {
 };
 #  endif
 
+
+// Parse-only signature containers for methods not enabled locally.
+struct SignHydrogenView {
+  AE_REFLECT_MEMBERS(signature)
+  std::array<uint8_t, 64> signature;
+};
+
+struct SignP256AesGcm {
+  AE_REFLECT_MEMBERS(signature)
+  std::array<uint8_t, 64> signature;
+};
+
 // Signature type
 struct Sign : public VariantType<SignatureMethod,
 #  if AE_SIGNATURE == AE_ED25519
-                                 VPair<SignatureMethod::kEd25519, SignSodium>
-#  elif AE_SIGNATURE == AE_HYDRO_SIGNATURE
-                                 VPair<SignatureMethod::kHydroSignature,
-                                       SignHydrogen>
+                                 VPair<SignatureMethod::kEd25519, SignSodium>,
+#  else
+                                 VPair<SignatureMethod::kEd25519,
+                                       SignHydrogenView>,
 #  endif
+#  if AE_SIGNATURE == AE_HYDRO_SIGNATURE
+                                 VPair<SignatureMethod::kHydroSignature,
+                                       SignHydrogen>,
+#  else
+                                 VPair<SignatureMethod::kHydroSignature,
+                                       SignHydrogenView>,
+#  endif
+                                 VPair<SignatureMethod::kP256AesGcm,
+                                       SignP256AesGcm>
                                  > {
+
   using VariantType::VariantType;
 
   std::uint8_t const* Data() const {

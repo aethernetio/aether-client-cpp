@@ -24,12 +24,17 @@
 
 namespace ae {
 
+
 ClientApiSafe::ClientApiSafe(EventSystem& event_system)
-    : send_message_event_{event_system},
+    : ping_ack_event{event_system},
+      send_message_event_{event_system},
       send_server_descriptor_event_{event_system},
       send_cloud_event_{event_system},
       request_telemetry_event_{event_system},
       send_cloud_configs_{event_system} {}
+
+void ClientApiSafe::PingAck() { ping_ack_event.Emit(); }
+
 
 void ClientApiSafe::ChangeParent([[maybe_unused]] Uid const& uid) {
   AE_TELED_DEBUG("ChangeParent");
