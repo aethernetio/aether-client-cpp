@@ -11,11 +11,14 @@
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the License.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 #include <chrono>
 #include <cstdint>
+#include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -34,14 +37,16 @@
 #include "aether/client.h"
 #include "aether/cloud.h"
 #include "aether/cloud_connections/cloud_server_connection.h"
+#include "aether/crypto/ikey_provider.h"
 #include "aether/crypto/key_gen.h"
+#include "aether/crypto/sync_crypto_provider.h"
 #include "aether/diagnostics/bench_ping_server_start_defer.h"
 #include "aether/env.h"
 #include "aether/executors/executors.h"
 #include "aether/server.h"
 #include "aether/server_connections/client_server_connection.h"
-#include "aether/socket_initializer.h"
 #include "aether/server_connections/iserver_connection_factory.h"
+#include "aether/socket_initializer.h"
 #include "aether/stream_api/istream.h"
 #include "aether/tasks/details/task_subsctiption.h"
 #include "aether/tasks/manual_task_scheduler.h"
@@ -57,6 +62,7 @@ SocketInitializer g_socket_initializer;
 constexpr auto kServerId = ServerId{42};
 constexpr auto kServerIdB = ServerId{43};
 constexpr auto kPingAckMessageId = MessageId{24};
+constexpr auto kSendSafeApiMessageId = MessageId{4};
 constexpr auto kEndpointPort = std::uint16_t{9021};
 
 using Scheduler = ManualTaskScheduler<TaskManagerConf<128>>;
@@ -77,23 +83,24 @@ struct TestContext : public AeEnv {
     return nullptr;
   }
 
-  void PumpFor(Duration delta) {
-    auto t = std::chrono::system_clock::now();
-    auto const end = t + delta;
-    while (t < end) {
-      t += std::chrono::milliseconds{1};
-      sched.Update(t);
+  TimePoint Now() const { return test_now_; }
+
+  void Advance(Duration delta) {
+    auto const end = test_now_ + delta;
+    while (test_now_ < end) {
+      test_now_ += std::chrono::milliseconds{1};
+      sched.Update(test_now_);
     }
   }
 
-  void PumpFromUntil(TimePoint start, TimePoint end) {
-    auto t = start;
-    while (t < end) {
-      t += std::chrono::milliseconds{1};
-      sched.Update(t);
+  void AdvanceUntil(TimePoint end) {
+    while (test_now_ < end) {
+      test_now_ += std::chrono::milliseconds{1};
+      sched.Update(test_now_);
     }
   }
 
+  TimePoint test_now_{std::chrono::system_clock::now()};
   Scheduler sched;
   EventSystem event_system;
 };
@@ -131,7 +138,7 @@ inline WriteAction& SelectWriteAction(
 
 class LinkedMockStream final : public ByteIStream {
  public:
-  explicit LinkedMockStream(AeContext const& context, bool fail_write)
+  LinkedMockStream(AeContext const& context, bool fail_write)
       : context_{context},
         fail_write_{fail_write},
         stream_info_{512, 1024, true, LinkState::kLinked, true},
@@ -139,6 +146,9 @@ class LinkedMockStream final : public ByteIStream {
         stream_update_event_{context_} {}
 
   WriteAction& Write(DataBuffer&& /*data*/) override {
+    if (on_write_hook_) {
+      on_write_hook_();
+    }
     return SelectWriteAction(context_, fail_write_, ok_action_, fail_action_);
   }
   StreamUpdateEvent const& stream_update_event() override {
@@ -148,6 +158,12 @@ class LinkedMockStream final : public ByteIStream {
   OutDataEvent const& out_data_event() override { return out_data_event_; }
   void Restream() override {}
 
+  void SimulateInbound(DataBuffer data) { out_data_event_.Emit(std::move(data)); }
+
+  void SetWriteHook(std::function<void()> hook) {
+    on_write_hook_ = std::move(hook);
+  }
+
  private:
   AeContext context_;
   bool fail_write_;
@@ -156,15 +172,18 @@ class LinkedMockStream final : public ByteIStream {
   StreamUpdateEvent stream_update_event_;
   std::optional<ImmediateWriteAction> ok_action_;
   std::optional<FailWriteAction> fail_action_;
+  std::function<void()> on_write_hook_;
 };
 
 struct FakeBuildPolicy {
   AeContext const* context{nullptr};
+  ServerId server_id{};
   bool fail_write{false};
+  std::function<void(ServerId, LinkedMockStream*)> on_stream_built{};
 };
 
 class PingPushAckFakeChannel final : public Channel {
-  AE_OBJECT(PingPushAckFakeChannel, Channel, 1)
+  AE_OBJECT(PingPushAckFakeChannel, Channel, 2)
 
  protected:
   PingPushAckFakeChannel() = default;
@@ -182,8 +201,12 @@ class PingPushAckFakeChannel final : public Channel {
 
   TransportBuildSender TransportBuilder() override {
     assert(policy_.context != nullptr);
-    return ex::just(std::unique_ptr<ByteIStream>{std::make_unique<LinkedMockStream>(
-        *policy_.context, policy_.fail_write)});
+    auto stream = std::make_unique<LinkedMockStream>(*policy_.context,
+                                                    policy_.fail_write);
+    if (policy_.on_stream_built) {
+      policy_.on_stream_built(policy_.server_id, stream.get());
+    }
+    return ex::just(std::unique_ptr<ByteIStream>{std::move(stream)});
   }
 
   Duration TransportBuildTimeout() const override {
@@ -224,7 +247,7 @@ struct PingHarness {
   static constexpr Duration kRxWindow{std::chrono::milliseconds{5}};
   static constexpr Duration kHint{std::chrono::seconds{1}};
 
-  PingHarness(bool fail_write = false)
+  explicit PingHarness(bool fail_write = false, bool connect_primary = true)
       : ae_ctx{ctx}, domain{storage, &ctx} {
     aether = Aether::ptr::Create(CreateWith{domain});
     registry = AdapterRegistry::ptr::Create(CreateWith{domain});
@@ -249,8 +272,18 @@ struct PingHarness {
 
     policy.context = &ae_ctx;
     policy.fail_write = fail_write;
-    ready = AttachLinkedServer(kServerId) && AttachLinkedServer(kServerIdB) &&
-            ConnectCloud(kServerId);
+    policy.on_stream_built = [this](ServerId id, LinkedMockStream* stream) {
+      streams_by_server_[id] = stream;
+    };
+    ready = AttachLinkedServer(kServerId) && AttachLinkedServer(kServerIdB);
+    if (connect_primary) {
+      ready = ready && ConnectCloud(kServerId);
+    }
+  }
+
+  LinkedMockStream* Stream(ServerId id) {
+    auto it = streams_by_server_.find(id);
+    return it == streams_by_server_.end() ? nullptr : it->second;
   }
 
   bool AttachLinkedServer(ServerId id) {
@@ -258,8 +291,10 @@ struct PingHarness {
     if (server == nullptr) {
       return false;
     }
-    server->channels = {
-        PingPushAckFakeChannel::ptr::Create(CreateWith{domain}, policy)};
+    FakeBuildPolicy channel_policy = policy;
+    channel_policy.server_id = id;
+    server->channels = {PingPushAckFakeChannel::ptr::Create(
+        CreateWith{domain}, channel_policy)};
     return true;
   }
 
@@ -273,7 +308,7 @@ struct PingHarness {
     if (!cloud_conn->Connect()) {
       return false;
     }
-    ctx.PumpFor(std::chrono::milliseconds{200});
+    ctx.Advance(std::chrono::milliseconds{200});
     auto* cc = cloud_conn->client_connection();
     if (cc == nullptr) {
       return false;
@@ -297,8 +332,36 @@ struct PingHarness {
   AdapterRegistry::ptr registry;
   ObjPtr<Client> client;
   FakeBuildPolicy policy{};
+  std::map<ServerId, LinkedMockStream*> streams_by_server_;
   std::unique_ptr<LinkedClientFactory> factory;
   std::unique_ptr<CloudServerConnection> cloud_conn;
+};
+
+class InboundSafeApiEncryptKeyProvider final : public ISyncKeyProvider {
+ public:
+  InboundSafeApiEncryptKeyProvider(ObjPtr<Client> client, ServerId server_id)
+      : client_{client}, server_id_{server_id} {}
+
+  Key GetKey() const override {
+    auto client_ptr = client_.Load();
+    assert(client_ptr);
+    auto* server_key = client_ptr->server_state(server_id_);
+    assert(server_key);
+    return server_key->server_to_client();
+  }
+
+  CryptoNonce const& Nonce() const override {
+    auto client_ptr = client_.Load();
+    assert(client_ptr);
+    auto* server_key = client_ptr->server_state(server_id_);
+    assert(server_key);
+    server_key->Next();
+    return server_key->nonce();
+  }
+
+ private:
+  ObjPtr<Client> client_;
+  ServerId server_id_;
 };
 
 struct ResultCapture {
@@ -331,6 +394,32 @@ struct ResultCapture {
   }
 };
 
+DataBuffer MakeSerializedPingAckPacket() {
+  DataBuffer packet;
+  ApiPacker packer{packet};
+  packer.Pack(kPingAckMessageId, GenericMessage<>{});
+  return packet;
+}
+
+DataBuffer PackSendSafeApiEncrypted(ObjPtr<Client> const& client,
+                                    ServerId server_id,
+                                    DataBuffer const& safe_api_plaintext) {
+  SyncEncryptProvider encryptor{
+      std::make_unique<InboundSafeApiEncryptKeyProvider>(client, server_id)};
+  DataBuffer const encrypted = encryptor.Encrypt(safe_api_plaintext);
+  DataBuffer outer;
+  ApiPacker packer{outer};
+  packer.Pack(kSendSafeApiMessageId, encrypted);
+  return outer;
+}
+
+void DeliverPingAckViaStream(PingHarness& h, ServerId server_id) {
+  auto* stream = h.Stream(server_id);
+  TEST_ASSERT_NOT_NULL(stream);
+  stream->SimulateInbound(
+      PackSendSafeApiEncrypted(h.client, server_id, MakeSerializedPingAckPacket()));
+}
+
 std::unique_ptr<Ping> MakePing(PingHarness& h) {
   return std::unique_ptr<Ping>(new Ping(
       h.ae_ctx, h.CloudConn(), PingHarness::kHint, PingHarness::kRxWindow,
@@ -339,20 +428,16 @@ std::unique_ptr<Ping> MakePing(PingHarness& h) {
 
 void StartPing(PingHarness& h, Ping& ping, ResultCapture& cap) {
   cap.Attach(ping, h.ctx.event_system);
-  ping.Start(std::chrono::system_clock::now());
-  h.ctx.PumpFor(std::chrono::milliseconds{20});
+  auto const start = h.ctx.Now();
+  ping.Start(start);
+  h.ctx.Advance(std::chrono::milliseconds{20});
 }
 
-DataBuffer MakeSerializedPingAckPacket() {
-  DataBuffer packet;
-  ApiPacker packer{packet};
-  packer.Pack(kPingAckMessageId, GenericMessage<>{});
-  return packet;
-}
-
-void DeliverSerializedPingAck(ClientServerConnection& connection) {
-  ClientServerConnectionTestAccess::DeliverInboundSafeApiPlaintext(
-      connection, MakeSerializedPingAckPacket());
+void DrainHarness(PingHarness& h, Duration extra = std::chrono::milliseconds{250}) {
+  h.ctx.Advance(extra);
+  h.cloud_conn.reset();
+  h.factory.reset();
+  h.streams_by_server_.clear();
 }
 
 }  // namespace
@@ -364,65 +449,151 @@ void test_PushPingAckCompletesPingBeforeTimeout() {
   ResultCapture cap;
   StartPing(h, *ping, cap);
 
-  DeliverSerializedPingAck(*h.Connection());
-  h.ctx.PumpFor(std::chrono::milliseconds{30});
+  DeliverPingAckViaStream(h, kServerId);
+  h.ctx.Advance(std::chrono::milliseconds{30});
 
   TEST_ASSERT_EQUAL(1, cap.count);
   TEST_ASSERT_TRUE(cap.HasOk());
+
+  auto const deadline =
+      h.ctx.Now() + PingHarness::kPingTimeout + std::chrono::milliseconds{50};
+  h.ctx.AdvanceUntil(deadline);
+  TEST_ASSERT_EQUAL(1, cap.count);
+  TEST_ASSERT_TRUE(cap.HasOk());
+  DrainHarness(h);
 }
 
-void test_PingPushAckRegressionSuite() {
-  {
-    PingHarness h;
-    TEST_ASSERT_TRUE(h.ready);
-    auto ping = MakePing(h);
-    ResultCapture cap;
-    cap.Attach(*ping, h.ctx.event_system);
-    ping->Start(std::chrono::system_clock::now());
-    DeliverSerializedPingAck(*h.Connection());
-    h.ctx.PumpFor(std::chrono::milliseconds{150});
-    TEST_ASSERT_EQUAL(1, cap.count);
-    TEST_ASSERT_TRUE(cap.HasOk());
-  }
+void test_FastPingAckDuringTransportWriteBeforeStartReturns() {
+  PingHarness h;
+  TEST_ASSERT_TRUE(h.ready);
+  auto ping = MakePing(h);
+  ResultCapture cap;
+  cap.Attach(*ping, h.ctx.event_system);
 
-  {
-    PingHarness h;
-    TEST_ASSERT_TRUE(h.ready);
-    auto ping = MakePing(h);
-    ResultCapture cap;
-    StartPing(h, *ping, cap);
-    DeliverSerializedPingAck(*h.Connection());
-    DeliverSerializedPingAck(*h.Connection());
-    h.ctx.PumpFor(std::chrono::milliseconds{150});
-    TEST_ASSERT_EQUAL(1, cap.count);
-    TEST_ASSERT_TRUE(cap.HasOk());
-  }
+  auto* stream = h.Stream(kServerId);
+  TEST_ASSERT_NOT_NULL(stream);
+  stream->SetWriteHook([&]() { DeliverPingAckViaStream(h, kServerId); });
 
-  {
-    PingHarness h;
-    TEST_ASSERT_TRUE(h.ready);
-    auto ping = MakePing(h);
-    ResultCapture cap;
-    cap.Attach(*ping, h.ctx.event_system);
-    ping->Start(std::chrono::system_clock::now());
-    h.ctx.PumpFor(std::chrono::milliseconds{10});
-    ping.reset();
-    h.ctx.PumpFor(std::chrono::milliseconds{150});
-  }
+  ping->Start(h.ctx.Now());
+  h.ctx.Advance(std::chrono::milliseconds{150});
 
-  {
-    PingHarness h{true};
-    TEST_ASSERT_TRUE(h.ready);
-    auto ping = MakePing(h);
-    ResultCapture cap;
-    StartPing(h, *ping, cap);
-    h.ctx.PumpFor(std::chrono::milliseconds{150});
-    TEST_ASSERT_EQUAL(1, cap.count);
-    TEST_ASSERT_TRUE(cap.HasWriteFail());
-    DeliverSerializedPingAck(*h.Connection());
-    h.ctx.PumpFor(std::chrono::milliseconds{150});
-    TEST_ASSERT_EQUAL(1, cap.count);
-  }
+  TEST_ASSERT_EQUAL(1, cap.count);
+  TEST_ASSERT_TRUE(cap.HasOk());
+  DrainHarness(h);
+}
+
+void test_MissingAckTimesOutOnce() {
+  PingHarness h;
+  TEST_ASSERT_TRUE(h.ready);
+  auto ping = MakePing(h);
+  ResultCapture cap;
+  StartPing(h, *ping, cap);
+  TEST_ASSERT_TRUE(ping->IsPending());
+  h.ctx.Advance(std::chrono::milliseconds{500});
+  TEST_ASSERT_EQUAL(1, cap.count);
+  TEST_ASSERT_TRUE(cap.HasTimeout());
+  DrainHarness(h);
+}
+
+void test_LateAckAfterTimeoutEmitsLateDuration() {
+  PingHarness h;
+  TEST_ASSERT_TRUE(h.ready);
+  auto ping = MakePing(h);
+  ResultCapture cap;
+  cap.Attach(*ping, h.ctx.event_system);
+  auto const start = h.ctx.Now();
+  ping->Start(start);
+  h.ctx.Advance(std::chrono::milliseconds{20});
+  h.ctx.AdvanceUntil(start + PingHarness::kPingTimeout +
+                     std::chrono::milliseconds{20});
+  TEST_ASSERT_EQUAL(1, cap.count);
+  TEST_ASSERT_TRUE(cap.HasTimeout());
+
+  DeliverPingAckViaStream(h, kServerId);
+  h.ctx.Advance(std::chrono::milliseconds{20});
+  TEST_ASSERT_EQUAL(2, cap.count);
+  TEST_ASSERT_TRUE(cap.HasLate());
+  DrainHarness(h);
+}
+
+void test_DuplicateAckAfterSuccessIgnored() {
+  PingHarness h;
+  TEST_ASSERT_TRUE(h.ready);
+  auto ping = MakePing(h);
+  ResultCapture cap;
+  StartPing(h, *ping, cap);
+  DeliverPingAckViaStream(h, kServerId);
+  DeliverPingAckViaStream(h, kServerId);
+  h.ctx.Advance(std::chrono::milliseconds{150});
+  TEST_ASSERT_EQUAL(1, cap.count);
+  TEST_ASSERT_TRUE(cap.HasOk());
+  DrainHarness(h);
+}
+
+void test_OtherConnectionAckBeforeStartThenCorrectAckOk() {
+  PingHarness h;
+  TEST_ASSERT_TRUE(h.ready);
+
+  LinkedClientFactory other_factory(h.ae_ctx, h.client, h.policy);
+  CloudServerConnection other_cloud{h.client->cloud().Load(), kServerIdB,
+                                    other_factory};
+  TEST_ASSERT_TRUE(other_cloud.Connect());
+  h.ctx.Advance(std::chrono::milliseconds{200});
+  TEST_ASSERT_NOT_NULL(other_cloud.client_connection());
+
+  auto ping = MakePing(h);
+  ResultCapture cap;
+  cap.Attach(*ping, h.ctx.event_system);
+  auto const start = h.ctx.Now();
+  ping->Start(start);
+  h.ctx.Advance(std::chrono::milliseconds{20});
+
+  DeliverPingAckViaStream(h, kServerIdB);
+  h.ctx.Advance(std::chrono::milliseconds{30});
+  TEST_ASSERT_EQUAL(0, cap.count);
+
+  DeliverPingAckViaStream(h, kServerId);
+  h.ctx.Advance(std::chrono::milliseconds{30});
+  TEST_ASSERT_EQUAL(1, cap.count);
+  TEST_ASSERT_TRUE(cap.HasOk());
+  DrainHarness(h);
+}
+
+void test_WriteFailureThenAckAndDeadlineIgnored() {
+  PingHarness h{true};
+  TEST_ASSERT_TRUE(h.ready);
+  auto ping = MakePing(h);
+  ResultCapture cap;
+  StartPing(h, *ping, cap);
+  h.ctx.Advance(std::chrono::milliseconds{150});
+  TEST_ASSERT_EQUAL(1, cap.count);
+  TEST_ASSERT_TRUE(cap.HasWriteFail());
+
+  DeliverPingAckViaStream(h, kServerId);
+  auto const deadline =
+      h.ctx.Now() + PingHarness::kPingTimeout + std::chrono::milliseconds{50};
+  h.ctx.AdvanceUntil(deadline);
+  TEST_ASSERT_EQUAL(1, cap.count);
+  TEST_ASSERT_TRUE(cap.HasWriteFail());
+  DrainHarness(h);
+}
+
+void test_DestroyPendingPingThenAckAndDeadlineNoCallbacks() {
+  PingHarness h;
+  TEST_ASSERT_TRUE(h.ready);
+  auto ping = MakePing(h);
+  ResultCapture cap;
+  cap.Attach(*ping, h.ctx.event_system);
+  auto const start = h.ctx.Now();
+  ping->Start(start);
+  h.ctx.Advance(std::chrono::milliseconds{20});
+  ping.reset();
+
+  DeliverPingAckViaStream(h, kServerId);
+  h.ctx.AdvanceUntil(start + PingHarness::kPingTimeout +
+                     std::chrono::milliseconds{50});
+  TEST_ASSERT_EQUAL(0, cap.count);
+  DrainHarness(h);
 }
 
 void test_DeferPeriodicStartWhilePingPending() {
@@ -439,14 +610,40 @@ void test_DeferPeriodicStartWhilePingPending() {
 #endif
 }
 
-}  // namespace ae::test_ping_push_ack
+namespace {
 
-int test_api_protocol_ping_push_ack() {
+int RunPingPushAckTestsOnce() {
   UNITY_BEGIN();
-  using namespace ae::test_ping_push_ack;  // NOLINT
 
   RUN_TEST(test_DeferPeriodicStartWhilePingPending);
   RUN_TEST(test_PushPingAckCompletesPingBeforeTimeout);
+  RUN_TEST(test_FastPingAckDuringTransportWriteBeforeStartReturns);
+  RUN_TEST(test_MissingAckTimesOutOnce);
+  RUN_TEST(test_LateAckAfterTimeoutEmitsLateDuration);
+  RUN_TEST(test_DuplicateAckAfterSuccessIgnored);
+  RUN_TEST(test_OtherConnectionAckBeforeStartThenCorrectAckOk);
+  RUN_TEST(test_WriteFailureThenAckAndDeadlineIgnored);
+  RUN_TEST(test_DestroyPendingPingThenAckAndDeadlineNoCallbacks);
 
   return UNITY_END();
+}
+
+}  // namespace
+
+}  // namespace ae::test_ping_push_ack
+
+extern int test_ping_server_defer_run();
+
+int test_api_protocol_ping_push_ack() {
+  using namespace ae::test_ping_push_ack;
+  int failures = RunPingPushAckTestsOnce();
+  if (failures == 0) {
+    failures = RunPingPushAckTestsOnce();
+  }
+#if defined(PING_SUITE_STANDALONE) && PING_SUITE_STANDALONE
+  if (failures == 0) {
+    failures = test_ping_server_defer_run();
+  }
+#endif
+  return failures;
 }

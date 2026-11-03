@@ -35,8 +35,11 @@
 #  include "aether/cloud_connections/cloud_server_connections.h"
 
 namespace ae {
+struct PingCloudServersTestAccess;
+
 class PingCloudServers {
   class ServerPing {
+    friend struct PingCloudServersTestAccess;
    public:
     ServerPing(AeContext const& ae_context, ClientConnectivityPolicy& policy,
                CloudServerConnection& cloud_sc, std::size_t priority);
@@ -109,7 +112,16 @@ class PingCloudServers {
   Subscription server_quarantine_released_sub_;
   TaskSubscription task_sub_;
 
+  friend struct PingCloudServersTestAccess;
+
   std::map<ServerId, std::unique_ptr<ServerPing>> server_pings_;
+};
+
+/** Test-only hooks for ServerPing::Start deferral (see ping_cloud_servers.cpp). */
+struct PingCloudServersTestAccess {
+  static void TriggerPeriodicStart(PingCloudServers& pcs, ServerId server_id);
+  static bool HasPendingClientPing(PingCloudServers& pcs, ServerId server_id);
+  static Ping const* ClientPingPtr(PingCloudServers& pcs, ServerId server_id);
 };
 }  // namespace ae
 

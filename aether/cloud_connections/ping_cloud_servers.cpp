@@ -392,6 +392,34 @@ void PingCloudServers::ServerQuarantineReleased(
     server_pings_.erase(it);
   }
 }
+
+void PingCloudServersTestAccess::TriggerPeriodicStart(PingCloudServers& pcs,
+                                                      ServerId server_id) {
+  auto it = pcs.server_pings_.find(server_id);
+  if (it == pcs.server_pings_.end()) {
+    return;
+  }
+  it->second->Start();
+}
+
+bool PingCloudServersTestAccess::HasPendingClientPing(PingCloudServers& pcs,
+                                                      ServerId server_id) {
+  auto it = pcs.server_pings_.find(server_id);
+  if (it == pcs.server_pings_.end()) {
+    return false;
+  }
+  auto& sp = *it->second;
+  return sp.ping_.has_value() && sp.ping_->IsPending();
+}
+
+Ping const* PingCloudServersTestAccess::ClientPingPtr(PingCloudServers& pcs,
+                                                      ServerId server_id) {
+  auto it = pcs.server_pings_.find(server_id);
+  if (it == pcs.server_pings_.end() || !it->second->ping_.has_value()) {
+    return nullptr;
+  }
+  return &*it->second->ping_;
+}
 }  // namespace ae
 
 #endif

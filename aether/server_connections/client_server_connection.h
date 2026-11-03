@@ -108,11 +108,6 @@ class ClientServerConnection {
 struct ClientServerConnectionTestAccess {
   static void DeliverInboundApiData(ClientServerConnection& connection,
                                     DataBuffer const& data);
-
-  /** Delivers a ClientApiSafe payload through SendSafeApiData (method 4). */
-  static void DeliverInboundSafeApiPlaintext(
-      ClientServerConnection& connection,
-      DataBuffer const& safe_api_plaintext);
 };
 }  // namespace ae
 
