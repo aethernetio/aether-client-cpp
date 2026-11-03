@@ -42,32 +42,15 @@ SocketInitializer g_socket_initializer;
 constexpr ServerId kServerId{42};
 constexpr ServerId kServerIdB{43};
 
-using Scheduler = ManualTaskScheduler<TaskManagerConf<128>>;
-
 struct TestContext : public AeEnv {
-  template <typename... A>
-  decltype(auto) Update(A&&... a) {
-    return sched.Update(std::forward<A>(a)...);
-  }
-  void* find_component(EnvId id) noexcept override {
-    if (id == EnvTypeId<TaskScheduler>::value) {
-      return &sched;
-    }
-    if (id == EnvTypeId<EventSystem>::value) {
-      return &event_system;
-    }
-    return nullptr;
-  }
   void Advance(Duration delta) {
     auto const end = test_now_ + delta;
     while (test_now_ < end) {
       test_now_ += std::chrono::milliseconds{1};
-      sched.Update(test_now_);
+      scheduler().Update(test_now_);
     }
   }
   TimePoint test_now_{std::chrono::system_clock::now()};
-  Scheduler sched;
-  EventSystem event_system;
 };
 
 class LinkedMockStream final : public ByteIStream {

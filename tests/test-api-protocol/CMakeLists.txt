@@ -50,22 +50,12 @@ if(NOT CM_PLATFORM)
     string(REPLACE "-" "_" suite_entry ${suite})
     set(suite_target "${PROJECT_NAME}-${suite}")
 
-    if(suite STREQUAL "ping-push-ack")
-      add_executable(${suite_target} suite-main.cpp "test-${suite}.cpp"
-                                       test-ping-server-defer.cpp)
-    else()
-      add_executable(${suite_target} suite-main.cpp "test-${suite}.cpp")
-    endif()
+    add_executable(${suite_target} suite-main.cpp "test-${suite}.cpp")
     target_compile_definitions(
       ${suite_target}
       PRIVATE API_PROTOCOL_SUITE=test_api_protocol_${suite_entry}
     )
     target_link_libraries(${suite_target} PRIVATE aether unity gcem etl)
-    if(suite STREQUAL "ping-push-ack")
-      target_compile_definitions(${suite_target}
-                                 PRIVATE AE_BENCH_PING_MIN_TIMEOUT_MS=30000
-                                         PING_SUITE_STANDALONE=1)
-    endif()
 
     add_test(NAME ${suite_target} COMMAND $<TARGET_FILE:${suite_target}>)
   endforeach()
