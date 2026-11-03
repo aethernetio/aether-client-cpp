@@ -27,8 +27,18 @@ if(NOT CM_PLATFORM)
   target_sources(${PROJECT_NAME} PRIVATE ${test_srcs})
   target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
   target_link_libraries(${PROJECT_NAME} PRIVATE aether unity gcem)
+  target_compile_definitions(${PROJECT_NAME}
+                             PRIVATE AE_BENCH_PING_MIN_TIMEOUT_MS=30000)
 
   add_test(NAME ${PROJECT_NAME} COMMAND $<TARGET_FILE:${PROJECT_NAME}>)
+
+  set(ping_suite_target "${PROJECT_NAME}-ping-push-ack")
+  add_executable(${ping_suite_target} ping-suite-main.cpp test-ping-push-ack.cpp)
+  target_include_directories(${ping_suite_target} PRIVATE ${ROOT_DIR})
+  target_link_libraries(${ping_suite_target} PRIVATE aether unity gcem etl)
+  target_compile_definitions(${ping_suite_target}
+                             PRIVATE AE_BENCH_PING_MIN_TIMEOUT_MS=30000)
+  add_test(NAME ${ping_suite_target} COMMAND $<TARGET_FILE:${ping_suite_target}>)
 else()
   message(WARNING "Not implemented for ${CM_PLATFORM}")
 endif()

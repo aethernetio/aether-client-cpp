@@ -279,6 +279,10 @@ void PingCloudServers::ServerPing::ScheduleRestream() {
   }
   AE_BENCH_CONN_DIAG("schedule_restream", cloud_sc_->server_id(), cloud_id,
                      client_id, 0, 0, 0, -1, 0, -1);
+#if !AE_BENCH_CONNECTION_EVENT_DIAG
+  (void)cloud_id;
+  (void)client_id;
+#endif
 
   // TODO: should we block till restream?
   restream_blocker_ = policy_->AcquireSuspendBlock();
@@ -291,6 +295,10 @@ void PingCloudServers::ServerPing::ScheduleRestream() {
     }
     AE_BENCH_CONN_DIAG("schedule_restream_run", cloud_sc_->server_id(),
                        cloud_id, client_id, 0, 0, 0, -1, 0, -1);
+#if !AE_BENCH_CONNECTION_EVENT_DIAG
+    (void)cloud_id;
+    (void)client_id;
+#endif
     if (cc != nullptr) {
       cc->Restream();
     }

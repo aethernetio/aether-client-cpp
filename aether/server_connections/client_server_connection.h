@@ -86,6 +86,7 @@ class ClientServerConnection {
   }
 
  private:
+  friend struct ClientServerConnectionTestAccess;
   void OutData(DataBuffer const& data);
 
   AeContext ae_context_;
@@ -102,6 +103,16 @@ class ClientServerConnection {
   std::uint64_t bench_client_instance_id_{0};
   client_server_connection_internal ::BufferedServerConnection
       server_connection_;
+};
+
+struct ClientServerConnectionTestAccess {
+  static void DeliverInboundApiData(ClientServerConnection& connection,
+                                    DataBuffer const& data);
+
+  /** Delivers a ClientApiSafe payload through SendSafeApiData (method 4). */
+  static void DeliverInboundSafeApiPlaintext(
+      ClientServerConnection& connection,
+      DataBuffer const& safe_api_plaintext);
 };
 }  // namespace ae
 

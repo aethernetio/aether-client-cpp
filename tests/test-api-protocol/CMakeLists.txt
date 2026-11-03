@@ -21,6 +21,7 @@ set(test_api_protocol_suites
   pending-responses
   sender-lifecycle
   registration
+  ping-push-ack
 )
 
 set(test_srcs
@@ -31,6 +32,7 @@ set(test_srcs
   test-pending-responses.cpp
   test-sender-lifecycle.cpp
   test-registration.cpp
+  test-ping-push-ack.cpp
 )
 
 if(NOT CM_PLATFORM)
@@ -54,6 +56,10 @@ if(NOT CM_PLATFORM)
       PRIVATE API_PROTOCOL_SUITE=test_api_protocol_${suite_entry}
     )
     target_link_libraries(${suite_target} PRIVATE aether unity gcem etl)
+    if(suite STREQUAL "ping-push-ack")
+      target_compile_definitions(${suite_target}
+                                 PRIVATE AE_BENCH_PING_MIN_TIMEOUT_MS=30000)
+    endif()
 
     add_test(NAME ${suite_target} COMMAND $<TARGET_FILE:${suite_target}>)
   endforeach()

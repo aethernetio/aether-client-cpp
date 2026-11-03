@@ -50,6 +50,8 @@ class Ping {
        Duration rx_window, Duration response_timeout,
        Duration channel_response_timeout);
 
+  ~Ping();
+
   AE_CLASS_NO_COPY_MOVE(Ping);
 
   ResultEvent const& result_event() const;

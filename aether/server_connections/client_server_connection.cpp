@@ -23,6 +23,7 @@
 #include "aether/crypto/ikey_provider.h"
 #include "aether/crypto/sync_crypto_provider.h"
 #include "aether/server.h"
+#include "aether/server_keys.h"
 #include "aether/stream_api/api_call_adapter.h"
 
 #include "aether/tele.h"
@@ -212,6 +213,57 @@ void ClientServerConnection::OutData(DataBuffer const& data) {
   auto parser = ApiParser{protocol_context_, data};
   [[maybe_unused]] auto res = parser.Parse(client_api_unsafe_);
   assert(res && "Not all data parsed");
+}
+
+void ClientServerConnectionTestAccess::DeliverInboundApiData(
+    ClientServerConnection& connection, DataBuffer const& data) {
+  connection.OutData(data);
+}
+
+namespace client_server_connection_test_access {
+class InboundSafeApiEncryptKeyProvider final : public ISyncKeyProvider {
+ public:
+  InboundSafeApiEncryptKeyProvider(Ptr<Client> const& client,
+                                   ServerId server_id)
+      : client_{client}, server_id_{server_id} {}
+
+  Key GetKey() const override {
+    auto client_ptr = client_.Lock();
+    assert(client_ptr);
+    auto* server_key = client_ptr->server_state(server_id_);
+    assert(server_key);
+    return server_key->server_to_client();
+  }
+
+  CryptoNonce const& Nonce() const override {
+    auto client_ptr = client_.Lock();
+    assert(client_ptr);
+    auto* server_key = client_ptr->server_state(server_id_);
+    assert(server_key);
+    server_key->Next();
+    return server_key->nonce();
+  }
+
+ private:
+  PtrView<Client> client_;
+  ServerId server_id_;
+};
+}  // namespace client_server_connection_test_access
+
+void ClientServerConnectionTestAccess::DeliverInboundSafeApiPlaintext(
+    ClientServerConnection& connection, DataBuffer const& safe_api_plaintext) {
+  auto client = connection.client_.Lock();
+  auto server = connection.server_.Lock();
+  assert(client && server);
+  SyncEncryptProvider encryptor{
+      std::make_unique<
+          client_server_connection_test_access::InboundSafeApiEncryptKeyProvider>(
+          client, server->server_id)};
+  DataBuffer const encrypted = encryptor.Encrypt(safe_api_plaintext);
+  DataBuffer outer;
+  ApiPacker packer{outer};
+  packer.Pack(MessageId{4}, encrypted);
+  connection.OutData(outer);
 }
 
 }  // namespace ae

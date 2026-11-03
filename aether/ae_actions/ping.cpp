@@ -120,6 +120,8 @@ Ping::Ping(AeContext const& ae_context,
 
 Ping::ResultEvent const& Ping::result_event() const { return result_event_; }
 
+Ping::~Ping() { ResetRequestSubscriptions(); }
+
 void Ping::Start(TimePoint current_time) {
   auto* cc = cloud_server_connection_->client_connection();
   assert(cc != nullptr && "Ping::Start requires a client connection");
@@ -131,6 +133,7 @@ void Ping::Start(TimePoint current_time) {
     return;
   }
   state_ = RequestState::kPending;
+  request_start_ = current_time;
 #  if AE_BENCH_CONNECTION_EVENT_DIAG
   diag_write_terminal_ = false;
   diag_active_request_id_ = 0;
@@ -138,6 +141,13 @@ void Ping::Start(TimePoint current_time) {
                  diag_original_timeout_ms_, diag_applied_timeout_ms_, -1, 0);
 #  endif
 
+  wait_result_sub_ = cc->client_safe_api().ping_ack_event.Subscribe([this]() {
+#  if AE_BENCH_CONNECTION_EVENT_DIAG
+    PingResponse(diag_active_request_id_);
+#  else
+    PingResponse(RequestId{});
+#  endif
+  });
 
   auto& write_action = cc->AuthorizedApiCall(
       [this, current_time](ApiContext<AuthorizedApi>& auth_api) {
@@ -149,22 +159,26 @@ void Ping::Start(TimePoint current_time) {
             std::chrono::duration_cast<std::chrono::milliseconds>(rx_window_)
                 .count());
 
+#  if AE_BENCH_CONNECTION_EVENT_DIAG
+        diag_active_request_id_ =
+            RequestId{diag_active_request_id_.id + 1};
+        RecordPingDiag(cloud_server_connection_, "ping_request",
+                       diag_active_request_id_, diag_original_timeout_ms_,
+                       diag_applied_timeout_ms_, -1, 0);
+#  endif
+
         auth_api->Ping(next_ping_hint_ms, rx_window_ms);
 
         AE_TELE_DEBUG(kPingSend,
                       "Ping server id {}, expected time {}",
                       server_id_, timeout_);
 
-        request_start_ = current_time;
-#  if AE_BENCH_CONNECTION_EVENT_DIAG
-        diag_active_request_id_ = req_id;
-        RecordPingDiag(cloud_server_connection_, "ping_request", req_id,
-                       diag_original_timeout_ms_, diag_applied_timeout_ms_, -1,
-                       0);
-#  endif
-
         timeout_sub_ = ae_context_.scheduler().DelayedTask(
+#  if AE_BENCH_CONNECTION_EVENT_DIAG
+            [this]() { PingResponseTimeout(diag_active_request_id_); },
+#  else
             [this]() { PingResponseTimeout(RequestId{}); },
+#  endif
             current_time + timeout_);
       });
 

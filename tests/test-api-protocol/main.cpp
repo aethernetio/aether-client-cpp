@@ -25,6 +25,7 @@ extern int test_api_protocol_pending_responses();
 extern int test_api_protocol_registration();
 extern int test_api_protocol_request_response();
 extern int test_api_protocol_sender_lifecycle();
+extern int test_api_protocol_ping_push_ack();
 
 int main() {
   int res = 0;
@@ -34,6 +35,7 @@ int main() {
   res += test_api_protocol_pending_responses();
   res += test_api_protocol_sender_lifecycle();
   res += test_api_protocol_registration();
+  res += test_api_protocol_ping_push_ack();
 
   return res;
 }
