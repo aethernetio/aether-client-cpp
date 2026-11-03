@@ -68,9 +68,11 @@ class Ping {
 
  private:
   void PingResponse(RequestId request_id);
+  void PingResponseImpl(RequestId request_id);
   void PingResponseError(RequestId request_id, std::int32_t error_code);
   void PingResponseTimeout(RequestId request_id);
   void ResetRequestSubscriptions();
+  void EmitWriteFailureFromWriteCallback();
 
   enum class RequestState : char {
     kCreated,
@@ -90,6 +92,7 @@ class Ping {
   Subscription wait_result_sub_;
   TaskSubscription timeout_sub_;
   Subscription write_sub_;
+  TaskSubscription ack_dispatch_sub_;
 
   ResultEvent result_event_;
   RequestState state_{RequestState::kCreated};

@@ -202,10 +202,7 @@ void Ping::Start(TimePoint current_time) {
       if (state_ != RequestState::kPending) {
         return;
       }
-      AE_TELE_ERROR(kPingWriteError, "Ping write error");
-      state_ = RequestState::kFinished;
-      ResetRequestSubscriptions();
-      result_event_.Emit(PingResult{Error{1}});
+      ae_context_.scheduler().Task([this]() { EmitWriteFailureFromWriteCallback(); });
     }
   });
   if (state_ != RequestState::kPending) {
@@ -221,7 +218,22 @@ void Ping::Start(TimePoint current_time) {
 
 }
 
+void Ping::EmitWriteFailureFromWriteCallback() {
+  if (state_ != RequestState::kPending) {
+    return;
+  }
+  AE_TELE_ERROR(kPingWriteError, "Ping write error");
+  state_ = RequestState::kFinished;
+  ResetRequestSubscriptions();
+  result_event_.Emit(PingResult{Error{1}});
+}
+
 void Ping::PingResponse(RequestId request_id) {
+  ack_dispatch_sub_ = ae_context_.scheduler().Task(
+      [this, request_id]() { PingResponseImpl(request_id); });
+}
+
+void Ping::PingResponseImpl(RequestId request_id) {
   auto current_time = Now();
   auto ping_duration =
       std::chrono::duration_cast<Duration>(current_time - request_start_);
@@ -304,6 +316,7 @@ void Ping::ResetRequestSubscriptions() {
   wait_result_sub_.Reset();
   timeout_sub_.Reset();
   write_sub_.Reset();
+  ack_dispatch_sub_.Reset();
 }
 
 }  // namespace ae

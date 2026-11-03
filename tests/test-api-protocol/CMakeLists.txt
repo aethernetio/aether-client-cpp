@@ -33,6 +33,9 @@ set(test_srcs
   test-sender-lifecycle.cpp
   test-registration.cpp
   test-ping-push-ack.cpp
+  test-ping-server-defer.cpp
+  test-ping-timeout-recovery.cpp
+  test-ping-serverping-lifecycle.cpp
 )
 
 if(NOT CM_PLATFORM)
@@ -53,7 +56,8 @@ if(NOT CM_PLATFORM)
     if(suite STREQUAL "ping-push-ack")
       add_executable(${suite_target} suite-main.cpp "test-${suite}.cpp"
                                          test-ping-server-defer.cpp
-                                         test-ping-timeout-recovery.cpp)
+                                         test-ping-timeout-recovery.cpp
+                                         test-ping-serverping-lifecycle.cpp)
     else()
       add_executable(${suite_target} suite-main.cpp "test-${suite}.cpp")
     endif()

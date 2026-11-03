@@ -60,10 +60,13 @@ PingCloudServers::ServerPing::ServerPing(
   }
 }
 
-PingCloudServers::ServerPing::~ServerPing() = default;
+PingCloudServers::ServerPing::~ServerPing() { Stop(); }
 
 void PingCloudServers::ServerPing::Stop() {
   stop_ = true;
+  ++ping_epoch_;
+  ping_wait_connection_ = nullptr;
+  ping_wait_channel_ = nullptr;
 
   bench_ping_server_start::ClearDeferredStart(defer_state_);
   waiter_.reset();
@@ -71,6 +74,8 @@ void PingCloudServers::ServerPing::Stop() {
   rx_window_sub_.Reset();
   restream_sub_.Reset();
   link_state_sub_.Reset();
+  ping_deferred_sub_.Reset();
+  ping_finish_sub_.Reset();
 
   ping_blocker_.Reset();
   rx_window_blocker_.Reset();
@@ -126,6 +131,9 @@ auto PingCloudServers::ServerPing::MakePing() {
           Duration const channel_timeout = c->ResponseTimeout();
           Duration const applied_timeout =
               bench_ping_min_timeout::ApplyBenchPingMinTimeout(channel_timeout);
+          ++ping_epoch_;
+          ping_wait_connection_ = cc;
+          ping_wait_channel_ = c.get();
           ping_.emplace(ae_context_, *cloud_sc_, timing_conf_.interval,
                         timing_conf_.rx_window, applied_timeout,
                         channel_timeout);
@@ -139,7 +147,6 @@ auto PingCloudServers::ServerPing::MakePing() {
 
           // run ping request and open rx window
           auto const current_time = Now();
-          ping_wait_client_instance_id_ = cc->bench_client_instance_id();
           ping_->Start(current_time);
           OpenRxWindow(current_time);
           next_ping_time_ = current_time + timing_conf_.interval;
@@ -211,8 +218,18 @@ void PingCloudServers::ServerPing::ScheduleNextPeriodicStart() {
       [&]() noexcept { Start(); }, next_ping_time_);
 }
 
-void PingCloudServers::ServerPing::HandlePingTimeoutOnScheduler() {
-  if (stop_ || cloud_sc_ == nullptr ||
+bool PingCloudServers::ServerPing::PingWaitBindingMatches(
+    std::uint32_t epoch) const {
+  if (stop_ || epoch != ping_epoch_) {
+    return false;
+  }
+  auto* cc = cloud_sc_->client_connection();
+  return cc != nullptr && cc == ping_wait_connection_;
+}
+
+void PingCloudServers::ServerPing::HandlePingTimeoutOnScheduler(
+    std::uint32_t epoch) {
+  if (!PingWaitBindingMatches(epoch) || cloud_sc_ == nullptr ||
       cloud_server_connections_ == nullptr) {
     return;
   }
@@ -222,28 +239,28 @@ void PingCloudServers::ServerPing::HandlePingTimeoutOnScheduler() {
 }
 
 void PingCloudServers::ServerPing::HandleLatePingOnScheduler(
-    Ping::LateDuration const& late) {
-  if (stop_ || cloud_sc_ == nullptr ||
+    Ping::LateDuration const& late, std::uint32_t epoch) {
+  if (!PingWaitBindingMatches(epoch) || cloud_sc_ == nullptr ||
       cloud_server_connections_ == nullptr) {
-    return;
-  }
-  auto* cc = cloud_sc_->client_connection();
-  if (cc == nullptr ||
-      cc->bench_client_instance_id() != ping_wait_client_instance_id_) {
     return;
   }
   if (cloud_sc_->quarantine_reason() !=
       CloudQuarantineReason::kPingTimeoutWait) {
     return;
   }
+  auto* cc = cloud_sc_->client_connection();
   auto c = cc->server_connection().current_channel();
-  if (c) {
-    c->channel_statistics().AddResponseTime(late.duration);
+  if (!c || c.get() != ping_wait_channel_) {
+    return;
   }
+  c->channel_statistics().AddResponseTime(late.duration);
   if (cloud_server_connections_->RecoverFromPingTimeout(*cloud_sc_)) {
-    ping_.reset();
-    ping_wait_client_instance_id_ = 0;
-    ScheduleNextPeriodicStart();
+    SchedulePingFinish(epoch, [this]() {
+      ping_.reset();
+      ping_wait_connection_ = nullptr;
+      ping_wait_channel_ = nullptr;
+      ScheduleNextPeriodicStart();
+    });
   }
 }
 
@@ -259,53 +276,57 @@ void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
   }
   AE_BENCH_CONN_DIAG("ping_on_result", cloud_sc_->server_id(), cloud_id,
                      client_id, 0, 0, 0, -1, 0, -1);
+  std::uint32_t const epoch = ping_epoch_;
+
   if (auto const* err = std::get_if<Error<int>>(&res)) {
     if (err->error == 2) {
       bench_ping_server_start::ClearDeferredStart(defer_state_);
-      ae_context_.scheduler().Task(
-          [this]() { HandlePingTimeoutOnScheduler(); });
+      SchedulePingDeferred(epoch, [this, epoch]() {
+        HandlePingTimeoutOnScheduler(epoch);
+      });
       return;
     }
     AE_TELED_ERROR("Ping error!");
     bench_ping_server_start::ClearDeferredStart(defer_state_);
     AE_BENCH_CONN_DIAG("ping_on_result_restream", cloud_sc_->server_id(), cloud_id,
                        client_id, 0, 0, 0, -1, 0, -1);
-    ping_.reset();
-    ping_wait_client_instance_id_ = 0;
-    ScheduleRestream();
+    SchedulePingFinish(epoch, [this]() {
+      ping_.reset();
+      ping_wait_connection_ = nullptr;
+      ping_wait_channel_ = nullptr;
+      ScheduleRestream();
+    });
     return;
   }
 
-  cc = cloud_sc_->client_connection();
-  if (cc == nullptr) {
-    AE_TELED_ERROR("Client connection is null");
-    return;
-  }
-
-  auto c = cc->server_connection().current_channel();
-  if (!c) {
-    AE_TELED_ERROR("Connection channel is null");
-    return;
-  }
-
-  std::visit(
-      [this, c](auto const& value) {
-        using T = std::decay_t<decltype(value)>;
-        if constexpr (std::is_same_v<T, Ok<Duration>>) {
-          c->channel_statistics().AddResponseTime(value.value);
-          ping_.reset();
-          ping_wait_client_instance_id_ = 0;
-          if (bench_ping_server_start::TakeDeferredStartAfterSuccess(
-                  defer_state_)) {
-            ScheduleNextPeriodicStart();
-          }
-        } else if constexpr (std::is_same_v<T, Ping::LateDuration>) {
-          AE_TELED_DEBUG("Got late ping duration");
-          ae_context_.scheduler().Task(
-              [this, late = value]() { HandleLatePingOnScheduler(late); });
+  if (auto const* ok = std::get_if<Ok<Duration>>(&res)) {
+    Duration const duration = ok->value;
+    SchedulePingFinish(epoch, [this, duration]() {
+      auto* cc = cloud_sc_->client_connection();
+      if (cc != nullptr) {
+        auto c = cc->server_connection().current_channel();
+        if (c && c.get() == ping_wait_channel_) {
+          c->channel_statistics().AddResponseTime(duration);
         }
-      },
-      res);
+      }
+      ping_.reset();
+      ping_wait_connection_ = nullptr;
+      ping_wait_channel_ = nullptr;
+      if (bench_ping_server_start::TakeDeferredStartAfterSuccess(
+              defer_state_)) {
+        ScheduleNextPeriodicStart();
+      }
+    });
+    return;
+  }
+
+  if (auto const* late = std::get_if<Ping::LateDuration>(&res)) {
+    AE_TELED_DEBUG("Got late ping duration");
+    Ping::LateDuration const late_copy = *late;
+    SchedulePingDeferred(epoch, [this, late_copy, epoch]() {
+      HandleLatePingOnScheduler(late_copy, epoch);
+    });
+  }
 }
 
 void PingCloudServers::ServerPing::OpenRxWindow(TimePoint sent_time) {
@@ -486,6 +507,15 @@ Ping const* PingCloudServersTestAccess::ClientPingPtr(PingCloudServers& pcs,
     return nullptr;
   }
   return &*it->second->ping_;
+}
+
+void PingCloudServersTestAccess::StopServerPing(PingCloudServers& pcs,
+                                                ServerId server_id) {
+  auto it = pcs.server_pings_.find(server_id);
+  if (it == pcs.server_pings_.end()) {
+    return;
+  }
+  it->second->Stop();
 }
 }  // namespace ae
 

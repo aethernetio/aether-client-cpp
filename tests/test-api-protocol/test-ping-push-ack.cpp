@@ -619,6 +619,7 @@ int RunPingPushAckTestsOnce() {
 
 extern int test_ping_server_defer_run();
 extern int test_ping_timeout_recovery_run();
+extern int test_ping_serverping_lifecycle_run();
 
 int test_api_protocol_ping_push_ack() {
   using namespace ae::test_ping_push_ack;
@@ -631,6 +632,9 @@ int test_api_protocol_ping_push_ack() {
   }
   if (failures == 0) {
     failures = test_ping_timeout_recovery_run();
+  }
+  if (failures == 0) {
+    failures = test_ping_serverping_lifecycle_run();
   }
   return failures;
 }
