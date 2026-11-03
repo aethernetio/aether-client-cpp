@@ -52,7 +52,8 @@ if(NOT CM_PLATFORM)
 
     if(suite STREQUAL "ping-push-ack")
       add_executable(${suite_target} suite-main.cpp "test-${suite}.cpp"
-                                         test-ping-server-defer.cpp)
+                                         test-ping-server-defer.cpp
+                                         test-ping-timeout-recovery.cpp)
     else()
       add_executable(${suite_target} suite-main.cpp "test-${suite}.cpp")
     endif()

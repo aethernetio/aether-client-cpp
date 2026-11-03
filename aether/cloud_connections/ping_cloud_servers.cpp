@@ -31,12 +31,13 @@
 
 namespace ae {
 
-PingCloudServers::ServerPing::ServerPing(AeContext const& ae_context,
-                                         ClientConnectivityPolicy& policy,
-                                         CloudServerConnection& cloud_sc,
-                                         std::size_t priority)
+PingCloudServers::ServerPing::ServerPing(
+    AeContext const& ae_context, ClientConnectivityPolicy& policy,
+    CloudServerConnections& cloud_server_connections,
+    CloudServerConnection& cloud_sc, std::size_t priority)
     : ae_context_{ae_context},
       policy_{&policy},
+      cloud_server_connections_{&cloud_server_connections},
       cloud_sc_{&cloud_sc},
       priority_{priority} {
   assert(priority < policy_->rx_timings().size() &&
@@ -64,9 +65,7 @@ PingCloudServers::ServerPing::~ServerPing() = default;
 void PingCloudServers::ServerPing::Stop() {
   stop_ = true;
 
-#if AE_BENCH_PING_MIN_TIMEOUT_MS > 0
   bench_ping_server_start::ClearDeferredStart(defer_state_);
-#endif
   waiter_.reset();
   start_sub_.Reset();
   rx_window_sub_.Reset();
@@ -140,6 +139,7 @@ auto PingCloudServers::ServerPing::MakePing() {
 
           // run ping request and open rx window
           auto const current_time = Now();
+          ping_wait_client_instance_id_ = cc->bench_client_instance_id();
           ping_->Start(current_time);
           OpenRxWindow(current_time);
           next_ping_time_ = current_time + timing_conf_.interval;
@@ -156,16 +156,12 @@ void PingCloudServers::ServerPing::Start() {
   if (stop_) {
     return;
   }
-#if AE_BENCH_PING_MIN_TIMEOUT_MS > 0
   if (bench_ping_server_start::TryDeferPeriodicStart(
-          defer_state_, ping_.has_value(),
-          ping_ && ping_->IsPending())) {
-    AE_TELED_DEBUG(
-        "Defer periodic Start while ping pending (bench min timeout {} ms)",
-        AE_BENCH_PING_MIN_TIMEOUT_MS);
+          defer_state_, ping_.has_value(), ping_ && ping_->IsPending(),
+          ping_ && ping_->IsAwaitingLateResponse())) {
+    AE_TELED_DEBUG("Defer periodic Start while ping pending or awaiting late");
     return;
   }
-#endif
   waiter_.emplace(
       ae_context_,
       EnsureLinked() |
@@ -203,8 +199,59 @@ void PingCloudServers::ServerPing::Start() {
       });
 }
 
+bool PingCloudServers::ServerPing::AwaitingLatePing() const noexcept {
+  return ping_.has_value() && ping_->IsAwaitingLateResponse();
+}
+
+void PingCloudServers::ServerPing::ScheduleNextPeriodicStart() {
+  if (stop_) {
+    return;
+  }
+  start_sub_ = ae_context_.scheduler().DelayedTask(
+      [&]() noexcept { Start(); }, next_ping_time_);
+}
+
+void PingCloudServers::ServerPing::HandlePingTimeoutOnScheduler() {
+  if (stop_ || cloud_sc_ == nullptr ||
+      cloud_server_connections_ == nullptr) {
+    return;
+  }
+  if (cloud_server_connections_->QuarantineForPingTimeout(*cloud_sc_)) {
+    cloud_server_connections_->ScheduleReconcileServers();
+  }
+}
+
+void PingCloudServers::ServerPing::HandleLatePingOnScheduler(
+    Ping::LateDuration const& late) {
+  if (stop_ || cloud_sc_ == nullptr ||
+      cloud_server_connections_ == nullptr) {
+    return;
+  }
+  auto* cc = cloud_sc_->client_connection();
+  if (cc == nullptr ||
+      cc->bench_client_instance_id() != ping_wait_client_instance_id_) {
+    return;
+  }
+  if (cloud_sc_->quarantine_reason() !=
+      CloudQuarantineReason::kPingTimeoutWait) {
+    return;
+  }
+  auto c = cc->server_connection().current_channel();
+  if (c) {
+    c->channel_statistics().AddResponseTime(late.duration);
+  }
+  if (cloud_server_connections_->RecoverFromPingTimeout(*cloud_sc_)) {
+    ping_.reset();
+    ping_wait_client_instance_id_ = 0;
+    ScheduleNextPeriodicStart();
+  }
+}
+
 void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
   std::uint64_t const cloud_id = cloud_sc_->bench_cloud_instance_id();
+#if !AE_BENCH_CONNECTION_EVENT_DIAG
+  (void)cloud_id;
+#endif
   std::uint64_t client_id = 0;
   auto* cc = cloud_sc_->client_connection();
   if (cc != nullptr) {
@@ -212,6 +259,23 @@ void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
   }
   AE_BENCH_CONN_DIAG("ping_on_result", cloud_sc_->server_id(), cloud_id,
                      client_id, 0, 0, 0, -1, 0, -1);
+  if (auto const* err = std::get_if<Error<int>>(&res)) {
+    if (err->error == 2) {
+      bench_ping_server_start::ClearDeferredStart(defer_state_);
+      ae_context_.scheduler().Task(
+          [this]() { HandlePingTimeoutOnScheduler(); });
+      return;
+    }
+    AE_TELED_ERROR("Ping error!");
+    bench_ping_server_start::ClearDeferredStart(defer_state_);
+    AE_BENCH_CONN_DIAG("ping_on_result_restream", cloud_sc_->server_id(), cloud_id,
+                       client_id, 0, 0, 0, -1, 0, -1);
+    ping_.reset();
+    ping_wait_client_instance_id_ = 0;
+    ScheduleRestream();
+    return;
+  }
+
   cc = cloud_sc_->client_connection();
   if (cc == nullptr) {
     AE_TELED_ERROR("Client connection is null");
@@ -225,35 +289,20 @@ void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
   }
 
   std::visit(
-      [this, c, cloud_id, client_id](auto const& value) {
+      [this, c](auto const& value) {
         using T = std::decay_t<decltype(value)>;
         if constexpr (std::is_same_v<T, Ok<Duration>>) {
           c->channel_statistics().AddResponseTime(value.value);
-#if AE_BENCH_PING_MIN_TIMEOUT_MS > 0
+          ping_.reset();
+          ping_wait_client_instance_id_ = 0;
           if (bench_ping_server_start::TakeDeferredStartAfterSuccess(
                   defer_state_)) {
-            start_sub_ = ae_context_.scheduler().DelayedTask(
-                [&]() noexcept { Start(); }, next_ping_time_);
+            ScheduleNextPeriodicStart();
           }
-#endif
         } else if constexpr (std::is_same_v<T, Ping::LateDuration>) {
           AE_TELED_DEBUG("Got late ping duration");
-          c->channel_statistics().AddResponseTime(value.duration);
-#if AE_BENCH_PING_MIN_TIMEOUT_MS > 0
-          if (bench_ping_server_start::TakeDeferredStartAfterSuccess(
-                  defer_state_)) {
-            start_sub_ = ae_context_.scheduler().DelayedTask(
-                [&]() noexcept { Start(); }, next_ping_time_);
-          }
-#endif
-        } else {
-          AE_TELED_ERROR("Ping error!");
-#if AE_BENCH_PING_MIN_TIMEOUT_MS > 0
-          bench_ping_server_start::ClearDeferredStart(defer_state_);
-#endif
-          AE_BENCH_CONN_DIAG("ping_on_result_restream", cloud_sc_->server_id(),
-                             cloud_id, client_id, 0, 0, 0, -1, 0, -1);
-          ScheduleRestream();
+          ae_context_.scheduler().Task(
+              [this, late = value]() { HandleLatePingOnScheduler(late); });
         }
       },
       res);
@@ -362,18 +411,27 @@ void PingCloudServers::ReconcileServer(CloudServerConnection& cloud_sc) {
   auto it = server_pings_.find(server_id);
   if ((it == server_pings_.end()) || (it->second->priority() != priority) ||
       it->second->stopped()) {
+    if (it != server_pings_.end() && it->second->AwaitingLatePing()) {
+      return;
+    }
     if (it != server_pings_.end()) {
       it->second.reset();
     }
     server_pings_.insert_or_assign(
-        server_id, std::make_unique<ServerPing>(ae_context_, *policy_, cloud_sc,
-                                                priority));
+        server_id,
+        std::make_unique<ServerPing>(ae_context_, *policy_,
+                                     *cloud_server_connections_, cloud_sc,
+                                     priority));
     return;
   }
 }
 
 void PingCloudServers::ServerQuarantined(CloudServerConnection* cloud_sc) {
   if (cloud_sc == nullptr) {
+    return;
+  }
+  if (cloud_sc->quarantine_reason() ==
+      CloudQuarantineReason::kPingTimeoutWait) {
     return;
   }
   auto it = server_pings_.find(cloud_sc->server_id());
@@ -410,6 +468,15 @@ bool PingCloudServersTestAccess::HasPendingClientPing(PingCloudServers& pcs,
   }
   auto& sp = *it->second;
   return sp.ping_.has_value() && sp.ping_->IsPending();
+}
+
+bool PingCloudServersTestAccess::HasAwaitingLateClientPing(
+    PingCloudServers& pcs, ServerId server_id) {
+  auto it = pcs.server_pings_.find(server_id);
+  if (it == pcs.server_pings_.end()) {
+    return false;
+  }
+  return it->second->AwaitingLatePing();
 }
 
 Ping const* PingCloudServersTestAccess::ClientPingPtr(PingCloudServers& pcs,

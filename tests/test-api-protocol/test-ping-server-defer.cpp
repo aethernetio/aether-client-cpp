@@ -135,7 +135,6 @@ class Factory final : public IServerConnectionFactory {
 }  // namespace
 
 void test_ServerPingPeriodicStartDefersWhileClientPingPending() {
-#if AE_BENCH_PING_MIN_TIMEOUT_MS > 0
   TestContext ctx;
   RamDomainStorage storage;
   Domain domain{storage, &ctx};
@@ -180,7 +179,9 @@ void test_ServerPingPeriodicStartDefersWhileClientPingPending() {
   ctx.Advance(std::chrono::milliseconds{2000});
 
   TEST_ASSERT_TRUE(
-      PingCloudServersTestAccess::HasPendingClientPing(ping_cloud, kServerId));
+      PingCloudServersTestAccess::HasPendingClientPing(ping_cloud, kServerId) ||
+      PingCloudServersTestAccess::HasAwaitingLateClientPing(ping_cloud,
+                                                            kServerId));
   Ping const* const before =
       PingCloudServersTestAccess::ClientPingPtr(ping_cloud, kServerId);
   TEST_ASSERT_NOT_NULL(before);
@@ -189,14 +190,11 @@ void test_ServerPingPeriodicStartDefersWhileClientPingPending() {
   ctx.Advance(std::chrono::milliseconds{50});
 
   TEST_ASSERT_TRUE(
-      PingCloudServersTestAccess::HasPendingClientPing(ping_cloud, kServerId));
+      PingCloudServersTestAccess::HasPendingClientPing(ping_cloud, kServerId) ||
+      PingCloudServersTestAccess::HasAwaitingLateClientPing(ping_cloud,
+                                                            kServerId));
   TEST_ASSERT_EQUAL_PTR(
       before, PingCloudServersTestAccess::ClientPingPtr(ping_cloud, kServerId));
-#else
-  TEST_IGNORE_MESSAGE(
-      "AE_BENCH_PING_MIN_TIMEOUT_MS=0; reconfigure with positive "
-      "AE_BENCH_PING_MIN_TIMEOUT_MS on library and tests");
-#endif
 }
 
 }  // namespace ae::test_ping_server_defer

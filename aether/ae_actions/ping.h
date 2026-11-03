@@ -62,6 +62,10 @@ class Ping {
     return state_ == RequestState::kPending;
   }
 
+  bool IsAwaitingLateResponse() const noexcept {
+    return state_ == RequestState::kTimedOut;
+  }
+
  private:
   void PingResponse(RequestId request_id);
   void PingResponseError(RequestId request_id, std::int32_t error_code);

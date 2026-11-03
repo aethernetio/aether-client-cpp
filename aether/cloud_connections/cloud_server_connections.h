@@ -35,6 +35,8 @@
 
 namespace ae {
 
+class PingCloudServers;
+
 namespace cloud_server_connections_internal {
 class EmptyConnectionsWA final : public WriteAction {
  public:
@@ -57,6 +59,7 @@ class ReplicaWA final : public WriteAction {
 
 class CloudServerConnections {
   friend struct CloudServerConnectionsTestAccess;
+  friend class PingCloudServers;
 
  public:
   using ServersUpdate = Event<void()>;
@@ -166,6 +169,11 @@ class CloudServerConnections {
   bool SubscribeToServerState(CloudServerConnection& server_connection);
   void UnsubscribeFromServerState(CloudServerConnection& server_connection);
   bool QuarantineServer(CloudServerConnection& server_connection);
+  bool QuarantineForPingTimeout(CloudServerConnection& server_connection);
+  bool RecoverFromPingTimeout(CloudServerConnection& server_connection);
+  void CompletePingTimeoutWait(CloudServerConnection& server_connection);
+  bool UpgradePingTimeoutToTransportQuarantine(
+      CloudServerConnection& server_connection);
   void QuarantineAndReconcile(CloudServerConnection& server_connection);
   void ReleaseQuarantinedServer(CloudServerConnection& server_connection);
   void ScheduleReconcileServers();

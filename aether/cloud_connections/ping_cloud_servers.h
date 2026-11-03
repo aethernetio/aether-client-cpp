@@ -42,6 +42,7 @@ class PingCloudServers {
     friend struct PingCloudServersTestAccess;
    public:
     ServerPing(AeContext const& ae_context, ClientConnectivityPolicy& policy,
+               CloudServerConnections& cloud_server_connections,
                CloudServerConnection& cloud_sc, std::size_t priority);
     ~ServerPing();
 
@@ -53,6 +54,7 @@ class PingCloudServers {
     std::size_t priority() const noexcept { return priority_; }
     RxTimingConf const& timing() const noexcept { return timing_conf_; }
     bool stopped() const noexcept { return stop_; }
+    bool AwaitingLatePing() const noexcept;
 
    private:
     void Start();
@@ -69,6 +71,7 @@ class PingCloudServers {
 
     AeContext ae_context_;
     ClientConnectivityPolicy* policy_;
+    CloudServerConnections* cloud_server_connections_;
     CloudServerConnection* cloud_sc_;
     RxTimingConf timing_conf_{};
     std::size_t priority_{};
@@ -85,9 +88,12 @@ class PingCloudServers {
     ClientConnectivityPolicy::SuspendBlocker rx_window_blocker_;
     ClientConnectivityPolicy::SuspendBlocker restream_blocker_;
     TimePoint next_ping_time_;
-#if AE_BENCH_PING_MIN_TIMEOUT_MS > 0
     bench_ping_server_start::DeferState defer_state_;
-#endif
+    std::uint64_t ping_wait_client_instance_id_{0};
+
+    void ScheduleNextPeriodicStart();
+    void HandlePingTimeoutOnScheduler();
+    void HandleLatePingOnScheduler(Ping::LateDuration const& late);
   };
 
  public:
@@ -121,6 +127,8 @@ class PingCloudServers {
 struct PingCloudServersTestAccess {
   static void TriggerPeriodicStart(PingCloudServers& pcs, ServerId server_id);
   static bool HasPendingClientPing(PingCloudServers& pcs, ServerId server_id);
+  static bool HasAwaitingLateClientPing(PingCloudServers& pcs,
+                                        ServerId server_id);
   static Ping const* ClientPingPtr(PingCloudServers& pcs, ServerId server_id);
 };
 }  // namespace ae

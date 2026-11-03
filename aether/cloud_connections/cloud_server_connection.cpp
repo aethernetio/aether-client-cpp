@@ -46,8 +46,20 @@ void CloudServerConnection::Restream() {
 }
 
 bool CloudServerConnection::quarantine() const { return is_quarantined_; }
+
+CloudQuarantineReason CloudServerConnection::quarantine_reason() const {
+  return quarantine_reason_;
+}
+
 void CloudServerConnection::SetQuarantine(bool value) {
   is_quarantined_ = value;
+  if (!value) {
+    quarantine_reason_ = CloudQuarantineReason::kNone;
+  }
+}
+
+void CloudServerConnection::SetQuarantineReason(CloudQuarantineReason reason) {
+  quarantine_reason_ = reason;
 }
 
 bool CloudServerConnection::Connect() {

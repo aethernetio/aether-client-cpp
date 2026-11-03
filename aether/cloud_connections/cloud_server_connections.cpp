@@ -210,6 +210,10 @@ void CloudServerConnections::UnsubscribeFromServerState(
 bool CloudServerConnections::QuarantineServer(
     CloudServerConnection& server_connection) {
   if (server_connection.quarantine()) {
+    if (server_connection.quarantine_reason() ==
+        CloudQuarantineReason::kPingTimeoutWait) {
+      return UpgradePingTimeoutToTransportQuarantine(server_connection);
+    }
     return false;
   }
   AE_TELED_DEBUG("CLOUD_SERVER_QUARANTINED server_id={} priority={}",
@@ -227,6 +231,7 @@ bool CloudServerConnections::QuarantineServer(
          "quarantined server must belong to all servers");
   std::rotate(server_it, server_it + 1, all_servers_.end());
   server_connection.SetQuarantine(true);
+  server_connection.SetQuarantineReason(CloudQuarantineReason::kTransport);
   NormalizeServerPriorities();
   if (was_selected) {
     servers_update_event_.Emit();
@@ -250,6 +255,121 @@ bool CloudServerConnections::QuarantineServer(
     assert(false && "failed to schedule quarantine release");
   }
 
+  return true;
+}
+
+bool CloudServerConnections::QuarantineForPingTimeout(
+    CloudServerConnection& server_connection) {
+  if (server_connection.quarantine()) {
+    return false;
+  }
+  AE_TELED_DEBUG("CLOUD_SERVER_PING_TIMEOUT_WAIT server_id={} priority={}",
+                 server_connection.server_id(), server_connection.priority());
+  auto const was_selected =
+      std::erase(selected_servers_, &server_connection) != 0;
+  auto const server_it =
+      std::find(all_servers_.begin(), all_servers_.end(), &server_connection);
+  assert(server_it != all_servers_.end());
+  std::rotate(server_it, server_it + 1, all_servers_.end());
+  server_connection.SetQuarantine(true);
+  server_connection.SetQuarantineReason(CloudQuarantineReason::kPingTimeoutWait);
+  NormalizeServerPriorities();
+  if (was_selected) {
+    servers_update_event_.Emit();
+  }
+  RecordCloudDiag("cloud_quarantine_ping_timeout", server_connection,
+                  selected_servers_);
+  if (was_selected) {
+    RecordCloudDiag("cloud_selected_changed", server_connection,
+                    selected_servers_);
+  }
+  server_quarantined_event_.Emit(&server_connection);
+
+  auto& quarantine_sub = ServerEntryFor(server_connection).quarantine_sub;
+  quarantine_sub = ae_context_.scheduler().DelayedTask(
+      [this, sc{&server_connection}]() { CompletePingTimeoutWait(*sc); },
+      kCloudServerQuarantineTime);
+  if (!quarantine_sub) {
+    AE_TELED_ERROR("CLOUD_PING_TIMEOUT_WAIT_ALLOC_FAILED");
+    assert(false && "failed to schedule ping timeout wait release");
+  }
+  return true;
+}
+
+bool CloudServerConnections::RecoverFromPingTimeout(
+    CloudServerConnection& server_connection) {
+  if (!server_connection.quarantine() ||
+      server_connection.quarantine_reason() !=
+          CloudQuarantineReason::kPingTimeoutWait) {
+    return false;
+  }
+  AE_TELED_DEBUG("CLOUD_SERVER_PING_TIMEOUT_RECOVERED server_id={} priority={}",
+                 server_connection.server_id(), server_connection.priority());
+  ServerEntryFor(server_connection).quarantine_sub.Reset();
+  auto const first_quarantined =
+      std::find_if(all_servers_.begin(), all_servers_.end(),
+                   [](auto const* server) { return server->quarantine(); });
+  auto const server_it =
+      std::find(all_servers_.begin(), all_servers_.end(), &server_connection);
+  assert(first_quarantined != all_servers_.end() &&
+         server_it != all_servers_.end());
+  std::rotate(first_quarantined, server_it, server_it + 1);
+  server_connection.SetQuarantine(false);
+  NormalizeServerPriorities();
+  RecordCloudDiag("cloud_quarantine_ping_timeout_recovered", server_connection,
+                  selected_servers_);
+  ScheduleReconcileServers();
+  return true;
+}
+
+void CloudServerConnections::CompletePingTimeoutWait(
+    CloudServerConnection& server_connection) {
+  if (!server_connection.quarantine() ||
+      server_connection.quarantine_reason() !=
+          CloudQuarantineReason::kPingTimeoutWait) {
+    return;
+  }
+  AE_TELED_DEBUG("CLOUD_SERVER_PING_TIMEOUT_EXPIRED server_id={} priority={}",
+                 server_connection.server_id(), server_connection.priority());
+  UnsubscribeFromServerState(server_connection);
+  server_connection.Disconnect();
+  auto const first_quarantined =
+      std::find_if(all_servers_.begin(), all_servers_.end(),
+                   [](auto const* server) { return server->quarantine(); });
+  auto const server_it =
+      std::find(all_servers_.begin(), all_servers_.end(), &server_connection);
+  assert(first_quarantined != all_servers_.end() &&
+         server_it != all_servers_.end());
+  std::rotate(first_quarantined, server_it, server_it + 1);
+  server_connection.SetQuarantine(false);
+  NormalizeServerPriorities();
+  RecordCloudDiag("cloud_quarantine_ping_timeout_expired", server_connection,
+                  selected_servers_);
+  server_quarantine_release_event_.Emit(&server_connection);
+  ServerEntryFor(server_connection).quarantine_sub.Reset();
+  ScheduleReconcileServers();
+}
+
+bool CloudServerConnections::UpgradePingTimeoutToTransportQuarantine(
+    CloudServerConnection& server_connection) {
+  if (!server_connection.quarantine() ||
+      server_connection.quarantine_reason() !=
+          CloudQuarantineReason::kPingTimeoutWait) {
+    return false;
+  }
+  AE_TELED_DEBUG("CLOUD_SERVER_PING_TIMEOUT_UPGRADE_TRANSPORT server_id={}",
+                 server_connection.server_id());
+  server_connection.SetQuarantineReason(CloudQuarantineReason::kTransport);
+  UnsubscribeFromServerState(server_connection);
+  ServerEntryFor(server_connection).quarantine_sub.Reset();
+  auto& quarantine_sub = ServerEntryFor(server_connection).quarantine_sub;
+  quarantine_sub = ae_context_.scheduler().DelayedTask(
+      [this, sc{&server_connection}]() { ReleaseQuarantinedServer(*sc); },
+      kCloudServerQuarantineTime);
+  if (!quarantine_sub) {
+    AE_TELED_ERROR("CLOUD_PING_TIMEOUT_UPGRADE_ALLOC_FAILED");
+    assert(false && "failed to schedule transport quarantine release");
+  }
   return true;
 }
 

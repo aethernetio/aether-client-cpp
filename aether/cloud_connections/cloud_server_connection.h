@@ -29,6 +29,15 @@
 #include "aether/server_connections/iserver_connection_factory.h"
 
 namespace ae {
+
+enum class CloudQuarantineReason : std::uint8_t {
+  kNone = 0,
+  kTransport,
+  kPingTimeoutWait,
+};
+
+class CloudServerConnections;
+
 class CloudServerConnection {
  public:
   CloudServerConnection(Ptr<Cloud> const& cloud, ServerId server_id,
@@ -37,6 +46,7 @@ class CloudServerConnection {
   void Restream();
 
   bool quarantine() const;
+  CloudQuarantineReason quarantine_reason() const;
   void SetQuarantine(bool value);
 
   bool Connect();
@@ -56,6 +66,10 @@ class CloudServerConnection {
   }
 
  private:
+  friend class CloudServerConnections;
+
+  void SetQuarantineReason(CloudQuarantineReason reason);
+
   CloudServer& cloud_server() const;
 
   PtrView<Cloud> cloud_;
@@ -63,6 +77,7 @@ class CloudServerConnection {
   IServerConnectionFactory* connection_factory_;
   std::shared_ptr<ClientServerConnection> client_connection_;
   bool is_quarantined_ = false;
+  CloudQuarantineReason quarantine_reason_{CloudQuarantineReason::kNone};
   std::uint64_t bench_cloud_instance_id_{0};
 };
 }  // namespace ae

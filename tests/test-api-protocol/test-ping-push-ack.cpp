@@ -583,17 +583,15 @@ void test_DestroyPendingPingThenAckAndDeadlineNoCallbacks() {
 }
 
 void test_DeferPeriodicStartWhilePingPending() {
-#if AE_BENCH_PING_MIN_TIMEOUT_MS > 0
   bench_ping_server_start::DeferState state{};
   TEST_ASSERT_TRUE(
-      bench_ping_server_start::TryDeferPeriodicStart(state, true, true));
+      bench_ping_server_start::TryDeferPeriodicStart(state, true, true, false));
   TEST_ASSERT_TRUE(state.deferred_start_after_ping);
   TEST_ASSERT_FALSE(
-      bench_ping_server_start::TryDeferPeriodicStart(state, true, false));
-#else
-  TEST_IGNORE_MESSAGE(
-      "AE_BENCH_PING_MIN_TIMEOUT_MS=0; defer guard not compiled in this build");
-#endif
+      bench_ping_server_start::TryDeferPeriodicStart(state, true, false, false));
+  TEST_ASSERT_TRUE(
+      bench_ping_server_start::TryDeferPeriodicStart(state, true, false, true));
+  TEST_ASSERT_TRUE(state.deferred_start_after_ping);
 }
 
 namespace {
@@ -620,6 +618,7 @@ int RunPingPushAckTestsOnce() {
 }  // namespace ae::test_ping_push_ack
 
 extern int test_ping_server_defer_run();
+extern int test_ping_timeout_recovery_run();
 
 int test_api_protocol_ping_push_ack() {
   using namespace ae::test_ping_push_ack;
@@ -629,6 +628,9 @@ int test_api_protocol_ping_push_ack() {
   }
   if (failures == 0) {
     failures = test_ping_server_defer_run();
+  }
+  if (failures == 0) {
+    failures = test_ping_timeout_recovery_run();
   }
   return failures;
 }
