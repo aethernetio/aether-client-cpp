@@ -591,8 +591,8 @@ void test_DeferPeriodicStartWhilePingPending() {
   TEST_ASSERT_FALSE(
       bench_ping_server_start::TryDeferPeriodicStart(state, true, false));
 #else
-  TEST_MESSAGE(
-      "AE_BENCH_PING_MIN_TIMEOUT_MS=0 in this build; defer guard not compiled");
+  TEST_IGNORE_MESSAGE(
+      "AE_BENCH_PING_MIN_TIMEOUT_MS=0; defer guard not compiled in this build");
 #endif
 }
 
@@ -602,7 +602,15 @@ int RunPingPushAckTestsOnce() {
   UNITY_BEGIN();
 
   RUN_TEST(test_SchedulerDelayedTaskFiresOnceThroughAeContext);
+  RUN_TEST(test_PushPingAckCompletesPingBeforeTimeout);
+  RUN_TEST(test_FastPingAckDuringTransportWriteBeforeStartReturns);
   RUN_TEST(test_MissingAckTimesOutOnce);
+  RUN_TEST(test_LateAckAfterTimeoutEmitsLateDuration);
+  RUN_TEST(test_DuplicateAckAfterSuccessIgnored);
+  RUN_TEST(test_OtherConnectionAckBeforeStartThenCorrectAckOk);
+  RUN_TEST(test_WriteFailureThenAckAndDeadlineIgnored);
+  RUN_TEST(test_DestroyPendingPingThenAckAndDeadlineNoCallbacks);
+  RUN_TEST(test_DeferPeriodicStartWhilePingPending);
 
   return UNITY_END();
 }
@@ -611,7 +619,16 @@ int RunPingPushAckTestsOnce() {
 
 }  // namespace ae::test_ping_push_ack
 
+extern int test_ping_server_defer_run();
+
 int test_api_protocol_ping_push_ack() {
   using namespace ae::test_ping_push_ack;
-  return RunPingPushAckTestsOnce();
+  int failures = RunPingPushAckTestsOnce();
+  if (failures == 0) {
+    failures = RunPingPushAckTestsOnce();
+  }
+  if (failures == 0) {
+    failures = test_ping_server_defer_run();
+  }
+  return failures;
 }

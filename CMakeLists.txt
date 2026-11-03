@@ -68,6 +68,8 @@ set(UTM_ID "0" CACHE STRING "User Tracking Measurement ID, must be a uint32 valu
 set(USER_CONFIG "" CACHE PATH "Path to user provided configuration header file")
 set(FS_INIT "" CACHE PATH "Path to user provided saved state header file")
 set(AE_REG_CLOUD_ADDR "" CACHE STRING "Address of the registration cloud")
+set(AE_BENCH_PING_MIN_TIMEOUT_MS 0 CACHE STRING
+    "Minimum ping response timeout (ms) for bench builds; 0 disables the floor")
 
 message(STATUS "Aether build options:
    AE_ROOT_PORJECT=${AE_ROOT_PORJECT}
@@ -83,6 +85,7 @@ message(STATUS "Aether build options:
    USER_CONFIG=${USER_CONFIG}
    FS_INIT=${FS_INIT}
    AE_REG_CLOUD_ADDR=${AE_REG_CLOUD_ADDR}
+   AE_BENCH_PING_MIN_TIMEOUT_MS=${AE_BENCH_PING_MIN_TIMEOUT_MS}
 ")
 
 include(cmake/CPM.cmake)
@@ -274,6 +277,11 @@ if (AE_DISTILLATION)
 endif()
 if (AE_FILTRATION)
   target_compile_definitions(${TARGET_NAME} PUBLIC "AE_FILTRATION=1")
+endif()
+
+if(NOT AE_BENCH_PING_MIN_TIMEOUT_MS EQUAL 0)
+  target_compile_definitions(${TARGET_NAME} PUBLIC
+      "AE_BENCH_PING_MIN_TIMEOUT_MS=${AE_BENCH_PING_MIN_TIMEOUT_MS}")
 endif()
 
 # for debug purposes only, set registration server ip address

@@ -193,9 +193,9 @@ void test_ServerPingPeriodicStartDefersWhileClientPingPending() {
   TEST_ASSERT_EQUAL_PTR(
       before, PingCloudServersTestAccess::ClientPingPtr(ping_cloud, kServerId));
 #else
-  TEST_MESSAGE(
-      "AE_BENCH_PING_MIN_TIMEOUT_MS=0; build test-api-protocol-ping-push-ack "
-      "for ServerPing defer coverage");
+  TEST_IGNORE_MESSAGE(
+      "AE_BENCH_PING_MIN_TIMEOUT_MS=0; reconfigure with positive "
+      "AE_BENCH_PING_MIN_TIMEOUT_MS on library and tests");
 #endif
 }
 
