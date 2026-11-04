@@ -38,6 +38,10 @@ class CloudEventListener {
 
   void Reset();
 
+  std::size_t active_api_subscription_count() const noexcept {
+    return active_api_subscription_count_;
+  }
+
  private:
   void ServersUpdate();
 
@@ -46,6 +50,7 @@ class CloudEventListener {
   RequestPolicy::Variant request_policy_;
   Subscription server_update_sub_;
   MultiSubscription subscriptions_;
+  std::size_t active_api_subscription_count_{0};
 };
 }  // namespace ae
 

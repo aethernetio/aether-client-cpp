@@ -17,6 +17,8 @@
 namespace ae::bench_conn_event_diag {
 namespace {
 
+thread_local std::uint32_t g_current_inbound_message_server_id{0};
+
 struct Row {
   std::int64_t qpc_ns{0};
   char const* event{nullptr};
@@ -57,6 +59,14 @@ std::int64_t QpcNowNs() {
 }
 
 }  // namespace
+
+void SetCurrentInboundMessageServerId(std::uint32_t server_id) noexcept {
+  g_current_inbound_message_server_id = server_id;
+}
+
+std::uint32_t CurrentInboundMessageServerId() noexcept {
+  return g_current_inbound_message_server_id;
+}
 
 std::uint64_t AllocateCloudServerConnectionInstanceId() {
   return g_cloud_id.fetch_add(1, std::memory_order_relaxed);

@@ -17,6 +17,9 @@ std::uint64_t AllocateServerConnectionInstanceId();
 void Configure(std::size_t max_records);
 void ResetForTest();
 
+void SetCurrentInboundMessageServerId(std::uint32_t server_id) noexcept;
+std::uint32_t CurrentInboundMessageServerId() noexcept;
+
 void Record(char const* event, std::uint32_t server_id,
             std::uint64_t cloud_conn_instance_id,
             std::uint64_t client_conn_instance_id, std::uint32_t ping_request_id,
@@ -32,6 +35,9 @@ void WriteTsv(char const* path);
     ::ae::bench_conn_event_diag::Record(__VA_ARGS__)
 
 #else
+
+inline void SetCurrentInboundMessageServerId(std::uint32_t) noexcept {}
+inline std::uint32_t CurrentInboundMessageServerId() noexcept { return 0; }
 
 #  define AE_BENCH_CONN_DIAG(...) ((void)0)
 

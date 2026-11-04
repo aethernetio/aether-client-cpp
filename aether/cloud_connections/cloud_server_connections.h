@@ -97,6 +97,18 @@ class CloudServerConnections {
   void Restream();
 
   /**
+   * \brief Connect and subscribe state for every non-quarantined cloud server
+   * that is not yet linked. Does not change selected_servers_ (send path).
+   * Emits servers_update_event when new links appear.
+   */
+  bool EnsureReceivePathsForAllCloudServers();
+
+  /**
+   * \brief Restream every linked non-quarantined registered server.
+   */
+  void RestreamAllRegisteredServers();
+
+  /**
    * \brief Iterate over servers according to the request policy.
    * Calls func with CloudServerConnection* for each server.
    */
@@ -146,6 +158,22 @@ class CloudServerConnections {
   void ForServersImpl(TFunc&& func, RequestPolicy::All) {
     auto&& callable = std::forward<TFunc>(func);
     for (auto* sc : selected_servers_) {
+      std::invoke(callable, sc);
+    }
+  }
+
+  template <typename TFunc>
+  void ForServersImpl(TFunc&& func, RequestPolicy::AllRegisteredServers) {
+    auto&& callable = std::forward<TFunc>(func);
+    for (auto* sc : all_servers_) {
+      if (sc->quarantine()) {
+        continue;
+      }
+      auto* conn = sc->client_connection();
+      if (conn == nullptr ||
+          conn->stream_info().link_state != LinkState::kLinked) {
+        continue;
+      }
       std::invoke(callable, sc);
     }
   }

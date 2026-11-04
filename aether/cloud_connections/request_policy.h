@@ -46,7 +46,15 @@ struct RequestPolicy {
     AE_REFLECT()
   };
 
-  using Variant = std::variant<MainServer, Priority, Replica, All>;
+  // Iterate all registered cloud servers (cloud()->servers()), not only the
+  // selected prefix. Used for receive/ping timing without changing All send
+  // semantics.
+  struct AllRegisteredServers {
+    AE_REFLECT()
+  };
+
+  using Variant =
+      std::variant<MainServer, Priority, Replica, All, AllRegisteredServers>;
 };
 }  // namespace ae
 

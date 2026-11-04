@@ -65,6 +65,13 @@ class Client : public Obj {
   ClientConnectivityPolicy::ptr const& connectivity_policy();
   P2pMessageStreamManager& message_stream_manager();
 
+  void set_bench_receive_all_cloud_servers(bool enabled) noexcept {
+    bench_receive_all_cloud_servers_ = enabled;
+  }
+  bool bench_receive_all_cloud_servers() const noexcept {
+    return bench_receive_all_cloud_servers_;
+  }
+
   void SetConfig(std::string client_id, Uid parent_uid, Uid uid,
                  Uid ephemeral_uid, Key master_key, Cloud::ptr c);
 
@@ -91,6 +98,7 @@ class Client : public Obj {
   std::unique_ptr<ServerConnectionManager> server_connection_manager_;
   std::unique_ptr<CloudServerConnections> cloud_connection_;
   std::unique_ptr<P2pMessageStreamManager> message_stream_manager_;
+  bool bench_receive_all_cloud_servers_{false};
 
 #if AE_ENABLE_PING
   std::unique_ptr<PingCloudServers> ping_cloud_servers_;

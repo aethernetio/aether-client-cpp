@@ -50,6 +50,10 @@ class P2pMessageStreamManager {
   P2pPortHandle CreatePort(Uid const& destination);
   NewPortEvent const& new_port_event();
 
+  std::size_t bench_active_receive_api_subscriptions() const noexcept {
+    return on_message_received_sub_.active_api_subscription_count();
+  }
+
  private:
   void NewMessageReceived(AeMessage const& message);
   void CleanUpPorts();

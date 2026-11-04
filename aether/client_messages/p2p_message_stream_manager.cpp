@@ -21,6 +21,8 @@
 
 #include "aether/client.h"
 #include "aether/cloud_connections/cloud_server_connection.h"
+#include "aether/cloud_connections/request_policy.h"
+#include "aether/diagnostics/bench_connection_event_diag.h"
 #include "aether/work_cloud_api/client_api/client_api_safe.h"
 
 #include "aether/client_messages/client_messages_tele.h"
@@ -35,12 +37,24 @@ P2pMessageStreamManager::P2pMessageStreamManager(AeContext const& ae_context,
       new_port_event_{ae_context_},
       on_message_received_sub_{CloudEventListener{
           ApiEventSubscriber{[this](ClientApiSafe& client_api,
-                                    [[maybe_unused]] CloudServerConnection*
-                                        server_connection) -> RegEventHandler {
+                                    CloudServerConnection* server_connection)
+                                 -> RegEventHandler {
+            auto const server_id = server_connection != nullptr
+                                         ? server_connection->server_id()
+                                         : ServerId{};
             return client_api.send_message_event().Subscribe(
-                MethodPtr<&P2pMessageStreamManager::NewMessageReceived>{this});
+                [this, server_id](AeMessage const& message) {
+#if AE_BENCH_CONNECTION_EVENT_DIAG
+                  bench_conn_event_diag::SetCurrentInboundMessageServerId(
+                      server_id);
+#endif
+                  NewMessageReceived(message);
+                });
           }},
-          *cloud_connection_, RequestPolicy::All{}}} {}
+          *cloud_connection_,
+          client->bench_receive_all_cloud_servers()
+              ? RequestPolicy::Variant{RequestPolicy::AllRegisteredServers{}}
+              : RequestPolicy::Variant{RequestPolicy::All{}}}} {}
 
 P2pPortHandle P2pMessageStreamManager::CreatePort(Uid const& destination) {
   auto [port, is_new] = GetOrCreatePort(destination);
