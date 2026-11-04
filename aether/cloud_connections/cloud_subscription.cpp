@@ -56,6 +56,7 @@ CloudEventListener& CloudEventListener::operator=(
 
 void CloudEventListener::ServersUpdate() {
   subscriptions_.Reset();
+  active_subscription_servers_.clear();
   std::size_t active = 0;
   cloud_connection_->ForServers(
       [&](auto* sc) {
@@ -63,6 +64,7 @@ void CloudEventListener::ServersUpdate() {
         assert((conn != nullptr) && "ClientConnection is null");
         auto sub = subscriber_(conn->client_safe_api(), sc);
         subscriptions_ += std::move(sub);
+        active_subscription_servers_.insert(sc->server_id());
         ++active;
       },
       request_policy_);

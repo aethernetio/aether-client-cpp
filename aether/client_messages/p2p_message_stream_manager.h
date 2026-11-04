@@ -24,6 +24,7 @@
 #include "aether-objects/ptr/ptr_view.h"
 #include "aether/ae_context.h"
 #include "aether/client_messages/p2p_port_handle.h"
+#include "aether/types/server_id.h"
 #include "aether/cloud_connections/cloud_subscription.h"
 #include "aether/events/events.h"
 #include "aether/types/uid.h"
@@ -52,6 +53,10 @@ class P2pMessageStreamManager {
 
   std::size_t bench_active_receive_api_subscriptions() const noexcept {
     return on_message_received_sub_.active_api_subscription_count();
+  }
+
+  bool bench_has_receive_subscription(ServerId server_id) const noexcept {
+    return on_message_received_sub_.HasActiveSubscription(server_id);
   }
 
  private:

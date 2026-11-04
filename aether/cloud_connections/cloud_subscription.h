@@ -17,7 +17,10 @@
 #ifndef AETHER_CLOUD_CONNECTIONS_CLOUD_EVENT_LISTENER_H_
 #define AETHER_CLOUD_CONNECTIONS_CLOUD_EVENT_LISTENER_H_
 
+#include <unordered_set>
+
 #include "aether/common.h"
+#include "aether/types/server_id.h"
 
 #include "aether/cloud_connections/request_policy.h"
 #include "aether/cloud_connections/cloud_callbacks.h"
@@ -42,6 +45,10 @@ class CloudEventListener {
     return active_api_subscription_count_;
   }
 
+  bool HasActiveSubscription(ServerId server_id) const noexcept {
+    return active_subscription_servers_.contains(server_id);
+  }
+
  private:
   void ServersUpdate();
 
@@ -51,6 +58,7 @@ class CloudEventListener {
   Subscription server_update_sub_;
   MultiSubscription subscriptions_;
   std::size_t active_api_subscription_count_{0};
+  std::unordered_set<ServerId> active_subscription_servers_;
 };
 }  // namespace ae
 

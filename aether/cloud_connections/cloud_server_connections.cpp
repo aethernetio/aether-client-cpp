@@ -155,9 +155,6 @@ void CloudServerConnections::Restream() {
 bool CloudServerConnections::EnsureReceivePathsForAllCloudServers() {
   bool linked_changed = false;
   for (auto* sc : all_servers_) {
-    if (sc->quarantine()) {
-      continue;
-    }
     auto* conn = sc->client_connection();
     if (conn != nullptr &&
         conn->stream_info().link_state == LinkState::kLinked) {
