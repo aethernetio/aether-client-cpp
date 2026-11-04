@@ -88,6 +88,21 @@ message(STATUS "Aether build options:
    AE_BENCH_PING_MIN_TIMEOUT_MS=${AE_BENCH_PING_MIN_TIMEOUT_MS}
 ")
 
+# Must be before add_library/CPM so the SDK and dependencies share sanitizer flags.
+if(AE_ADDRESS_SANITIZE)
+  if(MSVC)
+    add_compile_options(/fsanitize=address)
+    add_link_options(/INFERASANLIBS)
+    if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_CONFIGURATION_TYPES)
+      add_compile_options($<$<CONFIG:Release>:/Zi>)
+      add_link_options($<$<CONFIG:Release>:/DEBUG>)
+    endif()
+  else()
+    add_compile_options(-fsanitize=address)
+    add_link_options(-fsanitize=address)
+  endif()
+endif()
+
 include(cmake/CPM.cmake)
 
 # For using CPM.cmake projects with external package managers, such as conan or vcpkg,
@@ -287,12 +302,6 @@ endif()
 # for debug purposes only, set registration server ip address
 if(NOT "${AE_REG_CLOUD_ADDR}" STREQUAL "")
   target_compile_definitions(${TARGET_NAME} PUBLIC "_AE_REG_CLOUD_IP=\"${AE_REG_CLOUD_ADDR}\"")
-endif()
-
-# build with address sanitizer
-if (AE_ADDRESS_SANITIZE)
-  add_compile_options(-fsanitize=address)
-  add_link_options(-fsanitize=address)
 endif()
 
 # setup warnings an Werror
