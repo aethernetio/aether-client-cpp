@@ -93,6 +93,7 @@ class Ping {
   TaskSubscription timeout_sub_;
   Subscription write_sub_;
   TaskSubscription ack_dispatch_sub_;
+  TaskSubscription write_fail_dispatch_sub_;
 
   ResultEvent result_event_;
   RequestState state_{RequestState::kCreated};

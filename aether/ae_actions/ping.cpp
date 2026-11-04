@@ -202,7 +202,10 @@ void Ping::Start(TimePoint current_time) {
       if (state_ != RequestState::kPending) {
         return;
       }
-      ae_context_.scheduler().Task([this]() { EmitWriteFailureFromWriteCallback(); });
+      write_fail_dispatch_sub_ = ae_context_.scheduler().Task([this]() {
+        write_fail_dispatch_sub_.Reset();
+        EmitWriteFailureFromWriteCallback();
+      });
     }
   });
   if (state_ != RequestState::kPending) {
@@ -229,6 +232,7 @@ void Ping::EmitWriteFailureFromWriteCallback() {
 }
 
 void Ping::PingResponse(RequestId request_id) {
+  write_fail_dispatch_sub_.Reset();
   ack_dispatch_sub_ = ae_context_.scheduler().Task(
       [this, request_id]() { PingResponseImpl(request_id); });
 }
@@ -317,6 +321,7 @@ void Ping::ResetRequestSubscriptions() {
   timeout_sub_.Reset();
   write_sub_.Reset();
   ack_dispatch_sub_.Reset();
+  write_fail_dispatch_sub_.Reset();
 }
 
 }  // namespace ae

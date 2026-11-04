@@ -582,6 +582,20 @@ void test_DestroyPendingPingThenAckAndDeadlineNoCallbacks() {
   TEST_ASSERT_EQUAL(0, cap.count);
 }
 
+void test_DestroyPingAfterWriteFailDeferredBeforeSchedulerTick() {
+  PingHarness h{true};
+  TEST_ASSERT_TRUE(h.ready);
+  auto ping = MakePing(h);
+  ResultCapture cap;
+  cap.Attach(*ping, h.ctx.event_system());
+  ping->Start(h.ctx.Now());
+  h.ctx.Advance(std::chrono::milliseconds{1});
+  TEST_ASSERT_EQUAL(0, cap.count);
+  ping.reset();
+  h.ctx.Advance(std::chrono::milliseconds{200});
+  TEST_ASSERT_EQUAL(0, cap.count);
+}
+
 void test_DeferPeriodicStartWhilePingPending() {
   bench_ping_server_start::DeferState state{};
   TEST_ASSERT_TRUE(
@@ -608,6 +622,7 @@ int RunPingPushAckTestsOnce() {
   RUN_TEST(test_OtherConnectionAckBeforeStartThenCorrectAckOk);
   RUN_TEST(test_WriteFailureThenAckAndDeadlineIgnored);
   RUN_TEST(test_DestroyPendingPingThenAckAndDeadlineNoCallbacks);
+  RUN_TEST(test_DestroyPingAfterWriteFailDeferredBeforeSchedulerTick);
   RUN_TEST(test_DeferPeriodicStartWhilePingPending);
 
   return UNITY_END();
