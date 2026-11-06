@@ -31,6 +31,10 @@ DISABLE_WARNING_POP()
 #include "aether/write_action/failed_write_action.h"
 #include "aether/write_action/write_action.h"
 
+#if AE_DIAG_WRITE_FAIL_SOURCES
+#  include "aether/diagnostics/write_fail_diag.h"
+#endif
+
 #if DEBUG  // include tele only in debug mode
 #  include "aether/tele.h"
 #endif
@@ -126,6 +130,11 @@ class BufferWrite {
   WriteAction& WriteToBuffer(T&& data) {
     if (buffer_.full()) {
       BW_LOG_WARNING("Buffer is full");
+#if AE_DIAG_WRITE_FAIL_SOURCES
+      ae::write_fail_diag::Record(
+          ae::write_fail_diag::Source::kBufferWriteFull, "BufferWrite::WriteToBuffer",
+          buffer_.size(), buffer_.capacity());
+#endif
       return FailedWrite();
     }
     buffer_.push(BufferEntry{
@@ -148,6 +157,11 @@ class BufferWrite {
     BW_LOG_DEBUG("BufferWrite: direct write");
     auto* write_action = direct_write_(std::move(data));
     if (write_action == nullptr) {
+#if AE_DIAG_WRITE_FAIL_SOURCES
+      ae::write_fail_diag::Record(
+          ae::write_fail_diag::Source::kBufferWriteDirectNullptr,
+          "BufferWrite::DirectWrite", buffer_.size(), buffer_.capacity());
+#endif
       return FailedWrite();
     }
     return *write_action;

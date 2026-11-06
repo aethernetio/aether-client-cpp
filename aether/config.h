@@ -106,6 +106,11 @@
 #  define AE_P2P_MESSAGE_STREAM_BUFFER_CAPACITY 10
 #endif
 
+// When 1, optional WriteAction::kFail source capture (in-memory; bench drains).
+#ifndef AE_DIAG_WRITE_FAIL_SOURCES
+#  define AE_DIAG_WRITE_FAIL_SOURCES 0
+#endif
+
 // Cloud retrieval action pool entry count.
 #ifndef AE_CLOUD_GET_CLOUD_ACTION_POOL_CAPACITY
 #  define AE_CLOUD_GET_CLOUD_ACTION_POOL_CAPACITY 5

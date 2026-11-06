@@ -26,6 +26,10 @@
 
 #include "aether/cloud_connections/cloud_connections_tele.h"  // IWYU pragma: keep
 #include "aether/diagnostics/bench_connection_event_diag.h"
+#include "aether/config.h"
+#if AE_DIAG_WRITE_FAIL_SOURCES
+#  include "aether/diagnostics/write_fail_diag.h"
+#endif
 
 namespace ae {
 namespace {
@@ -70,8 +74,14 @@ static constexpr auto kCloudServerQuarantineTime =
 cloud_server_connections_internal::EmptyConnectionsWA::EmptyConnectionsWA(
     AeContext const& ae_context)
     : WriteAction{ae_context} {
-  ae_context.scheduler().Task(
-      [&]() { WriteAction::SetStatus(WriteAction::Status::kFail); });
+  ae_context.scheduler().Task([&]() {
+#if AE_DIAG_WRITE_FAIL_SOURCES
+    ae::write_fail_diag::Record(
+        ae::write_fail_diag::Source::kCloudEmptyConnections,
+        "EmptyConnectionsWA");
+#endif
+    WriteAction::SetStatus(WriteAction::Status::kFail);
+  });
 }
 
 cloud_server_connections_internal::ReplicaWA::ReplicaWA(

@@ -23,6 +23,10 @@
 
 #  include "aether/transport/transport_tele.h"
 
+#  if AE_DIAG_WRITE_FAIL_SOURCES
+#    include "aether/diagnostics/write_fail_diag.h"
+#  endif
+
 namespace ae {
 namespace tcp_internal {
 TcpBase::TcpBase(AeContext const& ae_context, AddressPort endpoint) noexcept
@@ -104,6 +108,12 @@ void TcpBase::OnSocketError() {
 FailedWriteAction& TcpBase::FailedWrite() {
   if (!failed_write_ || failed_write_->is_finished()) {
     failed_write_.emplace(ae_context_);
+  } else {
+#  if AE_DIAG_WRITE_FAIL_SOURCES
+    ae::write_fail_diag::Record(
+        ae::write_fail_diag::Source::kTcpTransportFailedWriteReuse,
+        "tcp_internal::TcpBase::FailedWrite");
+#  endif
   }
   return *failed_write_;
 }

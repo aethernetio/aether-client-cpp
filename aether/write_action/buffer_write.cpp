@@ -18,6 +18,11 @@
 
 #include <cassert>
 
+#include "aether/config.h"
+#if AE_DIAG_WRITE_FAIL_SOURCES
+#  include "aether/diagnostics/write_fail_diag.h"
+#endif
+
 namespace ae {
 void BufferedWriteAction::Stop() noexcept {
   if (wa_sub_) {  // wa_sub_ is used as alive indicator
@@ -38,6 +43,11 @@ void BufferedWriteAction::Sent(WriteAction& swa) {
 
 // drop the write action from the buffer
 void BufferedWriteAction::Drop() {
+#if AE_DIAG_WRITE_FAIL_SOURCES
+  ae::write_fail_diag::Record(
+      ae::write_fail_diag::Source::kBufferedWriteActionDrop,
+      "BufferedWriteAction::Drop");
+#endif
   wa_sub_.Reset();
   SetStatus(WriteAction::Status::kFail);
 }

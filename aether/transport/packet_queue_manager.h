@@ -24,7 +24,12 @@
 
 #include "aether/ae_context.h"
 #include "aether/common.h"
+#include "aether/config.h"
 #include "aether/transport/packet_send_action.h"
+
+#if AE_DIAG_WRITE_FAIL_SOURCES
+#  include "aether/diagnostics/write_fail_diag.h"
+#endif
 
 #include "aether/transport/transport_tele.h"
 
@@ -47,6 +52,11 @@ class PacketQueueManager {
     auto lock = std::scoped_lock{queue_lock_};
     if (queue_.size() == kMaxSize) {
       // queue is full, drop the packet
+#if AE_DIAG_WRITE_FAIL_SOURCES
+      ae::write_fail_diag::Record(ae::write_fail_diag::Source::kPacketQueueFull,
+                                 "PacketQueueManager::AddPacket", queue_.size(),
+                                 kMaxSize);
+#endif
       return nullptr;
     }
     queue_.push(T{std::forward<Args>(args)...});

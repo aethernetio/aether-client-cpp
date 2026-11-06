@@ -43,6 +43,18 @@
 
 #    include "aether/transport/transport_tele.h"
 
+#    if AE_DIAG_WRITE_FAIL_SOURCES
+#      include "aether/diagnostics/write_fail_diag.h"
+#      if defined(_WIN32)
+#        ifndef WIN32_LEAN_AND_MEAN
+#          define WIN32_LEAN_AND_MEAN
+#        endif
+#        include <winsock2.h>
+#      else
+#        include <cerrno>
+#      endif
+#    endif
+
 namespace ae {
 namespace tcp_internal {
 template <typename Sock>
@@ -64,6 +76,16 @@ class SendAction final : public PacketSendAction {
     auto res = socket_->Send(Span{data_.data() + sent_offset_, size_to_send});
     if (!res) {
       AE_TELED_ERROR("Data has not been written");
+#    if AE_DIAG_WRITE_FAIL_SOURCES
+      std::optional<std::uint32_t> oserr;
+#      if defined(_WIN32)
+      oserr = static_cast<std::uint32_t>(WSAGetLastError());
+#      else
+      oserr = static_cast<std::uint32_t>(errno);
+#      endif
+      ae::write_fail_diag::Record(ae::write_fail_diag::Source::kTcpSendSocketError,
+                                  "tcp_internal::SendAction::Send", 0, 0, oserr);
+#    endif
       SetStatus(WriteAction::Status::kFail);
       return;
     }
