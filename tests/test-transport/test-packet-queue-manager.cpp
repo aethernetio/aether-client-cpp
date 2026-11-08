@@ -173,6 +173,11 @@ static DataBuffer MakeSmallPayload() {
   return DataBuffer{8, 0xAB};
 }
 
+static DataBuffer MakeTaggedPayload(std::uint8_t tag) {
+  std::vector<std::uint8_t> bytes(8, tag);
+  return DataBuffer{bytes};
+}
+
 // Tcp SendAction sets is_done before deferred WriteAction::SetStatus/Finish.
 // Without reclaim on AddPacket, a full queue of finished sends stays occupied
 // until the next Send() (e.g. ReadyToWrite).
@@ -235,12 +240,11 @@ void test_TcpSendSchedulerOverflowDeferredTerminal() {
   queue.Send();
   const std::size_t overflow_after_send = sched.overflow_counter();
   TEST_ASSERT_TRUE(overflow_after_send > overflow_before);
-  TEST_ASSERT_TRUE(stuck->is_done());
   TEST_ASSERT_GREATER_THAN(0, static_cast<int>(sock.sent_bytes_));
   // Scheduler slot miss on deferred SetStatus; queue layer emits terminal
   // outside the queue mutex (sync fallback when pool stays full).
-  TEST_ASSERT_TRUE(stuck->is_finished());
   TEST_ASSERT_EQUAL(1, terminal_count);
+  // Do not dereference `stuck` after Send: DrainFinished may reclaim its slot.
   TEST_ASSERT_NOT_NULL(queue.AddPacket(ctx, sock, MakeSmallPayload()));
 
   blockers.clear();
@@ -309,6 +313,150 @@ void test_TcpAddPacketRejectedUntilDeferredFinishPump() {
   TEST_ASSERT_NOT_NULL(queue.AddPacket(ctx, sock, MakeSmallPayload()));
 }
 
+class TrackingMockSocket {
+ public:
+  std::optional<std::size_t> Send(Span<std::uint8_t> data) {
+    if (data.size() != 0) {
+      send_tags_.push_back(data.data()[0]);
+    }
+    sent_bytes_ += data.size();
+    return data.size();
+  }
+
+  std::vector<std::uint8_t> send_tags_;
+  std::size_t sent_bytes_{0};
+};
+
+static std::vector<TaskSubscription> BlockSchedulerPool(TaskScheduler& sched) {
+  std::vector<TaskSubscription> blockers;
+  blockers.reserve(AE_TASK_MAX_COUNT);
+  for (std::size_t i = 0; i < AE_TASK_MAX_COUNT; ++i) {
+    auto sub = sched.DelayedTask([]() {}, std::chrono::hours{1});
+    TEST_ASSERT_TRUE(static_cast<bool>(sub));
+    blockers.push_back(std::move(sub));
+  }
+  TEST_ASSERT_FALSE(static_cast<bool>(sched.Task([]() {})));
+  return blockers;
+}
+
+static void FlushTcpQueueWhileBlocked(PacketQueueManager<tcp_internal::SendAction<TrackingMockSocket>, 4>& queue,
+                                     TrackingMockSocket& sock, std::size_t expected_unique_tags) {
+  for (int pass = 0; pass < 32 && sock.send_tags_.size() < expected_unique_tags; ++pass) {
+    queue.Send();
+  }
+  TEST_ASSERT_EQUAL(static_cast<int>(expected_unique_tags), static_cast<int>(sock.send_tags_.size()));
+}
+
+void test_TcpSchedulerOverflowTerminalReentrancyCombined() {
+  TestContext tctx;
+  AeContext ctx{tctx};
+  auto& sched = tctx.scheduler();
+  const std::size_t overflow_before = sched.overflow_counter();
+  auto blockers = BlockSchedulerPool(sched);
+
+  TrackingMockSocket sock;
+  using SendAction = tcp_internal::SendAction<TrackingMockSocket>;
+  PacketQueueManager<SendAction, 4> queue{ctx};
+
+  constexpr std::uint8_t kIds[] = {1, 2, 3};
+  tcp_internal::SendAction<TrackingMockSocket>* head = nullptr;
+  for (std::uint8_t id : kIds) {
+    auto* pkt = queue.AddPacket(ctx, sock, MakeTaggedPayload(id));
+    TEST_ASSERT_NOT_NULL(pkt);
+    if (id == 1) {
+      head = pkt;
+    }
+  }
+
+  int terminal_success = 0;
+  int status_reclaim_add = 0;
+  int finished_reclaim_add = 0;
+  MultiSubscription subs;
+  subs += head->status_event().Subscribe([&](WriteAction::Status s) {
+    if (s == WriteAction::Status::kSuccess) {
+      ++terminal_success;
+      if (queue.AddPacket(ctx, sock, MakeTaggedPayload(4)) != nullptr) {
+        ++status_reclaim_add;
+      }
+    }
+  });
+  subs += head->finished_event().Subscribe([&]() {
+    if (queue.AddPacket(ctx, sock, MakeTaggedPayload(5)) != nullptr) {
+      ++finished_reclaim_add;
+    }
+  });
+
+  queue.Send();
+  TEST_ASSERT_TRUE(sched.overflow_counter() > overflow_before);
+  TEST_ASSERT_TRUE(head->is_done());
+  TEST_ASSERT_TRUE(head->is_finished());
+  TEST_ASSERT_EQUAL(1, terminal_success);
+  TEST_ASSERT_EQUAL(1, status_reclaim_add);
+  TEST_ASSERT_EQUAL(1, finished_reclaim_add);
+  TEST_ASSERT_EQUAL(1, static_cast<int>(sock.send_tags_.size()));
+  TEST_ASSERT_EQUAL(1, static_cast<int>(sock.send_tags_[0]));
+
+  FlushTcpQueueWhileBlocked(queue, sock, 5);
+
+  const std::vector<std::uint8_t> expected{1, 2, 3, 4, 5};
+  TEST_ASSERT_EQUAL(static_cast<int>(expected.size()), static_cast<int>(sock.send_tags_.size()));
+  for (std::size_t i = 0; i < expected.size(); ++i) {
+    TEST_ASSERT_EQUAL(static_cast<int>(expected[i]), static_cast<int>(sock.send_tags_[i]));
+  }
+
+  blockers.clear();
+  Pump(tctx);
+  for (int i = 0; i < 4; ++i) {
+    TEST_ASSERT_NOT_NULL(queue.AddPacket(ctx, sock, MakeTaggedPayload(static_cast<std::uint8_t>(10 + i))));
+  }
+  queue.Send();
+  Pump(tctx);
+  TEST_ASSERT_TRUE(sock.sent_bytes_ > 0);
+}
+
+void test_TcpStopAfterOverflowPendingSingleTerminal() {
+  TestContext tctx;
+  AeContext ctx{tctx};
+  auto blockers = BlockSchedulerPool(tctx.scheduler());
+
+  TrackingMockSocket sock;
+  using SendAction = tcp_internal::SendAction<TrackingMockSocket>;
+  PacketQueueManager<SendAction, 4> queue{ctx};
+
+  auto* pkt = queue.AddPacket(ctx, sock, MakeTaggedPayload(7));
+  TEST_ASSERT_NOT_NULL(pkt);
+
+  int stop_terminals = 0;
+  int success_terminals = 0;
+  MultiSubscription subs;
+  subs += pkt->status_event().Subscribe([&](WriteAction::Status s) {
+    if (s == WriteAction::Status::kStop) {
+      ++stop_terminals;
+    }
+    if (s == WriteAction::Status::kSuccess) {
+      ++success_terminals;
+    }
+  });
+
+  pkt->Send();
+  TEST_ASSERT_TRUE(pkt->is_done());
+  TEST_ASSERT_FALSE(pkt->is_finished());
+
+  pkt->Stop();
+  TEST_ASSERT_TRUE(pkt->is_finished());
+  TEST_ASSERT_EQUAL(1, stop_terminals);
+  TEST_ASSERT_EQUAL(0, success_terminals);
+
+  queue.Send();
+  queue.Send();
+  TEST_ASSERT_EQUAL(1, stop_terminals);
+  TEST_ASSERT_EQUAL(0, success_terminals);
+
+  blockers.clear();
+  Pump(tctx);
+  TEST_ASSERT_NOT_NULL(queue.AddPacket(ctx, sock, MakeTaggedPayload(8)));
+}
+
 void test_TcpSendMultipleFillDrainCycles() {
   TestContext tctx;
   AeContext ctx{tctx};
@@ -345,6 +493,8 @@ int test_packet_queue_manager() {
   RUN_TEST(ae::test_packet_queue_manager::test_TcpSendMultipleFillDrainCycles);
   RUN_TEST(ae::test_packet_queue_manager::test_TcpAddPacketFromTerminalEvents);
   RUN_TEST(ae::test_packet_queue_manager::test_TcpAddPacketRejectedUntilDeferredFinishPump);
+  RUN_TEST(ae::test_packet_queue_manager::test_TcpSchedulerOverflowTerminalReentrancyCombined);
+  RUN_TEST(ae::test_packet_queue_manager::test_TcpStopAfterOverflowPendingSingleTerminal);
 #endif
   return 0;
 }

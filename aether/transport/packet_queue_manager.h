@@ -49,9 +49,9 @@ class PacketQueueManager {
 
   template <typename... Args>
   T* AddPacket(Args&&... args) {
-    auto lock = std::scoped_lock{queue_lock_};
+    std::unique_lock lock{queue_lock_};
     DrainFinishedLocked();
-    RetryDeferredTerminalsLocked();
+    RetryDeferredTerminalsLocked(lock);
     if (queue_.size() == kMaxSize) {
       // queue is full, drop the packet
 #if AE_DIAG_WRITE_FAIL_SOURCES
@@ -70,31 +70,27 @@ class PacketQueueManager {
    * \brief Triggers send on queued action.
    */
   void Send() {
-    auto lock = std::scoped_lock{queue_lock_};
+    std::unique_lock lock{queue_lock_};
     DrainFinishedLocked();
-    RetryDeferredTerminalsLocked();
+    RetryDeferredTerminalsLocked(lock);
 
-    // send queued packets
-    for (; index_ < queue_.size(); index_++) {
-      auto& current = queue_[index_];
-      if (current.is_done()) {
+    while (index_ < queue_.size()) {
+      if (queue_[index_].is_done()) {
+        ++index_;
         continue;
       }
-      // make a send
-      // then three states is possible:
-      // it fully sent or failed - it's done
-      // it requires additional pass - it's re_enqueue
-      // it waits for completion - it's nothing, and next Send will return the
-      // actual state.
-      current.Send();
-      EmitDeferredTerminalUnlocked(current);
-      if (current.is_done()) {
+      queue_[index_].Send();
+      EmitDeferredTerminalUnlocked(lock, index_);
+      if (index_ >= queue_.size()) {
+        break;
+      }
+      if (queue_[index_].is_done()) {
+        ++index_;
         continue;
       }
-      if (current.re_enqueue()) {
+      if (queue_[index_].re_enqueue()) {
         Enqueue();
       }
-      // current waits for completion, wait for next Send call.
       break;
     }
   }
@@ -109,20 +105,36 @@ class PacketQueueManager {
     index_ = (index_ <= removed) ? 0 : index_ - removed;
   }
 
-  void EmitDeferredTerminalUnlocked(T& current) {
-    if (!current.is_done() || current.is_finished()) {
+  void EmitDeferredTerminalUnlocked(std::unique_lock<std::mutex>& lock,
+                                  std::size_t idx) {
+    if (idx >= queue_.size()) {
       return;
     }
-    queue_lock_.unlock();
-    current.TryEmitDeferredTerminal();
-    queue_lock_.lock();
+    T& slot = queue_[idx];
+    if (!slot.is_done() || slot.is_finished()) {
+      return;
+    }
+    lock.unlock();
+    slot.TryEmitDeferredTerminal();
+    lock.lock();
   }
 
-  void RetryDeferredTerminalsLocked() {
-    for (auto& current : queue_) {
-      if (current.is_done() && !current.is_finished()) {
-        EmitDeferredTerminalUnlocked(current);
+  void RetryDeferredTerminalsLocked(std::unique_lock<std::mutex>& lock) {
+    for (std::size_t i = 0; i < queue_.size();) {
+      if (queue_[i].is_done() && !queue_[i].is_finished()) {
+        EmitDeferredTerminalUnlocked(lock, i);
+        DrainFinishedLocked();
+        if (i >= queue_.size()) {
+          break;
+        }
+        if (queue_[i].is_done() && !queue_[i].is_finished()) {
+          ++i;
+          continue;
+        }
+        i = index_;
+        continue;
       }
+      ++i;
     }
   }
 
