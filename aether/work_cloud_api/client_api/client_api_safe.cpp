@@ -17,8 +17,11 @@
 #include "aether/work_cloud_api/client_api/client_api_safe.h"
 
 #include <cassert>
+#include <cstring>
 
 #include "aether/api_protocol/api_protocol.h"
+#include "aether/diagnostics/bench_connection_event_diag.h"
+#include "aether/types/uid.h"
 
 #include "aether/tele.h"
 
@@ -119,6 +122,15 @@ void ClientApiSafe::SendAccessCheckResults(
 }
 
 void ClientApiSafe::SendMessage(AeMessage const& msg) {
+#if AE_BENCH_CONNECTION_EVENT_DIAG
+  std::uint64_t uid_key = 0;
+  static_assert(Uid::kSize >= sizeof(uid_key));
+  std::memcpy(&uid_key, msg.uid.value.data(), sizeof(uid_key));
+  AE_BENCH_CONN_DIAG(
+      "client_api_send_message_emit",
+      bench_conn_event_diag::CurrentInboundMessageServerId(), 0, uid_key,
+      static_cast<std::uint32_t>(msg.data.size()), 0, 0, -1, 0, -1);
+#endif
   send_message_event_.Emit(msg);
 }
 

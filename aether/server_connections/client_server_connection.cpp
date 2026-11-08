@@ -210,6 +210,16 @@ ServerConnection& ClientServerConnection::server_connection() {
 }
 
 void ClientServerConnection::OutData(DataBuffer const& data) {
+#if AE_BENCH_CONNECTION_EVENT_DIAG
+  std::uint32_t sid = 0;
+  if (auto server = server_.Lock()) {
+    sid = server->server_id;
+    bench_conn_event_diag::SetCurrentInboundMessageServerId(sid);
+  }
+  AE_BENCH_CONN_DIAG("tcp_api_inbound_bytes", sid, 0, bench_client_instance_id_,
+                     0, static_cast<std::uint32_t>(data.size()), 0, -1, 0,
+                     -1);
+#endif
   auto parser = ApiParser{protocol_context_, data};
   [[maybe_unused]] auto res = parser.Parse(client_api_unsafe_);
   assert(res && "Not all data parsed");

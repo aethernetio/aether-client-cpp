@@ -27,7 +27,21 @@
 
 #include "aether/client_messages/client_messages_tele.h"
 
+#include <cstring>
+
 namespace ae {
+namespace {
+
+#if AE_BENCH_CONNECTION_EVENT_DIAG
+std::uint64_t UidLo64(Uid const& uid) noexcept {
+  std::uint64_t key = 0;
+  static_assert(Uid::kSize >= sizeof(key));
+  std::memcpy(&key, uid.value.data(), sizeof(key));
+  return key;
+}
+#endif
+
+}  // namespace
 
 P2pMessageStreamManager::P2pMessageStreamManager(AeContext const& ae_context,
                                                  Ptr<Client> const& client)
@@ -42,11 +56,24 @@ P2pMessageStreamManager::P2pMessageStreamManager(AeContext const& ae_context,
             auto const server_id = server_connection != nullptr
                                          ? server_connection->server_id()
                                          : ServerId{};
+#if AE_BENCH_CONNECTION_EVENT_DIAG
+            std::uint64_t const cloud_inst =
+                server_connection != nullptr
+                    ? server_connection->bench_cloud_instance_id()
+                    : 0U;
+            AE_BENCH_CONN_DIAG("send_message_sub", server_id, cloud_inst, 0, 0,
+                               0, 0, 1, 0, -1);
+#endif
             return client_api.send_message_event().Subscribe(
                 [this, server_id](AeMessage const& message) {
 #if AE_BENCH_CONNECTION_EVENT_DIAG
                   bench_conn_event_diag::SetCurrentInboundMessageServerId(
                       server_id);
+                  AE_BENCH_CONN_DIAG(
+                      "send_message_event", server_id, 0,
+                      UidLo64(message.uid),
+                      static_cast<std::uint32_t>(message.data.size()), 0, 0, -1,
+                      0, -1);
 #endif
                   NewMessageReceived(message);
                 });
@@ -90,10 +117,25 @@ void P2pMessageStreamManager::NewMessageReceived(AeMessage const& message) {
   auto [port, is_new] = GetOrCreatePort(message.uid);
   assert(port != nullptr);
 
+  bool new_port_emitted = false;
   if (is_new) {
     auto handle = P2pPortHandle{port};
     new_port_event_.Emit(handle);
+    new_port_emitted = true;
   }
+
+#if AE_BENCH_CONNECTION_EVENT_DIAG
+  std::uint64_t receiver_uid = 0;
+  if (auto client = client_.Lock()) {
+    receiver_uid = UidLo64(client->uid());
+  }
+  AE_BENCH_CONN_DIAG(
+      "p2p_new_message_rx", bench_conn_event_diag::CurrentInboundMessageServerId(),
+      receiver_uid, UidLo64(message.uid),
+      static_cast<std::uint32_t>(message.data.size()),
+      static_cast<std::uint32_t>(message.data.size()), is_new ? 1U : 0U,
+      new_port_emitted ? 1 : 0, 1, -1);
+#endif
 
   port->Deliver(message.data);
 }

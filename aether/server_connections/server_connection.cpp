@@ -196,6 +196,14 @@ void ServerConnection::DeferSelectChannel() {
     AE_TELED_DEBUG("SERVER_CHANNEL_RESELECT_SCHEDULED");
     SelectChannel();
   });
+  if (!defer_sub_) {
+    ServerId sid{};
+    if (auto server = server_.Lock()) {
+      sid = server->server_id;
+    }
+    AE_BENCH_CONN_DIAG("scheduler_task_reject", sid, 0,
+                       bench_client_instance_id_, 0, 0, 0, -1, 1, -1);
+  }
   assert(!!defer_sub_);
 }
 
@@ -295,6 +303,12 @@ void ServerConnection::DeferServerError() {
   stream_info_.is_writable = false;
   defer_sub_ = ae_context_.scheduler().Task([&]() { ServerError(); });
   if (!defer_sub_) {
+    ServerId sid{};
+    if (auto server = server_.Lock()) {
+      sid = server->server_id;
+    }
+    AE_BENCH_CONN_DIAG("scheduler_task_reject", sid, 0,
+                       bench_client_instance_id_, 0, 0, 0, -1, 2, -1);
     AE_TELED_ERROR("DeferServerError schedule failed; invoking ServerError");
     ServerError();
   }
