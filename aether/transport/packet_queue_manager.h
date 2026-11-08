@@ -50,6 +50,7 @@ class PacketQueueManager {
   template <typename... Args>
   T* AddPacket(Args&&... args) {
     auto lock = std::scoped_lock{queue_lock_};
+    DrainFinishedLocked();
     if (queue_.size() == kMaxSize) {
       // queue is full, drop the packet
 #if AE_DIAG_WRITE_FAIL_SOURCES
@@ -69,12 +70,7 @@ class PacketQueueManager {
    */
   void Send() {
     auto lock = std::scoped_lock{queue_lock_};
-    std::size_t removed = 0;
-    while (!queue_.empty() && queue_.front().is_finished()) {
-      queue_.pop();
-      ++removed;
-    }
-    index_ = (index_ <= removed) ? 0 : index_ - removed;
+    DrainFinishedLocked();
 
     // send queued packets
     for (; index_ < queue_.size(); index_++) {
@@ -101,6 +97,15 @@ class PacketQueueManager {
   }
 
  private:
+  void DrainFinishedLocked() {
+    std::size_t removed = 0;
+    while (!queue_.empty() && queue_.front().is_finished()) {
+      queue_.pop();
+      ++removed;
+    }
+    index_ = (index_ <= removed) ? 0 : index_ - removed;
+  }
+
   void Enqueue() {
     if (!enqueue_sub_) {
       enqueue_sub_ = ae_context_.scheduler().Task([&]() {
