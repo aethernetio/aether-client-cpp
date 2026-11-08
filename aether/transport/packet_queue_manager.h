@@ -51,6 +51,7 @@ class PacketQueueManager {
   T* AddPacket(Args&&... args) {
     auto lock = std::scoped_lock{queue_lock_};
     DrainFinishedLocked();
+    RetryDeferredTerminalsLocked();
     if (queue_.size() == kMaxSize) {
       // queue is full, drop the packet
 #if AE_DIAG_WRITE_FAIL_SOURCES
@@ -71,6 +72,7 @@ class PacketQueueManager {
   void Send() {
     auto lock = std::scoped_lock{queue_lock_};
     DrainFinishedLocked();
+    RetryDeferredTerminalsLocked();
 
     // send queued packets
     for (; index_ < queue_.size(); index_++) {
@@ -85,6 +87,7 @@ class PacketQueueManager {
       // it waits for completion - it's nothing, and next Send will return the
       // actual state.
       current.Send();
+      EmitDeferredTerminalUnlocked(current);
       if (current.is_done()) {
         continue;
       }
@@ -104,6 +107,23 @@ class PacketQueueManager {
       ++removed;
     }
     index_ = (index_ <= removed) ? 0 : index_ - removed;
+  }
+
+  void EmitDeferredTerminalUnlocked(T& current) {
+    if (!current.is_done() || current.is_finished()) {
+      return;
+    }
+    queue_lock_.unlock();
+    current.TryEmitDeferredTerminal();
+    queue_lock_.lock();
+  }
+
+  void RetryDeferredTerminalsLocked() {
+    for (auto& current : queue_) {
+      if (current.is_done() && !current.is_finished()) {
+        EmitDeferredTerminalUnlocked(current);
+      }
+    }
   }
 
   void Enqueue() {

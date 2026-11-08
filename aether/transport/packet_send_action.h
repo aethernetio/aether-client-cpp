@@ -29,6 +29,9 @@ class PacketSendAction : public WriteAction {
   virtual void Send() = 0;
   virtual bool is_done() const = 0;
   virtual bool re_enqueue() const = 0;
+  /// Retry deferred WriteAction terminal when scheduler had no task slots
+  /// (call only while PacketQueueManager mutex is not held).
+  virtual void TryEmitDeferredTerminal() noexcept {}
 };
 }  // namespace ae
 

@@ -4,10 +4,14 @@
 
 #include <unity.h>
 
+#include <chrono>
+#include <vector>
+
 #include "aether/ae_context.h"
+#include "aether/config.h"
 #include "aether/events/events.h"
 #include "aether/tasks/manual_task_scheduler.h"
-#include "aether/config.h"
+#include "aether/write_action/write_action.h"
 #include "aether/transport/packet_queue_manager.h"
 #include "aether/transport/packet_send_action.h"
 #include "aether/types/data_buffer.h"
@@ -196,6 +200,115 @@ void test_TcpSendDeferredFinishReclaimOnAddWithoutSecondSend() {
   TEST_ASSERT_NOT_NULL(room);
 }
 
+void test_TcpSendSchedulerOverflowDeferredTerminal() {
+  TestContext tctx;
+  AeContext ctx{tctx};
+  auto& sched = tctx.scheduler();
+  const std::size_t overflow_before = sched.overflow_counter();
+
+  std::vector<TaskSubscription> blockers;
+  blockers.reserve(AE_TASK_MAX_COUNT);
+  for (std::size_t i = 0; i < AE_TASK_MAX_COUNT; ++i) {
+    auto sub = sched.DelayedTask([]() {}, std::chrono::hours{1});
+    TEST_ASSERT_TRUE(static_cast<bool>(sub));
+    blockers.push_back(std::move(sub));
+  }
+  TEST_ASSERT_FALSE(static_cast<bool>(sched.Task([]() {})));
+
+  MemoryMockSocket sock;
+  using SendAction = tcp_internal::SendAction<MemoryMockSocket>;
+  PacketQueueManager<SendAction, 4> queue{ctx};
+
+  for (int i = 0; i < 3; ++i) {
+    TEST_ASSERT_NOT_NULL(queue.AddPacket(ctx, sock, MakeSmallPayload()));
+  }
+  auto* stuck = queue.AddPacket(ctx, sock, MakeSmallPayload());
+  TEST_ASSERT_NOT_NULL(stuck);
+
+  int terminal_count = 0;
+  auto sub = stuck->status_event().Subscribe([&](WriteAction::Status s) {
+    if (s == WriteAction::Status::kSuccess) {
+      ++terminal_count;
+    }
+  });
+
+  queue.Send();
+  const std::size_t overflow_after_send = sched.overflow_counter();
+  TEST_ASSERT_TRUE(overflow_after_send > overflow_before);
+  TEST_ASSERT_TRUE(stuck->is_done());
+  TEST_ASSERT_GREATER_THAN(0, static_cast<int>(sock.sent_bytes_));
+  // Scheduler slot miss on deferred SetStatus; queue layer emits terminal
+  // outside the queue mutex (sync fallback when pool stays full).
+  TEST_ASSERT_TRUE(stuck->is_finished());
+  TEST_ASSERT_EQUAL(1, terminal_count);
+  TEST_ASSERT_NOT_NULL(queue.AddPacket(ctx, sock, MakeSmallPayload()));
+
+  blockers.clear();
+  Pump(tctx);
+  TEST_ASSERT_NOT_NULL(queue.AddPacket(ctx, sock, MakeSmallPayload()));
+}
+
+void test_TcpAddPacketFromTerminalEvents() {
+  TestContext tctx;
+  AeContext ctx{tctx};
+  MemoryMockSocket sock;
+  using SendAction = tcp_internal::SendAction<MemoryMockSocket>;
+  PacketQueueManager<SendAction, kQueueSize> queue{ctx};
+
+  for (int i = 0; i < static_cast<int>(kQueueSize); ++i) {
+    TEST_ASSERT_NOT_NULL(queue.AddPacket(ctx, sock, MakeSmallPayload()));
+  }
+  queue.Send();
+  Pump(tctx);
+
+  auto* probe = queue.AddPacket(ctx, sock, MakeSmallPayload());
+  TEST_ASSERT_NOT_NULL(probe);
+
+  int status_success = 0;
+  int status_reclaim_add = 0;
+  int finished_reclaim_add = 0;
+  MultiSubscription subs;
+  subs += probe->status_event().Subscribe([&](WriteAction::Status s) {
+    if (s != WriteAction::Status::kSuccess) {
+      return;
+    }
+    ++status_success;
+    if (queue.AddPacket(ctx, sock, MakeSmallPayload()) != nullptr) {
+      ++status_reclaim_add;
+    }
+  });
+  subs += probe->finished_event().Subscribe([&]() {
+    if (queue.AddPacket(ctx, sock, MakeSmallPayload()) != nullptr) {
+      ++finished_reclaim_add;
+    }
+  });
+
+  queue.Send();
+  Pump(tctx);
+
+  TEST_ASSERT_EQUAL(1, status_success);
+  TEST_ASSERT_TRUE(probe->is_finished());
+  TEST_ASSERT_TRUE(status_reclaim_add > 0 || finished_reclaim_add > 0);
+  TEST_ASSERT_NOT_NULL(queue.AddPacket(ctx, sock, MakeSmallPayload()));
+}
+
+void test_TcpAddPacketRejectedUntilDeferredFinishPump() {
+  TestContext tctx;
+  AeContext ctx{tctx};
+  MemoryMockSocket sock;
+  using SendAction = tcp_internal::SendAction<MemoryMockSocket>;
+  PacketQueueManager<SendAction, kQueueSize> queue{ctx};
+
+  for (int i = 0; i < static_cast<int>(kQueueSize); ++i) {
+    TEST_ASSERT_NOT_NULL(queue.AddPacket(ctx, sock, MakeSmallPayload()));
+  }
+  queue.Send();
+  TEST_ASSERT_NULL(queue.AddPacket(ctx, sock, MakeSmallPayload()));
+
+  Pump(tctx);
+  TEST_ASSERT_NOT_NULL(queue.AddPacket(ctx, sock, MakeSmallPayload()));
+}
+
 void test_TcpSendMultipleFillDrainCycles() {
   TestContext tctx;
   AeContext ctx{tctx};
@@ -228,7 +341,10 @@ int test_packet_queue_manager() {
   RUN_TEST(ae::test_packet_queue_manager::test_AllFinishedFreesCapacity);
 #if AE_SUPPORT_TCP
   RUN_TEST(ae::test_packet_queue_manager::test_TcpSendDeferredFinishReclaimOnAddWithoutSecondSend);
+  RUN_TEST(ae::test_packet_queue_manager::test_TcpSendSchedulerOverflowDeferredTerminal);
   RUN_TEST(ae::test_packet_queue_manager::test_TcpSendMultipleFillDrainCycles);
+  RUN_TEST(ae::test_packet_queue_manager::test_TcpAddPacketFromTerminalEvents);
+  RUN_TEST(ae::test_packet_queue_manager::test_TcpAddPacketRejectedUntilDeferredFinishPump);
 #endif
   return 0;
 }
