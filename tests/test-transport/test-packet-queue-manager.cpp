@@ -4,6 +4,7 @@
 
 #include <unity.h>
 
+#include <array>
 #include <chrono>
 #include <vector>
 
@@ -339,14 +340,6 @@ static std::vector<TaskSubscription> BlockSchedulerPool(TaskScheduler& sched) {
   return blockers;
 }
 
-static void FlushTcpQueueWhileBlocked(PacketQueueManager<tcp_internal::SendAction<TrackingMockSocket>, 4>& queue,
-                                     TrackingMockSocket& sock, std::size_t expected_unique_tags) {
-  for (int pass = 0; pass < 32 && sock.send_tags_.size() < expected_unique_tags; ++pass) {
-    queue.Send();
-  }
-  TEST_ASSERT_EQUAL(static_cast<int>(expected_unique_tags), static_cast<int>(sock.send_tags_.size()));
-}
-
 void test_TcpSchedulerOverflowTerminalReentrancyCombined() {
   TestContext tctx;
   AeContext ctx{tctx};
@@ -358,60 +351,80 @@ void test_TcpSchedulerOverflowTerminalReentrancyCombined() {
   using SendAction = tcp_internal::SendAction<TrackingMockSocket>;
   PacketQueueManager<SendAction, 4> queue{ctx};
 
+  std::array<int, 16> terminal_success{};
+  int status_reclaim_add = 0;
+  int finished_reclaim_add = 0;
+  MultiSubscription subs;
+
   constexpr std::uint8_t kIds[] = {1, 2, 3};
-  tcp_internal::SendAction<TrackingMockSocket>* head = nullptr;
   for (std::uint8_t id : kIds) {
     auto* pkt = queue.AddPacket(ctx, sock, MakeTaggedPayload(id));
     TEST_ASSERT_NOT_NULL(pkt);
     if (id == 1) {
-      head = pkt;
+      subs += pkt->status_event().Subscribe([&](WriteAction::Status s) {
+        if (s != WriteAction::Status::kSuccess) {
+          return;
+        }
+        ++terminal_success[1];
+        auto* added = queue.AddPacket(ctx, sock, MakeTaggedPayload(4));
+        if (added != nullptr) {
+          ++status_reclaim_add;
+          subs += added->status_event().Subscribe([&](WriteAction::Status s4) {
+            if (s4 == WriteAction::Status::kSuccess) {
+              ++terminal_success[4];
+            }
+          });
+        }
+      });
+      subs += pkt->finished_event().Subscribe([&]() {
+        auto* added = queue.AddPacket(ctx, sock, MakeTaggedPayload(5));
+        if (added != nullptr) {
+          ++finished_reclaim_add;
+          subs += added->status_event().Subscribe([&](WriteAction::Status s5) {
+            if (s5 == WriteAction::Status::kSuccess) {
+              ++terminal_success[5];
+            }
+          });
+        }
+      });
+    } else {
+      subs += pkt->status_event().Subscribe([&, id](WriteAction::Status s) {
+        if (s == WriteAction::Status::kSuccess) {
+          ++terminal_success[id];
+        }
+      });
     }
   }
-
-  int terminal_success = 0;
-  int status_reclaim_add = 0;
-  int finished_reclaim_add = 0;
-  MultiSubscription subs;
-  subs += head->status_event().Subscribe([&](WriteAction::Status s) {
-    if (s == WriteAction::Status::kSuccess) {
-      ++terminal_success;
-      if (queue.AddPacket(ctx, sock, MakeTaggedPayload(4)) != nullptr) {
-        ++status_reclaim_add;
-      }
-    }
-  });
-  subs += head->finished_event().Subscribe([&]() {
-    if (queue.AddPacket(ctx, sock, MakeTaggedPayload(5)) != nullptr) {
-      ++finished_reclaim_add;
-    }
-  });
 
   queue.Send();
   TEST_ASSERT_TRUE(sched.overflow_counter() > overflow_before);
-  TEST_ASSERT_TRUE(head->is_done());
-  TEST_ASSERT_TRUE(head->is_finished());
-  TEST_ASSERT_EQUAL(1, terminal_success);
   TEST_ASSERT_EQUAL(1, status_reclaim_add);
   TEST_ASSERT_EQUAL(1, finished_reclaim_add);
-  TEST_ASSERT_EQUAL(1, static_cast<int>(sock.send_tags_.size()));
-  TEST_ASSERT_EQUAL(1, static_cast<int>(sock.send_tags_[0]));
-
-  FlushTcpQueueWhileBlocked(queue, sock, 5);
 
   const std::vector<std::uint8_t> expected{1, 2, 3, 4, 5};
-  TEST_ASSERT_EQUAL(static_cast<int>(expected.size()), static_cast<int>(sock.send_tags_.size()));
+  TEST_ASSERT_EQUAL(static_cast<int>(expected.size()),
+                    static_cast<int>(sock.send_tags_.size()));
   for (std::size_t i = 0; i < expected.size(); ++i) {
-    TEST_ASSERT_EQUAL(static_cast<int>(expected[i]), static_cast<int>(sock.send_tags_[i]));
+    TEST_ASSERT_EQUAL(static_cast<int>(expected[i]),
+                      static_cast<int>(sock.send_tags_[i]));
   }
 
-  blockers.clear();
-  Pump(tctx);
-  for (int i = 0; i < 4; ++i) {
-    TEST_ASSERT_NOT_NULL(queue.AddPacket(ctx, sock, MakeTaggedPayload(static_cast<std::uint8_t>(10 + i))));
+  std::array<int, 16> send_count{};
+  for (std::uint8_t tag : sock.send_tags_) {
+    ++send_count[tag];
   }
-  queue.Send();
-  Pump(tctx);
-  TEST_ASSERT_TRUE(sock.sent_bytes_ > 0);
+  for (std::uint8_t id : expected) {
+    TEST_ASSERT_EQUAL(1, send_count[id]);
+    TEST_ASSERT_EQUAL(1, terminal_success[id]);
+  }
+
+  const std::size_t tags_after_send = sock.send_tags_.size();
+  blockers.clear();
+  for (int pump = 0; pump < 4; ++pump) {
+    Pump(tctx);
+  }
+  TEST_ASSERT_EQUAL(static_cast<int>(tags_after_send),
+                    static_cast<int>(sock.send_tags_.size()));
 }
 
 void test_TcpStopAfterOverflowPendingSingleTerminal() {

@@ -79,8 +79,10 @@ class PacketQueueManager {
         ++index_;
         continue;
       }
-      queue_[index_].Send();
-      EmitDeferredTerminalUnlocked(lock, index_);
+      std::size_t const work_index = index_;
+      queue_[work_index].Send();
+      bool const send_completed = queue_[work_index].is_done();
+      EmitDeferredTerminalUnlocked(lock, work_index);
       if (index_ >= queue_.size()) {
         break;
       }
@@ -88,10 +90,13 @@ class PacketQueueManager {
         ++index_;
         continue;
       }
-      if (queue_[index_].re_enqueue()) {
-        Enqueue();
+      if (index_ == work_index && !send_completed) {
+        if (queue_[index_].re_enqueue()) {
+          Enqueue();
+        }
+        break;
       }
-      break;
+      continue;
     }
   }
 
