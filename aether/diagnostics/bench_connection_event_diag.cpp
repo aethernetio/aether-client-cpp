@@ -18,6 +18,9 @@ namespace ae::bench_conn_event_diag {
 namespace {
 
 thread_local std::uint32_t g_current_inbound_message_server_id{0};
+thread_local std::uint64_t g_current_inbound_client_conn_instance{0};
+thread_local std::uint64_t g_current_inbound_client_uid_lo{0};
+std::atomic<bool> g_service_write_diag_active{true};
 
 struct Row {
   std::int64_t qpc_ns{0};
@@ -66,6 +69,30 @@ void SetCurrentInboundMessageServerId(std::uint32_t server_id) noexcept {
 
 std::uint32_t CurrentInboundMessageServerId() noexcept {
   return g_current_inbound_message_server_id;
+}
+
+void SetCurrentInboundClientConnInstance(std::uint64_t id) noexcept {
+  g_current_inbound_client_conn_instance = id;
+}
+
+std::uint64_t CurrentInboundClientConnInstance() noexcept {
+  return g_current_inbound_client_conn_instance;
+}
+
+void SetCurrentInboundClientUidLo(std::uint64_t uid_lo) noexcept {
+  g_current_inbound_client_uid_lo = uid_lo;
+}
+
+std::uint64_t CurrentInboundClientUidLo() noexcept {
+  return g_current_inbound_client_uid_lo;
+}
+
+void SetServiceWriteDiagActive(bool active) noexcept {
+  g_service_write_diag_active.store(active, std::memory_order_relaxed);
+}
+
+bool ServiceWriteDiagActive() noexcept {
+  return g_service_write_diag_active.load(std::memory_order_relaxed);
 }
 
 std::uint64_t AllocateCloudServerConnectionInstanceId() {

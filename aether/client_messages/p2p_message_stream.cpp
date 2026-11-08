@@ -28,8 +28,40 @@
 #include "aether/cloud_connections/cloud_subscription.h"
 
 #include "aether/client_messages/client_messages_tele.h"
+#include "aether/cloud_connections/cloud_server_connection.h"
+#include "aether/diagnostics/bench_connection_event_diag.h"
+
+#include <cstring>
 
 namespace ae {
+namespace {
+
+#if AE_BENCH_CONNECTION_EVENT_DIAG
+thread_local std::uint64_t g_p2p_service_write_sender_uid_lo{0};
+
+std::uint64_t UidLo64(Uid const& uid) noexcept {
+  std::uint64_t key = 0;
+  static_assert(Uid::kSize >= sizeof(key));
+  std::memcpy(&key, uid.value.data(), sizeof(key));
+  return key;
+}
+
+int WriteStatusCode(WriteAction::Status status) {
+  switch (status) {
+    case WriteAction::Status::kSuccess:
+      return 1;
+    case WriteAction::Status::kFail:
+      return 2;
+    case WriteAction::Status::kStop:
+      return 3;
+    default:
+      return 0;
+  }
+}
+#endif
+
+}  // namespace
+
 namespace p2p_stream_internal {
 class MessageSendStream final : public IStream<AeMessage, AeMessage> {
  public:
@@ -46,11 +78,61 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
   }
 
   WriteAction& Write(AeMessage&& message) override {
-    return cloud_connection_->CallApi(
+    CloudServerConnection* route_sc = nullptr;
+    std::uint32_t payload_size = static_cast<std::uint32_t>(message.data.size());
+    std::uint64_t const dest_uid_lo = UidLo64(message.uid);
+    std::uint64_t const sender_uid_lo = g_p2p_service_write_sender_uid_lo;
+#if AE_BENCH_CONNECTION_EVENT_DIAG
+    if (bench_conn_event_diag::ServiceWriteDiagActive()) {
+      cloud_connection_->ForServers(
+          [&](CloudServerConnection* sc) {
+            if (route_sc == nullptr) {
+              route_sc = sc;
+            }
+          },
+          request_policy_);
+      std::uint32_t route_sid = route_sc != nullptr ? route_sc->server_id() : 0;
+      std::uint64_t cloud_inst =
+          route_sc != nullptr ? route_sc->bench_cloud_instance_id() : 0;
+      std::uint64_t client_inst = 0;
+      if (route_sc != nullptr && route_sc->client_connection() != nullptr) {
+        client_inst = route_sc->client_connection()->bench_client_instance_id();
+      }
+      AE_BENCH_CONN_DIAG(
+          "p2p_service_write_dispatch", route_sid, sender_uid_lo, client_inst,
+          payload_size, static_cast<std::uint32_t>(dest_uid_lo & 0xFFFFFFFFU),
+          static_cast<std::uint32_t>(dest_uid_lo >> 32), 1, 0,
+          static_cast<std::int32_t>(cloud_inst & 0x7FFFFFFF));
+    }
+#endif
+    auto& write_action = cloud_connection_->CallApi(
         ApiCall{[&](ApiContext<AuthorizedApi>& auth_api, auto*) {
           auth_api->SendMessage(message);
         }},
         request_policy_);
+#if AE_BENCH_CONNECTION_EVENT_DIAG
+    if (bench_conn_event_diag::ServiceWriteDiagActive()) {
+      std::uint32_t route_sid = route_sc != nullptr ? route_sc->server_id() : 0;
+      std::uint64_t cloud_inst =
+          route_sc != nullptr ? route_sc->bench_cloud_instance_id() : 0;
+      std::uint64_t client_inst = 0;
+      if (route_sc != nullptr && route_sc->client_connection() != nullptr) {
+        client_inst = route_sc->client_connection()->bench_client_instance_id();
+      }
+      diag_write_status_sub_.Reset();
+      diag_write_status_sub_ = write_action.status_event().Subscribe(
+          [=](WriteAction::Status status) {
+            AE_BENCH_CONN_DIAG(
+                "p2p_service_write_terminal", route_sid, sender_uid_lo,
+                client_inst, payload_size,
+                static_cast<std::uint32_t>(dest_uid_lo & 0xFFFFFFFFU),
+                static_cast<std::uint32_t>(dest_uid_lo >> 32),
+                WriteStatusCode(status), 0,
+                static_cast<std::int32_t>(cloud_inst & 0x7FFFFFFF));
+          });
+    }
+#endif
+    return write_action;
   }
 
   StreamInfo stream_info() const override { return stream_info_; }
@@ -148,6 +230,9 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
 
   Subscription servers_update_sub_;
   MultiSubscription streams_update_sub_;
+#if AE_BENCH_CONNECTION_EVENT_DIAG
+  Subscription diag_write_status_sub_;
+#endif
 };
 }  // namespace p2p_stream_internal
 
@@ -255,6 +340,13 @@ WriteAction* P2pStream::OnWrite(AeMessage&& message) {
   if (!message_send_stream_) {
     return {};
   }
+#if AE_BENCH_CONNECTION_EVENT_DIAG
+  if (bench_conn_event_diag::ServiceWriteDiagActive()) {
+    if (auto client_ptr = client_.Lock()) {
+      g_p2p_service_write_sender_uid_lo = UidLo64(client_ptr->uid());
+    }
+  }
+#endif
   return &message_send_stream_->Write(std::move(message));
 }
 

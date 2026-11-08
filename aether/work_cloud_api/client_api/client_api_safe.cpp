@@ -36,7 +36,17 @@ ClientApiSafe::ClientApiSafe(EventSystem& event_system)
       request_telemetry_event_{event_system},
       send_cloud_configs_{event_system} {}
 
-void ClientApiSafe::PingAck() { ping_ack_event.Emit(); }
+void ClientApiSafe::PingAck() {
+#if AE_BENCH_CONNECTION_EVENT_DIAG
+  AE_BENCH_CONN_DIAG(
+      "client_api_handler",
+      bench_conn_event_diag::CurrentInboundMessageServerId(),
+      bench_conn_event_diag::CurrentInboundClientUidLo(),
+      bench_conn_event_diag::CurrentInboundClientConnInstance(), 0, 0, 0, -1,
+      4, -1);
+#endif
+  ping_ack_event.Emit();
+}
 
 
 void ClientApiSafe::ChangeParent([[maybe_unused]] Uid const& uid) {
@@ -127,9 +137,18 @@ void ClientApiSafe::SendMessage(AeMessage const& msg) {
   static_assert(Uid::kSize >= sizeof(uid_key));
   std::memcpy(&uid_key, msg.uid.value.data(), sizeof(uid_key));
   AE_BENCH_CONN_DIAG(
+      "client_api_handler",
+      bench_conn_event_diag::CurrentInboundMessageServerId(),
+      bench_conn_event_diag::CurrentInboundClientUidLo(),
+      bench_conn_event_diag::CurrentInboundClientConnInstance(),
+      static_cast<std::uint32_t>(msg.data.size()), 0, 0, -1, 20, -1);
+  AE_BENCH_CONN_DIAG(
       "client_api_send_message_emit",
-      bench_conn_event_diag::CurrentInboundMessageServerId(), 0, uid_key,
-      static_cast<std::uint32_t>(msg.data.size()), 0, 0, -1, 0, -1);
+      bench_conn_event_diag::CurrentInboundMessageServerId(),
+      bench_conn_event_diag::CurrentInboundClientUidLo(),
+      bench_conn_event_diag::CurrentInboundClientConnInstance(),
+      static_cast<std::uint32_t>(msg.data.size()), 0, 0, -1, 20,
+      static_cast<std::int32_t>(uid_key & 0x7FFFFFFF));
 #endif
   send_message_event_.Emit(msg);
 }

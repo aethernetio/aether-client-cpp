@@ -28,7 +28,21 @@
 
 #include "aether/tele.h"
 
+#include <cstring>
+
 namespace ae {
+namespace {
+
+#if AE_BENCH_CONNECTION_EVENT_DIAG
+std::uint64_t UidLo64(Uid const& uid) noexcept {
+  std::uint64_t key = 0;
+  static_assert(Uid::kSize >= sizeof(key));
+  std::memcpy(&key, uid.value.data(), sizeof(key));
+  return key;
+}
+#endif
+
+}  // namespace
 namespace client_server_connection_internal {
 class ClientKeyProvider : public ISyncKeyProvider {
  public:
@@ -216,13 +230,20 @@ void ClientServerConnection::OutData(DataBuffer const& data) {
     sid = server->server_id;
     bench_conn_event_diag::SetCurrentInboundMessageServerId(sid);
   }
-  AE_BENCH_CONN_DIAG("tcp_api_inbound_bytes", sid, 0, bench_client_instance_id_,
-                     0, static_cast<std::uint32_t>(data.size()), 0, -1, 0,
-                     -1);
+  bench_conn_event_diag::SetCurrentInboundClientConnInstance(
+      bench_client_instance_id_);
+  bench_conn_event_diag::SetCurrentInboundClientUidLo(UidLo64(uid_));
 #endif
   auto parser = ApiParser{protocol_context_, data};
-  [[maybe_unused]] auto res = parser.Parse(client_api_unsafe_);
-  assert(res && "Not all data parsed");
+  bool const outer_ok = parser.Parse(client_api_unsafe_);
+#if AE_BENCH_CONNECTION_EVENT_DIAG
+  AE_BENCH_CONN_DIAG(
+      "csc_out_data_parse", bench_conn_event_diag::CurrentInboundMessageServerId(),
+      bench_conn_event_diag::CurrentInboundClientUidLo(),
+      bench_client_instance_id_,
+      static_cast<std::uint32_t>(data.size()), 0, 0, outer_ok ? 1 : 0, 0, -1);
+#endif
+  assert(outer_ok && "Not all data parsed");
 }
 
 void ClientServerConnectionTestAccess::DeliverInboundApiData(

@@ -19,6 +19,12 @@ void ResetForTest();
 
 void SetCurrentInboundMessageServerId(std::uint32_t server_id) noexcept;
 std::uint32_t CurrentInboundMessageServerId() noexcept;
+void SetCurrentInboundClientConnInstance(std::uint64_t id) noexcept;
+std::uint64_t CurrentInboundClientConnInstance() noexcept;
+void SetCurrentInboundClientUidLo(std::uint64_t uid_lo) noexcept;
+std::uint64_t CurrentInboundClientUidLo() noexcept;
+void SetServiceWriteDiagActive(bool active) noexcept;
+bool ServiceWriteDiagActive() noexcept;
 
 void Record(char const* event, std::uint32_t server_id,
             std::uint64_t cloud_conn_instance_id,
@@ -38,6 +44,12 @@ void WriteTsv(char const* path);
 
 inline void SetCurrentInboundMessageServerId(std::uint32_t) noexcept {}
 inline std::uint32_t CurrentInboundMessageServerId() noexcept { return 0; }
+inline void SetCurrentInboundClientConnInstance(std::uint64_t) noexcept {}
+inline std::uint64_t CurrentInboundClientConnInstance() noexcept { return 0; }
+inline void SetCurrentInboundClientUidLo(std::uint64_t) noexcept {}
+inline std::uint64_t CurrentInboundClientUidLo() noexcept { return 0; }
+inline void SetServiceWriteDiagActive(bool) noexcept {}
+inline bool ServiceWriteDiagActive() noexcept { return false; }
 
 #  define AE_BENCH_CONN_DIAG(...) ((void)0)
 
