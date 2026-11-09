@@ -16,6 +16,8 @@
 
 #include "aether/cloud_connections/cloud_subscription.h"
 
+#include "aether/stream_api/istream.h"
+
 namespace ae {
 CloudEventListener::CloudEventListener(ApiEventSubscriber subscriber,
                                        CloudServerConnections& cloud_connection,
@@ -61,10 +63,17 @@ void CloudEventListener::ServersUpdate() {
   cloud_connection_->ForServers(
       [&](auto* sc) {
         auto* conn = sc->client_connection();
-        assert((conn != nullptr) && "ClientConnection is null");
+        if (conn == nullptr ||
+            conn->stream_info().link_state != LinkState::kLinked) {
+          return;
+        }
+        auto const server_id = sc->server_id();
+        if (active_subscription_servers_.contains(server_id)) {
+          return;
+        }
         auto sub = subscriber_(conn->client_safe_api(), sc);
         subscriptions_ += std::move(sub);
-        active_subscription_servers_.insert(sc->server_id());
+        active_subscription_servers_.insert(server_id);
         ++active;
       },
       request_policy_);

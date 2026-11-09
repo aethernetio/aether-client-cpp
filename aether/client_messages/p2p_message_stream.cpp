@@ -78,10 +78,13 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
   }
 
   WriteAction& Write(AeMessage&& message) override {
+#if AE_BENCH_CONNECTION_EVENT_DIAG
     CloudServerConnection* route_sc = nullptr;
-    std::uint32_t payload_size = static_cast<std::uint32_t>(message.data.size());
+    std::uint32_t const payload_size =
+        static_cast<std::uint32_t>(message.data.size());
     std::uint64_t const dest_uid_lo = UidLo64(message.uid);
     std::uint64_t const sender_uid_lo = g_p2p_service_write_sender_uid_lo;
+#endif
 #if AE_BENCH_CONNECTION_EVENT_DIAG
     if (bench_conn_event_diag::ServiceWriteDiagActive()) {
       cloud_connection_->ForServers(

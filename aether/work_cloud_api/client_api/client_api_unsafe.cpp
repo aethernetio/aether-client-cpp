@@ -43,6 +43,8 @@ void ClientApiUnsafe::SendSafeApiData(SubApi<ClientApiSafe> sub_api) {
       bench_conn_event_diag::CurrentInboundClientUidLo(),
       bench_conn_event_diag::CurrentInboundClientConnInstance(), 0, enc_size, 0,
       -1, 0, -1);
+#else
+  (void)enc_size;
 #endif
   auto unsafe_data = decrypt_provider_->Decrypt(std::move(enc_buffer));
   AE_TELED_DEBUG("Client api unsafe data {}", unsafe_data);
@@ -56,6 +58,8 @@ void ClientApiUnsafe::SendSafeApiData(SubApi<ClientApiSafe> sub_api) {
       bench_conn_event_diag::CurrentInboundClientUidLo(),
       bench_conn_event_diag::CurrentInboundClientConnInstance(), 0, enc_size,
       plain_size, decrypt_ok, 0, -1);
+#else
+  (void)plain_size;
 #endif
 
   auto parser = ApiParser{server_context().protocol_context(), unsafe_data};

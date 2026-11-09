@@ -242,6 +242,8 @@ void ClientServerConnection::OutData(DataBuffer const& data) {
       bench_conn_event_diag::CurrentInboundClientUidLo(),
       bench_client_instance_id_,
       static_cast<std::uint32_t>(data.size()), 0, 0, outer_ok ? 1 : 0, 0, -1);
+#else
+  (void)outer_ok;
 #endif
   assert(outer_ok && "Not all data parsed");
 }

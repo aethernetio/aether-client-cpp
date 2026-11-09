@@ -79,9 +79,9 @@ P2pMessageStreamManager::P2pMessageStreamManager(AeContext const& ae_context,
                 });
           }},
           *cloud_connection_,
-          client->bench_receive_all_cloud_servers()
-              ? RequestPolicy::Variant{RequestPolicy::AllRegisteredServers{}}
-              : RequestPolicy::Variant{RequestPolicy::All{}}}} {}
+          // Receive on every linked registered cloud server (including soft
+          // ping quarantine). RequestPolicy::All send routing is unchanged.
+          RequestPolicy::Variant{RequestPolicy::AllRegisteredServers{}}}} {}
 
 P2pPortHandle P2pMessageStreamManager::CreatePort(Uid const& destination) {
   auto [port, is_new] = GetOrCreatePort(destination);

@@ -4,6 +4,7 @@
  * Integration tests: ping timeout soft quarantine, late Pong recovery, expiry.
  */
 
+#include <algorithm>
 #include <chrono>
 #include <map>
 #include <memory>
@@ -21,6 +22,8 @@
 #include "aether/channels/channel.h"
 #include "aether/client.h"
 #include "aether/client_connectivity_policy.h"
+#include "aether/client_messages/p2p_message_stream_manager.h"
+#include "aether/work_cloud_api/ae_message.h"
 #include "aether/cloud.h"
 #include "aether/cloud_connections/cloud_server_connection.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
@@ -59,6 +62,20 @@ struct CloudServerConnectionsTestAccess {
       return nullptr;
     }
     return connections.selected_servers().front();
+  }
+
+  static bool RecoverPingTimeout(CloudServerConnections& connections,
+                                 CloudServerConnection& server) {
+    return connections.RecoverFromPingTimeout(server);
+  }
+
+  static bool SubscribeServerState(CloudServerConnections& connections,
+                                   CloudServerConnection& server) {
+    return connections.SubscribeToServerState(server);
+  }
+
+  static void EmitServersUpdate(CloudServerConnections& connections) {
+    connections.servers_update_event_.Emit();
   }
 };
 }  // namespace ae
@@ -392,6 +409,117 @@ void test_TransportErrorAfterSoftQuarantineBlocksLateRecovery() {
   TEST_ASSERT_TRUE(a->quarantine());
 }
 
+static DataBuffer Bytes(std::initializer_list<std::uint8_t> bytes) {
+  return DataBuffer{bytes};
+}
+
+void test_P2pReceivePersistsThroughSoftPingQuarantine() {
+  auto env = MakeEnv();
+  TEST_ASSERT_NOT_NULL(env);
+  auto& h = *env;
+  h.ctx.Advance(std::chrono::milliseconds{500});
+
+  auto& cloud = h.client->cloud_connection();
+  auto& mgr = h.client->message_stream_manager();
+  Uid const peer_uid{{0x11}};
+  int rx_count = 0;
+  auto port = mgr.CreatePort(peer_uid);
+  auto rx_sub = port.out_data_event().Subscribe(
+      [&](DataBuffer const&) { ++rx_count; });
+
+  auto* server = CloudServerConnectionsTestAccess::Main(cloud);
+  TEST_ASSERT_NOT_NULL(server);
+  auto* cc = server->client_connection();
+  TEST_ASSERT_NOT_NULL(cc);
+
+  AeMessage msg1{.uid = peer_uid, .data = Bytes({1})};
+  cc->client_safe_api().SendMessage(msg1);
+  h.ctx.Advance(std::chrono::milliseconds{20});
+  TEST_ASSERT_EQUAL(1, rx_count);
+
+  TEST_ASSERT_FALSE(server->quarantine());
+  std::size_t subs_before = mgr.bench_active_receive_api_subscriptions();
+
+  TEST_ASSERT_TRUE(CloudServerConnectionsTestAccess::QuarantinePingTimeout(
+      cloud, *server));
+  TEST_ASSERT_TRUE(server->quarantine());
+  TEST_ASSERT_TRUE(std::find(cloud.selected_servers().begin(),
+                             cloud.selected_servers().end(),
+                             server) == cloud.selected_servers().end());
+  TEST_ASSERT_TRUE(mgr.bench_has_receive_subscription(server->server_id()));
+
+  AeMessage msg2{.uid = peer_uid, .data = Bytes({2})};
+  cc->client_safe_api().SendMessage(msg2);
+  h.ctx.Advance(std::chrono::milliseconds{20});
+  TEST_ASSERT_EQUAL_MESSAGE(
+      2, rx_count,
+      "inbound API must reach P2P port while server is soft-quarantined");
+
+  TEST_ASSERT_TRUE(
+      CloudServerConnectionsTestAccess::RecoverPingTimeout(cloud, *server));
+  h.ctx.Advance(std::chrono::milliseconds{100});
+  TEST_ASSERT_FALSE(server->quarantine());
+  TEST_ASSERT_EQUAL(subs_before, mgr.bench_active_receive_api_subscriptions());
+  cc = server->client_connection();
+  TEST_ASSERT_NOT_NULL(cc);
+
+  AeMessage msg3{.uid = peer_uid, .data = Bytes({3})};
+  cc->client_safe_api().SendMessage(msg3);
+  h.ctx.Advance(std::chrono::milliseconds{20});
+  TEST_ASSERT_EQUAL(3, rx_count);
+
+  AeMessage msg4{.uid = peer_uid, .data = Bytes({4})};
+  cc->client_safe_api().SendMessage(msg4);
+  h.ctx.Advance(std::chrono::milliseconds{20});
+  TEST_ASSERT_EQUAL(4, rx_count);
+  (void)rx_sub;
+}
+
+void test_P2pReceiveSubscribesAfterLateLink() {
+  auto env = MakeEnv();
+  TEST_ASSERT_NOT_NULL(env);
+  auto& h = *env;
+  auto& cloud = h.client->cloud_connection();
+  auto& mgr = h.client->message_stream_manager();
+  auto* server = FindServer(cloud, kServerA);
+  TEST_ASSERT_NOT_NULL(server);
+  server->Disconnect();
+  CloudServerConnectionsTestAccess::EmitServersUpdate(cloud);
+  h.ctx.Advance(std::chrono::milliseconds{20});
+  TEST_ASSERT_FALSE(mgr.bench_has_receive_subscription(kServerA));
+
+  TEST_ASSERT_TRUE(server->Connect());
+  TEST_ASSERT_TRUE(
+      CloudServerConnectionsTestAccess::SubscribeServerState(cloud, *server));
+  h.ctx.Advance(std::chrono::milliseconds{20});
+  TEST_ASSERT_TRUE(mgr.bench_has_receive_subscription(kServerA));
+}
+
+void test_P2pSubscriptionClearsAfterDisconnect() {
+  auto env = MakeEnv();
+  TEST_ASSERT_NOT_NULL(env);
+  auto& h = *env;
+  h.ctx.Advance(std::chrono::milliseconds{500});
+  auto& cloud = h.client->cloud_connection();
+  auto& mgr = h.client->message_stream_manager();
+  Uid const peer_uid{{0x22}};
+  auto port = mgr.CreatePort(peer_uid);
+  int rx_count = 0;
+  auto rx_sub = port.out_data_event().Subscribe(
+      [&](DataBuffer const&) { ++rx_count; });
+  auto* server = FindServer(cloud, kServerA);
+  TEST_ASSERT_NOT_NULL(server);
+  TEST_ASSERT_TRUE(mgr.bench_has_receive_subscription(kServerA));
+
+  server->Disconnect();
+  CloudServerConnectionsTestAccess::EmitServersUpdate(cloud);
+  TEST_ASSERT_NULL(server->client_connection());
+  TEST_ASSERT_FALSE(mgr.bench_has_receive_subscription(kServerA));
+  h.ctx.Advance(std::chrono::milliseconds{50});
+  (void)rx_sub;
+  TEST_ASSERT_EQUAL(0, rx_count);
+}
+
 void test_LatePongOnOtherServerDoesNotRecoverMain() {
   auto env = MakeEnv();
   TEST_ASSERT_NOT_NULL(env);
@@ -420,5 +548,11 @@ int test_ping_timeout_recovery_run() {
                test_TransportErrorAfterSoftQuarantineBlocksLateRecovery);
   RUN_TEST(ae::test_ping_timeout_recovery::
                test_LatePongOnOtherServerDoesNotRecoverMain);
+  RUN_TEST(ae::test_ping_timeout_recovery::
+               test_P2pReceivePersistsThroughSoftPingQuarantine);
+  RUN_TEST(
+      ae::test_ping_timeout_recovery::test_P2pReceiveSubscribesAfterLateLink);
+  RUN_TEST(
+      ae::test_ping_timeout_recovery::test_P2pSubscriptionClearsAfterDisconnect);
   return UNITY_END();
 }

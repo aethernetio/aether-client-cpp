@@ -227,16 +227,27 @@ bool CloudServerConnections::SubscribeToServerState(
 
   auto& entry = ServerEntryFor(server_connection);
   entry.state_sub = conn->stream_update_event().Subscribe(
-      [this, sc{&server_connection}, conn]() {
-        if (conn->stream_info().link_state == LinkState::kLinkError) {
+      [this, sc{&server_connection}, conn,
+       prev_link = LinkState::kUnlinked]() mutable {
+        auto const link = conn->stream_info().link_state;
+        if (link == LinkState::kLinkError) {
           QuarantineAndReconcile(*sc);
-        } else if (conn->stream_info().link_state == LinkState::kLinked) {
+        } else if (link == LinkState::kLinked) {
           AE_TELED_DEBUG("CLOUD_SERVER_LINKED server_id={} priority={}",
                          sc->server_id(), sc->priority());
+          if (prev_link != LinkState::kLinked) {
+            servers_update_event_.Emit();
+          }
+        } else if (prev_link == LinkState::kLinked) {
+          servers_update_event_.Emit();
         }
+        prev_link = link;
       });
   entry.error_sub = conn->server_connection().server_error_event().Subscribe(
       [this, sc{&server_connection}]() { QuarantineAndReconcile(*sc); });
+  if (conn->stream_info().link_state == LinkState::kLinked) {
+    servers_update_event_.Emit();
+  }
   return true;
 }
 void CloudServerConnections::UnsubscribeFromServerState(
