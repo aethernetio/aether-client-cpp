@@ -169,7 +169,7 @@ CPMAddPackage(
 CPMAddPackage(
   NAME aether-tele
   GIT_REPOSITORY "https://github.com/aethernetio/aether-tele.git"
-  GIT_TAG "a6e632daf8b7071f893d965c22f461b9b47aef46"
+  GIT_TAG "main"
   OPTIONS "AE_TELE_INSTALL ${AE_INSTALL}"
           "AE_TELE_BUILD_TESTS ${AE_BUILD_TESTS}"
   EXCLUDE_FROM_ALL FALSE
@@ -178,7 +178,7 @@ set(AE_OBJECTS_RAW_TELE ON CACHE BOOL "Route object system telemetry to its inde
 CPMAddPackage(
   NAME aether-objects
   GIT_REPOSITORY "https://github.com/aethernetio/aether-objects.git"
-  GIT_TAG "38a9b21f467e35daa57233814ffde75d7503bd03"
+  GIT_TAG "80fbb4c33bebd660c9bdf0687311cee30de74f39"
   OPTIONS "AE_INSTALL ${AE_INSTALL}"
           "AE_BUILD_TESTS ${AE_BUILD_TESTS}"
   EXCLUDE_FROM_ALL FALSE
