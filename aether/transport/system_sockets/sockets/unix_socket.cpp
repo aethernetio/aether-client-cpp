@@ -69,7 +69,7 @@ std::optional<std::size_t> UnixSocket::Send(Span<std::uint8_t> data) {
       // poll read and write
       socket_->Events(EventType::kRead | EventType::kError | EventType::kWrite);
     } else {
-      AE_TELED_ERROR("Send to socket error {} {}", errno, strerror(errno));
+      AETHER_TELED_ERROR("Send to socket error {} {}", errno, strerror(errno));
       return std::nullopt;
     }
     return 0;
@@ -160,12 +160,12 @@ std::optional<std::size_t> UnixSocket::Receive(DescriptorType fd,
     if ((errno == EWOULDBLOCK) || (errno == EAGAIN)) {
       return 0;
     }
-    AE_TELED_ERROR("Recv error {} {}", errno, strerror(errno));
+    AETHER_TELED_ERROR("Recv error {} {}", errno, strerror(errno));
     return std::nullopt;
   }
   // probably the socket is shutdown
   if (res == 0) {
-    AE_TELED_ERROR("Recv shutdown");
+    AETHER_TELED_ERROR("Recv shutdown");
     return std::nullopt;
   }
   return static_cast<std::size_t>(res);
@@ -176,7 +176,7 @@ std::optional<int> UnixSocket::GetSocketError(DescriptorType fd) {
   socklen_t len = sizeof(len);
   if (getsockopt(fd, SOL_SOCKET, SO_ERROR, static_cast<void*>(&err), &len) !=
       0) {
-    AE_TELED_ERROR("Getsockopt error {}, {}", errno, strerror(errno));
+    AETHER_TELED_ERROR("Getsockopt error {}, {}", errno, strerror(errno));
     return std::nullopt;
   }
   return err;

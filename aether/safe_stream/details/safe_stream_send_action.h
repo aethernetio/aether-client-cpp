@@ -94,10 +94,10 @@ class SafeStreamSendAction {
   AE_CLASS_NO_COPY_MOVE(SafeStreamSendAction)
 
   Result<IndexRangeType, int> SendData(std::span<std::uint8_t const> data) {
-    AE_TELED_DEBUG("Send data size {}", data.size());
+    AETHER_TELED_DEBUG("Send data size {}", data.size());
     auto res = sending_buffer_.Push(data);
     if (!res) {
-      AE_TELED_ERROR("Got circular buffer error {}", res.error());
+      AETHER_TELED_ERROR("Got circular buffer error {}", res.error());
       return Error{1};
     }
     EnqueueSend();
@@ -113,19 +113,19 @@ class SafeStreamSendAction {
     if (sc != nullptr) {
       return;
     }
-    AE_TELED_DEBUG("Stop range {}-{}", range.left, range.right);
+    AETHER_TELED_DEBUG("Stop range {}-{}", range.left, range.right);
     delegate_->WriteStopped(sending_buffer_.begin(), range.right);
     sending_buffer_.EraseFrom(range.left);
   }
 
   bool Acknowledge(std::uint16_t confirm_offset) {
     auto confirm_index = IndexType(confirm_offset);
-    AE_TELED_DEBUG("Receive ack for offset {} index {}", confirm_offset,
+    AETHER_TELED_DEBUG("Receive ack for offset {} index {}", confirm_offset,
                    confirm_index);
     // if not in a current range, ignore
     if (!IndexRangeType{sending_buffer_.begin(), sending_buffer_.end()}.InRange(
             confirm_index, sending_buffer_.begin())) {
-      AE_TELED_DEBUG("Ack is not in a current range");
+      AETHER_TELED_DEBUG("Ack is not in a current range");
       return false;
     }
     // receiving an ack means the other side synced its state
@@ -157,7 +157,7 @@ class SafeStreamSendAction {
     // if not in a current range
     if (!IndexRangeType{sending_buffer_.begin(), sending_buffer_.end()}.InRange(
             request_index, sending_buffer_.begin())) {
-      AE_TELED_WARNING("Request repeat send for not sent index {}",
+      AETHER_TELED_WARNING("Request repeat send for not sent index {}",
                        request_index);
       return;
     }
@@ -166,7 +166,7 @@ class SafeStreamSendAction {
   }
 
   void SetMaxPayload(std::size_t max_payload_size) {
-    AE_TELED_DEBUG("Set max payload to {}", max_payload_size);
+    AETHER_TELED_DEBUG("Set max payload to {}", max_payload_size);
     max_payload_size_ = max_payload_size;
     EnqueueSend();
   }
@@ -216,7 +216,7 @@ class SafeStreamSendAction {
     if (sending_chunks_.empty()) {
       return;
     }
-    AE_TELED_DEBUG("Wait ack timeout, repeat offset {}", range.left);
+    AETHER_TELED_DEBUG("Wait ack timeout, repeat offset {}", range.left);
     // if the range was partially acknowledged, repeat from the
     // beginning
     if (sending_buffer_.begin().Distance(range.left) > window_size_) {
@@ -232,7 +232,7 @@ class SafeStreamSendAction {
     auto payload_size =
         std::min(max_payload_size_, window_size_ - on_the_go_data_size);
     if (payload_size == 0) {
-      AE_TELED_WARNING(
+      AETHER_TELED_WARNING(
           "Window size exceeded: begin: {} last_sent: {} on the go data "
           "size: {}, window size: {}",
           sending_buffer_.begin(), last_sent_, on_the_go_data_size,
@@ -247,11 +247,11 @@ class SafeStreamSendAction {
       return Ok{read_res.value()};
     }
     if (read_res.error() == CircularBufferError::kEmptyBuffer) {
-      AE_TELED_DEBUG("Send buffer is empty");
+      AETHER_TELED_DEBUG("Send buffer is empty");
       // no data to send
       return Error{0};
     }
-    AE_TELED_ERROR("Read from buffer error: {}",
+    AETHER_TELED_ERROR("Read from buffer error: {}",
                    static_cast<int>(read_res.error()));
     return Error{1};
   }
@@ -265,7 +265,7 @@ class SafeStreamSendAction {
 
     send_chunk.repeat_count++;
     if (send_chunk.repeat_count > max_repeat_count_) {
-      AE_TELED_ERROR("Repeat count exceeded");
+      AETHER_TELED_ERROR("Repeat count exceeded");
       return Error{2};
     }
     return Ok{std::pair{dspan, send_chunk}};
@@ -292,10 +292,10 @@ class SafeStreamSendAction {
       return RegisterChunk(dspan, chunk_index_range, current_time);
     });
     if (!res) {
-      AE_TELED_DEBUG("Send chunk error {}", res.error());
+      AETHER_TELED_DEBUG("Send chunk error {}", res.error());
       // If any error over empty buffer
       if (res.error() != 0) {
-        AE_TELED_ERROR("Chunk send error!");
+        AETHER_TELED_ERROR("Chunk send error!");
         // reject to send all chunks before the failed one
         RejectSend(last_sent_ - 1);
       }
@@ -306,7 +306,7 @@ class SafeStreamSendAction {
     // and wait for send result
     auto const& [dspan, send_chunk] = res.value();
     if (dspan.size() == 0) {
-      AE_TELED_DEBUG("No chunks to send!");
+      AETHER_TELED_DEBUG("No chunks to send!");
       return;
     }
 
@@ -347,7 +347,7 @@ class SafeStreamSendAction {
 
   WriteAction& PushData(CircularBufferImpl::DSpan const& dspan,
                         IndexType data_index, std::uint8_t repeat_count) {
-    AE_TELED_DEBUG(
+    AETHER_TELED_DEBUG(
         "Send data message begin index {} data_index {} repeat count {} "
         "reset {} data size {}",
         sending_buffer_.begin(), data_index, static_cast<int>(repeat_count),

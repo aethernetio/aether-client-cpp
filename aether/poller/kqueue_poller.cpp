@@ -70,7 +70,7 @@ EventType FilterTypeToEventType(int filter) {
     case EVFILT_EXCEPT:
       return EventType::kError;
     default:
-      AE_TELE_ERROR(kKqueueUnknownType, "Unknown filter value {}", filter);
+      AETHER_TELE_ERROR(kKqueueUnknownType, "Unknown filter value {}", filter);
       assert(false);
       break;
   }
@@ -89,11 +89,11 @@ KqueuePollerImpl::KqueuePollerImpl()
          nullptr);
   auto res = kevent(kqueue_fd_, &ev, 1, nullptr, 0, nullptr);
   if (res == -1) {
-    AE_TELE_ERROR(kKqueueCreateWakeUpFailed,
+    AETHER_TELE_ERROR(kKqueueCreateWakeUpFailed,
                   "KQueue user event set error {} {}", errno, strerror(errno));
     assert(false);
   }
-  AE_TELE_DEBUG(kKqueueWorkerCreate);
+  AETHER_TELE_DEBUG(kKqueueWorkerCreate);
 }
 
 KqueuePollerImpl::~KqueuePollerImpl() {
@@ -106,7 +106,7 @@ KqueuePollerImpl::~KqueuePollerImpl() {
   EV_SET(&ev, exit_kqueue_event_, EVFILT_USER, 0, NOTE_TRIGGER, 0, nullptr);
   auto res = kevent(kqueue_fd_, &ev, 1, nullptr, 0, nullptr);
   if (res == -1) {
-    AE_TELE_ERROR(kKqueueWakeUpFailed, "Emit user event error {} {}", errno,
+    AETHER_TELE_ERROR(kKqueueWakeUpFailed, "Emit user event error {} {}", errno,
                   strerror(errno));
     assert(false);
   }
@@ -116,7 +116,7 @@ KqueuePollerImpl::~KqueuePollerImpl() {
   }
 
   close(kqueue_fd_);
-  AE_TELE_DEBUG(kKqueueWorkerDestroyed);
+  AETHER_TELE_DEBUG(kKqueueWorkerDestroyed);
 }
 
 void KqueuePollerImpl::lock() { poller_mutex_.lock(); }
@@ -124,12 +124,12 @@ void KqueuePollerImpl::lock() { poller_mutex_.lock(); }
 void KqueuePollerImpl::unlock() { poller_mutex_.unlock(); }
 
 void KqueuePollerImpl::Callback(DescriptorType fd, EventCb cb) {
-  AE_TELE_DEBUG(kKqueueAddDescriptor, "Add descriptor {}", fd);
+  AETHER_TELE_DEBUG(kKqueueAddDescriptor, "Add descriptor {}", fd);
   event_map_[fd] = EventHandler{.cb = std::move(cb), .events = EventType{}};
 }
 
 void KqueuePollerImpl::Event(DescriptorType fd, EventType events) {
-  AE_TELED_DEBUG("Add events for {} event {}", fd, events);
+  AETHER_TELED_DEBUG("Add events for {} event {}", fd, events);
 
   auto it = event_map_.find(fd);
   if (it == event_map_.end()) {
@@ -143,7 +143,7 @@ void KqueuePollerImpl::Event(DescriptorType fd, EventType events) {
   auto res =
       kevent(kqueue_fd_, kqueu_events.data(), count, nullptr, 0, nullptr);
   if (res == -1) {
-    AE_TELE_ERROR(kKqueueAddFailed, "Add event with error {} {}", errno,
+    AETHER_TELE_ERROR(kKqueueAddFailed, "Add event with error {} {}", errno,
                   strerror(errno));
     assert(false);
   }
@@ -151,7 +151,7 @@ void KqueuePollerImpl::Event(DescriptorType fd, EventType events) {
 }
 
 void KqueuePollerImpl::Remove(DescriptorType fd) {
-  AE_TELE_DEBUG(kKqueueRemoveDescriptor, "Remove event descriptor {}", fd);
+  AETHER_TELE_DEBUG(kKqueueRemoveDescriptor, "Remove event descriptor {}", fd);
   auto it = event_map_.find(fd);
   if (it == event_map_.end()) {
     return;
@@ -166,7 +166,7 @@ void KqueuePollerImpl::Remove(DescriptorType fd) {
     auto res =
         kevent(kqueue_fd_, kqueu_events.data(), count, nullptr, 0, nullptr);
     if (res == -1) {
-      AE_TELE_ERROR(kKqueueRemoveFailed, "Remove event error {} {}", errno,
+      AETHER_TELE_ERROR(kKqueueRemoveFailed, "Remove event error {} {}", errno,
                     strerror(errno));
     }
   }
@@ -177,7 +177,7 @@ void KqueuePollerImpl::Remove(DescriptorType fd) {
 int KqueuePollerImpl::InitKqueue() {
   auto fd = kqueue();
   if (fd == -1) {
-    AE_TELE_ERROR(kKqueueInitFailed, "Failed to kqueue {} {}", errno,
+    AETHER_TELE_ERROR(kKqueueInitFailed, "Failed to kqueue {} {}", errno,
                   strerror(errno));
     assert(false);
   }
@@ -192,7 +192,7 @@ void KqueuePollerImpl::Loop() {
     auto num_events =
         kevent(kqueue_fd_, nullptr, 0, events.data(), events.size(), nullptr);
     if (num_events == -1) {
-      AE_TELE_ERROR(kKqueueWaitFailed, "Kqueue event wait error {} {}", errno,
+      AETHER_TELE_ERROR(kKqueueWaitFailed, "Kqueue event wait error {} {}", errno,
                     strerror(errno));
       assert(false);
       return;

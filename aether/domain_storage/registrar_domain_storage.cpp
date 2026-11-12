@@ -30,12 +30,12 @@ namespace ae {
 
 RegistrarDomainStorage::RegistrarDomainStorage(std::filesystem::path file_path)
     : file_path_{std::move(file_path)} {
-  AE_TELED_DEBUG("New RegistrarDomainFacility instance created!");
+  AETHER_TELED_DEBUG("New RegistrarDomainFacility instance created!");
 }
 
 RegistrarDomainStorage::~RegistrarDomainStorage() {
   SaveState();
-  AE_TELED_DEBUG("RegistrarDomainFacility instance deleted!");
+  AETHER_TELED_DEBUG("RegistrarDomainFacility instance deleted!");
 }
 
 std::unique_ptr<IDomainStorageWriter> RegistrarDomainStorage::Store(
@@ -68,7 +68,7 @@ void RegistrarDomainStorage::SaveState() {
       "// clang-format on\n"
       "\n#endif // FILE_SYSTEM_STATE_H_";
 
-  AE_TELED_DEBUG("Save state to a file {}", file_path_.string());
+  AETHER_TELED_DEBUG("Save state to a file {}", file_path_.string());
 
   std::error_code ec;
   auto file = std::ofstream{file_path_, std::ios::out | std::ios::binary};

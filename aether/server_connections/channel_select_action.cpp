@@ -33,7 +33,7 @@ void ChannelSelectAction::CbHandle::operator()(
   if (res && res->IsOk()) {
     // update transport build time on success
     auto build_time = std::chrono::duration_cast<Duration>(Now() - start_time);
-    AE_TELED_INFO("Transport built for {:%S}", build_time);
+    AETHER_TELED_INFO("Transport built for {:%S}", build_time);
     channel->channel_statistics().AddConnectionTime(build_time);
   }
 
@@ -55,12 +55,12 @@ void ChannelSelectAction::CbHandle::operator()(
 
 int ChannelSelectAction::CbHandle::HandleError(
     ex::TimeoutError const&) noexcept {
-  AE_TELED_ERROR("Transport build timeout");
+  AETHER_TELED_ERROR("Transport build timeout");
   return -1;
 }
 
 int ChannelSelectAction::CbHandle::HandleError(int e) noexcept {
-  AE_TELED_ERROR("Transport build failed with error code: {}", e);
+  AETHER_TELED_ERROR("Transport build failed with error code: {}", e);
   return e;
 }
 

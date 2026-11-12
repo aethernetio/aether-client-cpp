@@ -41,7 +41,7 @@ int UnixUdpSocket::MakeSocket() {
   bool created = false;
   auto sock = socket(AF_INET, SOCK_DGRAM, 0);
   if (sock == kInvalidDescriptor) {
-    AE_TELED_ERROR("Socket creation error {} {}", errno, strerror(errno));
+    AETHER_TELED_ERROR("Socket creation error {} {}", errno, strerror(errno));
     return kInvalidDescriptor;
   }
 
@@ -54,7 +54,7 @@ int UnixUdpSocket::MakeSocket() {
 
   // make socket non-blocking
   if (fcntl(sock, F_SETFL, O_NONBLOCK) != 0) {
-    AE_TELED_ERROR("Socket set O_NONBLOCK error {} {}", errno, strerror(errno));
+    AETHER_TELED_ERROR("Socket set O_NONBLOCK error {} {}", errno, strerror(errno));
     return kInvalidDescriptor;
   }
   created = true;
@@ -75,7 +75,7 @@ ISocket& UnixUdpSocket::Connect(AddressPort const& destination,
   auto res =
       connect(*socket_->fd(), addr.addr(), static_cast<socklen_t>(addr.size));
   if (res == -1) {
-    AE_TELED_ERROR("Not connected {} {}", errno, strerror(errno));
+    AETHER_TELED_ERROR("Not connected {} {}", errno, strerror(errno));
     connection_state = ConnectionState::kConnectionFailed;
     return *this;
   }

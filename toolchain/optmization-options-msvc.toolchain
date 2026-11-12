@@ -22,7 +22,7 @@
 
 # MSVC compile and link options.
 set(_msvc_compile_options /fp:fast /O1 /DNDEBUG /Gy /Gw /GL)
-set(_msvc_cxx_compile_options /EHsc- /GR-)
+set(_msvc_cxx_compile_options /EHsc /GR)
 add_compile_options(
     "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:C,MSVC>>:${_msvc_compile_options}>"
     "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:CXX,MSVC>>:${_msvc_compile_options};${_msvc_cxx_compile_options}>")

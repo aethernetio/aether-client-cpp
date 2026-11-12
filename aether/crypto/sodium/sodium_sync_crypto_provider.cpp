@@ -116,7 +116,7 @@ DataBuffer SodiumSyncDecryptProvider::Decrypt(DataBuffer const& data) {
   auto decrypted = _internal::DecryptWithSymmetric(
       key.Get<SodiumChacha20Poly1305Key>(), data);
   if (decrypted.empty()) {
-    AE_TELED_WARNING("Dropped packet: sync decrypt failed");
+    AETHER_TELED_WARNING("Dropped packet: sync decrypt failed");
   }
   return decrypted;
 }

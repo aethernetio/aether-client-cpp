@@ -45,3 +45,9 @@ add_subdirectory(test-tasks)
 add_subdirectory(test-server-connection)
 
 add_subdirectory(third_party_tests)
+
+add_subdirectory(test-tele-persistence)
+
+add_subdirectory(test-tele-namespace)
+
+add_subdirectory(test-tele-sender)

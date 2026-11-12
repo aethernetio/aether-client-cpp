@@ -57,18 +57,18 @@ class SendAction final : public PacketSendAction {
     reenqueue_ = false;
     auto res = socket_->Send(Span{data_.data(), data_.size()});
     if (!res) {
-      AE_TELED_ERROR("Data has not been written");
+      AETHER_TELED_ERROR("Data has not been written");
       SetStatus(WriteAction::Status::kFail);
       return;
     }
-    AE_TELED_DEBUG("Data has been written size {}", *res);
+    AETHER_TELED_DEBUG("Data has been written size {}", *res);
     if (*res == 0) {
       reenqueue_ = true;
       // Not sent yet
       return;
     }
     if (*res != data_.size()) {
-      AE_TELED_ERROR("Send error, sent size isn't same as packet size");
+      AETHER_TELED_ERROR("Send error, sent size isn't same as packet size");
       SetStatus(WriteAction::Status::kFail);
       return;
     }
@@ -143,7 +143,7 @@ class UdpTransport final : public upd_internal::UdpBase {
         socket_{poller},
         send_queue_manager_{ae_context} {
     // Make connection
-    AE_TELE_INFO(kUdpTransportConnect, "Udp connect to endpoint {}", endpoint_);
+    AETHER_TELE_INFO(kUdpTransportConnect, "Udp connect to endpoint {}", endpoint_);
 
     socket_.RecvData(MethodPtr<&UdpTransport::OnRecvData>{this})
         .ReadyToWrite(MethodPtr<&UdpTransport::OnReadyToWrite>{this})
@@ -158,12 +158,12 @@ class UdpTransport final : public upd_internal::UdpBase {
 
   WriteAction& Write(DataBuffer&& in_data) override {
     assert(in_data.size() != 0);
-    AE_TELE_DEBUG(kUdpTransportSend, "Socket {} send data size:{}", endpoint_,
+    AETHER_TELE_DEBUG(kUdpTransportSend, "Socket {} send data size:{}", endpoint_,
                   in_data.size());
     auto* send_action =
         send_queue_manager_.AddPacket(ae_context_, socket_, std::move(in_data));
     if (send_action == nullptr) {
-      AE_TELED_ERROR("Queue manager is full");
+      AETHER_TELED_ERROR("Queue manager is full");
       return FailedWrite();
     }
 
@@ -182,14 +182,14 @@ class UdpTransport final : public upd_internal::UdpBase {
 
   void DeferSendErrorDisconnect() {
     defer_task_sub_ = ae_context_.scheduler().Task([&]() noexcept {
-      AE_TELED_ERROR("Send error, disconnect!");
+      AETHER_TELED_ERROR("Send error, disconnect!");
       stream_info_.link_state = LinkState::kLinkError;
       Disconnect();
     });
   }
 
   void Disconnect() override {
-    AE_TELE_INFO(kUdpTransportDisconnect, "Disconnect from {}", endpoint_);
+    AETHER_TELE_INFO(kUdpTransportDisconnect, "Disconnect from {}", endpoint_);
     stream_info_.is_writable = false;
     socket_.Disconnect();
     stream_update_event_.Emit();

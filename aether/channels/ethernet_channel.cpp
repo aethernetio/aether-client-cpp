@@ -206,7 +206,7 @@ TransportBuildSender EthernetChannel::TransportBuilder() {
   auto poller = poller_.Load();
   assert(poller && "Poller is not loaded");
 
-  AE_TELED_DEBUG("Make transport builder for {}", address);
+  AETHER_TELED_DEBUG("Make transport builder for {}", address);
 
   return ethernet_access_point_internal::MakeTransportBuilder(
       AeContext{*aether_}, resolver, poller, address);

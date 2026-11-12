@@ -24,6 +24,7 @@ void tearDown() {}
 extern int run_test_server_connection_recovery();
 extern int run_test_cloud_quarantine_loop();
 extern int run_test_cloud_persistence();
+extern int test_authorized_api_call_size();
 #if AE_SUPPORT_REGISTRATION
 extern int run_test_registration_root_server_select();
 #endif  // AE_SUPPORT_REGISTRATION
@@ -33,6 +34,7 @@ int main() {
   res += run_test_server_connection_recovery();
   res += run_test_cloud_quarantine_loop();
   res += run_test_cloud_persistence();
+  res += test_authorized_api_call_size();
 #if AE_SUPPORT_REGISTRATION
   res += run_test_registration_root_server_select();
 #endif  // AE_SUPPORT_REGISTRATION

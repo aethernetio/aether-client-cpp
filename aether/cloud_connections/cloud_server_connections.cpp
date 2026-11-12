@@ -160,7 +160,7 @@ bool CloudServerConnections::SubscribeToServerState(
   }
 
   if (conn->stream_info().link_state == LinkState::kLinked) {
-    AE_TELED_DEBUG("CLOUD_SERVER_LINKED server_id={} priority={}",
+    AETHER_TELED_DEBUG("CLOUD_SERVER_LINKED server_id={} priority={}",
                    server_connection.server_id(), server_connection.priority());
   }
 
@@ -170,7 +170,7 @@ bool CloudServerConnections::SubscribeToServerState(
         if (conn->stream_info().link_state == LinkState::kLinkError) {
           QuarantineAndReconcile(*sc);
         } else if (conn->stream_info().link_state == LinkState::kLinked) {
-          AE_TELED_DEBUG("CLOUD_SERVER_LINKED server_id={} priority={}",
+          AETHER_TELED_DEBUG("CLOUD_SERVER_LINKED server_id={} priority={}",
                          sc->server_id(), sc->priority());
         }
       });
@@ -190,14 +190,14 @@ bool CloudServerConnections::QuarantineServer(
   if (server_connection.quarantine()) {
     return false;
   }
-  AE_TELED_DEBUG("CLOUD_SERVER_QUARANTINED server_id={} priority={}",
+  AETHER_TELED_DEBUG("CLOUD_SERVER_QUARANTINED server_id={} priority={}",
                  server_connection.server_id(), server_connection.priority());
   UnsubscribeFromServerState(server_connection);
   auto const was_selected =
       std::erase(selected_servers_, &server_connection) != 0;
   assert(!server_entries_.empty() &&
          "quarantined server must belong to server connections");
-  AE_TELED_DEBUG("CLOUD_SERVER_UNSELECTED server_id={}, selected list={}",
+  AETHER_TELED_DEBUG("CLOUD_SERVER_UNSELECTED server_id={}, selected list={}",
                  server_connection.server_id(), ServerList(selected_servers_));
   auto const server_it =
       std::find(all_servers_.begin(), all_servers_.end(), &server_connection);
@@ -219,7 +219,7 @@ bool CloudServerConnections::QuarantineServer(
       kCloudServerQuarantineTime);
 
   if (!quarantine_sub) {
-    AE_TELED_ERROR("CLOUD_QUARANTINE_RELEASE_ALLOC_FAILED");
+    AETHER_TELED_ERROR("CLOUD_QUARANTINE_RELEASE_ALLOC_FAILED");
     assert(false && "failed to schedule quarantine release");
   }
 
@@ -238,7 +238,7 @@ void CloudServerConnections::ReleaseQuarantinedServer(
   if (!server_connection.quarantine()) {
     return;
   }
-  AE_TELED_DEBUG("CLOUD_SERVER_RELEASED server_id={} priority={}",
+  AETHER_TELED_DEBUG("CLOUD_SERVER_RELEASED server_id={} priority={}",
                  server_connection.server_id(), server_connection.priority());
   server_connection.Disconnect();
   auto const first_quarantined =
@@ -268,7 +268,7 @@ void CloudServerConnections::ScheduleReconcileServers() {
     ReconcileServers();
   });
   if (!defer_sub_) {
-    AE_TELED_ERROR(
+    AETHER_TELED_ERROR(
         "CLOUD_SCHEDULE_RECONCILE_ALLOC_FAILED; pending until release");
     assert(false && "failed to schedule reconcile servers");
   }
@@ -282,7 +282,7 @@ void CloudServerConnections::ReconcileServers() {
   // append usable servers to fill available slots. The selected prefix is
   // skipped; failed candidates move to the quarantined suffix, so retry the
   // same index.
-  AE_TELED_DEBUG("Reconcile servers vacancy={} selected_count={}",
+  AETHER_TELED_DEBUG("Reconcile servers vacancy={} selected_count={}",
                  max_connections_ - selected_servers_.size(),
                  selected_servers_.size());
   auto emplaced = false;
@@ -294,11 +294,11 @@ void CloudServerConnections::ReconcileServers() {
       ++candidate_index;
       continue;
     }
-    AE_TELED_DEBUG("CLOUD_SERVER_CONNECT_ATTEMPT server_id={} priority={}",
+    AETHER_TELED_DEBUG("CLOUD_SERVER_CONNECT_ATTEMPT server_id={} priority={}",
                    candidate->server_id(), candidate->priority());
 
     if (!candidate->Connect() || !SubscribeToServerState(*candidate)) {
-      AE_TELED_DEBUG(
+      AETHER_TELED_DEBUG(
           "Candidate unusable during reconcile server_id={} priority={}",
           candidate->server_id(), candidate->priority());
       QuarantineAndReconcile(*candidate);
@@ -312,7 +312,7 @@ void CloudServerConnections::ReconcileServers() {
   }
   if (emplaced) {
     NormalizeServerPriorities();
-    AE_TELED_DEBUG("Selected servers reconciled selected_count={}, list={}",
+    AETHER_TELED_DEBUG("Selected servers reconciled selected_count={}, list={}",
                    selected_servers_.size(), ServerList(selected_servers_));
     servers_update_event_.Emit();
   }
@@ -343,7 +343,7 @@ WriteAction& CloudServerConnections::CallApi(ApiCall const& api_caller,
       [&](CloudServerConnection* sc) {
         auto* conn = sc->client_connection();
         if (conn == nullptr) {
-          AE_TELED_WARNING("Skipping disconnected selected server");
+          AETHER_TELED_WARNING("Skipping disconnected selected server");
           return;
         }
         swas.emplace_back(&conn->AuthorizedApiCall(

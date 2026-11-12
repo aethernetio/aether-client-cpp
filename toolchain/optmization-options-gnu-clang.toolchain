@@ -34,7 +34,7 @@ set(_gnu_clang_compile_options
     -DNDEBUG
     -fdata-sections
     -ffunction-sections)
-set(_gnu_clang_cxx_compile_options -fno-exceptions -fno-rtti)
+set(_gnu_clang_cxx_compile_options -fexceptions -frtti)
 
 add_compile_options(
     "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:C,GNU,Clang>>:${_gnu_clang_compile_options}>"

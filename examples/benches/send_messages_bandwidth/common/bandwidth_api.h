@@ -29,31 +29,43 @@ class BandwidthApi : public DeclareApi<BandwidthApi> {
   virtual ~BandwidthApi() = default;
 
   // sender sends handshake until receiver doesn't answers true
-  virtual ApiPromise<bool> Handshake();
+  virtual void Handshake();
   // sender sends start or stop test and wait for receiver's response true to
   // continue/stop tests
-  virtual ApiPromise<bool> StartTest();
-  virtual ApiPromise<bool> StopTest();
+  virtual void StartTest();
+  virtual void StopTest();
 
   virtual void Message(std::uint16_t id, PayloadData const& data);
 
+  virtual void HandshakeResult(bool accepted);
+  virtual void StartTestResult(bool accepted);
+  virtual void StopTestResult(bool accepted);
+
   API_LIST(METHOD(0x03, Handshake), METHOD(0x04, StartTest),
-           METHOD(0x05, StopTest), METHOD(0x06, Message))
+           METHOD(0x05, StopTest), METHOD(0x06, Message),
+           METHOD(0x07, HandshakeResult), METHOD(0x08, StartTestResult),
+           METHOD(0x09, StopTestResult))
 };
 
 class BandwidthApiServer : public BandwidthApi {
  public:
   explicit BandwidthApiServer(EventSystem& es);
 
-  ApiPromise<bool> Handshake() override;
-  ApiPromise<bool> StartTest() override;
-  ApiPromise<bool> StopTest() override;
+  void Handshake() override;
+  void StartTest() override;
+  void StopTest() override;
   void Message(std::uint16_t id, PayloadData const& data) override;
+  void HandshakeResult(bool accepted) override;
+  void StartTestResult(bool accepted) override;
+  void StopTestResult(bool accepted) override;
 
-  Event<void(RequestId req_id)> handshake_event;
-  Event<void(RequestId req_id)> start_test_event;
-  Event<void(RequestId req_id)> stop_test_event;
+  Event<void()> handshake_event;
+  Event<void()> start_test_event;
+  Event<void()> stop_test_event;
   Event<void(std::uint16_t id, PayloadData const& data)> message_event;
+  Event<void(bool accepted)> handshake_result_event;
+  Event<void(bool accepted)> start_test_result_event;
+  Event<void(bool accepted)> stop_test_result_event;
 };
 
 }  // namespace ae::bench

@@ -37,15 +37,15 @@ void ClientApiSafe::PingAck() { ping_ack_event.Emit(); }
 
 
 void ClientApiSafe::ChangeParent([[maybe_unused]] Uid const& uid) {
-  AE_TELED_DEBUG("ChangeParent");
+  AETHER_TELED_DEBUG("ChangeParent");
 }
 
 void ClientApiSafe::ChangeAlias([[maybe_unused]] Uid const& uid) {
-  AE_TELED_DEBUG("ChangeAlias");
+  AETHER_TELED_DEBUG("ChangeAlias");
 }
 
 void ClientApiSafe::NewChildren([[maybe_unused]] std::vector<Uid> const& uids) {
-  AE_TELED_DEBUG("NewChildren");
+  AETHER_TELED_DEBUG("NewChildren");
 }
 
 void ClientApiSafe::SendMessages(std::vector<AeMessage> const& messages) {
@@ -81,41 +81,41 @@ void ClientApiSafe::RequestTelemetry() { request_telemetry_event_.Emit(); }
 
 void ClientApiSafe::SendAccessGroups(
     [[maybe_unused]] std::vector<AccessGroup> const& access_group) {
-  AE_TELED_DEBUG("SendAccessGroups");
+  AETHER_TELED_DEBUG("SendAccessGroups");
 }
 void ClientApiSafe::SendAccessGroupForClient(
     [[maybe_unused]] Uid const& uid,
     [[maybe_unused]] std::vector<std::uint64_t> const& groups) {
-  AE_TELED_DEBUG("SendAccessGroupForClient");
+  AETHER_TELED_DEBUG("SendAccessGroupForClient");
 }
 void ClientApiSafe::AddItemsToAccessGroup(
     [[maybe_unused]] std::uint64_t id,
     [[maybe_unused]] std::vector<Uid> const& groups) {
-  AE_TELED_DEBUG("AddItemsToAccessGroup");
+  AETHER_TELED_DEBUG("AddItemsToAccessGroup");
 }
 void ClientApiSafe::RemoveItemsFromAccessGroup(
     [[maybe_unused]] std::uint64_t id,
     [[maybe_unused]] std::vector<Uid> const& groups) {
-  AE_TELED_DEBUG("RemoveItemsFromAccessGroup");
+  AETHER_TELED_DEBUG("RemoveItemsFromAccessGroup");
 }
 void ClientApiSafe::AddAccessGroupsToClient(
     [[maybe_unused]] Uid const& uid,
     [[maybe_unused]] std::vector<std::uint64_t> const& groups) {
-  AE_TELED_DEBUG("AddAccessGroupsToClient");
+  AETHER_TELED_DEBUG("AddAccessGroupsToClient");
 }
 void ClientApiSafe::RemoveAccessGroupsFromClient(
     [[maybe_unused]] Uid const& uid,
     [[maybe_unused]] std::vector<std::uint64_t> const& groups) {
-  AE_TELED_DEBUG("RemoveAccessGroupsFromClient");
+  AETHER_TELED_DEBUG("RemoveAccessGroupsFromClient");
 }
 void ClientApiSafe::SendAllAccessedClients(
     [[maybe_unused]] Uid const& uid,
     [[maybe_unused]] std::vector<Uid> const& accessed_clients) {
-  AE_TELED_DEBUG("SendAllAccessedClients");
+  AETHER_TELED_DEBUG("SendAllAccessedClients");
 }
 void ClientApiSafe::SendAccessCheckResults(
     [[maybe_unused]] std::vector<AccessCheckResult> const& results) {
-  AE_TELED_DEBUG("SendAccessCheckResults");
+  AETHER_TELED_DEBUG("SendAccessCheckResults");
 }
 
 void ClientApiSafe::SendMessage(AeMessage const& msg) {
@@ -123,7 +123,7 @@ void ClientApiSafe::SendMessage(AeMessage const& msg) {
 }
 
 void ClientApiSafe::SendCLoudConfig(std::vector<CloudConfig> const& configs) {
-  AE_TELED_DEBUG("Received cloud configs count {}", configs.size());
+  AETHER_TELED_DEBUG("Received cloud configs count {}", configs.size());
   send_cloud_configs_.Emit(configs);
 }
 

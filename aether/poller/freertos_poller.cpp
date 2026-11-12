@@ -41,7 +41,7 @@ inline int MakeLoopbackSocket(std::uint16_t port_listen,
                               std::uint16_t port_connect) noexcept {
   int l_socket = socket(AF_INET, SOCK_DGRAM, 0);
   if (l_socket == -1) {
-    AE_TELED_ERROR("Create listen socket failed with {}", errno);
+    AETHER_TELED_ERROR("Create listen socket failed with {}", errno);
     assert(false);
     return -1;
   }
@@ -49,7 +49,7 @@ inline int MakeLoopbackSocket(std::uint16_t port_listen,
   auto const bind_addr = MakeLoopbackAddr(port_listen);
   if (bind(l_socket, reinterpret_cast<sockaddr const*>(&bind_addr),
            sizeof(bind_addr)) != 0) {
-    AE_TELED_ERROR("Bind socket failed with {}", errno);
+    AETHER_TELED_ERROR("Bind socket failed with {}", errno);
     close(l_socket);
     assert(false);
     return -1;
@@ -57,7 +57,7 @@ inline int MakeLoopbackSocket(std::uint16_t port_listen,
   auto const conn_addr = MakeLoopbackAddr(port_connect);
   if (connect(l_socket, reinterpret_cast<sockaddr const*>(&conn_addr),
               sizeof(conn_addr)) != 0) {
-    AE_TELED_ERROR("Connect socket failed with {}", errno);
+    AETHER_TELED_ERROR("Connect socket failed with {}", errno);
     close(l_socket);
     assert(false);
     return -1;
@@ -136,9 +136,9 @@ FreeRtosLwipPollerImpl::FreeRtosLwipPollerImpl()
       "FreeRTOS lwip poller loop", kStackSize, static_cast<void*>(this),
       tskIDLE_PRIORITY + 1, &worker_task_handle_);
   if (res != pdPASS) {
-    AE_TELED_ERROR("Failed to create poll worker task: {}", res);
+    AETHER_TELED_ERROR("Failed to create poll worker task: {}", res);
   } else {
-    AE_TELE_DEBUG(kFreertosWorkerCreate, "Poll worker was created");
+    AETHER_TELE_DEBUG(kFreertosWorkerCreate, "Poll worker was created");
   }
 }
 
@@ -152,7 +152,7 @@ FreeRtosLwipPollerImpl::~FreeRtosLwipPollerImpl() {
   }
   freertos_poller_internal::ClosePipe(wake_up_pipe_);
 
-  AE_TELE_DEBUG(kFreertosWorkerDestroyed, "Poll worker has been destroyed");
+  AETHER_TELE_DEBUG(kFreertosWorkerDestroyed, "Poll worker has been destroyed");
 }
 
 void FreeRtosLwipPollerImpl::lock() { ctl_mutex_.lock(); }
@@ -161,7 +161,7 @@ void FreeRtosLwipPollerImpl::unlock() { ctl_mutex_.unlock(); }
 
 void FreeRtosLwipPollerImpl::Event(DescriptorType fd, EventType event_type,
                                    EventCb cb) {
-  AE_TELE_DEBUG(kFreertosAddDescriptor, "Added descriptor {} event {}", fd,
+  AETHER_TELE_DEBUG(kFreertosAddDescriptor, "Added descriptor {} event {}", fd,
                 event_type);
   event_map_.insert_or_assign(fd, PollEvent{event_type, std::move(cb)});
   // wake up the poller task to update poll
@@ -171,7 +171,7 @@ void FreeRtosLwipPollerImpl::Event(DescriptorType fd, EventType event_type,
 void FreeRtosLwipPollerImpl::Remove(DescriptorType fd) {
   event_map_.erase(fd);
   freertos_poller_internal::WritePipe(wake_up_pipe_);
-  AE_TELE_DEBUG(kFreertosRemoveDescriptor, "Removed descriptor {}", fd);
+  AETHER_TELE_DEBUG(kFreertosRemoveDescriptor, "Removed descriptor {}", fd);
 }
 
 void FreeRtosLwipPollerImpl::Loop() {
@@ -184,7 +184,7 @@ void FreeRtosLwipPollerImpl::Loop() {
     }
     auto res = lwip_poll(fds_vector.data(), fds_vector.size(), kPollingTimeout);
     if (res == -1) {
-      AE_TELE_ERROR(kFreertosWaitFailed, "Polling error {} {}", errno,
+      AETHER_TELE_ERROR(kFreertosWaitFailed, "Polling error {} {}", errno,
                     strerror(errno));
       continue;
     }

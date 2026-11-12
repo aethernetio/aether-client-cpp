@@ -32,9 +32,9 @@ namespace ae {
 
 Aether::Aether() = default;
 
-Aether::Aether(ObjProp prop) : Obj{prop} { AE_TELE_DEBUG(AetherCreated); }
+Aether::Aether(ObjProp prop) : Obj{prop} { AETHER_TELE_DEBUG(AetherCreated); }
 
-Aether::~Aether() { AE_TELE_DEBUG(AetherDestroyed); }
+Aether::~Aether() { AETHER_TELE_DEBUG(AetherDestroyed); }
 
 Client::ptr Aether::CreateClient(ClientConfig const& config,
                                  std::string const& client_id) {
@@ -43,7 +43,7 @@ Client::ptr Aether::CreateClient(ClientConfig const& config,
     return client;
   }
   // create new client
-  AE_TELED_DEBUG("Create new client {} with uid {}", client_id, config.uid);
+  AETHER_TELED_DEBUG("Create new client {} with uid {}", client_id, config.uid);
 
   client = client_prefab.Clone();
   client.SetFlags(ObjFlags::kUnloadedByDefault);
@@ -78,7 +78,7 @@ Client::ptr Aether::CreateClient(ClientConfig const& config,
 
 SelectClientAction& Aether::SelectClient([[maybe_unused]] Uid parent_uid,
                                          std::string const& client_id) {
-  AE_TELED_DEBUG("Select client {} with parent uid {}", client_id, parent_uid);
+  AETHER_TELED_DEBUG("Select client {} with parent uid {}", client_id, parent_uid);
 
   auto* select_action = FindSelectClientAction(client_id);
   if (select_action != nullptr) {

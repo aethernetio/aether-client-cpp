@@ -29,6 +29,12 @@ if (NOT CM_PLATFORM)
 
   target_link_libraries(${PROJECT_NAME} PUBLIC aether)
   target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+
+  if(AE_BUILD_TESTS)
+    add_executable(test-bandwidth-api test-bandwidth-api.cpp)
+    target_link_libraries(test-bandwidth-api PRIVATE bandwidth-test-common unity)
+    add_test(NAME test-bandwidth-api COMMAND $<TARGET_FILE:test-bandwidth-api>)
+  endif()
 else()
   idf_build_get_property(CM_PLATFORM CM_PLATFORM)
   if(CM_PLATFORM STREQUAL "ESP32")

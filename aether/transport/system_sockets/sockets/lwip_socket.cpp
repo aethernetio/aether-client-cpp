@@ -58,7 +58,7 @@ std::optional<std::size_t> LwipSocket::Send(Span<std::uint8_t> data) {
                      MethodPtr<&LwipSocket::OnPollerEvent>{this});
       return 0;
     } else {
-      AE_TELED_ERROR("Send to socket error: {}, {}", static_cast<int>(errno),
+      AETHER_TELED_ERROR("Send to socket error: {}, {}", static_cast<int>(errno),
                      strerror(errno));
       return std::nullopt;
     }
@@ -88,7 +88,7 @@ void LwipSocket::Poll() {
 }
 
 void LwipSocket::OnPollerEvent(DescriptorType fd, EventType event) {
-  AE_TELED_DEBUG("Poll event desc={}, event={}", fd, event);
+  AETHER_TELED_DEBUG("Poll event desc={}, event={}", fd, event);
   for (auto e : {EventType::kRead, EventType::kWrite, EventType::kError}) {
     if ((event & e) == 0) {
       continue;
@@ -151,13 +151,13 @@ std::optional<std::size_t> LwipSocket::Receive(DescriptorType fd,
     if ((errno == EWOULDBLOCK) || (errno == EAGAIN)) {
       return 0;
     }
-    AE_TELED_ERROR("Recv error: {}, {}", static_cast<int>(errno),
+    AETHER_TELED_ERROR("Recv error: {}, {}", static_cast<int>(errno),
                    strerror(errno));
     return std::nullopt;
   }
   // probably the socket is shutdown
   if (res == 0) {
-    AE_TELED_ERROR("Recv shutdown");
+    AETHER_TELED_ERROR("Recv shutdown");
     return std::nullopt;
   }
   return static_cast<std::size_t>(res);
@@ -169,7 +169,7 @@ std::optional<int> LwipSocket::GetSocketError(DescriptorType fd) {
   socklen_t len = sizeof(err);
   if (getsockopt(fd, SOL_SOCKET, SO_ERROR, static_cast<void*>(&err), &len) !=
       0) {
-    AE_TELED_ERROR("Getsockopt error: {}, {}", static_cast<int>(errno),
+    AETHER_TELED_ERROR("Getsockopt error: {}, {}", static_cast<int>(errno),
                    strerror(errno));
     return std::nullopt;
   }

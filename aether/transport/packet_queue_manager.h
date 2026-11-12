@@ -38,7 +38,7 @@ class PacketQueueManager {
   explicit PacketQueueManager(AeContext const& ae_context) noexcept
       : ae_context_{ae_context} {}
 
-  ~PacketQueueManager() { AE_TELED_DEBUG("Packet queue manager remove"); }
+  ~PacketQueueManager() { AETHER_TELED_DEBUG("Packet queue manager remove"); }
 
   AE_CLASS_NO_COPY_MOVE(PacketQueueManager)
 

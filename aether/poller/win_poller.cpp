@@ -25,11 +25,11 @@
 
 namespace ae {
 IoCpPoller::IoCpPoller() {
-  AE_TELE_INFO(kWinpollWorkerCreate);
+  AETHER_TELE_INFO(kWinpollWorkerCreate);
   iocp_ = CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, 0, 1);
   if (iocp_ == nullptr) {
     iocp_ = INVALID_HANDLE_VALUE;
-    AE_TELE_ERROR(kWinpollInitFailed, "Create iocp error {}", GetLastError());
+    AETHER_TELE_ERROR(kWinpollInitFailed, "Create iocp error {}", GetLastError());
     assert(false);
     return;
   }
@@ -48,14 +48,14 @@ IoCpPoller::~IoCpPoller() {
     }
     CloseHandle(iocp_);
   }
-  AE_TELE_INFO(kWinpollWorkerDestroyed);
+  AETHER_TELE_INFO(kWinpollWorkerDestroyed);
 }
 
 void IoCpPoller::Add(DescriptorType descriptor, EventCb cb) {
   assert(iocp_ != INVALID_HANDLE_VALUE);
 
   auto lock = std::scoped_lock{poller_mutex_};
-  AE_TELE_DEBUG(kWinpollAddDescriptor, "Add poller descriptor");
+  AETHER_TELE_DEBUG(kWinpollAddDescriptor, "Add poller descriptor");
 
   auto [it, inserted] = event_map_.insert_or_assign(descriptor, std::move(cb));
   if (inserted) {
@@ -63,7 +63,7 @@ void IoCpPoller::Add(DescriptorType descriptor, EventCb cb) {
     auto res = CreateIoCompletionPort(comp_key, iocp_,
                                       reinterpret_cast<ULONG_PTR>(comp_key), 0);
     if (res == nullptr) {
-      AE_TELE_ERROR(kWinpollAddFailed,
+      AETHER_TELE_ERROR(kWinpollAddFailed,
                     "Add descriptor to completion port error {}",
                     GetLastError());
       event_map_.erase(it);
@@ -74,7 +74,7 @@ void IoCpPoller::Add(DescriptorType descriptor, EventCb cb) {
 
 void IoCpPoller::Remove(DescriptorType descriptor) {
   auto lock = std::scoped_lock{poller_mutex_};
-  AE_TELE_DEBUG(kWinpollRemoveDescriptor, "Remove poller event");
+  AETHER_TELE_DEBUG(kWinpollRemoveDescriptor, "Remove poller event");
   event_map_.erase(descriptor);
 }
 
@@ -92,7 +92,7 @@ void IoCpPoller::Loop() {
         if (error == ERROR_CONNECTION_ABORTED) {
           continue;
         }
-        AE_TELE_ERROR(kWinpollWaitFailed, "GetQueuedCompletionStatus error {}",
+        AETHER_TELE_ERROR(kWinpollWaitFailed, "GetQueuedCompletionStatus error {}",
                       error);
       }
       continue;

@@ -113,14 +113,14 @@ void CloudRequest::MakeRequest() {
     }
   }
   if (all_exhausted) {
-    AE_TELED_ERROR("All server requests exhausted, failing");
+    AETHER_TELED_ERROR("All server requests exhausted, failing");
     Failed();
   }
 }
 
 void CloudRequest::MakeServerRequest(CloudServerConnection* sc,
                                      ServerRequest& sr) {
-  AE_TELED_DEBUG("Make request to server {}", sc->server_id());
+  AETHER_TELED_DEBUG("Make request to server {}", sc->server_id());
 
   // Clear previous subscriptions and timeout
   sr.state_subs.Reset();
@@ -152,21 +152,21 @@ void CloudRequest::MakeServerRequest(CloudServerConnection* sc,
   // if request write failed
   sr.state_subs += swa.status_event().Subscribe([this, sc](auto status) {
     if (status == WriteAction::Status::kFail) {
-      AE_TELED_WARNING("Request write error");
+      AETHER_TELED_WARNING("Request write error");
       OnWriteFailed(sc);
     }
   });
   // if server stream changed its channel, retry on new channel
   sr.state_subs +=
       conn->server_connection().channel_changed_event().Subscribe([this, sc]() {
-        AE_TELED_WARNING("Request server channel changed");
+        AETHER_TELED_WARNING("Request server channel changed");
         OnChannelChanged(sc);
       });
 
   // Set per-server request timeout
   sr.timeout_sub = ae_context_.scheduler().DelayedTask(
       [this, sc]() {
-        AE_TELED_WARNING("Request timeout for server {}", sc->server_id());
+        AETHER_TELED_WARNING("Request timeout for server {}", sc->server_id());
         OnServerRequestTimeout(sc);
       },
       request_timeout_);
@@ -186,7 +186,7 @@ void CloudRequest::OnChannelChanged(CloudServerConnection* sc) {
   }
   auto& sr = it->second;
   if (sr.retry_count >= max_retries_) {
-    AE_TELED_WARNING("Server {} retry budget exhausted", sc->server_id());
+    AETHER_TELED_WARNING("Server {} retry budget exhausted", sc->server_id());
     sr.exhausted = true;
     EnqueueMakeRequest();
     return;
@@ -203,7 +203,7 @@ void CloudRequest::OnWriteFailed(CloudServerConnection* sc) {
   auto& sr = it->second;
   sr.retry_count++;
   if (sr.retry_count >= max_retries_) {
-    AE_TELED_WARNING("Server {} retry budget exhausted on write failure",
+    AETHER_TELED_WARNING("Server {} retry budget exhausted on write failure",
                      sc->server_id());
     sr.exhausted = true;
   }
@@ -217,7 +217,7 @@ void CloudRequest::OnServerRequestTimeout(CloudServerConnection* sc) {
   }
   auto& sr = it->second;
   if (sr.retry_count >= max_retries_) {
-    AE_TELED_WARNING("Server {} retry budget exhausted on timeout",
+    AETHER_TELED_WARNING("Server {} retry budget exhausted on timeout",
                      sc->server_id());
     sr.exhausted = true;
     EnqueueMakeRequest();

@@ -67,7 +67,7 @@ void BuildNewServers(Aether::ptr const& aether,
       }
     }
 
-    AE_TELED_DEBUG("Make new server id:{}, endpoints:{}", sd.server_id,
+    AETHER_TELED_DEBUG("Make new server id:{}, endpoints:{}", sd.server_id,
                    endpoints);
 
     auto s = Server::ptr::Create(aether.domain(), sd.server_id, endpoints,
@@ -177,7 +177,7 @@ ClientCloudManager::cloud_update_event() {
 }
 
 GetCloudAction& ClientCloudManager::GetCloud(Uid client_uid) {
-  AE_TELED_DEBUG("Ask cloud for uid: {}", client_uid);
+  AETHER_TELED_DEBUG("Ask cloud for uid: {}", client_uid);
 
   auto aether = aether_.Load();
   assert(aether && "Aether did not loaded");
@@ -247,7 +247,7 @@ void ClientCloudManager::Loaded() {
 
 void ClientCloudManager::CloudConfigs(std::vector<CloudConfig> const& configs) {
   for (auto const& conf : configs) {
-    AE_TELED_DEBUG("Got cloud config update subject:{}, ver:{}, cloud:[{}]",
+    AETHER_TELED_DEBUG("Got cloud config update subject:{}, ver:{}, cloud:[{}]",
                    conf.subject_uid, conf.config_version, conf.cloud.sids);
 
     // find this config in cache
@@ -287,7 +287,7 @@ void ClientCloudManager::CloudConfigs(std::vector<CloudConfig> const& configs) {
 void ClientCloudManager::FinalizeCloudConfig(CloudConfig const& conf) {
   auto aether = aether_.Load();
 
-  AE_TELED_DEBUG("Finalize servers for new cloud config [{}]", conf.cloud.sids);
+  AETHER_TELED_DEBUG("Finalize servers for new cloud config [{}]", conf.cloud.sids);
   // make async waiter for building the new cloud
   make_servers_.emplace_back(
       std::make_unique<ex::AnyWaiter<ex::set_value_t(std::vector<Server::ptr>),
@@ -302,7 +302,7 @@ void ClientCloudManager::FinalizeCloudConfig(CloudConfig const& conf) {
               cloud_update_event_->Emit(conf.subject_uid,
                                         Ok<Cloud::ptr const&>{cloud});
             } else {
-              AE_TELED_ERROR("Cloud resolve failed!, Error {}", res->error());
+              AETHER_TELED_ERROR("Cloud resolve failed!, Error {}", res->error());
               // TODO: how to handle such error?
               cloud_update_event_->Emit(conf.subject_uid, Error{res->error()});
             }

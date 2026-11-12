@@ -206,7 +206,7 @@ TransportBuildSender WifiChannel::TransportBuilder() {
   assert(poller && "Poller is not loaded");
   assert(access_point && "Access point is not loaded");
 
-  AE_TELED_DEBUG("Make transport builder for {}", address);
+  AETHER_TELED_DEBUG("Make transport builder for {}", address);
 
   return wifi_channel_internal::MakeTransportBuilder(*aether_, resolver, poller,
                                                      access_point, address);

@@ -42,7 +42,7 @@ void Receiver::Connect() {
             AE_TELED_DEBUG("Received message stream from {}", dest);
             message_stream_ = std::make_shared<P2pStream>(
                 ae_context_, client_.Load(), dest, std::move(handle));
-            message_stream_->out_data_event().Subscribe(
+            on_recv_data_sub_ = message_stream_->out_data_event().Subscribe(
                 MethodPtr<&Receiver::OnRecvData>{this});
           });
 }
@@ -50,10 +50,10 @@ void Receiver::Connect() {
 void Receiver::Disconnect() { message_stream_.reset(); }
 
 Event<void()> const& Receiver::Handshake() {
-  bandwidth_api_.handshake_event.Subscribe([this](RequestId req_id) {
-    AE_TELED_DEBUG("Received handshake request {}", req_id);
-    auto api = ApiCallAdapter{bandwidth_api_, *message_stream_};
-    api->SendResult(req_id, true);
+  handshake_sub_ = bandwidth_api_.handshake_event.Subscribe([this]() {
+    AE_TELED_DEBUG("Received handshake request");
+    auto api = ApiCallAdapter{outgoing_api_, *message_stream_};
+    api->HandshakeResult(true);
     api.Flush();
     handshake_made_event_.Emit();
   });
@@ -63,30 +63,28 @@ Event<void()> const& Receiver::Handshake() {
 
 Event<void(Bandwidth const&)> const& Receiver::TestMessages(
     std::size_t message_count, std::size_t message_size) {
-  test_start_sub_ =
-      bandwidth_api_.start_test_event.Subscribe([this](RequestId req_id) {
-        AE_TELED_DEBUG("Received start test request {}", req_id);
-        auto api = ApiCallAdapter{bandwidth_api_, *message_stream_};
-        api->SendResult(req_id, true);
-        api.Flush();
-      });
+  test_start_sub_ = bandwidth_api_.start_test_event.Subscribe([this]() {
+    AE_TELED_DEBUG("Received start test request");
+    auto api = ApiCallAdapter{outgoing_api_, *message_stream_};
+    api->StartTestResult(true);
+    api.Flush();
+  });
 
   test_stopped_ = false;
-  test_stop_sub_ =
-      bandwidth_api_.stop_test_event.Subscribe([this](RequestId req_id) {
-        AE_TELED_DEBUG("Received stop test request {}", req_id);
-        auto api = ApiCallAdapter{bandwidth_api_, *message_stream_};
-        if (message_receiver_ && !test_stopped_) {
-          message_receiver_->StopTest();
-          test_stopped_ = true;
-        }
-        api->SendResult(req_id, true);
-        api.Flush();
-      });
+  test_stop_sub_ = bandwidth_api_.stop_test_event.Subscribe([this]() {
+    AE_TELED_DEBUG("Received stop test request");
+    auto api = ApiCallAdapter{outgoing_api_, *message_stream_};
+    if (message_receiver_ && !test_stopped_) {
+      message_receiver_->StopTest();
+      test_stopped_ = true;
+    }
+    api->StopTestResult(true);
+    api.Flush();
+  });
 
   message_receiver_ = std::make_unique<MessageReceiver>(ae_context_);
 
-  message_receiver_->result_event().Subscribe(
+  test_result_sub_ = message_receiver_->result_event().Subscribe(
       [this, message_count, message_size](auto const& result) {
         if (result) {
           test_finished_event_.Emit(

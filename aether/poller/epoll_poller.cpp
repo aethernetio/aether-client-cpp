@@ -65,7 +65,7 @@ EpollImpl::EpollImpl()
     : epoll_fd_{InitEpoll()},
       event_fd_{MakeEventFd()},
       thread_(&EpollImpl::Loop, this) {
-  AE_TELE_INFO(kEpollWorkerCreate);
+  AETHER_TELE_INFO(kEpollWorkerCreate);
 
   auto lock = std::scoped_lock{poller_mutex_};
   // add wake up fd to epoll
@@ -76,7 +76,7 @@ EpollImpl::EpollImpl()
 }
 
 EpollImpl::~EpollImpl() {
-  AE_TELED_DEBUG("Destroy EpollImpl event fd {}, thread is joinable {}",
+  AETHER_TELED_DEBUG("Destroy EpollImpl event fd {}, thread is joinable {}",
                  event_fd_, thread_.joinable());
 
   stop_requested_ = true;
@@ -85,7 +85,7 @@ EpollImpl::~EpollImpl() {
     std::uint64_t b{1};
     auto res = write(event_fd_, &b, sizeof(b));
     if (res != sizeof(b)) {
-      AE_TELED_ERROR("Failed to write to event fd {} {}", errno,
+      AETHER_TELED_ERROR("Failed to write to event fd {} {}", errno,
                      strerror(errno));
     }
   }
@@ -100,19 +100,19 @@ EpollImpl::~EpollImpl() {
   if (event_fd_ != -1) {
     close(event_fd_);
   }
-  AE_TELE_INFO(kEpollWorkerDestroyed);
+  AETHER_TELE_INFO(kEpollWorkerDestroyed);
 }
 
 void EpollImpl::lock() { poller_mutex_.lock(); }
 void EpollImpl::unlock() { poller_mutex_.unlock(); }
 
 void EpollImpl::Callback(DescriptorType fd, EventCb cb) {
-  AE_TELE_DEBUG(kEpollAddDescriptor, "Poller callback for fd:{}", fd);
+  AETHER_TELE_DEBUG(kEpollAddDescriptor, "Poller callback for fd:{}", fd);
   event_map_.emplace(fd, EventHandler{.cb = std::move(cb), .events = {}});
 }
 
 void EpollImpl::Event(DescriptorType fd, EventType events) {
-  AE_TELED_DEBUG("Poller event for fd:{} events: {}", fd, events);
+  AETHER_TELED_DEBUG("Poller event for fd:{} events: {}", fd, events);
   auto it = event_map_.find(fd);
   if (it == event_map_.end()) {
     assert(false && "Callback should setup first");
@@ -128,7 +128,7 @@ void EpollImpl::Event(DescriptorType fd, EventType events) {
   int op = (it->second.events == EventType{}) ? EPOLL_CTL_ADD : EPOLL_CTL_MOD;
   auto res = epoll_ctl(epoll_fd_, op, fd, &epoll_event);
   if (res < 0) {
-    AE_TELE_ERROR(kEpollAddFailed, "Failed to add to epoll {} {}", errno,
+    AETHER_TELE_ERROR(kEpollAddFailed, "Failed to add to epoll {} {}", errno,
                   strerror(errno));
     assert(false);
   }
@@ -136,7 +136,7 @@ void EpollImpl::Event(DescriptorType fd, EventType events) {
 }
 
 void EpollImpl::Remove(DescriptorType fd) {
-  AE_TELE_DEBUG(kEpollRemoveDescriptor, "Remove poller event {}", fd);
+  AETHER_TELE_DEBUG(kEpollRemoveDescriptor, "Remove poller event {}", fd);
 
   auto it = event_map_.find(fd);
   if (it == event_map_.end()) {
@@ -150,7 +150,7 @@ void EpollImpl::Remove(DescriptorType fd) {
     auto res = epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, &epoll_event);
     if (res < 0) {
       if (errno != ENOENT) {
-        AE_TELE_ERROR(kEpollRemoveFailed, "Failed to remove from epoll {} {}",
+        AETHER_TELE_ERROR(kEpollRemoveFailed, "Failed to remove from epoll {} {}",
                       errno, strerror(errno));
         assert(false);
       }
@@ -164,7 +164,7 @@ int EpollImpl::MakeEventFd() {
   auto fd = eventfd(0, EFD_CLOEXEC);
   // create pipe to wake up the thread
   if (fd < 0) {
-    AE_TELE_ERROR(kEpollCreateWakeUpFailed,
+    AETHER_TELE_ERROR(kEpollCreateWakeUpFailed,
                   "Failed to create wake up pipe {} {}", errno,
                   strerror(errno));
     assert(false);
@@ -176,7 +176,7 @@ int EpollImpl::MakeEventFd() {
 int EpollImpl::InitEpoll() {
   auto fd = epoll_create1(EPOLL_CLOEXEC);
   if (fd < 0) {
-    AE_TELE_ERROR(kEpollInitFailed, "Failed to create epoll fd {} {}", errno,
+    AETHER_TELE_ERROR(kEpollInitFailed, "Failed to create epoll fd {} {}", errno,
                   strerror(errno));
     assert(false);
   }
@@ -193,7 +193,7 @@ void EpollImpl::Loop() {
       if (errno == EINTR) {
         continue;
       }
-      AE_TELE_ERROR(kEpollWaitFailed, "Failed to epoll_wait {} {}", errno,
+      AETHER_TELE_ERROR(kEpollWaitFailed, "Failed to epoll_wait {} {}", errno,
                     strerror(errno));
       assert(false);
       continue;

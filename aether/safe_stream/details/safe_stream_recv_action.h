@@ -62,7 +62,7 @@ class SafeStreamRecvAction {
   AE_CLASS_NO_COPY_MOVE(SafeStreamRecvAction)
 
   void PushData(std::uint16_t index, DataMessage data_message) {
-    AE_TELED_DEBUG(
+    AETHER_TELED_DEBUG(
         "Data received index: {}, delta: {}, repeat {}, reset {}, size "
         "{}",
         index, data_message.delta_offset,
@@ -72,11 +72,11 @@ class SafeStreamRecvAction {
     // The first packet received, sync with the sender
     bool reset = false;
     if (!chunks_) {
-      AE_TELED_DEBUG("Init receiver");
+      AETHER_TELED_DEBUG("Init receiver");
       reset = true;
       // The sender sent first packet, sync with the sender
     } else if (data_message.reset && (session_offset != index)) {
-      AE_TELED_DEBUG("Reset receiver");
+      AETHER_TELED_DEBUG("Reset receiver");
       reset = true;
     }
     if (reset) {
@@ -99,7 +99,7 @@ class SafeStreamRecvAction {
 
     if (Distance(buffer_.begin(), received_range.right) > window_size_) {
       // Got old package
-      AE_TELED_DEBUG("Got old package");
+      AETHER_TELED_DEBUG("Got old package");
       // We know nothing about the package, either it is repeated or duplicated
       // TODO: do not send ack if the package is duplicated
       EnqueueAck();
@@ -119,21 +119,21 @@ class SafeStreamRecvAction {
     auto add_res = chunks_->AddChunk(received_range, repeat_count);
     switch (add_res) {
       case ChunkAddResult::kDuplicate: {
-        AE_TELED_DEBUG("Received duplicate, ignore!");
+        AETHER_TELED_DEBUG("Received duplicate, ignore!");
         break;
       }
       case ChunkAddResult::kAddRepeated: {
-        AE_TELED_DEBUG("Received repeated chunk, enqueeu ack!");
+        AETHER_TELED_DEBUG("Received repeated chunk, enqueeu ack!");
         EnqueueAck();
         break;
       }
       default: {
         auto buffer_res = buffer_.Insert(received_range.left, data_span);
         if (!buffer_res) {
-          AE_TELED_ERROR("Failed to add chunk: {}", buffer_res.error());
+          AETHER_TELED_ERROR("Failed to add chunk: {}", buffer_res.error());
           // TODO: handle error!
         }
-        AE_TELED_DEBUG("Received packet index: {}, size: {}, repeat_count: {}",
+        AETHER_TELED_DEBUG("Received packet index: {}, size: {}, repeat_count: {}",
                        received_range.left, data_span.size(),
                        static_cast<int>(repeat_count));
         EnqueueRecv();
@@ -193,7 +193,7 @@ class SafeStreamRecvAction {
                 static_cast<DataBuffer::difference_type>(dspan.first.size()));
       }
       last_emitted_ = recv_range.right;
-      AE_TELED_DEBUG(
+      AETHER_TELED_DEBUG(
           "Emitted received data range: {}-{} size: {}, last_emitted_: {}",
           recv_range.left, recv_range.right, data_buffer.size(), last_emitted_);
       delegate_->ReceiveData(data_buffer);
@@ -203,7 +203,7 @@ class SafeStreamRecvAction {
       chunks_->set_buffer_begin(buffer_.begin());
       EnqueueAck();
     } else {
-      AE_TELED_DEBUG("Receiver chunk unsuccess {}", res.error());
+      AETHER_TELED_DEBUG("Receiver chunk unsuccess {}", res.error());
       // TODO: handle errors
       EnqueueMissing();
     }
@@ -211,7 +211,7 @@ class SafeStreamRecvAction {
 
   void HandleAcknowledgement() {
     auto ack_offset = static_cast<std::size_t>(last_emitted_);
-    AE_TELED_DEBUG("Send acknowledgement for offset: {}", ack_offset);
+    AETHER_TELED_DEBUG("Send acknowledgement for offset: {}", ack_offset);
     delegate_->SendAck(static_cast<std::uint16_t>(ack_offset));
   }
 
@@ -220,7 +220,7 @@ class SafeStreamRecvAction {
       return;
     }
     if (auto res = chunks_->FindMissedChunk(); res) {
-      AE_TELED_DEBUG("Send repeat request for offset range {}-{}", res->left,
+      AETHER_TELED_DEBUG("Send repeat request for offset range {}-{}", res->left,
                      res->right);
       auto request_offset = static_cast<std::size_t>(res->left);
       delegate_->SendRepeatRequest(static_cast<std::uint16_t>(request_offset));

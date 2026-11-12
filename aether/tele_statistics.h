@@ -19,12 +19,9 @@
 
 #include <memory>
 
-#include "aether-miscpp/serialization/binary_archive.h"
-
 #include "aether-objects/obj/obj.h"
-#include "aether/aether_tele.h"
 #include "aether/config.h"
-#include "aether/types/packed_size.h"
+#include "aether/tele_statistics_backend.h"
 
 namespace ae {
 class TeleStatistics : public Obj {
@@ -35,65 +32,31 @@ class TeleStatistics : public Obj {
  public:
 #ifdef AE_DISTILLATION
   explicit TeleStatistics(ObjProp prop);
-#endif  // AE_DISTILLATION
+#endif
 
   AE_OBJECT_REFLECT()
 
 #if AE_TELE_ENABLED && AE_TELE_LOG_TO_STATISTICS
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {
-    dnv(base_, *trap_);
+    // The archive serializer stages and validates the entire value. A failed
+    // load leaves the live backend unchanged; Loaded is called only on success.
+    dnv(base_, loaded_archive_);
   }
   template <typename Dnv>
   void Save(CurrentVersion, Dnv& dnv) const {
-    dnv(base_, *trap_);
+    auto snapshot = backend_->Snapshot();
+    dnv(base_, snapshot);
   }
-#endif
 
-#if AE_TELE_ENABLED && AE_TELE_LOG_TO_STATISTICS
-  std::shared_ptr<TeleStatisticsTrap> const& trap();
+  void Loaded();
+  std::shared_ptr<TeleStatisticsBackend> const& backend() const;
 
  private:
-  std::shared_ptr<TeleStatisticsTrap> trap_ =
-      std::make_shared<TeleStatisticsTrap>();
+  TeleStatisticsArchive loaded_archive_;
+  std::shared_ptr<TeleStatisticsBackend> backend_ =
+      std::make_shared<TeleStatisticsBackend>();
 #endif
 };
-
-#if AE_TELE_ENABLED && AE_TELE_LOG_TO_STATISTICS
-namespace seri {
-template <BinaryBuffer B, std::size_t Capacity>
-struct Serializer<BinaryArchive<B>, tele::LogStorage<Capacity>> {
-  SeriResult Seri(BinaryArchive<B>& archive,
-                  Meta<tele::LogStorage<Capacity> const> meta) const {
-    auto size = meta.value.size();
-    TRY_RESULT(archive.buffer().Write(SizeTag{std::as_const(size)}));
-
-    auto s = meta.value.start;
-    while (size > 0) {
-      auto to_write = (Capacity - s) > size ? size : Capacity - s;
-
-      TRY_RESULT(archive.buffer().Write(
-          DataWriteTag{meta.value.buffer.data() + s, to_write}));
-
-      s = (s + to_write) % Capacity;
-      size = size - to_write;
-    }
-    return Ok{seri::good};
-  }
-
-  SeriResult Deseri(BinaryArchive<B>& archive,
-                    Meta<tele::LogStorage<Capacity>> meta) const {
-    std::size_t size;  // NOLINT(*init-variables)
-    TRY_RESULT(archive.buffer().Read(SizeTag{size}));
-    assert(size < Capacity && "Saved buffer bigger than capacity");
-    meta.value.start = 0;
-    meta.value.pos = size;
-
-    return archive.buffer().Read(DataReadTag{meta.value.buffer.data(), size});
-  }
-};
-}  // namespace seri
-#endif
 }  // namespace ae
-
 #endif  // AETHER_TELE_TRAPS_TELE_STATISTICS_H_

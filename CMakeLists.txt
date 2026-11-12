@@ -103,7 +103,8 @@ endif()
 CPMAddPackage(
   NAME libbcrypt
   GIT_REPOSITORY "https://github.com/rg3/libbcrypt.git"
-  GIT_TAG "master"
+  GIT_TAG "8aa32ad94ebe06b76853b0767c910c9fbf7ccef4"
+  GIT_CONFIG "core.autocrlf=false"
   PATCHES "${CMAKE_CURRENT_LIST_DIR}/third_party/libbcrypt.patch"
   OPTIONS "ENABLE_INSTALL ${AE_INSTALL}"
   EXCLUDE_FROM_ALL FALSE
@@ -112,7 +113,8 @@ CPMAddPackage(
 CPMAddPackage(
   NAME libhydrogen
   GIT_REPOSITORY "https://github.com/jedisct1/libhydrogen.git"
-  GIT_TAG "bbca575"
+  GIT_TAG "bbca575b62510bfdc6dd927a4bfa7df4a51cb846"
+  GIT_CONFIG "core.autocrlf=false"
   PATCHES "${CMAKE_CURRENT_LIST_DIR}/third_party/libhydrogen.patch"
   OPTIONS "ENABLE_INSTALL ${AE_INSTALL}"
   EXCLUDE_FROM_ALL FALSE
@@ -120,7 +122,8 @@ CPMAddPackage(
 CPMAddPackage(
   NAME libsodium
   GIT_REPOSITORY "https://github.com/jedisct1/libsodium.git"
-  GIT_TAG "master"
+  GIT_TAG "fe84810bbd4c01c65e1503e97c5adf3e375555f0"
+  GIT_CONFIG "core.autocrlf=false"
   PATCHES "${CMAKE_CURRENT_LIST_DIR}/third_party/libsodium.patch" "${CMAKE_CURRENT_LIST_DIR}/third_party/libsodium_cmake.patch"
   OPTIONS "ENABLE_INSTALL ${AE_INSTALL}"
   EXCLUDE_FROM_ALL FALSE
@@ -128,43 +131,57 @@ CPMAddPackage(
 CPMAddPackage(
   NAME gcem
   GIT_REPOSITORY "https://github.com/aethernetio/gcem.git"
-  GIT_TAG "master"
+  GIT_TAG "f182c6f3d6e0742eb9eef4fff506a3928d4c5107"
   EXCLUDE_FROM_ALL FALSE
 )
+# Predeclare the test framework before dependencies request its moving branch.
+if(AE_BUILD_TESTS)
+  CPMAddPackage(
+    NAME Unity
+    GIT_REPOSITORY "https://github.com/ThrowTheSwitch/Unity.git"
+    GIT_TAG "54f864cf6027a50f4cc5424616e9e01e1bb729da"
+    EXCLUDE_FROM_ALL FALSE
+  )
+  # Dependencies use double assertions; build Unity and its users consistently.
+  target_compile_definitions(unity PUBLIC UNITY_INCLUDE_DOUBLE)
+endif()
+
 CPMAddPackage(
   NAME ae-numeric
   GIT_REPOSITORY "https://github.com/aethernetio/aethernet-numeric.git"
-  GIT_TAG "main"
+  GIT_TAG "9d79bd79188420533bab07c437d617aedfaf6b1a"
   OPTIONS "AE_NUMERIC_INSTALL ${AE_INSTALL}" "AE_BUILD_TESTS OFF"
   EXCLUDE_FROM_ALL FALSE
 )
 CPMAddPackage(
   NAME aether-miscpp
   GIT_REPOSITORY "https://github.com/aethernetio/aether-miscpp.git"
-  GIT_TAG "main"
+  GIT_TAG "6839624442621a5b060ae610e91f480278ebaf6e"
   OPTIONS "AE_INSTALL ${AE_INSTALL}" "AE_BUILD_TESTS ${AE_BUILD_TESTS}"
   EXCLUDE_FROM_ALL FALSE
 )
 CPMAddPackage(
   NAME aether-tele
   GIT_REPOSITORY "https://github.com/aethernetio/aether-tele.git"
-  GIT_TAG "main"
+  GIT_TAG "a496a19599d01a5525dd115933cf01202bb018e0"
   OPTIONS "AE_TELE_INSTALL ${AE_INSTALL}"
           "AE_TELE_BUILD_TESTS ${AE_BUILD_TESTS}"
   EXCLUDE_FROM_ALL FALSE
 )
+set(AE_OBJECTS_RAW_TELE ON CACHE BOOL "Route object system telemetry to its independent raw space")
 CPMAddPackage(
   NAME aether-objects
   GIT_REPOSITORY "https://github.com/aethernetio/aether-objects.git"
-  GIT_TAG "main"
-  OPTIONS "AE_TELE_INSTALL ${AE_INSTALL}"
-          "AE_TELE_BUILD_TESTS ${AE_BUILD_TESTS}"
+  GIT_TAG "94c97c694cb51c7d9bf854793875afcb71ac7cb8"
+  OPTIONS "AE_INSTALL ${AE_INSTALL}"
+          "AE_BUILD_TESTS ${AE_BUILD_TESTS}"
   EXCLUDE_FROM_ALL FALSE
 )
 CPMAddPackage(
   NAME etl
   GIT_REPOSITORY "https://github.com/ETLCPP/etl.git"
   GIT_TAG "20.44.2"
+  GIT_CONFIG "core.autocrlf=false"
   OPTIONS "GIT_DIR_LOOKUP_POLICY ALLOW_LOOKING_ABOVE_CMAKE_SOURCE_DIR" "ENABLE_INSTALL ${AE_INSTALL}"
   PATCHES "${CMAKE_CURRENT_LIST_DIR}/third_party/etl.patch"
   EXCLUDE_FROM_ALL FALSE
@@ -172,7 +189,7 @@ CPMAddPackage(
 CPMAddPackage(
   NAME stdexec
   GIT_REPOSITORY "https://github.com/aethernetio/stdexec.git"
-  GIT_TAG "main"
+  GIT_TAG "4e0624d53ceec916c7c16a3ef456588b61c4ab77"
   OPTIONS "STDEXEC_BUILD_EXAMPLES OFF" "STDEXEC_INSTALL ${AE_INSTALL}"
   EXCLUDE_FROM_ALL FALSE
 )
@@ -198,6 +215,31 @@ target_link_libraries(${TARGET_NAME} PUBLIC
                                       aether::miscpp
                                       aether::objects)
 
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+file(GLOB_RECURSE ae_tele_catalog_inputs CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/aether/*.h" "${CMAKE_CURRENT_SOURCE_DIR}/aether/*.hpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/aether/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/aether/*.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.h" "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.hpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/examples/*.h" "${CMAKE_CURRENT_SOURCE_DIR}/examples/*.hpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/examples/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/examples/*.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/tools/*.h" "${CMAKE_CURRENT_SOURCE_DIR}/tools/*.hpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/tools/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/tools/*.cc")
+set(ae_tele_catalog_header "${CMAKE_CURRENT_BINARY_DIR}/generated/aether_tele_catalog.h")
+add_custom_command(OUTPUT "${ae_tele_catalog_header}"
+  "${CMAKE_CURRENT_BINARY_DIR}/generated/aether.tele.sites.json"
+  COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_tele_catalog.py"
+    --root "${CMAKE_CURRENT_SOURCE_DIR}" --header "${ae_tele_catalog_header}"
+    --map "${CMAKE_CURRENT_BINARY_DIR}/generated/aether.tele.sites.json"
+  DEPENDS ${ae_tele_catalog_inputs} "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_tele_catalog.py"
+  VERBATIM)
+add_custom_target(aether-tele-catalog
+  DEPENDS "${ae_tele_catalog_header}"
+          "${CMAKE_CURRENT_BINARY_DIR}/generated/aether.tele.sites.json")
+target_sources(${TARGET_NAME} PRIVATE "${ae_tele_catalog_header}")
+target_include_directories(${TARGET_NAME} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
+target_compile_definitions(${TARGET_NAME} PUBLIC "$<$<CONFIG:Debug>:AE_TELE_RAW_DEBUG=1>")
+
 message(STATUS "Aether build for CMAKE_SYSTEM_NAME: ${CMAKE_SYSTEM_NAME}")
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux"
   OR CMAKE_SYSTEM_NAME STREQUAL "Darwin"
@@ -208,7 +250,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux"
   CPMAddPackage(
     NAME c-ares
     GIT_REPOSITORY "https://github.com/c-ares/c-ares.git"
-    GIT_TAG "main"
+    GIT_TAG "46266f4ae2d309ce52009d85fc6198b5f0db6225"
     OPTIONS "CARES_BUILD_TOOLS OFF"
             "CARES_STATIC ON"
             "CARES_SHARED OFF"
@@ -324,6 +366,13 @@ target_compile_options(${TARGET_NAME} PRIVATE
       >
 )
 
+# Raw telemetry catches callback/allocation failures; backend adoption uses RTTI.
+# Public headers require the same language runtime settings in consumers.
+target_compile_options(${TARGET_NAME} PUBLIC
+  $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/EHsc;/GR>
+  $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,AppleClang>:-fexceptions;-frtti>
+)
+
 target_compile_options(${TARGET_NAME} PUBLIC
   $<$<CXX_COMPILER_ID:MSVC>:
       /wd4100 /wd4101 /wd4127 /wd4244 /wd4324
@@ -334,6 +383,10 @@ target_compile_options(${TARGET_NAME} PUBLIC
 if(AE_BUILD_TOOLS)
   message(STATUS "Aether builds tools!")
   add_subdirectory(tools/registrator)
+endif()
+
+if(AE_BUILD_TESTS)
+  enable_testing()
 endif()
 
 if(AE_BUILD_EXAMPLES)

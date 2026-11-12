@@ -22,9 +22,9 @@
 #  include <utility>
 
 #  include "aether-miscpp/misc/override.h"
+#  include "aether-objects/ptr/ptr.h"
 #  include "aether/aether.h"
 #  include "aether/api_protocol/api_protocol.h"
-
 
 #  include "aether/crypto.h"
 #  include "aether/crypto/crypto_definitions.h"
@@ -60,7 +60,7 @@ Registration::Registration(AeContext const& ae_context,
       sign_pk_{Crypto::ptr{ae_context_.aether().crypto}
                    ->signs_pk_[kDefaultSignatureMethod]},
       registration_event_{ae_context_} {
-  AE_TELE_INFO(RegisterStarted);
+  AETHER_TELE_INFO(RegisterStarted);
 
   // parent uid must not be empty
   assert(!parent_uid_.empty());
@@ -71,13 +71,13 @@ Registration::Registration(AeContext const& ae_context,
   server_pub_key_sub_ = client_root_api_.server_pub_key_event.Subscribe(
       [this](SignedKey const& signed_key) {
         if (!CryptoSignVerify(signed_key.sign, signed_key.key, sign_pk_)) {
-          AE_TELE_ERROR(RegisterGetKeysVerificationFailed,
+          AETHER_TELE_ERROR(RegisterGetKeysVerificationFailed,
                         "Sign verification failed");
           return;
         }
         server_pub_key_ = signed_key.key;
         root_crypto_provider_.SetEncryptionKey(server_pub_key_);
-        AE_TELED_INFO("Key received");
+        AETHER_TELED_INFO("Key received");
         RequestPowParams();
       });
 
@@ -85,7 +85,7 @@ Registration::Registration(AeContext const& ae_context,
       [this](PowParams const& params) {
         if (!CryptoSignVerify(params.global_key.sign, params.global_key.key,
                               sign_pk_)) {
-          AE_TELE_ERROR(RegisterGetKeysVerificationFailed,
+          AETHER_TELE_ERROR(RegisterGetKeysVerificationFailed,
                         "Global key sign verification failed");
           return;
         }
@@ -115,23 +115,23 @@ Registration::Registration(AeContext const& ae_context,
   GetKeys();
 }
 
-Registration::~Registration() { AE_TELED_DEBUG("~Registration"); }
+Registration::~Registration() { AETHER_TELED_DEBUG("~Registration"); }
 
 Registration::RegistrationEvent const& Registration::registration() {
   return registration_event_;
 }
 
 void Registration::InitConnection() {
-  AE_TELED_DEBUG("Registration::InitConnection");
+  AETHER_TELED_DEBUG("Registration::InitConnection");
 
   root_server_select_stream_.server_changed_event().Subscribe([]() {
     // Reinit connection and start registration from the beginning
     // TODO: make async_waiter_ stop and start get keys again
-    AE_TELED_ERROR("Server changed");
+    AETHER_TELED_ERROR("Server changed");
   });
 
   root_server_select_stream_.cloud_error_event().Subscribe([]() {
-    AE_TELED_ERROR("Link Error, Registration failed");
+    AETHER_TELED_ERROR("Link Error, Registration failed");
     // TODO: make async_waiter_ stop with error
   });
 
@@ -148,7 +148,7 @@ void Registration::Restream() { root_server_select_stream_.Restream(); }
 
 
 void Registration::GetKeys() {
-  AE_TELE_INFO(RegisterGetKeys, "GetKeys");
+  AETHER_TELE_INFO(RegisterGetKeys, "GetKeys");
   auto api_context =
       ApiContext<RegistrationRootApi>{server_reg_root_api_, protocol_context_};
   api_context->GetPublicKey(kDefaultCryptoLibProfile);
@@ -160,7 +160,7 @@ void Registration::GetKeys() {
 
 
 void Registration::RequestPowParams() {
-  AE_TELE_INFO(RegisterRequestPowParams, "Request proof of work params");
+  AETHER_TELE_INFO(RegisterRequestPowParams, "Request proof of work params");
   auto api_context =
       ApiContext<RegistrationRootApi>{server_reg_root_api_, protocol_context_};
   api_context->Enter(
@@ -177,38 +177,33 @@ void Registration::RequestPowParams() {
 
 
 void Registration::MakeRegistration() {
-  AE_TELE_INFO(RegisterMakeRegistration, "Make registration");
+  AETHER_TELE_INFO(RegisterMakeRegistration, "Make registration");
 
   auto proofs = ProofOfWork::ComputeProofOfWork(
       pow_params_.pool_size, pow_params_.salt, pow_params_.password_suffix,
       pow_params_.max_hash_value);
 
-  AE_TELE_DEBUG(RegisterKeysGenerated, "Global Pk: {}:{}, Masterkey: {}:{}",
-                aether_global_key_.Index(), aether_global_key_, master_key_.Index(),
-                master_key_);
+  AETHER_TELE_DEBUG(RegisterKeysGenerated, "Global Pk: {}:{}, Masterkey: {}:{}",
+                    aether_global_key_.Index(), aether_global_key_,
+                    master_key_.Index(), master_key_);
 
   auto api_context =
       ApiContext<RegistrationRootApi>{server_reg_root_api_, protocol_context_};
   api_context->Enter(
       kDefaultCryptoLibProfile,
 
-      SubApi{[this, proofs = std::move(proofs)](
+      SubApi{[this, proofs = MakePtr<decltype(proofs)>(std::move(proofs))](
                  ApiContext<ServerRegistrationApi>& server_api) mutable {
-        server_api->RegistrationDirect(pow_params_.salt,
-                                       pow_params_.password_suffix,
-                                       std::move(proofs), parent_uid_,
-                                       master_key_);
+        server_api->RegistrationDirect(
+            pow_params_.salt, pow_params_.password_suffix, std::move(*proofs),
+            parent_uid_, master_key_);
       }});
 
   root_server_select_stream_.Write(DataBuffer{std::move(api_context)});
 }
 
-
-
-
-
 void Registration::ResolveCloud() {
-  AE_TELE_INFO(RegisterResolveCloud, "Resolve cloud as [{}]", client_cloud_);
+  AETHER_TELE_INFO(RegisterResolveCloud, "Resolve cloud as [{}]", client_cloud_);
   auto api_context =
       ApiContext<RegistrationRootApi>{server_reg_root_api_, protocol_context_};
   api_context->Enter(kDefaultCryptoLibProfile,
@@ -222,7 +217,7 @@ void Registration::ResolveCloud() {
 
 ClientConfig Registration::OnCloudResolved(
     std::vector<ServerDescriptor> const& servers) {
-  AE_TELE_INFO(RegisterResolveCloudResponse);
+  AETHER_TELE_INFO(RegisterResolveCloudResponse);
 
   ClientConfig client_config{
       .parent_uid = parent_uid_,
@@ -242,7 +237,7 @@ ClientConfig Registration::OnCloudResolved(
         endpoints.emplace_back(Endpoint{{ip.ip, pp.port}, pp.protocol});
       }
     }
-    AE_TELED_DEBUG("Got server {} with endpoints {}", description.server_id,
+    AETHER_TELED_DEBUG("Got server {} with endpoints {}", description.server_id,
                    endpoints);
     client_config.cloud.emplace_back(
         ServerConfig{description.server_id, std::move(endpoints)});
@@ -258,7 +253,7 @@ ClientConfig Registration::OnCloudResolved(
               return left_order < right_order;
             });
 
-  AE_TELE_DEBUG(RegisterClientRegistered,
+  AETHER_TELE_DEBUG(RegisterClientRegistered,
                 "Client registered:\n>>>>>>>>>>>>>>>\n{}\n<<<<<<<<<<<<<<<",
                 client_config);
 

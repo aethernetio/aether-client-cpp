@@ -48,7 +48,7 @@ class DxSmartLr02TcpOpenNetwork final
         action_context_{action_context},
         host_{std::move(host)},
         port_{port} {
-    AE_TELED_DEBUG("Open tcp connection for {}:{}", host_, port_);
+    AETHER_TELED_DEBUG("Open tcp connection for {}:{}", host_, port_);
   }
 
   UpdateStatus Update() const {
@@ -88,7 +88,7 @@ class DxSmartLr02UdpOpenNetwork final
         action_context_{action_context},
         host_{std::move(host)},
         port_{port} {
-    AE_TELED_DEBUG("Open UDP connection for {}:{}", host_, port_);
+    AETHER_TELED_DEBUG("Open UDP connection for {}:{}", host_, port_);
   }
 
   UpdateStatus Update() const {
@@ -228,7 +228,7 @@ DxSmartLr02LoraModule::CloseNetwork(ae::ConnectionLoraIndex /*connect_index*/) {
 // void DxSmartLr02LoraModule::CloseNetwork(
 //    ae::ConnectionLoraIndex connect_index) {
 //  if (connect_index >= connect_vec_.size()) {
-//    AE_TELED_ERROR("Connection index overflow");
+//    AETHER_TELED_ERROR("Connection index overflow");
 //    return;
 //  }
 //
@@ -477,8 +477,8 @@ void DxSmartLr02LoraModule::Init() {
         }));
 
     init_pipeline->StatusEvent().Subscribe(ActionHandler{
-        OnResult{[]() { AE_TELED_INFO("DxSmartLr02LoraModule init success"); }},
-        OnError{[]() { AE_TELED_ERROR("DxSmartLr02LoraModule init failed"); }},
+        OnResult{[]() { AETHER_TELED_INFO("DxSmartLr02LoraModule init success"); }},
+        OnError{[]() { AETHER_TELED_ERROR("DxSmartLr02LoraModule init failed"); }},
     });
 
     return init_pipeline;
@@ -575,7 +575,7 @@ void DxSmartLr02LoraModule::PollEvent(std::int32_t handle,
   // get connection index
   auto it = connections_.find(static_cast<ConnectionLoraIndex>(handle));
   if (it == std::end(connections_)) {
-    AE_TELED_ERROR("Poll unknown handle {}", handle);
+    AETHER_TELED_ERROR("Poll unknown handle {}", handle);
     return;
   }
 

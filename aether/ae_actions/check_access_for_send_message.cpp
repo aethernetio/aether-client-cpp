@@ -46,13 +46,13 @@ auto CheckAccessForSendMessage::result_event() const noexcept
 }
 
 void CheckAccessForSendMessage::ResponseReceived() {
-  AE_TELED_DEBUG("CheckAccessForSendMessage received response - success");
+  AETHER_TELED_DEBUG("CheckAccessForSendMessage received response - success");
   result_event_.Emit(Ok{Success{}});
   Finish();
 }
 
 void CheckAccessForSendMessage::ErrorReceived() {
-  AE_TELED_DEBUG("CheckAccessForSendMessage received error");
+  AETHER_TELED_DEBUG("CheckAccessForSendMessage received error");
   result_event_.Emit(Error{1});
   Finish();
 }

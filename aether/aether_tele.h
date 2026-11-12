@@ -19,7 +19,9 @@
 
 #include <cstdint>
 
+#include "aether-tele/defines.h"
 #include "aether-tele/levels.h"
+#include "aether-tele/raw/sink.h"
 #include "aether-tele/sink.h"
 #include "aether-tele/tags.h"
 #include "aether-tele/traps/statistics_trap.h"
@@ -90,7 +92,17 @@ consteval bool LevelModuleConfig() {
 }
 }  // namespace aether_tele_internal
 
+std::shared_ptr<tele::raw::IBackend> MakeAetherTelemetryBackend();
+struct AetherTeleIdentity {
+  static constexpr std::string_view kName = "aether";
+  static std::string_view CatalogId();
+  static std::uint32_t ResolveIndex(std::string_view file, std::uint32_t line,
+                                    tele::Tag const& tag);
+};
 struct AetherTeleConfig {
+  static std::shared_ptr<tele::raw::IBackend> MakeBackend() {
+    return MakeAetherTelemetryBackend();
+  }
   static constexpr bool kGlobalTeleEnabled = AE_TELE_ENABLED;
 
   template <tele::Level::underlined_t L, std::uint32_t M>
@@ -131,11 +143,38 @@ struct AetherTeleConfig {
   };
 };
 
+using AetherTeleSink =
+    tele::RawTeleSink<AetherTeleIdentity, AetherTeleConfig, 4096, 1024>;
+// Concurrent checkpoint of all writers before object persistence and upload.
+bool DrainAetherTelemetry();
+
 static constexpr auto kStatisticsMaxSize =
     static_cast<std::size_t>(AE_STATISTICS_MAX_SIZE);
 using TeleStatisticsTrap = ae::tele::StatisticsTrap<kStatisticsMaxSize>;
 
 }  // namespace ae
+
+// Fixed namespace wrappers keep public inline Aether code independent of the
+// application's TELE_SINK selection. Direct expansion preserves scope lifetime,
+// source location and caller __func__ in formatting arguments.
+#define AETHER_TELE_DEBUG(TAG, ...) \
+  AE_TELE_DEBUG_TO(::ae::AetherTeleSink, TAG, __VA_ARGS__)
+#define AETHER_TELE_INFO(TAG, ...) \
+  AE_TELE_INFO_TO(::ae::AetherTeleSink, TAG, __VA_ARGS__)
+#define AETHER_TELE_WARNING(TAG, ...) \
+  AE_TELE_WARNING_TO(::ae::AetherTeleSink, TAG, __VA_ARGS__)
+#define AETHER_TELE_ERROR(TAG, ...) \
+  AE_TELE_ERROR_TO(::ae::AetherTeleSink, TAG, __VA_ARGS__)
+#define AETHER_TELED_DEBUG(...) \
+  AE_TELE_DEBUG_TO(::ae::AetherTeleSink, ::kLog, __VA_ARGS__)
+#define AETHER_TELED_INFO(...) \
+  AE_TELE_INFO_TO(::ae::AetherTeleSink, ::kLog, __VA_ARGS__)
+#define AETHER_TELED_WARNING(...) \
+  AE_TELE_WARNING_TO(::ae::AetherTeleSink, ::kLog, __VA_ARGS__)
+#define AETHER_TELED_ERROR(...) \
+  AE_TELE_ERROR_TO(::ae::AetherTeleSink, ::kLog, __VA_ARGS__)
+#define AETHER_TELE_ENV(...) \
+  AE_TELE_ENV_TO(::ae::AetherTeleSink, __VA_ARGS__)
 
 // Main module for aether and tags
 AE_TELE_MODULE(kAether, 2, 3, 5);

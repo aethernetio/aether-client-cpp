@@ -70,7 +70,7 @@ std::optional<std::size_t> WinSocket::Send(Span<std::uint8_t> data) {
         return 0;
       }
       // Get real error
-      AE_TELED_ERROR("Socket send error {}", error_code);
+      AETHER_TELED_ERROR("Socket send error {}", error_code);
       return std::nullopt;
     }
     is_send_pending_ = true;
@@ -85,7 +85,7 @@ std::optional<std::size_t> WinSocket::Send(Span<std::uint8_t> data) {
         return 0;
       }
       // Get real error
-      AE_TELED_ERROR("Send WSAGetOverlappedResult get error {}", error_code);
+      AETHER_TELED_ERROR("Send WSAGetOverlappedResult get error {}", error_code);
       return std::nullopt;
     }
     is_send_pending_ = false;
@@ -167,7 +167,7 @@ bool WinSocket::RequestRecv() {
       is_recv_pending_ = true;
       return true;
     }
-    AE_TELED_ERROR("Socket receive error {}", err_code);
+    AETHER_TELED_ERROR("Socket receive error {}", err_code);
     return false;
   }
   // WSARecv returned 0: completion is available through the overlapped result
@@ -195,7 +195,7 @@ std::optional<std::size_t> WinSocket::HandleRecv() {
     if (error_code == WSA_IO_INCOMPLETE) {
       return 0;
     }
-    AE_TELED_ERROR("Receive WSAGetOverlappedResult socket {} get error {}",
+    AETHER_TELED_ERROR("Receive WSAGetOverlappedResult socket {} get error {}",
                    socket_, WSAGetLastError());
     return std::nullopt;
   }

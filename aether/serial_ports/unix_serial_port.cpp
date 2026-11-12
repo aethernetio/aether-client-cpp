@@ -47,12 +47,12 @@ UnixSerialPort::~UnixSerialPort() {
 void UnixSerialPort::Write(std::span<std::uint8_t const> data) {
   auto bytes_written = write(*poller_fd_.fd(), data.data(), data.size());
   if (bytes_written < 0) {
-    AE_TELE_ERROR(kAdapterSerialWriteFailed, "Write serial port error {}",
+    AETHER_TELE_ERROR(kAdapterSerialWriteFailed, "Write serial port error {}",
                   strerror(errno));
   }
 
   if (bytes_written != data.size()) {
-    AE_TELE_ERROR(kAdapterSerialPartialData, "Partial write occurred");
+    AETHER_TELE_ERROR(kAdapterSerialPartialData, "Partial write occurred");
     return;
   }
 }
@@ -67,7 +67,7 @@ int UnixSerialPort::OpenPort(SerialInit const& serial_init) {
   /* open the port */
   int fd = open(serial_init.port_name.c_str(), O_RDWR | O_NOCTTY | O_NDELAY);
   if (fd < 0) {
-    AE_TELED_ERROR("Open serial port at {} error {}", serial_init.port_name,
+    AETHER_TELED_ERROR("Open serial port at {} error {}", serial_init.port_name,
                    strerror(errno));
     return kInvalidDescriptor;
   }
@@ -85,7 +85,7 @@ bool UnixSerialPort::SetOptions(int fd, SerialInit const& serial_init) {
   fcntl(fd, F_SETFL, 0);
   /* get the current options */
   if (tcgetattr(fd, &options) < 0) {
-    AE_TELE_ERROR(kAdapterSerialPortState, "Get serial port options error {}",
+    AETHER_TELE_ERROR(kAdapterSerialPortState, "Get serial port options error {}",
                   strerror(errno));
     return false;
   }
@@ -104,7 +104,7 @@ bool UnixSerialPort::SetOptions(int fd, SerialInit const& serial_init) {
   cfsetospeed(&options, baud);
 
   if (tcsetattr(fd, TCSANOW, &options) < 0) {
-    AE_TELE_ERROR(kAdapterSerialConfigurePort,
+    AETHER_TELE_ERROR(kAdapterSerialConfigurePort,
                   "Set serial port options error {}", strerror(errno));
     return false;
   }
@@ -127,7 +127,7 @@ void UnixSerialPort::ReadData(DescriptorType fd) {
   static std::uint8_t buffer[1024];  // NOLINT(*avoid-c-arrays, *magic-numbers)
   ssize_t bytes_read = read(fd, buffer, sizeof(buffer));
   if (bytes_read < 0) {
-    AE_TELED_ERROR("Read serial port error {}", strerror(errno));
+    AETHER_TELED_ERROR("Read serial port error {}", strerror(errno));
     return;
   }
   DataBuffer data(static_cast<std::size_t>(bytes_read));

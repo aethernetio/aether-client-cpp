@@ -17,39 +17,45 @@
 #include "send_messages_bandwidth/common/bandwidth_api.h"
 
 namespace ae::bench {
-ApiPromise<bool> BandwidthApi::Handshake() {
-  return ClientMethod<&BandwidthApi::Handshake>();
-}
-ApiPromise<bool> BandwidthApi::StartTest() {
-  return ClientMethod<&BandwidthApi::StartTest>();
-}
-ApiPromise<bool> BandwidthApi::StopTest() {
-  return ClientMethod<&BandwidthApi::StopTest>();
-}
+void BandwidthApi::Handshake() { ClientMethod<&BandwidthApi::Handshake>(); }
+void BandwidthApi::StartTest() { ClientMethod<&BandwidthApi::StartTest>(); }
+void BandwidthApi::StopTest() { ClientMethod<&BandwidthApi::StopTest>(); }
 void BandwidthApi::Message(std::uint16_t id, PayloadData const& data) {
   ClientMethod<&BandwidthApi::Message>(id, data);
+}
+void BandwidthApi::HandshakeResult(bool accepted) {
+  ClientMethod<&BandwidthApi::HandshakeResult>(accepted);
+}
+void BandwidthApi::StartTestResult(bool accepted) {
+  ClientMethod<&BandwidthApi::StartTestResult>(accepted);
+}
+void BandwidthApi::StopTestResult(bool accepted) {
+  ClientMethod<&BandwidthApi::StopTestResult>(accepted);
 }
 
 BandwidthApiServer::BandwidthApiServer(EventSystem& es)
     : handshake_event{es},
       start_test_event{es},
       stop_test_event{es},
-      message_event{es} {}
+      message_event{es},
+      handshake_result_event{es},
+      start_test_result_event{es},
+      stop_test_result_event{es} {}
 
-ApiPromise<bool> BandwidthApiServer::Handshake() {
-  handshake_event.Emit(server_context().request_id());
-  return {};
-}
-ApiPromise<bool> BandwidthApiServer::StartTest() {
-  start_test_event.Emit(server_context().request_id());
-  return {};
-}
-ApiPromise<bool> BandwidthApiServer::StopTest() {
-  stop_test_event.Emit(server_context().request_id());
-  return {};
-}
+void BandwidthApiServer::Handshake() { handshake_event.Emit(); }
+void BandwidthApiServer::StartTest() { start_test_event.Emit(); }
+void BandwidthApiServer::StopTest() { stop_test_event.Emit(); }
 void BandwidthApiServer::Message(std::uint16_t id, PayloadData const& data) {
   message_event.Emit(id, data);
+}
+void BandwidthApiServer::HandshakeResult(bool accepted) {
+  handshake_result_event.Emit(accepted);
+}
+void BandwidthApiServer::StartTestResult(bool accepted) {
+  start_test_result_event.Emit(accepted);
+}
+void BandwidthApiServer::StopTestResult(bool accepted) {
+  stop_test_result_event.Emit(accepted);
 }
 
 }  // namespace ae::bench

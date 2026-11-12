@@ -63,7 +63,7 @@ class SendAction final : public PacketSendAction {
     auto size_to_send = data_.size() - sent_offset_;
     auto res = socket_->Send(Span{data_.data() + sent_offset_, size_to_send});
     if (!res) {
-      AE_TELED_ERROR("Data has not been written");
+      AETHER_TELED_ERROR("Data has not been written");
       SetStatus(WriteAction::Status::kFail);
       return;
     }
@@ -71,7 +71,7 @@ class SendAction final : public PacketSendAction {
       return;
     }
 
-    AE_TELED_DEBUG("Data has been written size {} data {}", *res, data_);
+    AETHER_TELED_DEBUG("Data has been written size {}", *res);
     sent_offset_ += *res;
 
     if (sent_offset_ >= data_.size()) {
@@ -151,8 +151,8 @@ class TcpTransport final : public tcp_internal::TcpBase {
         socket_{poller},
         queue_manager_{ae_context_}  // read_action_{action_context_, *this}
   {
-    AE_TELE_INFO(kTcpTransport);
-    AE_TELE_INFO(kTcpTransportConnect, "Tcp connect to endpoint {}", endpoint_);
+    AETHER_TELE_INFO(kTcpTransport);
+    AETHER_TELE_INFO(kTcpTransportConnect, "Tcp connect to endpoint {}", endpoint_);
 
     // Make connection
     socket_.RecvData(MethodPtr<&TcpTransport::OnRecvData>{this})
@@ -163,14 +163,14 @@ class TcpTransport final : public tcp_internal::TcpBase {
 
   ~TcpTransport() override {
     stream_info_.link_state = LinkState::kUnlinked;
-    AE_TELED_ERROR("Remove tcp transport!");
+    AETHER_TELED_ERROR("Remove tcp transport!");
     Disconnect();
   }
 
   WriteAction& Write(DataBuffer&& in_data) override {
     assert(in_data.size() != 0);
 
-    AE_TELE_DEBUG(kTcpTransportSend, "Socket {} send data size {}", endpoint_,
+    AETHER_TELE_DEBUG(kTcpTransportSend, "Socket {} send data size {}", endpoint_,
                   in_data.size());
 
     auto packet_data = std::vector<std::uint8_t>{};
@@ -182,14 +182,14 @@ class TcpTransport final : public tcp_internal::TcpBase {
     auto* send_action =
         queue_manager_.AddPacket(ae_context_, socket_, std::move(packet_data));
     if (send_action == nullptr) {
-      AE_TELED_ERROR("Queue manager is full");
+      AETHER_TELED_ERROR("Queue manager is full");
       return FailedWrite();
     }
 
     send_action_subs_ +=
         send_action->status_event().Subscribe([this](auto status) {
           if (status == WriteAction::Status::kFail) {
-            AE_TELED_ERROR("Send error, disconnect!");
+            AETHER_TELED_ERROR("Send error, disconnect!");
             stream_info_.link_state = LinkState::kLinkError;
             Disconnect();
           }
@@ -199,7 +199,7 @@ class TcpTransport final : public tcp_internal::TcpBase {
 
  protected:
   void Disconnect() override {
-    AE_TELE_INFO(kTcpTransportDisconnect, "Disconnect from {}", endpoint_);
+    AETHER_TELE_INFO(kTcpTransportDisconnect, "Disconnect from {}", endpoint_);
     stream_info_.is_writable = false;
     socket_.Disconnect();
     stream_update_event_.Emit();

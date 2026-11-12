@@ -62,7 +62,7 @@ std::optional<std::size_t> LwipCBUdpSocket::Send(Span<std::uint8_t> data) {
 
   p = pbuf_alloc(PBUF_TRANSPORT, static_cast<u16_t>(data.size()), PBUF_RAM);
   if (!p) {
-    AE_TELED_ERROR("Failed to allocate pbuf");
+    AETHER_TELED_ERROR("Failed to allocate pbuf");
     OnError();
     return std::nullopt;
   }
@@ -77,12 +77,12 @@ std::optional<std::size_t> LwipCBUdpSocket::Send(Span<std::uint8_t> data) {
       // internal buffer is full
       return 0;
     }
-    AE_TELED_ERROR("Send failed: {}", static_cast<int>(err));
+    AETHER_TELED_ERROR("Send failed: {}", static_cast<int>(err));
     OnError();
     return std::nullopt;
   }
 
-  AE_TELED_DEBUG("Sent {} bytes", data.size());
+  AETHER_TELED_DEBUG("Sent {} bytes", data.size());
 
   return data.size();
 }
@@ -110,7 +110,7 @@ ISocket& LwipCBUdpSocket::Connect(AddressPort const& destination,
 
   pcb_ = udp_new();
   if (pcb_ == nullptr) {
-    AE_TELED_ERROR("Make UDP socket error");
+    AETHER_TELED_ERROR("Make UDP socket error");
     connection_state = ConnectionState::kConnectionFailed;
     return *this;
   }
@@ -124,7 +124,7 @@ ISocket& LwipCBUdpSocket::Connect(AddressPort const& destination,
 
   auto lwip_adr = LwipGetAddr(destination);
   if (!lwip_adr) {
-    AE_TELED_ERROR("Invalid address");
+    AETHER_TELED_ERROR("Invalid address");
     connection_state = ConnectionState::kConnectionFailed;
     return *this;
   }
@@ -137,7 +137,7 @@ ISocket& LwipCBUdpSocket::Connect(AddressPort const& destination,
 
   err = udp_connect(pcb_, &server_ipaddr_, server_port_);
   if (err != ERR_OK) {
-    AE_TELED_ERROR("Not connected: {} {}", static_cast<int>(err),
+    AETHER_TELED_ERROR("Not connected: {} {}", static_cast<int>(err),
                    strerror(err_to_errno(err)));
     connection_state = ConnectionState::kConnectionFailed;
     return *this;
@@ -161,14 +161,14 @@ void LwipCBUdpSocket::UdpClientRecv(void* arg, struct udp_pcb* upcb,
   };
 
   if (p == nullptr) {
-    AE_TELED_DEBUG("P is nullptr");
+    AETHER_TELED_DEBUG("P is nullptr");
     return;
   }
 
   // Our server address?
   if (!ip_addr_cmp(&self->server_ipaddr_, addr) ||
       (self->server_port_ != port)) {
-    AE_TELED_ERROR("Received from unexpected IP:{}:{}", ipaddr_ntoa(addr),
+    AETHER_TELED_ERROR("Received from unexpected IP:{}:{}", ipaddr_ntoa(addr),
                    port);
     self->OnError();
     return;
@@ -180,7 +180,7 @@ void LwipCBUdpSocket::UdpClientRecv(void* arg, struct udp_pcb* upcb,
 
   auto* packet = p;
   for (; packet != nullptr; packet = packet->next) {
-    AE_TELED_DEBUG("Received {} bytes", packet->len);
+    AETHER_TELED_DEBUG("Received {} bytes", packet->len);
     auto payload_span = Span<std::uint8_t>{
         static_cast<std::uint8_t*>(packet->payload),
         static_cast<std::size_t>(packet->len),

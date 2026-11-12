@@ -55,6 +55,9 @@ jobs:
           -C ".github/workflows/linux_initial_cache.txt"
           -S ./
 
+      - name: Generate telemetry catalog
+        run: cmake --build build --target aether-tele-catalog
+
       - name: cache cppcheck_build_dir
         id: cache-cppcheck_build_dir
         uses: actions/cache@v4

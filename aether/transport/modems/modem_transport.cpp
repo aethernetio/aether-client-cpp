@@ -66,7 +66,7 @@ void ModemTransport::SendTcpAction::Send() {
     auto* write_op =
         transport_->modem_driver_->WritePacket(transport_->connection_, chunk);
     if (write_op == nullptr) {
-      AE_TELED_ERROR("Modem tcp write op error");
+      AETHER_TELED_ERROR("Modem tcp write op error");
       SetStatus(Status::kFail);
       return;
     }
@@ -74,12 +74,12 @@ void ModemTransport::SendTcpAction::Send() {
 
     auto result_handler = [&](auto const& res) noexcept {
       if (res) {
-        AE_TELED_DEBUG("Modem tcp {} bytes written", res.value());
+        AETHER_TELED_DEBUG("Modem tcp {} bytes written", res.value());
         if ((--packets_on_the_go_) == 0) {
           SetStatus(Status::kSuccess);
         }
       } else {
-        AE_TELED_ERROR("Modem tcp write failed with error {}",
+        AETHER_TELED_ERROR("Modem tcp write failed with error {}",
                        static_cast<int>(res.error()));
         SetStatus(Status::kFail);
       }
@@ -109,17 +109,17 @@ void ModemTransport::SendUdpAction::Send() {
   auto* write_op =
       transport_->modem_driver_->WritePacket(transport_->connection_, data_);
   if (write_op == nullptr) {
-    AE_TELED_ERROR("Modem udp write op error");
+    AETHER_TELED_ERROR("Modem udp write op error");
     SetStatus(Status::kFail);
     return;
   }
 
   auto result_handler = [&](auto const& res) noexcept {
     if (res) {
-      AE_TELED_DEBUG("Modem udp {} bytes written", res.value());
+      AETHER_TELED_DEBUG("Modem udp {} bytes written", res.value());
       SetStatus(Status::kSuccess);
     } else {
-      AE_TELED_ERROR("Modem udp write failed with error {}",
+      AETHER_TELED_ERROR("Modem udp write failed with error {}",
                      static_cast<int>(res.error()));
       SetStatus(Status::kFail);
     }
@@ -142,7 +142,7 @@ ModemTransport::ModemTransport(AeContext const& ae_context,
       protocol_{address_.protocol},
       stream_info_{},
       packet_queue_manager_{MakePacketQueueManager(ae_context_, address_)} {
-  AE_TELE_INFO(kModemTransport, "Modem transport created for {}", address_);
+  AETHER_TELE_INFO(kModemTransport, "Modem transport created for {}", address_);
   stream_info_.link_state = LinkState::kUnlinked;
   stream_info_.is_reliable = (protocol_ == Protocol::kTcp);
   stream_info_.max_element_size = 2 * kMaxPacketSize;
@@ -164,13 +164,13 @@ ModemTransport::OutDataEvent const& ModemTransport::out_data_event() {
 }
 
 void ModemTransport::Restream() {
-  AE_TELED_DEBUG("Modem transport restream");
+  AETHER_TELED_DEBUG("Modem transport restream");
   stream_info_.link_state = LinkState::kLinkError;
   Disconnect();
 }
 
 WriteAction& ModemTransport::Write(DataBuffer&& in_data) {
-  AE_TELE_DEBUG(kModemTransportSend, "Send data size {}", in_data.size());
+  AETHER_TELE_DEBUG(kModemTransportSend, "Send data size {}", in_data.size());
 
   if (protocol_ == Protocol::kTcp) {
     return WriteTcp(std::move(in_data));
@@ -202,7 +202,7 @@ WriteAction& ModemTransport::WriteTcp(DataBuffer&& in_data) {
   send_action_subs_ +=
       send_action->status_event().Subscribe([this](auto status) {
         if (status == WriteAction::Status::kFail) {
-          AE_TELED_ERROR("Send error, disconnect!");
+          AETHER_TELED_ERROR("Send error, disconnect!");
           OnConnectionFailed();
         }
       });
@@ -221,7 +221,7 @@ WriteAction& ModemTransport::WriteUdp(DataBuffer&& in_data) {
   send_action_subs_ +=
       send_action->status_event().Subscribe([this](auto status) {
         if (status == WriteAction::Status::kFail) {
-          AE_TELED_ERROR("Send error, disconnect!");
+          AETHER_TELED_ERROR("Send error, disconnect!");
           OnConnectionFailed();
         }
       });
@@ -305,7 +305,7 @@ void ModemTransport::DataReceivedTcp(DataBuffer const& data_in) {
   data_packet_collector_.AddData(data_in.data(), data_in.size());
   for (auto data = data_packet_collector_.PopPacket(); !data.empty();
        data = data_packet_collector_.PopPacket()) {
-    AE_TELE_DEBUG(kModemTransportReceive, "Receive data size {}", data.size());
+    AETHER_TELE_DEBUG(kModemTransportReceive, "Receive data size {}", data.size());
     out_data_event_.Emit(data);
   }
 }

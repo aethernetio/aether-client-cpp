@@ -46,7 +46,7 @@ PingCloudServers::ServerPing::ServerPing(AeContext const& ae_context,
   // if it's to early for next rx wait a bit
   if ((timings.next_rx_point != TimePoint{}) &&
       (Now() < timings.next_rx_point)) {
-    AE_TELED_DEBUG("Wait a bit for next rx point till {}",
+    AETHER_TELED_DEBUG("Wait a bit for next rx point till {}",
                    timings.next_rx_point);
     start_sub_ = ae_context_.scheduler().DelayedTask([&]() { Start(); },
                                                      timings.next_rx_point);
@@ -115,7 +115,7 @@ auto PingCloudServers::ServerPing::MakePing() {
 
           auto c = cc->server_connection().current_channel();
           if (c == nullptr) {
-            AE_TELED_ERROR("Current channel value invalid");
+            AETHER_TELED_ERROR("Current channel value invalid");
             return ex::set_error(std::move(ctx.receiver), 2);
           }
 
@@ -135,7 +135,7 @@ auto PingCloudServers::ServerPing::MakePing() {
           OpenRxWindow(current_time);
           next_ping_time_ = current_time + timing_conf_.interval;
           policy_->ReportNextServiceTime(priority_, next_ping_time_);
-          AE_TELED_DEBUG("Next ping time for priority {} at {} after {}",
+          AETHER_TELED_DEBUG("Next ping time for priority {} at {} after {}",
                          priority_, next_ping_time_, timing_conf_.interval);
 
           return ex::set_value(std::move(ctx.receiver));
@@ -177,9 +177,9 @@ void PingCloudServers::ServerPing::Start() {
               [&]() noexcept { Start(); },  // ~['_']~
               next_ping_time_);
         } else if (res && res->IsErr()) {
-          AE_TELED_ERROR("Ping start error {}", std::move(res)->error());
+          AETHER_TELED_ERROR("Ping start error {}", std::move(res)->error());
         } else {
-          AE_TELED_DEBUG("Server ping stopped");
+          AETHER_TELED_DEBUG("Server ping stopped");
         }
       });
 }
@@ -187,13 +187,13 @@ void PingCloudServers::ServerPing::Start() {
 void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
   auto* cc = cloud_sc_->client_connection();
   if (cc == nullptr) {
-    AE_TELED_ERROR("Client connection is null");
+    AETHER_TELED_ERROR("Client connection is null");
     return;
   }
 
   auto c = cc->server_connection().current_channel();
   if (!c) {
-    AE_TELED_ERROR("Connection channel is null");
+    AETHER_TELED_ERROR("Connection channel is null");
     return;
   }
 
@@ -203,10 +203,10 @@ void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
         if constexpr (std::is_same_v<T, Ok<Duration>>) {
           c->channel_statistics().AddResponseTime(value.value);
         } else if constexpr (std::is_same_v<T, Ping::LateDuration>) {
-          AE_TELED_DEBUG("Got late ping duration");
+          AETHER_TELED_DEBUG("Got late ping duration");
           c->channel_statistics().AddResponseTime(value.duration);
         } else {
-          AE_TELED_ERROR("Ping error!");
+          AETHER_TELED_ERROR("Ping error!");
           ScheduleRestream();
         }
       },
@@ -247,7 +247,7 @@ PingCloudServers::PingCloudServers(
       servers_update_{
           cloud_server_connections_->servers_update_event().Subscribe(
               MethodPtr<&PingCloudServers::ServersUpdate>{this})} {
-  AE_TELED_INFO("PingCloudServers created");
+  AETHER_TELED_INFO("PingCloudServers created");
   server_quarantined_sub_ =
       cloud_server_connections_->server_quarantined_event().Subscribe(
           MethodPtr<&PingCloudServers::ServerQuarantined>{this});
@@ -260,7 +260,7 @@ PingCloudServers::PingCloudServers(
 PingCloudServers::~PingCloudServers() { task_sub_.Reset(); }
 
 void PingCloudServers::ServersUpdate() {
-  AE_TELED_DEBUG("Servers update");
+  AETHER_TELED_DEBUG("Servers update");
   if (!task_sub_) {
     auto blocker = policy_->AcquireSuspendBlock();
     task_sub_ = ae_context_.scheduler().Task(
@@ -275,7 +275,7 @@ void PingCloudServers::DispatchToServers() {
   cloud_server_connections_->ForServers(
       [this](CloudServerConnection* cloud_sc) {
         if (cloud_sc == nullptr) {
-          AE_TELED_ERROR("Visit empty cloud server connection!");
+          AETHER_TELED_ERROR("Visit empty cloud server connection!");
           return;
         }
         auto const& server = cloud_sc->server();

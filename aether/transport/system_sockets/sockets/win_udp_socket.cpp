@@ -94,7 +94,7 @@ WinUdpSocket::WinUdpSocket(Ptr<IPoller> const& poller)
   // ::socket() sets WSA_FLAG_OVERLAPPED by default that allows us to use iocp
   auto sock = ::socket(AF_INET, SOCK_DGRAM, 0);
   if (sock == INVALID_SOCKET) {
-    AE_TELED_ERROR("Got socket creation error {}", WSAGetLastError());
+    AETHER_TELED_ERROR("Got socket creation error {}", WSAGetLastError());
     return;
   }
   // close socket on error
@@ -108,7 +108,7 @@ WinUdpSocket::WinUdpSocket(Ptr<IPoller> const& poller)
   u_long nonblocking = 1;
   if (auto res = ::ioctlsocket(sock, static_cast<long>(FIONBIO), &nonblocking);
       res == SOCKET_ERROR) {
-    AE_TELED_ERROR("Socket make non-blocking error {}", WSAGetLastError());
+    AETHER_TELED_ERROR("Socket make non-blocking error {}", WSAGetLastError());
     return;
   }
 
@@ -165,7 +165,7 @@ WinUdpSocket::WinUdpSocket(Ptr<IPoller> const& poller)
       }
     }
     if (!ok) {
-      AE_TELED_ERROR("IP_MTU_DISCOVER IP_PMTUDISC_DONT failed wsa={}",
+      AETHER_TELED_ERROR("IP_MTU_DISCOVER IP_PMTUDISC_DONT failed wsa={}",
                      wsa_error);
       return;
     }
@@ -196,14 +196,14 @@ ISocket& WinUdpSocket::Connect(AddressPort const& destination,
     auto res =
         connect(socket_, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
     if (res == SOCKET_ERROR) {
-      AE_TELED_ERROR("Socket connect error {}", WSAGetLastError());
+      AETHER_TELED_ERROR("Socket connect error {}", WSAGetLastError());
       connection_state = ConnectionState::kConnectionFailed;
       return *this;
     }
   }
 
   if (!RequestRecv()) {
-    AE_TELED_ERROR("Request receive failed!");
+    AETHER_TELED_ERROR("Request receive failed!");
     connection_state = ConnectionState::kConnectionFailed;
     return *this;
   }

@@ -31,7 +31,7 @@ EthernetAdapter::EthernetAdapter(ObjProp prop, ObjPtr<Aether> aether,
       ethernet_access_point_{EthernetAccessPoint::ptr::Create(
           domain, std::move(aether), std::move(poller),
           std::move(dns_resolver))} {
-  AE_TELED_INFO("EthernetAdapter created");
+  AETHER_TELED_INFO("EthernetAdapter created");
 }
 #endif  // AE_DISTILLATION
 

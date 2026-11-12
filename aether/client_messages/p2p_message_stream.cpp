@@ -130,7 +130,7 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
                          [](auto const& i) { return i.is_reliable; });
     });
 
-    AE_TELED_DEBUG(
+    AETHER_TELED_DEBUG(
         "Message send stream link state {}, rec_write_size {}, max_write_size "
         "{}",
         stream_info_.link_state, stream_info_.rec_element_size,
@@ -160,7 +160,7 @@ P2pStream::P2pStream(AeContext const& ae_context, Ptr<Client> const& client,
       buffer_write_{ae_context_, MethodPtr<&P2pStream::OnWrite>{this}},
       out_data_event_{ae_context_},
       stream_update_event_{ae_context_} {
-  AE_TELE_DEBUG(kP2pMessageStreamNew, "P2pStream created for {}", destination_);
+  AETHER_TELE_DEBUG(kP2pMessageStreamNew, "P2pStream created for {}", destination_);
   assert(!destination_.empty());
 
   if (handle_) {
@@ -172,7 +172,7 @@ P2pStream::P2pStream(AeContext const& ae_context, Ptr<Client> const& client,
 P2pStream::~P2pStream() = default;
 
 WriteAction& P2pStream::Write(DataBuffer&& data) {
-  AE_TELED_DEBUG("Write message for uid {} size:{} data:{}", destination_,
+  AETHER_TELED_DEBUG("Write message for uid {} size:{} data:{}", destination_,
                  data.size(), data);
   AeMessage message_data{destination_, std::move(data)};
   return buffer_write_.Write(std::move(message_data));
@@ -194,7 +194,7 @@ P2pStream::OutDataEvent const& P2pStream::out_data_event() {
 }
 
 void P2pStream::Restream() {
-  AE_TELED_DEBUG("Restream message stream");
+  AETHER_TELED_DEBUG("Restream message stream");
   auto client_ptr = client_.Lock();
   assert(client_ptr);
   client_ptr->cloud_connection().Restream();
@@ -204,7 +204,7 @@ void P2pStream::Restream() {
 }
 
 void P2pStream::WriteOut(DataBuffer const& data) {
-  AE_TELED_DEBUG("Read message from uid {} {}", destination_, data.size());
+  AETHER_TELED_DEBUG("Read message from uid {} {}", destination_, data.size());
   out_data_event_.Emit(data);
 }
 
@@ -233,11 +233,11 @@ void P2pStream::ConnectSend() {
                   ae_context_, *dest_cloud_conn_, RequestPolicy::MainServer{});
           message_send_stream_->stream_update_event().Subscribe(
               MethodPtr<&StreamUpdateEvent::Emit>{&stream_update_event_});
-          AE_TELED_DEBUG("Send connected");
+          AETHER_TELED_DEBUG("Send connected");
           buffer_write_.buffer_off();
           stream_update_event_.Emit();
         } else {
-          AE_TELED_ERROR("Send connection failed ");
+          AETHER_TELED_ERROR("Send connection failed ");
           buffer_write_.Drop();
           buffer_write_.buffer_on();
         }

@@ -198,7 +198,7 @@ class SafeStream final : public ByteStream,  // NOLINT
  private:
   void WriteOut(DataBuffer const& data) { out_data_event_.Emit(data); }
   void OnStreamUpdate() {
-    AE_TELED_DEBUG("Safe stream update");
+    AETHER_TELED_DEBUG("Safe stream update");
     static constexpr std::size_t kSendOverhead =
         1 + sizeof(std::uint16_t) + sizeof(std::uint16_t) + 1 + 2;
 
@@ -218,7 +218,7 @@ class SafeStream final : public ByteStream,  // NOLINT
   }
 
   void OnOutData(DataBuffer const& data) {
-    AE_TELED_DEBUG("Received data {}", data);
+    AETHER_TELED_DEBUG("Received data {}", data);
     auto api_parser = ApiParser{protocol_context_, data};
     api_parser.Parse(api_server_);
   }

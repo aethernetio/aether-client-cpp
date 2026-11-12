@@ -33,7 +33,7 @@ ModemConnectAction::ModemConnectAction(AeContext const& ae_context,
       driver_{&driver},
       connection_event_{ae_context},
       task_sub_{ae_context.scheduler().Task([&]() noexcept { Start(); })} {
-  AE_TELED_DEBUG("ModemConnectAction created");
+  AETHER_TELED_DEBUG("ModemConnectAction created");
 }
 
 ModemConnectAction::ConnectionEvent const&
@@ -42,7 +42,7 @@ ModemConnectAction::connection_event() {
 }
 
 void ModemConnectAction::Start() {
-  AE_TELED_DEBUG("ModemConnectAction start");
+  AETHER_TELED_DEBUG("ModemConnectAction start");
   auto* op = driver_->Start();
   if (op == nullptr) {
     connection_event_.Emit(false);
@@ -52,10 +52,10 @@ void ModemConnectAction::Start() {
   // check immediate result
   if (auto const& res = op->result(); res) {
     if (res->IsOk()) {
-      AE_TELED_INFO("Modem access point start success");
+      AETHER_TELED_INFO("Modem access point start success");
       connection_event_.Emit(true);
     } else {
-      AE_TELED_ERROR("Modem access point start failed, error {}",
+      AETHER_TELED_ERROR("Modem access point start failed, error {}",
                      static_cast<int>(res->error()));
       connection_event_.Emit(false);
     }
@@ -65,10 +65,10 @@ void ModemConnectAction::Start() {
 
   start_sub_ = op->result_event().Subscribe([this](auto const& res) {
     if (res) {
-      AE_TELED_INFO("Modem access point start success");
+      AETHER_TELED_INFO("Modem access point start success");
       connection_event_.Emit(true);
     } else {
-      AE_TELED_ERROR("Modem access point start failed, error {}",
+      AETHER_TELED_ERROR("Modem access point start failed, error {}",
                      static_cast<int>(res.error()));
       connection_event_.Emit(false);
     }
@@ -83,7 +83,7 @@ ModemAccessPoint::ModemAccessPoint(ObjProp prop, ObjPtr<Aether> aether,
       modem_adapter_{std::move(modem_adapter)} {}
 
 ModemConnectAction& ModemAccessPoint::Connect() {
-  AE_TELED_DEBUG("Make modem access point connection");
+  AETHER_TELED_DEBUG("Make modem access point connection");
 
   // reuse connect action if it's in progress
   if (!connect_action_ || connect_action_->is_finished()) {
@@ -98,7 +98,7 @@ IModemDriver& ModemAccessPoint::modem_driver() {
 
 std::vector<ObjPtr<Channel>> ModemAccessPoint::GenerateChannels(
     ObjPtr<Server> const& server) {
-  AE_TELED_DEBUG("Generate modem channels");
+  AETHER_TELED_DEBUG("Generate modem channels");
   Aether::ptr aether = aether_;
   auto self = ModemAccessPoint::ptr::MakeFromThis(this);
 

@@ -51,6 +51,7 @@ class Receiver {
   Client::ptr client_;
   ProtocolContext protocol_context_;
   BandwidthApiServer bandwidth_api_;
+  BandwidthApi outgoing_api_;
 
   std::shared_ptr<ae::ByteIStream> message_stream_;
 
@@ -64,6 +65,9 @@ class Receiver {
   bool test_stopped_{true};
 
   Subscription test_start_sub_;
+  Subscription handshake_sub_;
+  Subscription on_recv_data_sub_;
+  Subscription test_result_sub_;
   Subscription test_stop_sub_;
   Subscription message_recv_sub_;
   Subscription message_stream_subscription_;

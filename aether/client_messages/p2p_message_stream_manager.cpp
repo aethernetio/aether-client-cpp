@@ -72,7 +72,7 @@ P2pMessageStreamManager::GetOrCreatePort(Uid const& destination) {
 }
 
 void P2pMessageStreamManager::NewMessageReceived(AeMessage const& message) {
-  AE_TELED_DEBUG("New message received {}", message.uid);
+  AETHER_TELED_DEBUG("New message received {}", message.uid);
   auto [port, is_new] = GetOrCreatePort(message.uid);
   assert(port != nullptr);
 

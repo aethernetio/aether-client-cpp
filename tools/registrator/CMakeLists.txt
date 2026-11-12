@@ -22,7 +22,8 @@ include(../../cmake/CPM.cmake)
 CPMAddPackage(
   NAME "ini.h"
   GIT_REPOSITORY "https://github.com/giosali/ini.h"
-  GIT_TAG "a166248"
+  GIT_TAG "a16624847926c12ab0fbc15d22f4f419c8d960c4"
+  GIT_CONFIG "core.autocrlf=false"
   PATCHES "${CMAKE_CURRENT_LIST_DIR}/../../third_party/ini.patch"
 )
 set(ini_INCLUDE_DIR ${ini.h_SOURCE_DIR})
