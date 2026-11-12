@@ -20,10 +20,9 @@
 // IWYU pragma: begin_keeps
 #include "aether/aether_tele.h"
 
-#ifdef TELE_SINK
-#  undef TELE_SINK
+#ifndef TELE_SINK
+#  define TELE_SINK ::ae::AetherTeleSink
 #endif
-#define TELE_SINK ::ae::tele::TeleSink<::ae::AetherTeleConfig>
 
 #include "aether-tele/tele.h"
 // IWYU pragma: end_keeps

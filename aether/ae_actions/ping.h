@@ -36,6 +36,7 @@
 namespace ae {
 class Channel;
 class CloudServerConnection;
+class ClientApiSafe;
 
 class Ping {
  public:
@@ -56,6 +57,8 @@ class Ping {
   void Start(TimePoint current_time);
 
  private:
+  friend struct PingTestAccess;
+  void ArmResponse(ClientApiSafe& api, TimePoint current_time);
   void PingResponse(RequestId request_id);
   void PingResponseError(RequestId request_id, std::int32_t error_code);
   void PingResponseTimeout(RequestId request_id);

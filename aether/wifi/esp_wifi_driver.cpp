@@ -86,7 +86,7 @@ esp_err_t SetupBssid(wifi_config_t& wifi_config,
   std::array<uint8_t, sizeof(base_station.target_bssid)> debug_bssid;
   memcpy(debug_bssid.data(), base_station.target_bssid,
          sizeof(base_station.target_bssid));
-  AE_TELED_DEBUG("Restored from cash BSSID:{} CHN:{}", debug_bssid,
+  AETHER_TELED_DEBUG("Restored from cash BSSID:{} CHN:{}", debug_bssid,
                  static_cast<int>(base_station.target_channel));
 
   wifi_config.sta.scan_method = WIFI_FAST_SCAN;  // Fast scan
@@ -235,7 +235,7 @@ esp_err_t StartWifiConnection(
     // Restore saved Base Station
     auto err = esp_wifi_driver_internal::SetupBssid(wifi_config, *base_station);
     if (err != ESP_OK) {
-      AE_TELED_ERROR("Failed to set BSSID");
+      AETHER_TELED_ERROR("Failed to set BSSID");
       // If an error occurs, exit
     }
   }

@@ -58,7 +58,7 @@ std::optional<std::size_t> LwipCBTcpSocket::Send(Span<std::uint8_t> data) {
       // internal buffer is full try resend data later
       return 0;
     }
-    AE_TELED_ERROR("Sending error: {}, {}", static_cast<int>(err),
+    AETHER_TELED_ERROR("Sending error: {}, {}", static_cast<int>(err),
                    strerror(err_to_errno(err)));
     return std::nullopt;
   }
@@ -99,7 +99,7 @@ ISocket& LwipCBTcpSocket::Connect(AddressPort const& destination,
 
   pcb_ = tcp_new();
   if (pcb_ == nullptr) {
-    AE_TELED_ERROR("Make tcp socket error");
+    AETHER_TELED_ERROR("Make tcp socket error");
     connection_state_ = ConnectionState::kConnectionFailed;
     return *this;
   }
@@ -114,7 +114,7 @@ ISocket& LwipCBTcpSocket::Connect(AddressPort const& destination,
 
   auto lwip_adr = LwipGetAddr(destination);
   if (!lwip_adr) {
-    AE_TELED_ERROR("Make lwip address error");
+    AETHER_TELED_ERROR("Make lwip address error");
     connection_state_ = ConnectionState::kConnectionFailed;
     return *this;
   }
@@ -128,7 +128,7 @@ ISocket& LwipCBTcpSocket::Connect(AddressPort const& destination,
                     LwipCBTcpSocket::TcpClientConnected);
 
   if (err != ERR_OK) {
-    AE_TELED_ERROR("Not connected: {} {}", static_cast<int>(err),
+    AETHER_TELED_ERROR("Not connected: {} {}", static_cast<int>(err),
                    strerror(err_to_errno(err)));
     connection_state_ = ConnectionState::kConnectionFailed;
     return *this;
@@ -139,7 +139,7 @@ ISocket& LwipCBTcpSocket::Connect(AddressPort const& destination,
 }
 
 void LwipCBTcpSocket::OnConnectionEvent() {
-  AE_TELED_DEBUG("LwIp CB TCP socket connection event {}", connection_state_);
+  AETHER_TELED_DEBUG("LwIp CB TCP socket connection event {}", connection_state_);
 
   if (connected_cb_) {
     connected_cb_(connection_state_);
@@ -167,12 +167,12 @@ err_t LwipCBTcpSocket::TcpClientRecv(void* arg, struct tcp_pcb* tpcb,
 
   if (p == nullptr) {
     // Connection is closed
-    AE_TELED_DEBUG("Connection is closed");
+    AETHER_TELED_DEBUG("Connection is closed");
     return ERR_OK;
   }
 
   if (err != ERR_OK) {
-    AE_TELED_ERROR("TCP recv error: {} {}", static_cast<int>(err),
+    AETHER_TELED_ERROR("TCP recv error: {} {}", static_cast<int>(err),
                    strerror(err_to_errno(err)));
     self->OnErrorEvent();
     return err;
@@ -180,7 +180,7 @@ err_t LwipCBTcpSocket::TcpClientRecv(void* arg, struct tcp_pcb* tpcb,
 
   auto* packet = p;
   for (; packet != nullptr; packet = packet->next) {
-    AE_TELED_DEBUG("Received {} bytes", packet->len);
+    AETHER_TELED_DEBUG("Received {} bytes", packet->len);
     auto payload_span = Span<std::uint8_t>{
         static_cast<std::uint8_t*>(packet->payload),
         static_cast<std::size_t>(packet->len),
@@ -200,7 +200,7 @@ err_t LwipCBTcpSocket::TcpClientRecv(void* arg, struct tcp_pcb* tpcb,
 void LwipCBTcpSocket::TcpClientError(void* arg, err_t err) {
   auto* self = static_cast<LwipCBTcpSocket*>(arg);
   if (err != ERR_OK) {
-    AE_TELED_ERROR("TCP error: {} {}", static_cast<int>(err),
+    AETHER_TELED_ERROR("TCP error: {} {}", static_cast<int>(err),
                    strerror(err_to_errno(err)));
     self->OnErrorEvent();
   }
@@ -210,7 +210,7 @@ err_t LwipCBTcpSocket::TcpClientConnected(void* arg, struct tcp_pcb* tpcb,
                                           err_t err) {
   auto* self = static_cast<LwipCBTcpSocket*>(arg);
   if (err != ERR_OK) {
-    AE_TELED_ERROR("Connection error: {} {}", static_cast<int>(err),
+    AETHER_TELED_ERROR("Connection error: {} {}", static_cast<int>(err),
                    strerror(err_to_errno(err)));
     self->OnErrorEvent();
     return err;
@@ -220,7 +220,7 @@ err_t LwipCBTcpSocket::TcpClientConnected(void* arg, struct tcp_pcb* tpcb,
   tcp_recv(tpcb, LwipCBTcpSocket::TcpClientRecv);
   tcp_sent(tpcb, LwipCBTcpSocket::TcpClientSent);
 
-  AE_TELED_DEBUG("Connected to the server");
+  AETHER_TELED_DEBUG("Connected to the server");
   self->connection_state_ = ConnectionState::kConnected;
   self->OnConnectionEvent();
   return ERR_OK;

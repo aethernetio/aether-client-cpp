@@ -61,7 +61,7 @@ class AresImpl {
     }
 
     void start() & noexcept {
-      AE_TELE_DEBUG(kAresDnsQueryHost, "Querying host: {}", ctx.name_address);
+      AETHER_TELE_DEBUG(kAresDnsQueryHost, "Querying host: {}", ctx.name_address);
 
       ares_addrinfo_hints hints{};
       // BOTH ipv4 and ipv6
@@ -101,7 +101,7 @@ class AresImpl {
      * queries */
     if (auto res = ares_init_options(&channel_, &options, optmask);
         res != ARES_SUCCESS) {
-      AE_TELE_ERROR(kAresDnsFailedInitialize,
+      AETHER_TELE_ERROR(kAresDnsFailedInitialize,
                     "Failed to initialize ares options: {}",
                     ares_strerror(res));
       assert(false);
@@ -125,7 +125,7 @@ class AresImpl {
       int status, int /* timeouts */, struct ares_addrinfo* result,
       std::uint16_t port_hint, Protocol protocol_hint) noexcept {
     if (status != ARES_SUCCESS) {
-      AE_TELE_ERROR(kAresDnsQueryError, "Ares query error {} {}", status,
+      AETHER_TELE_ERROR(kAresDnsQueryError, "Ares query error {} {}", status,
                     ares_strerror(status));
       return Error{1};
     }
@@ -161,7 +161,7 @@ class AresImpl {
       }
     }
 
-    AE_TELE_DEBUG(kAresDnsQuerySuccess, "Got addresses {}", resolved_addresses);
+    AETHER_TELE_DEBUG(kAresDnsQuerySuccess, "Got addresses {}", resolved_addresses);
     return Ok{std::move(resolved_addresses)};
   }
 

@@ -34,13 +34,13 @@ ModemAdapter::ModemAdapter(ObjProp prop, ObjPtr<Aether> aether,
                            IPoller::ptr poller, ModemInit modem_init)
     : ParentModemAdapter{prop, std::move(aether), std::move(poller),
                          std::move(modem_init)} {
-  AE_TELED_DEBUG("Modem instance created!");
+  AETHER_TELED_DEBUG("Modem instance created!");
 }
 #  endif  // AE_DISTILLATION
 
 ModemAdapter::~ModemAdapter() {
   if (connected_) {
-    AE_TELED_DEBUG("Modem instance deleted!");
+    AETHER_TELED_DEBUG("Modem instance deleted!");
     connected_ = false;
   }
 }

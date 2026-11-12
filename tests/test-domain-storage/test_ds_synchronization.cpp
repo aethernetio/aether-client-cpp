@@ -117,6 +117,7 @@ void TestSyncDataStorage(std::unique_ptr<StaticDS> sds,
     TEST_ASSERT(writer_2_201->Write(ae::seri::SizeWriteTag{data_4.size()}));
     TEST_ASSERT(writer_2_201->Write(
         ae::seri::DataWriteTag{data_4.data(), data_4.size()}));
+    TEST_ASSERT(writer_2_201->Commit());
     writer_2_201.reset();
 
     auto load_2_201 = data_storage.Load({ObjId{2}, 201, 0});
@@ -141,6 +142,7 @@ void TestSyncDataStorage(std::unique_ptr<StaticDS> sds,
     TEST_ASSERT(writer_3_300->Write(ae::seri::SizeWriteTag{data_4.size()}));
     TEST_ASSERT(writer_3_300->Write(
         ae::seri::DataWriteTag{data_4.data(), data_4.size()}));
+    TEST_ASSERT(writer_3_300->Commit());
     writer_3_300.reset();
 
     auto load_3_300 = data_storage.Load({ObjId{3}, 300, 0});

@@ -18,12 +18,15 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(../../cmake/CPM.cmake)
+find_package(Git REQUIRED)
 
 CPMAddPackage(
   NAME "ini.h"
   GIT_REPOSITORY "https://github.com/giosali/ini.h"
-  GIT_TAG "a166248"
-  PATCHES "${CMAKE_CURRENT_LIST_DIR}/../../third_party/ini.patch"
+  GIT_TAG "a16624847926c12ab0fbc15d22f4f419c8d960c4"
+  GIT_CONFIG "core.autocrlf=false"
+  PATCH_COMMAND "${GIT_EXECUTABLE}" apply --whitespace=nowarn
+                "${CMAKE_CURRENT_LIST_DIR}/../../third_party/ini.patch"
 )
 set(ini_INCLUDE_DIR ${ini.h_SOURCE_DIR})
 

@@ -24,14 +24,14 @@ LoginApi::LoginApi(IEncryptProvider& encrypt_provider)
 
 void LoginApi::LoginByUid(Uid const& uid, SubApi<AuthorizedApi> sub_api) {
   auto auth_data = std::move(sub_api)(auth_api_, client_context());
-  AE_TELED_DEBUG("Login by uid {} data [{}]", uid, auth_data);
+  AETHER_TELED_DEBUG("Login uid {} bytes {}", uid, auth_data.size());
   auto enc_data = encrypt_provider_->Encrypt(auth_data);
   ClientMethod<&LoginApi::LoginByAlias>(uid, std::move(enc_data));
 }
 
 void LoginApi::LoginByAlias(Uid const& alias, SubApi<AuthorizedApi> sub_api) {
   auto auth_data = std::move(sub_api)(auth_api_, client_context());
-  AE_TELED_DEBUG("Login by alias {} data [{}]", alias, auth_data);
+  AETHER_TELED_DEBUG("Login alias {} bytes {}", alias, auth_data.size());
   auto enc_data = encrypt_provider_->Encrypt(auth_data);
   ClientMethod<&LoginApi::LoginByAlias>(alias, std::move(enc_data));
 }

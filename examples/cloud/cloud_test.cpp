@@ -91,6 +91,25 @@ int AetherCloudExample() {
   std::unique_ptr<ae::ByteIStream> receiver_stream;
   std::unique_ptr<ae::ByteIStream> sender_stream;
 
+  // Keep one application message outstanding. Each write owns event keys and
+  // handlers; submitting the whole batch can exhaust the fixed event pool
+  // while the receiver is creating confirmation writes.
+  std::size_t next_message = 0;
+  auto send_next = [&]() {
+    if (next_message == messages.size() || aether_app->IsExited()) {
+      return;
+    }
+    auto const message = messages[next_message++];
+    auto& send_action = sender_stream->Write(
+        ae::DataBuffer{std::begin(message), std::end(message)});
+    send_action.status_event().Subscribe([&](auto status) {
+      if (status == ae::WriteAction::Status::kFail) {
+        ae::Format(std::cerr, "~['_']~ Send message failed\n");
+        aether_app->Exit(1);
+      }
+    });
+  };
+
   auto pipeline =
       ae::ex::when_all(ae::ex::action_wait(aether_app->aether()->SelectClient(
                            ae::examples::kParentUid, "A")),
@@ -182,6 +201,7 @@ int AetherCloudExample() {
                      "~['_']~ Received a response [{}], confirm_count {}\n",
                      str_response, confirmed_count);
           confirmed_count++;
+          send_next();
         });
       }) |
       ae::ex::then([&]() noexcept {
@@ -190,16 +210,7 @@ int AetherCloudExample() {
          */
         ae::Format(std::cout, "Send messages\n");
 
-        for (auto const& msg : messages) {
-          auto& send_action = sender_stream->Write(
-              ae::DataBuffer{std::begin(msg), std::end(msg)});
-          send_action.status_event().Subscribe([&](auto status) {
-            if (status == ae::WriteAction::Status::kFail) {
-              ae::Format(std::cerr, "~['_']~ Send message failed\n");
-              aether_app->Exit(1);
-            }
-          });
-        }
+        send_next();
       });
 
   /**

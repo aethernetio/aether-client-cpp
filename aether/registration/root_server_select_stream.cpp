@@ -55,7 +55,7 @@ RootServerSelectStream::out_data_event() {
 }
 
 void RootServerSelectStream::Restream() {
-  AE_TELED_ERROR("Restream RootServerSelectStream");
+  AETHER_TELED_ERROR("Restream RootServerSelectStream");
   if (server_connection_) {
     server_connection_->Restream();
     return;
@@ -137,7 +137,7 @@ void RootServerSelectStream::SelectServer() {
 void RootServerSelectStream::ServerError() { SelectServer(); }
 
 void RootServerSelectStream::CloudError() {
-  AE_TELED_ERROR("Root server select stream error");
+  AETHER_TELED_ERROR("Root server select stream error");
   cloud_error_event_.Emit();
 }
 

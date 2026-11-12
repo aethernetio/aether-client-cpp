@@ -35,7 +35,7 @@ WifiAdapter::WifiAdapter(ObjProp prop, ObjPtr<Aether> aether,
                          WiFiInit wifi_init)
     : ParentWifiAdapter{prop, std::move(aether), std::move(poller),
                         std::move(dns_resolver), std::move(wifi_init)} {
-  AE_TELED_DEBUG("Wifi instance created!");
+  AETHER_TELED_DEBUG("Wifi instance created!");
 }
 #  endif  // AE_DISTILLATION
 

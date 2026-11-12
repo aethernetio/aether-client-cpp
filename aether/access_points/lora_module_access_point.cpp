@@ -27,7 +27,7 @@ namespace ae {
 LoraModuleConnectAction::LoraModuleConnectAction(
     ActionContext action_context, [[maybe_unused]] ILoraModuleDriver& driver)
     : Action{action_context}, driver_{&driver}, state_{State::kStart} {
-  AE_TELED_DEBUG("LoraModuleConnectAction created");
+  AETHER_TELED_DEBUG("LoraModuleConnectAction created");
 }
 
 UpdateStatus LoraModuleConnectAction::Update() {
@@ -46,7 +46,7 @@ UpdateStatus LoraModuleConnectAction::Update() {
 }
 
 void LoraModuleConnectAction::Start() {
-  AE_TELED_DEBUG("LoraModuleConnectAction start");
+  AETHER_TELED_DEBUG("LoraModuleConnectAction start");
   auto action = driver_->Start();
   if (!action) {
     state_ = State::kFailed;
@@ -55,12 +55,12 @@ void LoraModuleConnectAction::Start() {
   }
   action->StatusEvent().Subscribe(ActionHandler{
       OnResult{[this]() {
-        AE_TELED_INFO("Lora module access point start success");
+        AETHER_TELED_INFO("Lora module access point start success");
         state_ = State::kSuccess;
         Action::Trigger();
       }},
       OnError{[this]() {
-        AE_TELED_ERROR("Lora module access point start failed");
+        AETHER_TELED_ERROR("Lora module access point start failed");
         state_ = State::kFailed;
         Action::Trigger();
       }},
@@ -75,7 +75,7 @@ LoraModuleAccessPoint::LoraModuleAccessPoint(
       lora_module_adapter_{std::move(lora_module_adapter)} {}
 
 ActionPtr<LoraModuleConnectAction> LoraModuleAccessPoint::Connect() {
-  AE_TELED_DEBUG("Make lora module access point connection");
+  AETHER_TELED_DEBUG("Make lora module access point connection");
 
   // reuse connect action if it's in progress
   if (!connect_action_) {
@@ -93,7 +93,7 @@ ILoraModuleDriver& LoraModuleAccessPoint::lora_module_driver() {
 
 std::vector<ObjPtr<Channel>> LoraModuleAccessPoint::GenerateChannels(
     std::vector<Endpoint> const& endpoints) {
-  AE_TELED_DEBUG("Generate lora module channels");
+  AETHER_TELED_DEBUG("Generate lora module channels");
   std::vector<ObjPtr<Channel>> channels;
   channels.reserve(endpoints.size());
   Aether::ptr aether = aether_;

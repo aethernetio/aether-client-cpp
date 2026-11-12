@@ -131,7 +131,7 @@ ae::WriteAction& WriteMessageImpl(AetherClient* client, ae::Uid destination,
   auto& action = it->second->Write(std::move(data));
 
   if (status_cb != nullptr) {
-    action.status_event().Subscribe([&](auto status) {
+    action.status_event().Subscribe([status_cb, user_data](auto status) {
       switch (status) {
         case ae::WriteAction::Status::kSuccess:
           status_cb(ActionStatus::kSuccess, user_data);

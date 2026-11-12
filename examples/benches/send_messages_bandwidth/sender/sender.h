@@ -56,6 +56,7 @@ class Sender {
   Uid destination_;
   ProtocolContext protocol_context_;
   BandwidthApi bandwidth_api_;
+  BandwidthApiServer incoming_api_;
 
   Event<void(Bandwidth const&)> test_finished_event_;
   Event<void()> handshake_made_;
@@ -71,7 +72,10 @@ class Sender {
 
   Subscription on_recv_data_sub_;
   Subscription handshake_sub_;
-  MultiSubscription sync_subs_;
+  Subscription start_ack_sub_;
+  Subscription stop_ack_sub_;
+  Subscription test_start_sub_;
+  Subscription test_stop_sub_;
   Subscription sync_action_failed_sub_;
   Subscription test_res_sub_;
 };

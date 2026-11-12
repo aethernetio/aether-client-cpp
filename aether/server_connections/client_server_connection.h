@@ -17,6 +17,8 @@
 #ifndef AETHER_SERVER_CONNECTIONS_CLIENT_SERVER_CONNECTION_H_
 #define AETHER_SERVER_CONNECTIONS_CLIENT_SERVER_CONNECTION_H_
 
+#include <cstddef>
+
 #include "aether/config.h"
 
 #include "aether/ae_context.h"
@@ -38,6 +40,12 @@ class Channel;
 
 namespace client_server_connection_internal {
 static constexpr auto kBufferCapacity = AE_SERVER_CONNECTION_BUFFER_CAPACITY;
+
+// Exact LoginByAlias frame size, including the encrypted payload's size prefix.
+// Returns size_t max if the sizes overflow or cannot be encoded. Does not
+// encrypt, allocate payload storage, emit logs, or advance a nonce.
+std::size_t AuthorizedApiCallSize(std::size_t authorized_payload_size,
+                                std::size_t encrypt_overhead) noexcept;
 
 class BufferedServerConnection : public ByteIStream {
  public:
@@ -74,6 +82,7 @@ class ClientServerConnection {
 
   WriteAction& LoginApiCall(SubApi<LoginApi> login_api);
   WriteAction& AuthorizedApiCall(SubApi<AuthorizedApi> auth_api);
+  std::size_t AuthorizedApiCallSize(std::size_t authorized_payload_size) const;
   ClientApiSafe& client_safe_api();
 
   ServerConnection& server_connection();

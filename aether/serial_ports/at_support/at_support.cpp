@@ -51,7 +51,7 @@ Result<std::size_t, int> AtSupport::SendATCommand(std::string_view command) {
     return Error{-1};
   }
 
-  AE_TELED_DEBUG("AT command: {}", command);
+  AETHER_TELED_DEBUG("AT command: {}", command);
 
   static std::array<std::uint8_t, 1024> buffer;
   assert(command.size() + 2 < buffer.size());

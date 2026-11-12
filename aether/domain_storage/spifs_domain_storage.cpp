@@ -42,7 +42,7 @@ class SpiFsSotorageWriter final : public IDomainStorageWriter {
 
   ~SpiFsSotorageWriter() override {
     if (!storage_->SaveObject(query, CalcBufferCrc())) {
-      AE_TELED_DEBUG(
+      AETHER_TELED_DEBUG(
           "For object id={}, class id={}, version={} crc is the same, not "
           "update data",
           query.id.id(), query.class_id, static_cast<int>(query.version));
@@ -51,18 +51,18 @@ class SpiFsSotorageWriter final : public IDomainStorageWriter {
     // save object data to file
     FILE* file = fopen(file_path.c_str(), "w");
     if (file == nullptr) {
-      AE_TELED_ERROR("Failed to open file {} for writing.", file_path);
+      AETHER_TELED_ERROR("Failed to open file {} for writing.", file_path);
       return;
     }
     auto res = fwrite(buffer.data(), 1, buffer.size(), file);
     fclose(file);
 
     if (res != buffer.size()) {
-      AE_TELED_ERROR("Failed to write data to file {}", file_path);
+      AETHER_TELED_ERROR("Failed to write data to file {}", file_path);
       return;
     }
 
-    AE_TELE_DEBUG(kSpifsDsObjSaved,
+    AETHER_TELE_DEBUG(kSpifsDsObjSaved,
                   "Saved object id={}, class id={}, version={}, data size={}",
                   query.id.id(), query.class_id,
                   static_cast<int>(query.version), buffer.size());
@@ -107,7 +107,7 @@ class SpiFsSotorageReader final : public IDomainStorageReader {
     }
     // make buffer actual read size
     buffer.resize(off);
-    AE_TELED_DEBUG("SpiFsSotorageReader loaded {} bytes", buffer.size());
+    AETHER_TELED_DEBUG("SpiFsSotorageReader loaded {} bytes", buffer.size());
 
     fclose(f);
   }
@@ -152,7 +152,7 @@ std::unique_ptr<IDomainStorageWriter> SpiFsDomainStorage::Store(
 ClassList SpiFsDomainStorage::Enumerate(ObjId const& obj_id) {
   auto obj_it = object_map_.find(obj_id);
   if (obj_it == std::end(object_map_)) {
-    AE_TELE_INFO(kSpifsDsEnumObjIdNotFound, "Obj not found {}", obj_id);
+    AETHER_TELE_INFO(kSpifsDsEnumObjIdNotFound, "Obj not found {}", obj_id);
     return {};
   }
 
@@ -160,7 +160,7 @@ ClassList SpiFsDomainStorage::Enumerate(ObjId const& obj_id) {
   for (auto const& [class_id, _] : obj_it->second) {
     classes.emplace_back(class_id);
   }
-  AE_TELE_DEBUG(kSpifsDsEnumerated, "Enumerated for obj {} classes {}", obj_id,
+  AETHER_TELE_DEBUG(kSpifsDsEnumerated, "Enumerated for obj {} classes {}", obj_id,
                 classes);
   return classes;
 }
@@ -168,7 +168,7 @@ ClassList SpiFsDomainStorage::Enumerate(ObjId const& obj_id) {
 DomainLoad SpiFsDomainStorage::Load(DomainQuery const& query) {
   auto obj_map_it = object_map_.find(query.id);
   if (obj_map_it == std::end(object_map_)) {
-    AE_TELE_INFO(kSpifsDsLoadObjIdNoFound,
+    AETHER_TELE_INFO(kSpifsDsLoadObjIdNoFound,
                  "Unable to find object id={}, class id={}, version={}",
                  query.id, query.class_id, static_cast<int>(query.version));
     return {DomainLoadResult::kEmpty, {}};
@@ -179,14 +179,14 @@ DomainLoad SpiFsDomainStorage::Load(DomainQuery const& query) {
 
   auto class_map_it = obj_map_it->second.find(query.class_id);
   if (class_map_it == std::end(obj_map_it->second)) {
-    AE_TELE_INFO(kSpifsDsLoadObjClassIdNotFound,
+    AETHER_TELE_INFO(kSpifsDsLoadObjClassIdNotFound,
                  "Unable to find object id={}, class id={}, version={}",
                  query.id, query.class_id, static_cast<int>(query.version));
     return {DomainLoadResult::kEmpty, {}};
   }
   auto version_it = class_map_it->second.find(query.version);
   if (version_it == std::end(class_map_it->second)) {
-    AE_TELE_INFO(kSpifsDsLoadObjVersionNotFound,
+    AETHER_TELE_INFO(kSpifsDsLoadObjVersionNotFound,
                  "Unable to find object id={}, class id={}, version={}",
                  query.id, query.class_id, static_cast<int>(query.version));
     return {DomainLoadResult::kEmpty, {}};
@@ -197,11 +197,11 @@ DomainLoad SpiFsDomainStorage::Load(DomainQuery const& query) {
                           static_cast<int>(query.version));
   FILE* file = fopen(file_path.c_str(), "r");
   if (file == nullptr) {
-    AE_TELED_ERROR("Failed to open file {} for reading.", file_path);
+    AETHER_TELED_ERROR("Failed to open file {} for reading.", file_path);
     return {};
   }
 
-  AE_TELE_DEBUG(kSpifsDsObjLoaded,
+  AETHER_TELE_DEBUG(kSpifsDsObjLoaded,
                 "Loaded object id={}, class id={}, version={}", query.id,
                 query.class_id, static_cast<int>(query.version));
 
@@ -225,7 +225,7 @@ void SpiFsDomainStorage::Remove(const ae::ObjId& obj_id) {
     }
   }
   obj_map_it->second.clear();
-  AE_TELE_DEBUG(kSpifsDsObjRemoved, "Removed object {}", obj_id);
+  AETHER_TELE_DEBUG(kSpifsDsObjRemoved, "Removed object {}", obj_id);
   SyncState();
 }
 
@@ -253,7 +253,7 @@ void SpiFsDomainStorage::InitFs() {
 
   if (ret != ESP_ERR_INVALID_STATE) {  // FS already is initialized
     if (ret != ESP_OK) {
-      AE_TELE_ERROR(kSpifsDsStorageMountError, "Init SPIFS v1 error {}",
+      AETHER_TELE_ERROR(kSpifsDsStorageMountError, "Init SPIFS v1 error {}",
                     [ret]() -> std::string {
                       if (ret == ESP_FAIL) {
                         return "Failed to mount or format filesystem";
@@ -272,11 +272,11 @@ void SpiFsDomainStorage::InitFs() {
   std::size_t used = 0;
   ret = esp_spiffs_info(kPartition.data(), &total, &used);
   if (ret != ESP_OK) {
-    AE_TELE_ERROR(kSpifsDsStorageInitError,
+    AETHER_TELE_ERROR(kSpifsDsStorageInitError,
                   "Failed to get SPIFFS partition information ({})",
                   esp_err_to_name(ret));
   } else {
-    AE_TELE_INFO(kSpifsDsStorageInit, "Partition size: total: {}, used: {}",
+    AETHER_TELE_INFO(kSpifsDsStorageInit, "Partition size: total: {}, used: {}",
                  total, used);
   }
 }
@@ -288,7 +288,7 @@ void SpiFsDomainStorage::DeInitFs() {
 void SpiFsDomainStorage::InitState() {
   auto* file = fopen(kObjectMapPath.data(), "r");
   if (file == nullptr) {
-    AE_TELED_DEBUG("File {} does not exists ", kObjectMapPath);
+    AETHER_TELED_DEBUG("File {} does not exists ", kObjectMapPath);
     return;
   }
 
@@ -311,21 +311,21 @@ void SpiFsDomainStorage::InitState() {
   auto bin_archive =
       seri::BinaryArchive{seri::BinaryVectorBuffer<std::uint32_t>{buffer}};
   if (auto res = bin_archive.Load(object_map_); !res) {
-    AE_TELED_DEBUG("Failed to load object map, error{}", res.error().message);
+    AETHER_TELED_DEBUG("Failed to load object map, error{}", res.error().message);
   }
 }
 
 void SpiFsDomainStorage::SyncState() {
   auto* file = fopen(kObjectMapPath.data(), "w");
   if (file == nullptr) {
-    AE_TELED_ERROR("Failed to open file {} for writing.", kObjectMapPath);
+    AETHER_TELED_ERROR("Failed to open file {} for writing.", kObjectMapPath);
     return;
   }
   std::vector<std::uint8_t> buffer;
   auto bin_archive =
       seri::BinaryArchive{seri::BinaryVectorBuffer<std::uint32_t>{buffer}};
   if (auto res = bin_archive.Save(object_map_); !res) {
-    AE_TELED_DEBUG("Failed to save object map, error {}", res.error().message);
+    AETHER_TELED_DEBUG("Failed to save object map, error {}", res.error().message);
   } else {
     fwrite(buffer.data(), 1, buffer.size(), file);
   }

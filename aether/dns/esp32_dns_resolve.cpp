@@ -68,7 +68,7 @@ Result<std::vector<Endpoint>, int> ProcessQueryResult(ip_addr_t const* ipaddr,
     addr_add(ipv6);
 #  endif
   }
-  AE_TELE_DEBUG(kEspDnsQuerySuccess, "Got addresses {}", resolved_addresses);
+  AETHER_TELE_DEBUG(kEspDnsQuerySuccess, "Got addresses {}", resolved_addresses);
   return Ok{std::move(resolved_addresses)};
 }
 
@@ -83,7 +83,7 @@ class GHbyNameResolveSender {
   template <typename R>
   struct Operation {
     void start() noexcept {
-      AE_TELE_DEBUG(kEspDnsQueryHost, "Querying host: {}", state.name_address);
+      AETHER_TELE_DEBUG(kEspDnsQueryHost, "Querying host: {}", state.name_address);
 
       // make query
       ip_addr_t cached_addr;
@@ -113,7 +113,7 @@ class GHbyNameResolveSender {
           ex::set_error(std::move(recv), std::move(r.error()));
         }
       } else if (res == ERR_ARG) {
-        AE_TELE_ERROR(kEspDnsQueryError,
+        AETHER_TELE_ERROR(kEspDnsQueryError,
                       "Dns client not initialized or invalid hostname");
         ex::set_error(std::move(recv), 2);
       }

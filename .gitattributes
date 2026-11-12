@@ -1,0 +1,2 @@
+# Keep dependency patches applicable with Git core.autocrlf=true on Windows.
+*.patch text eol=lf

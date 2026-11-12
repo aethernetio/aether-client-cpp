@@ -104,7 +104,7 @@ DataBuffer HydroSyncDecryptProvider::Decrypt(DataBuffer const& data) {
   auto decrypted =
       _internal::DecryptWithSymmetric(key.Get<HydrogenSecretBoxKey>(), data);
   if (decrypted.empty()) {
-    AE_TELED_WARNING("Dropped packet: sync decrypt failed");
+    AETHER_TELED_WARNING("Dropped packet: sync decrypt failed");
   }
   return decrypted;
 }

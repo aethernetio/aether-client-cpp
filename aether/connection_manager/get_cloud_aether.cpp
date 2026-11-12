@@ -34,7 +34,7 @@ GetCloudFromAether::GetCloudFromAether(AeContext const& ae_context,
           ApiCallWithListener{
               ApiCall{[this](ApiContext<AuthorizedApi>& auth_api,
                              CloudServerConnection* server_connection) {
-                AE_TELED_DEBUG("Send cloud request for uid:{} at server:{}",
+                AETHER_TELED_DEBUG("Send cloud request for uid:{} at server:{}",
                                client_uid_, server_connection->server_id());
                 auth_api->ReportAppliedConfigs(std::vector{AppliedConfig{
                     .subject_uid = client_uid_,
@@ -52,7 +52,7 @@ GetCloudFromAether::GetCloudFromAether(AeContext const& ae_context,
   cloud_request_result_sub_ =
       cloud_request_.result_event().Subscribe([this](bool success) {
         if (!success) {
-          AE_TELED_ERROR("CloudRequest failed for uid:{}", client_uid_);
+          AETHER_TELED_ERROR("CloudRequest failed for uid:{}", client_uid_);
           result_event_.Emit(Error{-1});
           Finish();
         }

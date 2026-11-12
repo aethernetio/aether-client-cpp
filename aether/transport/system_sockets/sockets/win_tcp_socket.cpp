@@ -38,7 +38,7 @@ LPFN_CONNECTEX GetConnectEx(SOCKET socket) {
       WSAIoctl(socket, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid),
                &func_ptr, sizeof(func_ptr), &bytes, NULL, NULL);
   if (rc == SOCKET_ERROR || func_ptr == nullptr) {
-    AE_TELED_ERROR("ConnectEx load failed: {}", WSAGetLastError());
+    AETHER_TELED_ERROR("ConnectEx load failed: {}", WSAGetLastError());
     return nullptr;
   }
   return func_ptr;
@@ -53,7 +53,7 @@ WinTcpSocket::WinTcpSocket(Ptr<IPoller> const& poller)
   // ::socket() sets WSA_FLAG_OVERLAPPED by default that allows us to use iocp
   auto sock = ::socket(AF_INET, SOCK_STREAM, 0);
   if (sock == INVALID_SOCKET) {
-    AE_TELED_ERROR("Got socket creation error {}", WSAGetLastError());
+    AETHER_TELED_ERROR("Got socket creation error {}", WSAGetLastError());
     return;
   }
   // close socket on error
@@ -67,7 +67,7 @@ WinTcpSocket::WinTcpSocket(Ptr<IPoller> const& poller)
   auto res1 = ::setsockopt(sock, IPPROTO_TCP, TCP_NODELAY,
                            reinterpret_cast<char const*>(&on), sizeof(on));
   if (res1 == SOCKET_ERROR) {
-    AE_TELED_ERROR("Socket connect error {}", WSAGetLastError());
+    AETHER_TELED_ERROR("Socket connect error {}", WSAGetLastError());
     return;
   }
 
@@ -75,7 +75,7 @@ WinTcpSocket::WinTcpSocket(Ptr<IPoller> const& poller)
   u_long nonblocking = 1;
   auto res2 = ::ioctlsocket(sock, static_cast<long>(FIONBIO), &nonblocking);
   if (res2 == SOCKET_ERROR) {
-    AE_TELED_ERROR("Socket make non-blocking error {}", WSAGetLastError());
+    AETHER_TELED_ERROR("Socket make non-blocking error {}", WSAGetLastError());
     return;
   }
 
@@ -112,7 +112,7 @@ ISocket& WinTcpSocket::Connect(AddressPort const& destination,
 
   if (bind(socket_, reinterpret_cast<sockaddr*>(&localAddr),
            sizeof(localAddr)) == SOCKET_ERROR) {
-    AE_TELED_ERROR("Socket bind error {}", WSAGetLastError());
+    AETHER_TELED_ERROR("Socket bind error {}", WSAGetLastError());
     connection_state_ = ConnectionState::kConnectionFailed;
     return *this;
   }
@@ -122,13 +122,13 @@ ISocket& WinTcpSocket::Connect(AddressPort const& destination,
                   NULL, &conn_overlapped_)) {
     auto err_code = WSAGetLastError();
     if (err_code != WSA_IO_PENDING) {
-      AE_TELED_ERROR("Socket connect error {}", err_code);
+      AETHER_TELED_ERROR("Socket connect error {}", err_code);
       connection_state_ = ConnectionState::kConnectionFailed;
       return *this;
     }
   }
 
-  AE_TELED_DEBUG("Wait connection");
+  AETHER_TELED_DEBUG("Wait connection");
   connection_state_ = ConnectionState::kConnecting;
   return *this;
 }
@@ -141,20 +141,20 @@ WinTcpSocket::ConnectionState WinTcpSocket::TestConnectionState() {
   if (auto res = getsockopt(socket_, SOL_SOCKET, SO_ERROR,
                             reinterpret_cast<char*>(&error), &opt_len);
       res == SOCKET_ERROR) {
-    AE_TELED_ERROR("Getsockopt returns error {}", res);
+    AETHER_TELED_ERROR("Getsockopt returns error {}", res);
     return ConnectionState::kConnectionFailed;
   }
 
   if (error != 0) {
     if ((error == WSA_IO_PENDING) || (error == WSAEINPROGRESS)) {
-      AE_TELED_DEBUG("Still connecting");
+      AETHER_TELED_DEBUG("Still connecting");
       return ConnectionState::kConnecting;
     }
-    AE_TELED_ERROR("Socket connect error {}", error);
+    AETHER_TELED_ERROR("Socket connect error {}", error);
     return ConnectionState::kConnectionFailed;
   }
 
-  AE_TELED_DEBUG("Tcp connected");
+  AETHER_TELED_DEBUG("Tcp connected");
   return ConnectionState::kConnected;
 }
 
@@ -168,7 +168,7 @@ void WinTcpSocket::PollEvent(LPOVERLAPPED overlapped) {
 
     connection_state_ = TestConnectionState();
     if (!InitConnection()) {
-      AE_TELED_ERROR("Failed to initiate connection");
+      AETHER_TELED_ERROR("Failed to initiate connection");
       connection_state_ = ConnectionState::kConnectionFailed;
     }
     return;
@@ -182,13 +182,13 @@ bool WinTcpSocket::InitConnection() {
     // Update socket context for proper API usage
     if (setsockopt(socket_, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, NULL, 0) ==
         SOCKET_ERROR) {
-      AE_TELED_ERROR("SO_UPDATE_CONNECT_CONTEXT failed: {}", WSAGetLastError());
+      AETHER_TELED_ERROR("SO_UPDATE_CONNECT_CONTEXT failed: {}", WSAGetLastError());
       return false;
     }
   }
 
   if (!RequestRecv()) {
-    AE_TELED_ERROR("Request receive failed!");
+    AETHER_TELED_ERROR("Request receive failed!");
     return false;
   }
   return true;

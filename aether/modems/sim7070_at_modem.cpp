@@ -42,7 +42,7 @@ OpenNetworkOperationImpl::OpenNetworkOperationImpl(AeContext const& ae_context,
       protocol_{protocol},
       host_{std::move(host)},
       port_{port} {
-  AE_TELED_DEBUG("Open {} connection for {}:{}",
+  AETHER_TELED_DEBUG("Open {} connection for {}:{}",
                  protocol == Protocol::kTcp ? "tcp" : "udp", host_, port_);
   RunPipeline();
 }
@@ -82,7 +82,7 @@ auto OpenNetworkOperationImpl::Pipeline() {
 void OpenNetworkOperationImpl::RunPipeline() {
   self_->operation_queue_.Push(at::Stage(ae_context_, [this]() {
     return Pipeline() | ex::then([this]() noexcept {
-             AE_TELED_DEBUG("Opened connection {}", handle_);
+             AETHER_TELED_DEBUG("Opened connection {}", handle_);
              self_->connections_.emplace(static_cast<ConnectionIndex>(handle_));
              SetResult(Ok{static_cast<ConnectionIndex>(handle_)});
            }) |
@@ -107,7 +107,7 @@ CloseNetworkOperationImpl::CloseNetworkOperationImpl(
       self_{&self},
       at_support_{self.at_support_},
       connect_index_{connect_index} {
-  AE_TELED_DEBUG("Close network connection {}", connect_index_);
+  AETHER_TELED_DEBUG("Close network connection {}", connect_index_);
   RunPipeline();
 }
 
@@ -151,7 +151,7 @@ WriteOperationImpl::WriteOperationImpl(AeContext const& ae_context,
       at_support_{self.at_support_},
       connect_index_{connect_index},
       data_{data} {
-  AE_TELED_DEBUG("Write to connection {} ({} bytes)", connect_index_,
+  AETHER_TELED_DEBUG("Write to connection {} ({} bytes)", connect_index_,
                  data_.size());
   RunPipeline();
 }
@@ -353,7 +353,7 @@ auto ModemStartOperation::SetupSim(std::uint16_t pin) {
                            std::invoke_result_t<decltype(make_request)>>;
 
     if (pin_string.empty()) {
-      AE_TELED_ERROR("Pin wrong!");
+      AETHER_TELED_ERROR("Pin wrong!");
       return res{ex::just_error(3)};
     }
     return res{make_request()};
@@ -366,7 +366,7 @@ auto ModemStartOperation::Pipeline() {
                if (self_->initiated_) {
                  ex::set_value(std::move(ctx.receiver));
                } else {
-                 AE_TELED_ERROR("Modem not initiated");
+                 AETHER_TELED_ERROR("Modem not initiated");
                  ex::set_error(std::move(ctx.receiver), -1);
                }
              }) |
@@ -403,14 +403,14 @@ void ModemStartOperation::RunPipeline() {
            }) |
            ex::upon_error(Override{
                [&](ex::TimeoutError) noexcept {
-                 AE_TELED_ERROR("ModemStartOperation timeout");
+                 AETHER_TELED_ERROR("ModemStartOperation timeout");
                  SetResult(Error{static_cast<ModemError>(-2)});
                },
                [&](std::exception_ptr const&) noexcept {
                  SetResult(Error{static_cast<ModemError>(-3)});
                },
                [&](auto err) noexcept {
-                 AE_TELED_ERROR("ModemStartOperation error: {}", err);
+                 AETHER_TELED_ERROR("ModemStartOperation error: {}", err);
                  SetResult(Error{static_cast<ModemError>(err)});
                },
            });
@@ -531,7 +531,7 @@ Sim7070AtModem::Sim7070AtModem(AeContext const& ae_context,
       write_pool_{ae_context_},
       initiated_{false},
       started_{false} {
-  AE_TELED_DEBUG("Sim7070AtModem init");
+  AETHER_TELED_DEBUG("Sim7070AtModem init");
   Init();
 }
 
@@ -541,15 +541,15 @@ void Sim7070AtModem::Init() {
            at::MakeRequest(at_support_, "ATE0", kWaitOk) |
            at::MakeRequest(at_support_, "AT+CMEE=1", kWaitOk) |
            ex::with_timeout(ae_context_, 1s) | ex::then([&]() noexcept {
-             AE_TELED_INFO("Sim7070AtModem init success");
+             AETHER_TELED_INFO("Sim7070AtModem init success");
              initiated_ = true;
            }) |
            ex::upon_error(Override{
                [](ex::TimeoutError) {
-                 AE_TELED_ERROR("Sim7070AtModem init failed, with timeout");
+                 AETHER_TELED_ERROR("Sim7070AtModem init failed, with timeout");
                },
                [](int error) {
-                 AE_TELED_ERROR("Sim7070AtModem init failed, with error {}",
+                 AETHER_TELED_ERROR("Sim7070AtModem init failed, with error {}",
                                 error);
                },
            });
@@ -652,7 +652,7 @@ void Sim7070AtModem::SetupPoll() {
 void Sim7070AtModem::PollEvent(std::int32_t handle) {
   auto it = connections_.find(static_cast<ConnectionIndex>(handle));
   if (it == std::end(connections_)) {
-    AE_TELED_ERROR("Poll unknown handle {}", handle);
+    AETHER_TELED_ERROR("Poll unknown handle {}", handle);
     return;
   }
 
@@ -678,18 +678,18 @@ void Sim7070AtModem::PollEvent(std::int32_t handle) {
                      auto parse_res =
                          at_support::ParseResponse(*pos, "+CARECV", size);
                      if (!parse_res) {
-                       AE_TELED_ERROR("Failed to parse CARECV response");
+                       AETHER_TELED_ERROR("Failed to parse CARECV response");
                        return false;
                      }
-                     AE_TELED_DEBUG("Received data size {} connection {}", size,
+                     AETHER_TELED_DEBUG("Received data size {} connection {}", size,
                                     static_cast<std::int32_t>(connection));
 
                      auto recv_data =
                          at_buffer.GetCrate(size, *parse_res + 1, pos);
-                     AE_TELED_DEBUG("Received size {} bytes", recv_data.size());
+                     AETHER_TELED_DEBUG("Received size {} bytes", recv_data.size());
 
                      if (recv_data.size() != size) {
-                       AE_TELED_ERROR("Received {} bytes, expected {}",
+                       AETHER_TELED_ERROR("Received {} bytes, expected {}",
                                       recv_data.size(), size);
                        return false;
                      }
@@ -700,12 +700,12 @@ void Sim7070AtModem::PollEvent(std::int32_t handle) {
            ex::with_timeout(ae_context_, 15s) |
            ex::upon_error(Override{
                [&](ex::TimeoutError) noexcept {
-                 AE_TELED_ERROR("Recv timeout");
+                 AETHER_TELED_ERROR("Recv timeout");
                },
                [&](std::exception_ptr const&) noexcept {
-                 AE_TELED_ERROR("Recv exception");
+                 AETHER_TELED_ERROR("Recv exception");
                },
-               [&](auto err) noexcept { AE_TELED_ERROR("Recv error {}", err); },
+               [&](auto err) noexcept { AETHER_TELED_ERROR("Recv error {}", err); },
            }) |
            finally();
   }));

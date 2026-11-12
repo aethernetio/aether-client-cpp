@@ -32,7 +32,7 @@ GetServersAction::GetServersAction(AeContext const& ae_context,
           ae_context,
           ApiCallWithListener{
               ApiCall{[this](ApiContext<AuthorizedApi>& auth_api, auto*) {
-                AE_TELED_DEBUG("Resolve servers {}", server_ids_);
+                AETHER_TELED_DEBUG("Resolve servers {}", server_ids_);
                 auth_api->ResolveServer(server_ids_);
               }},
               ResponseSubscriber{
@@ -48,11 +48,11 @@ GetServersAction::GetServersAction(AeContext const& ae_context,
   request_subs_ +=
       cloud_request_.result_event().Subscribe([this](bool success) {
         if (success) {
-          AE_TELED_INFO("GetServersAction succeeded");
+          AETHER_TELED_INFO("GetServersAction succeeded");
           result_event_.Emit(
               Ok<std::vector<ServerDescriptor> const&>{server_descriptors_});
         } else {
-          AE_TELED_ERROR("GetServersAction failed");
+          AETHER_TELED_ERROR("GetServersAction failed");
           result_event_.Emit(Error{1});
         }
         Finish();

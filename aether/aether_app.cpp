@@ -18,6 +18,11 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <stdexcept>
+#include "aether/tele_statistics_backend.h"
+#if AE_OBJECTS_RAW_TELE
+#  include "aether-objects/telemetry.h"
+#endif
 
 // IWYU pragma: begin_keeps
 #include "aether/types/address_parser.h"
@@ -42,64 +47,81 @@
 // IWYU pragma: end_keeps
 
 namespace ae {
-void AetherAppContext::TelemetryInit() {
-#if AE_TELE_ENABLED
-  // Init telemetry sink
-  if (!TELE_SINK::Instance().trap()) {
-#  if AE_TELE_LOG_CONSOLE && AE_TELE_LOG_TO_STATISTICS
-    // telemetry to both console and statistics
-    tele_statistics_trap_is_set = true;
-    auto trap = std::make_shared<
-        ae::tele::ProxyTrap<ae::tele::IoStreamTrap, ae::TeleStatisticsTrap>>(
-        std::make_shared<ae::tele::IoStreamTrap>(std::cout),
-        std::make_shared<ae::TeleStatisticsTrap>());
-
-#  elif AE_TELE_LOG_CONSOLE
-    // telemetry to console only
-    auto trap = std::make_shared<ae::tele::IoStreamTrap>(std::cout);
-#  elif AE_TELE_LOG_TO_STATISTICS
-    // telemetry to statistics only
-    tele_statistics_trap_is_set = true;
-    auto trap = std::make_shared<ae::TeleStatisticsTrap>();
-#  else
-    // NONE trap is enabled
-    return;
-#  endif
-    TELE_SINK::Instance().SetTrap(trap);
+namespace aether_app_internal {
+void RequireTelemetry(bool result) {
+  if (!result) {
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)
+    throw std::runtime_error(
+        "Telemetry checkpoint or backend initialization failed");
+#else
+    std::abort();
+#endif
   }
-
-  AE_TELE_ENV(CompileOptions());
-  AE_TELE_INFO(AetherStarted);
+}
+std::shared_ptr<TeleStatisticsBackend> CastTelemetryBackend(
+    std::shared_ptr<tele::raw::IBackend> const& backend) {
+  if (backend == nullptr ||
+      backend->TypeToken() != TeleStatisticsBackend::StaticTypeToken()) {
+    return {};
+  }
+  return std::static_pointer_cast<TeleStatisticsBackend>(backend);
+}
+}  // namespace aether_app_internal
+void AetherAppContext::TelemetryInit() {
+#if AE_TELE_ENABLED && (AE_TELE_LOG_TO_STATISTICS || AE_TELE_LOG_CONSOLE)
+  auto& sink = AetherTeleSink::Instance();
+  auto backend = aether_app_internal::CastTelemetryBackend(sink.GetBackend());
+  if (!backend) {
+    backend = std::make_shared<TeleStatisticsBackend>();
+    aether_app_internal::RequireTelemetry(
+        sink.SetBackend(backend, [&](auto const& old) {
+          return !old || backend->Append("aether", old->Snapshot("aether"));
+        }));
+  }
+  sink.SetRuntime({bool(AE_TELE_ENABLED && AE_TELE_LOG_TO_STATISTICS),
+                   bool(AE_TELE_ENABLED && AE_TELE_LOG_CONSOLE),
+                   bool(AE_TELE_ENABLED && AE_TELE_LOG_TO_STATISTICS),
+                   bool(AE_TELE_ENABLED && AE_TELE_LOG_TO_STATISTICS),
+                   tele::raw::kAllFields});
+  aether_app_internal::RequireTelemetry(sink.BindWriter(0));
+#  if AE_OBJECTS_RAW_TELE
+  auto& objects = objects_tele::ObjectTeleSink::Instance();
+  aether_app_internal::RequireTelemetry(
+      objects.SetBackend(backend, [&](auto const& old) {
+        return !old || old == backend ||
+               backend->Append("objects", old->Snapshot("objects"));
+      }));
+  objects.SetRuntime({bool(AE_TELE_LOG_TO_STATISTICS),
+                      bool(AE_TELE_LOG_CONSOLE),
+                      bool(AE_TELE_LOG_TO_STATISTICS),
+                      bool(AE_TELE_LOG_TO_STATISTICS), tele::raw::kAllFields});
+  aether_app_internal::RequireTelemetry(objects.BindWriter(0));
+#  endif
+  tele_statistics_trap_is_set = AE_TELE_ENABLED && AE_TELE_LOG_TO_STATISTICS;
+#  if AE_TELE_ENABLED
+  AETHER_TELE_ENV(CompileOptions());
+  AETHER_TELE_INFO(AetherStarted);
   Registry::GetRegistry().Log();
+#  endif
 #endif
 }
 
 void AetherAppContext::TeleStatisticsInit(
     [[maybe_unused]] TeleStatistics::ptr const& tele_statistics) const {
-#if AE_TELE_ENABLED
-#  if AE_TELE_LOG_TO_STATISTICS
-  if (!tele_statistics_trap_is_set) {
-    return;
-  }
-
-  auto& sink = TELE_SINK::Instance();
-  auto trap = sink.trap();
-  // !NOTICE it's error if AE_TELE_LOG_TO_STATISTICS is defined to 1 but actual
-  // trap is set to something different
-#    if AE_TELE_LOG_CONSOLE && AE_TELE_LOG_TO_STATISTICS
-  // if proxy trap is used
-  auto proxy = std::static_pointer_cast<
-      ae::tele::ProxyTrap<ae::tele::IoStreamTrap, ae::TeleStatisticsTrap>>(
-      trap);
-  auto const& current_statistics = proxy->second;
-  tele_statistics->trap()->MergeStatistics(*current_statistics);
-  proxy->second = tele_statistics->trap();
-#    elif AE_TELE_LOG_TO_STATISTICS
-  auto current_statistics =
-      std::static_pointer_cast<ae::TeleStatisticsTrap>(trap);
-  tele_statistics->trap()->MergeStatistics(*current_statistics);
-  sink.SetTrap(tele_statistics->trap());
-#    endif
+#if AE_TELE_ENABLED && AE_TELE_LOG_TO_STATISTICS
+  if (!tele_statistics_trap_is_set) return;
+  auto& sink = AetherTeleSink::Instance();
+  auto persistent = tele_statistics->backend();
+  aether_app_internal::RequireTelemetry(
+      sink.SetBackend(persistent, [&](auto const& old) {
+        return persistent->MergeEarly(
+            aether_app_internal::CastTelemetryBackend(old));
+      }));
+  aether_app_internal::RequireTelemetry(sink.BindWriter(0));
+#  if AE_OBJECTS_RAW_TELE
+  auto& objects = objects_tele::ObjectTeleSink::Instance();
+  aether_app_internal::RequireTelemetry(objects.SetBackend(persistent));
+  aether_app_internal::RequireTelemetry(objects.BindWriter(0));
 #  endif
 #endif
 }
@@ -138,7 +160,7 @@ static TeleStatistics::ptr TeleStatisticsFactory(
       CreateWith{context.domain()}.with_id(GlobalId::kTeleStatistics));
 #else
   assert(false && "Failed to load TeleStatistics");
-  return tele::TeleStatistics::ptr{};
+  return TeleStatistics::ptr{};
 #endif
 }
 
@@ -370,7 +392,6 @@ std::unique_ptr<AetherApp> AetherApp::Construct(AetherAppContext context) {
   app->aether_->dns_resolver = context.dns_resolver();
 #  endif
 
-  app->aether_.Save();
 #endif  // AE_DISTILLATION
 
   // reinit telemetry with tele_statistics object
@@ -381,17 +402,55 @@ std::unique_ptr<AetherApp> AetherApp::Construct(AetherAppContext context) {
       std::move(std::move(context).domain_storage_.Resolve());
   app->env_ = std::move(std::move(context).env_.Resolve());
   app->domain_ = std::move(std::move(context).domain_.Resolve(context));
+#if AE_DISTILLATION
+  // Persist the merged bootstrap archive, including early object-system logs.
+#  if AE_TELE_ENABLED && (AE_TELE_LOG_TO_STATISTICS || AE_TELE_LOG_CONSOLE)
+  aether_app_internal::RequireTelemetry(DrainAetherTelemetry());
+#  endif
+  app->aether_.Save();
+#endif
   return app;
 }
 
 AetherApp::~AetherApp() {
-  // save aether_ state on exit
+#if AE_TELE_ENABLED && (AE_TELE_LOG_TO_STATISTICS || AE_TELE_LOG_CONSOLE)
+  // The lifecycle boundary is an ordinary timestamped record.
   if (aether_) {
+    AETHER_TELE_INFO(AetherDestroyed);
+  }
+#endif
+  // Disable new events, then take each sink's exclusive binding barrier so
+  // constructors that already sampled the enabled runtime finish before save.
+  if (aether_) {
+#if AE_TELE_ENABLED && (AE_TELE_LOG_TO_STATISTICS || AE_TELE_LOG_CONSOLE)
+    auto& sink = AetherTeleSink::Instance();
+    sink.SetRuntime({false, false, false, false, 0});
+#  if AE_OBJECTS_RAW_TELE
+    auto& objects = objects_tele::ObjectTeleSink::Instance();
+    objects.SetRuntime({false, false, false, false, 0});
+#  endif
+    bool drained = sink.SetBackend(sink.GetBackend());
+#  if AE_OBJECTS_RAW_TELE
+    drained = objects.SetBackend(objects.GetBackend()) && drained;
+#  endif
+    if (!drained)
+      std::cerr << "Telemetry drain failed during application shutdown\n";
+#endif
     aether_.Save();
   }
-
-  // reset telemetry before delete all objects
-  TELE_SINK::Instance().SetTrap(nullptr);
+#if AE_TELE_ENABLED && (AE_TELE_LOG_TO_STATISTICS || AE_TELE_LOG_CONSOLE)
+  auto& sink = AetherTeleSink::Instance();
+  sink.SetRuntime({false, false, false, false, 0});
+  // A fresh bootstrap prevents replaying this application's accepted history
+  // into a later application constructed in the same process.
+  static_cast<void>(sink.SetBackend(MakeAetherTelemetryBackend()));
+  sink.SetTrap(nullptr);
+#  if AE_OBJECTS_RAW_TELE
+  auto& objects = objects_tele::ObjectTeleSink::Instance();
+  objects.SetRuntime({false, false, false, false, 0});
+  static_cast<void>(objects.SetBackend(sink.GetBackend()));
+#  endif
+#endif
   aether_.Reset();
 }
 

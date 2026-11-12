@@ -63,7 +63,7 @@ void Esp32SerialPort::ReadAction::PollEvent(PollerEvent event) {
 
 void Esp32SerialPort::ReadAction::ReadData() {
   if (serial_port_->uart_num_ == UART_NUM_MAX) {
-    AE_TELE_ERROR(kAdapterSerialNotOpen, "Port is not open");
+    AETHER_TELE_ERROR(kAdapterSerialNotOpen, "Port is not open");
 
     return;
   }
@@ -71,7 +71,7 @@ void Esp32SerialPort::ReadAction::ReadData() {
   size_t length = 0;
   esp_err_t err = uart_get_buffered_data_len(serial_port_->uart_num_, &length);
   if (err != ESP_OK) {
-    AE_TELE_ERROR(kAdapterSerialReadFailed, "Read failed {}!", err);
+    AETHER_TELE_ERROR(kAdapterSerialReadFailed, "Read failed {}!", err);
     return;
   }
 
@@ -85,12 +85,12 @@ void Esp32SerialPort::ReadAction::ReadData() {
 
   // Reading error
   if (bytes_read <= 0) {
-    AE_TELE_ERROR(kAdapterSerialReadFailed, "Read failed, no data!");
+    AETHER_TELE_ERROR(kAdapterSerialReadFailed, "Read failed, no data!");
     return;
   } else {
     buffer.resize(bytes_read);
 
-    AE_TELED_DEBUG("Serial data read {} bytes: {}", bytes_read, buffer);
+    AETHER_TELED_DEBUG("Serial data read {} bytes: {}", bytes_read, buffer);
 
     buffers_.emplace_back(std::move(buffer));
     read_event_ = true;
@@ -111,14 +111,14 @@ Esp32SerialPort::~Esp32SerialPort() { Close(); }
 
 void Esp32SerialPort::Write(DataBuffer const& data) {
   if (uart_num_ == UART_NUM_MAX) {
-    AE_TELE_ERROR(kAdapterSerialNotOpen, "Port is not open");
+    AETHER_TELE_ERROR(kAdapterSerialNotOpen, "Port is not open");
     return;
   }
 
   int bytes_written = uart_write_bytes(uart_num_, data.data(), data.size());
   if (bytes_written < 0) {
     // Recording error
-    AE_TELE_ERROR(kAdapterSerialWriteFailed, "Write failed!");
+    AETHER_TELE_ERROR(kAdapterSerialWriteFailed, "Write failed!");
     Close();
   }
 }

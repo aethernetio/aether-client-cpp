@@ -16,6 +16,8 @@
 
 #include "aether/server_connections/client_server_connection.h"
 
+#include <limits>
+
 #include "aether/aether.h"
 #include "aether/api_protocol/api_protocol.h"
 #include "aether/client.h"
@@ -28,6 +30,49 @@
 
 namespace ae {
 namespace client_server_connection_internal {
+namespace {
+// Use the real field serializers and PackedSize codec without constructing a
+// ciphertext buffer. The binary archive only asks this buffer to count bytes.
+struct FramingSizeBuffer {
+  seri::SeriResult Write(seri::SizeWriteTag tag) {
+    if (tag.size > PackedSize::kUpper) {
+      return Error{seri::write_error};
+    }
+    std::uint8_t prefix[PackedSize::kMaxWireBytes];
+    return Write(
+        seri::DataWriteTag{nullptr, PackedSize{tag.size}.Serialize(prefix)});
+  }
+  seri::SeriResult Write(seri::DataWriteTag tag) {
+    if (tag.size > std::numeric_limits<std::size_t>::max() - bytes) {
+      return Error{seri::write_error};
+    }
+    bytes += tag.size;
+    return Ok{seri::good};
+  }
+  seri::SeriResult Read(seri::SizeReadTag) { return Error{seri::read_error}; }
+  seri::SeriResult Read(seri::DataReadTag) { return Error{seri::read_error}; }
+  std::size_t bytes{};
+};
+}  // namespace
+
+std::size_t AuthorizedApiCallSize(std::size_t authorized_payload_size,
+                                  std::size_t encrypt_overhead) noexcept {
+  auto const maximum = std::numeric_limits<std::size_t>::max();
+  if (authorized_payload_size > maximum - encrypt_overhead) {
+    return maximum;
+  }
+  auto const encrypted_size = authorized_payload_size + encrypt_overhead;
+  auto archive = seri::BinaryArchive{FramingSizeBuffer{}};
+  // LoginApi::LoginByAlias serializes (MessageId, Uid, DataBuffer). Only the
+  // ciphertext length changes with its contents; Uid has fixed-width fields.
+  if (!archive.Save(MessageId{}) || !archive.Save(Uid{}) ||
+      !archive.buffer().Write(seri::SizeWriteTag{encrypted_size}) ||
+      !archive.buffer().Write(seri::DataWriteTag{nullptr, encrypted_size})) {
+    return maximum;
+  }
+  return archive.buffer().bytes;
+}
+
 class ClientKeyProvider : public ISyncKeyProvider {
  public:
   explicit ClientKeyProvider(Ptr<Client> const& client, ServerId server_id)
@@ -154,7 +199,7 @@ ClientServerConnection::ClientServerConnection(AeContext const& ae_context,
                          *crypto_provider_->decryptor()},
       login_api_{*crypto_provider_->encryptor()},
       server_connection_{ae_context_, server} {
-  AE_TELED_DEBUG("Client server connection from {}:e-{} to {}", uid_,
+  AETHER_TELED_DEBUG("Client server connection from {}:e-{} to {}", uid_,
                  ephemeral_uid_, server->server_id);
 
   server_connection_.out_data_event().Subscribe(
@@ -164,7 +209,7 @@ ClientServerConnection::ClientServerConnection(AeContext const& ae_context,
 ClientServerConnection::~ClientServerConnection() {
   auto server = server_.Lock();
   assert(server);
-  AE_TELED_DEBUG("Destroy client server connection from {}:e-{} to {}", uid_,
+  AETHER_TELED_DEBUG("Destroy client server connection from {}:e-{} to {}", uid_,
                  ephemeral_uid_, server->server_id);
 }
 
@@ -189,6 +234,13 @@ WriteAction& ClientServerConnection::AuthorizedApiCall(
   auto api_call = ApiContext{login_api_, protocol_context_};
   api_call->LoginByAlias(ephemeral_uid_, std::move(auth_api));
   return server_connection_.Write(std::move(api_call));
+}
+
+std::size_t ClientServerConnection::AuthorizedApiCallSize(
+    std::size_t authorized_payload_size) const {
+  return client_server_connection_internal::AuthorizedApiCallSize(
+      authorized_payload_size,
+      crypto_provider_->encryptor()->EncryptOverhead());
 }
 
 ClientApiSafe& ClientServerConnection::client_safe_api() {

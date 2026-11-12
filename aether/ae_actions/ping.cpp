@@ -67,7 +67,7 @@ Ping::Ping(AeContext const& ae_context,
       timeout_{timeout},
       server_id_{cloud_server_connection_->server_id()},
       result_event_{ae_context_} {
-  AE_TELE_INFO(
+  AETHER_TELE_INFO(
       kPing,
       "Ping action created to server id: {}, interval: {:%S}s, rx_window: "
       "{:%S}s, timeout: {:%S}s",
@@ -86,11 +86,10 @@ void Ping::Start(TimePoint current_time) {
   if (state_ != RequestState::kCreated) {
     return;
   }
-  state_ = RequestState::kPending;
+  ArmResponse(cc->client_safe_api(), current_time);
 
-
-  auto& write_action = cc->AuthorizedApiCall(
-      [this, current_time](ApiContext<AuthorizedApi>& auth_api) {
+  auto& write_action =
+      cc->AuthorizedApiCall([this](ApiContext<AuthorizedApi>& auth_api) {
         auto next_ping_hint_ms = static_cast<std::uint64_t>(
             std::chrono::duration_cast<std::chrono::milliseconds>(
                 next_ping_hint_)
@@ -101,24 +100,16 @@ void Ping::Start(TimePoint current_time) {
 
         auth_api->Ping(next_ping_hint_ms, rx_window_ms);
 
-        AE_TELE_DEBUG(kPingSend,
-                      "Ping server id {}, expected time {}",
-                      server_id_, timeout_);
-
-        request_start_ = current_time;
-
-        timeout_sub_ = ae_context_.scheduler().DelayedTask(
-            [this]() { PingResponseTimeout(RequestId{}); },
-            current_time + timeout_);
+        AETHER_TELE_DEBUG(kPingSend, "Ping server id {}, expected time {}",
+                          server_id_, timeout_);
       });
-
 
   write_sub_ = write_action.status_event().Subscribe([this](auto status) {
     if (status == WriteAction::Status::kFail) {
       if (state_ != RequestState::kPending) {
         return;
       }
-      AE_TELE_ERROR(kPingWriteError, "Ping write error");
+      AETHER_TELE_ERROR(kPingWriteError, "Ping write error");
       state_ = RequestState::kFinished;
       ResetRequestSubscriptions();
       result_event_.Emit(PingResult{Error{1}});
@@ -128,13 +119,20 @@ void Ping::Start(TimePoint current_time) {
     write_sub_.Reset();
   }
 
-
 #  if DEBUG
-  cc->LoginApiCall([&](ApiContext<LoginApi>& api_call) {
-    api_call->GetMyIp();
-  });
+  cc->LoginApiCall(
+      [&](ApiContext<LoginApi>& api_call) { api_call->GetMyIp(); });
 #  endif
+}
 
+void Ping::ArmResponse(ClientApiSafe& api, TimePoint current_time) {
+  state_ = RequestState::kPending;
+  request_start_ = current_time;
+  // Arm both completion paths before sending, including a synchronous ack.
+  wait_result_sub_ =
+      api.ping_ack_event.Subscribe([this]() { PingResponse(RequestId{}); });
+  timeout_sub_ = ae_context_.scheduler().DelayedTask(
+      [this]() { PingResponseTimeout(RequestId{}); }, current_time + timeout_);
 }
 
 void Ping::PingResponse(RequestId request_id) {
@@ -142,8 +140,8 @@ void Ping::PingResponse(RequestId request_id) {
   auto ping_duration =
       std::chrono::duration_cast<Duration>(current_time - request_start_);
 
-  AE_TELED_DEBUG("Ping received server id {} request {} duration {}",
-                 server_id_, request_id, ping_duration);
+  AETHER_TELED_DEBUG("Ping received server id {} request {} duration {}",
+                     server_id_, request_id, ping_duration);
   if (state_ == RequestState::kPending) {
     state_ = RequestState::kFinished;
     ResetRequestSubscriptions();
@@ -156,9 +154,9 @@ void Ping::PingResponse(RequestId request_id) {
 }
 
 void Ping::PingResponseError(RequestId request_id, std::int32_t error_code) {
-  AE_TELE_ERROR(kPingResponseError,
-                "Ping error server id {} request {} code {}", server_id_,
-                request_id, error_code);
+  AETHER_TELE_ERROR(kPingResponseError,
+                    "Ping error server id {} request {} code {}", server_id_,
+                    request_id, error_code);
   if (state_ == RequestState::kPending) {
     state_ = RequestState::kFinished;
     ResetRequestSubscriptions();
@@ -177,9 +175,10 @@ void Ping::PingResponseTimeout(RequestId request_id) {
   if (state_ != RequestState::kPending) {
     return;
   }
-  AE_TELE_ERROR(kPingTimeoutError, "Ping timeout server id {} request {}",
-                server_id_, request_id);
+  AETHER_TELE_ERROR(kPingTimeoutError, "Ping timeout server id {} request {}",
+                    server_id_, request_id);
   state_ = RequestState::kTimedOut;
+  wait_result_sub_.Reset();
   timeout_sub_.Reset();
   write_sub_.Reset();
   result_event_.Emit(PingResult{Error{2}});

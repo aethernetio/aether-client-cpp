@@ -29,7 +29,7 @@ namespace ae {
 namespace lwip_tcp_socket_internal {
 inline bool SetNonblocking(int sock) noexcept {
   if (lwip_fcntl(sock, F_SETFL, O_NONBLOCK) != 0) {
-    AE_TELED_ERROR("Socket set O_NONBLOCK error {} {}", errno, strerror(errno));
+    AETHER_TELED_ERROR("Socket set O_NONBLOCK error {} {}", errno, strerror(errno));
     return false;
   }
   return true;
@@ -38,7 +38,7 @@ inline bool SetNonblocking(int sock) noexcept {
 inline bool SetTcpNoDelay(int sock, int on) noexcept {
   auto res = setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on));
   if (res != 0) {
-    AE_TELED_ERROR("Socket set option TCP_NODELAY error {} {}", errno,
+    AETHER_TELED_ERROR("Socket set option TCP_NODELAY error {} {}", errno,
                    strerror(errno));
     return false;
   }
@@ -48,7 +48,7 @@ inline bool SetTcpNoDelay(int sock, int on) noexcept {
 inline bool SetReuseAddress(int sock, int on) noexcept {
   auto res = setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
   if (res != 0) {
-    AE_TELED_ERROR("Socket set option SO_REUSEADDR error {} {}", errno,
+    AETHER_TELED_ERROR("Socket set option SO_REUSEADDR error {} {}", errno,
                    strerror(errno));
     return false;
   }
@@ -68,7 +68,7 @@ int LwipTcpSocket::MakeSocket() noexcept {
 
   auto sock = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
   if (sock < 0) {
-    AE_TELED_ERROR("LwIp TCP socket creation error {} {}", errno,
+    AETHER_TELED_ERROR("LwIp TCP socket creation error {} {}", errno,
                    strerror(errno));
     return kInvalidDescriptor;
   }
@@ -86,7 +86,7 @@ int LwipTcpSocket::MakeSocket() noexcept {
     return kInvalidDescriptor;
   }
 
-  AE_TELED_DEBUG("LwIp TCP socket created");
+  AETHER_TELED_DEBUG("LwIp TCP socket created");
   close_socket.Reset();
   return sock;
 }
@@ -103,14 +103,14 @@ ISocket& LwipTcpSocket::Connect(AddressPort const& destination,
       connect(*socket_->fd(), addr.addr(), static_cast<socklen_t>(addr.size));
   if (res == -1) {
     if ((errno == EAGAIN) || (errno == EINPROGRESS)) {
-      AE_TELED_DEBUG("Wait connection");
+      AETHER_TELED_DEBUG("Wait connection");
       // wait for all events to detect connection
       socket_->Event(EventType::kRead | EventType::kWrite | EventType::kError,
                      MethodPtr<&LwipTcpSocket::OnPollerEvent>{this});
       connection_state_ = ConnectionState::kConnecting;
       return *this;
     }
-    AE_TELED_ERROR("Not connected {} {}", errno, strerror(errno));
+    AETHER_TELED_ERROR("Not connected {} {}", errno, strerror(errno));
     connection_state_ = ConnectionState::kConnectionFailed;
     return *this;
   }
@@ -130,7 +130,7 @@ void LwipTcpSocket::OnPollerEvent(DescriptorType fd, EventType event) {
 void LwipTcpSocket::OnConnectionEvent(DescriptorType fd) {
   ae_defer[&]() {
     if (connected_cb_) {
-      AE_TELED_DEBUG("LwIp TCP socket connection event {}", connection_state_);
+      AETHER_TELED_DEBUG("LwIp TCP socket connection event {}", connection_state_);
       connected_cb_(connection_state_);
     }
   };
@@ -138,13 +138,13 @@ void LwipTcpSocket::OnConnectionEvent(DescriptorType fd) {
   // check socket status
   auto sock_err = GetSocketError(fd);
   if (!sock_err || (sock_err.value() != 0)) {
-    AE_TELED_ERROR("Connect error {}, {}", sock_err,
+    AETHER_TELED_ERROR("Connect error {}, {}", sock_err,
                    strerror(sock_err.value_or(0)));
     connection_state_ = ConnectionState::kConnectionFailed;
     return;
   }
 
-  AE_TELED_DEBUG("Socket connected");
+  AETHER_TELED_DEBUG("Socket connected");
   connection_state_ = ConnectionState::kConnected;
   Poll();
 }

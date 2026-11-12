@@ -31,13 +31,13 @@ LoraModuleAdapter::LoraModuleAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
                                      Domain* domain)
     : ParentLoraModuleAdapter{std::move(aether), std::move(poller),
                               std::move(lora_module_init), domain} {
-  AE_TELED_DEBUG("Lora module instance created!");
+  AETHER_TELED_DEBUG("Lora module instance created!");
 }
 #  endif  // AE_DISTILLATION
 
 LoraModuleAdapter::~LoraModuleAdapter() {
   if (connected_) {
-    AE_TELED_DEBUG("Lora module instance deleted!");
+    AETHER_TELED_DEBUG("Lora module instance deleted!");
     connected_ = false;
   }
 }

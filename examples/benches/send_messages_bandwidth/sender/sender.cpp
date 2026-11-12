@@ -29,6 +29,7 @@ Sender::Sender(AeContext const& ae_context, Client::ptr client, Uid destination)
       destination_{destination},
       protocol_context_(ae_context_),
       bandwidth_api_{},
+      incoming_api_{ae_context_.event_system()},
       test_finished_event_{ae_context_},
       handshake_made_{ae_context_},
       test_started_event_{ae_context_},
@@ -51,17 +52,19 @@ void Sender::Disconnect() { message_stream_.reset(); }
 Event<void()> const& Sender::Handshake() {
   auto api = ApiCallAdapter{bandwidth_api_, *message_stream_};
 
-  auto res = api->Handshake();
-  handshake_sub_ = res.Subscribe([this](auto const& res) {
-    AE_TELED_DEBUG("Handshake received");
-    if (res && res.value()) {
-      handshake_made_.Emit();
-    } else {
-      error_event_.Emit();
-    }
-  });
+  handshake_sub_ =
+      incoming_api_.handshake_result_event.Subscribe([this](bool accepted) {
+        handshake_sub_.Reset();
+        AE_TELED_DEBUG("Handshake received");
+        if (accepted) {
+          handshake_made_.Emit();
+        } else {
+          error_event_.Emit();
+        }
+      });
 
-  AE_TELED_DEBUG("Sending handshake request {}", res.request_id());
+  AE_TELED_DEBUG("Sending handshake request");
+  api->Handshake();
   api.Flush();
 
   return handshake_made_;
@@ -72,49 +75,55 @@ Event<void(Bandwidth const&)> const& Sender::TestMessages(
   // Start test
   // Make test
   // Stop test
-  StartTest().Subscribe([this, message_size, message_count]() {
-    // test started
-    auto payload_size = message_size > 2 ? message_size - 2 : 0;
-    message_sender_ = std::make_unique<MessageSender>(
-        ae_context_,
-        [this, payload_size](std::uint16_t id) -> decltype(auto) {
-          auto api = ApiCallAdapter{bandwidth_api_, *message_stream_};
-          api->Message(id, DataBuffer(payload_size));
-          return api.Flush();
-        },
-        message_count);
+  test_start_sub_ =
+      StartTest().Subscribe([this, message_size, message_count]() {
+        // test started
+        auto payload_size = message_size > 2 ? message_size - 2 : 0;
+        message_sender_ = std::make_unique<MessageSender>(
+            ae_context_,
+            [this, payload_size](std::uint16_t id) -> decltype(auto) {
+              auto api = ApiCallAdapter{bandwidth_api_, *message_stream_};
+              api->Message(id, DataBuffer(payload_size));
+              return api.Flush();
+            },
+            message_count);
 
-    test_res_sub_ = message_sender_->result_event().Subscribe(
-        [this, message_size](auto const& result) {
-          if (result) {
-            StopTest().Subscribe(
-                [this,
-                 bandwidth = Bandwidth{result.value().duration,
-                                       result.value().count, message_size}]() {
-                  test_finished_event_.Emit(bandwidth);
-                });
-          } else {
-            error_event_.Emit();
-          }
-        });
-  });
+        test_res_sub_ = message_sender_->result_event().Subscribe(
+            [this, message_size](auto const& result) {
+              if (result) {
+                test_stop_sub_ = StopTest().Subscribe(
+                    [this, bandwidth = Bandwidth{result.value().duration,
+                                                 result.value().count,
+                                                 message_size}]() {
+                      test_finished_event_.Emit(bandwidth);
+                    });
+              } else {
+                error_event_.Emit();
+              }
+            });
+      });
 
   return test_finished_event_;
 }
 
 Event<void()> const& Sender::StartTest() {
+  start_ack_sub_ =
+      incoming_api_.start_test_result_event.Subscribe([this](bool accepted) {
+        start_ack_sub_.Reset();
+        start_test_action_->Stop();
+        if (accepted) {
+          test_started_event_.Emit();
+        } else {
+          error_event_.Emit();
+        }
+      });
   start_test_action_.emplace(
       ae_context_,
       [this]() {
         AE_TELED_DEBUG("Sending start test request");
         auto api = ApiCallAdapter{bandwidth_api_, *message_stream_};
 
-        sync_subs_ += api->StartTest().Subscribe([this](auto const& res) {
-          if (res.IsOk()) {
-            start_test_action_->Stop();
-            test_started_event_.Emit();
-          }
-        });
+        api->StartTest();
         api.Flush();
       },
       std::chrono::seconds{1}, 5);
@@ -127,18 +136,23 @@ Event<void()> const& Sender::StartTest() {
 }
 
 Event<void()> const& Sender::StopTest() {
+  stop_ack_sub_ =
+      incoming_api_.stop_test_result_event.Subscribe([this](bool accepted) {
+        stop_ack_sub_.Reset();
+        stop_test_action_->Stop();
+        if (accepted) {
+          test_stopped_event_.Emit();
+        } else {
+          error_event_.Emit();
+        }
+      });
   stop_test_action_.emplace(
       ae_context_,
       [this]() {
         AE_TELED_DEBUG("Sending stop test request");
         auto api = ApiCallAdapter{bandwidth_api_, *message_stream_};
 
-        sync_subs_ += api->StopTest().Subscribe([this](auto const& res) {
-          if (res.IsOk()) {
-            stop_test_action_->Stop();
-            test_stopped_event_.Emit();
-          }
-        });
+        api->StopTest();
         api.Flush();
       },
       std::chrono::seconds{1}, 5);
@@ -152,6 +166,6 @@ Event<void()> const& Sender::StopTest() {
 
 void Sender::OnRecvData(DataBuffer const& data) {
   auto parser = ApiParser{protocol_context_, data};
-  parser.Parse(bandwidth_api_);
+  parser.Parse(incoming_api_);
 }
 }  // namespace ae::bench

@@ -22,11 +22,14 @@
 #  define TELEMETRY_ENABLED 1
 
 #  include <optional>
+#  include <vector>
 
+#  include "aether/ae_actions/telemetry_send_queue.h"
 #  include "aether/ae_context.h"
 #  include "aether/cloud_connections/cloud_server_connections.h"
 #  include "aether/cloud_connections/cloud_subscription.h"
 #  include "aether/stream_api/istream.h"
+#  include "aether/types/server_id.h"
 
 #  include "aether/work_cloud_api/telemetric.h"
 
@@ -43,14 +46,23 @@ class Telemetry {
   void SendTelemetry();
 
  private:
-  void OnRequestTelemetry(std::size_t server_priority);
-  std::optional<Telemetric> CollectTelemetry(StreamInfo const& stream_info);
+  void OnRequestTelemetry(CloudServerConnection* server);
+  std::vector<Telemetric> CollectTelemetry(
+      ClientServerConnection const& connection);
 
   AeContext ae_context_;
   CloudServerConnections* cloud_connection_;
 
   CloudEventListener telemetry_request_sub_;
-  std::optional<std::size_t> request_for_server_;
+  struct RequestTarget {
+    CloudServerConnection* server;
+    ServerId id;
+  };
+  std::optional<RequestTarget> request_for_server_;
+  CloudServerConnection* sending_server_{};
+  ServerId sending_server_id_{};
+  bool send_again_{};
+  telemetry_internal::FragmentSendQueue send_queue_;
 };
 }  // namespace ae
 #endif

@@ -21,7 +21,15 @@
 #include <cstdint>
 
 #include "ae-numeric/tiered_int.h"
+#if defined(_MSC_VER)
+// Keep optimized signed/unsigned branch diagnostics local to numeric headers.
+#  pragma warning(push)
+#  pragma warning(disable : 4702)
+#endif
 #include "ae-numeric/wire_io.h"
+#if defined(_MSC_VER)
+#  pragma warning(pop)
+#endif
 
 #include "aether-miscpp/serialization/binary_archive.h"
 

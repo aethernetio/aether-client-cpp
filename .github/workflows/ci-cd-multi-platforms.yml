@@ -30,14 +30,14 @@ jobs:
               name: "Windows MSVC x64",
               os: windows-latest,
               shell: "powershell",
-              cmake_args: '-G "Visual Studio 18 2026" -A x64 -DCMAKE_TOOLCHAIN_FILE=./toolchain/optmization-options-msvc.toolchain',
+              cmake_args: '-G "Visual Studio 18 2026" -A x64 "-DCMAKE_TOOLCHAIN_FILE=./toolchain/optmization-options-msvc.toolchain"',
               initial_cache: ".github/workflows/windows_msvc_x64_initial_cache.txt",
             }
           - {
               name: "Windows MSVC x86",
               os: windows-latest,
               shell: "powershell",
-              cmake_args: '-G "Visual Studio 18 2026" -A Win32 -DCMAKE_TOOLCHAIN_FILE=./toolchain/optmization-options-msvc.toolchain',
+              cmake_args: '-G "Visual Studio 18 2026" -A Win32 "-DCMAKE_TOOLCHAIN_FILE=./toolchain/optmization-options-msvc.toolchain"',
               initial_cache: ".github/workflows/windows_msvc_x86_initial_cache.txt",
             }
           - {
@@ -119,8 +119,27 @@ jobs:
           include-hidden-files: true
           overwrite: true
 
+  telemetry-disabled:
+    name: Telemetry disabled / no exceptions or RTTI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure disabled production library
+        run: >
+          cmake -S . -B build-disabled -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_CXX_FLAGS="-fno-exceptions -fno-rtti"
+          -DUSER_CONFIG=tests/test-tele-disabled/config.h
+          -DAE_INSTALL=OFF -DAE_BUILD_TOOLS=OFF -DAE_BUILD_EXAMPLES=OFF
+          -DAE_BUILD_TESTS=ON -DAE_BUILD_TELE_DISABLED_TESTS=ON
+          -DAE_OBJECTS_RAW_TELE=ON
+      - name: Build disabled-library regression
+        run: cmake --build build-disabled --target test-tele-disabled --parallel 4
+      - name: Run two-app regression
+        run: ctest --test-dir build-disabled -R '^test-tele-disabled$' --output-on-failure
+
   release:
-    needs: build
+    needs: [build, telemetry-disabled]
     runs-on: ubuntu-latest
     steps:
       - name: Download Firmware Files

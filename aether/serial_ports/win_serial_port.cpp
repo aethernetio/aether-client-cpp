@@ -46,7 +46,7 @@ void WinSerialPort::Write(std::span<std::uint8_t const> data) {
   overlapped_wr_.hEvent = CreateEventA(NULL, true, true, NULL);
   if (overlapped_wr_.hEvent == NULL) {
     dwErr = GetLastError();
-    AE_TELED_DEBUG("Error write to serial port {}", dwErr);
+    AETHER_TELED_DEBUG("Error write to serial port {}", dwErr);
     return;
   }
 
@@ -55,7 +55,7 @@ void WinSerialPort::Write(std::span<std::uint8_t const> data) {
   dwErr = GetLastError();
   if (!fSuccess) {
     if (dwErr != ERROR_IO_PENDING) {
-      AE_TELED_ERROR("WriteFile error {}", dwErr);
+      AETHER_TELED_ERROR("WriteFile error {}", dwErr);
     } else {
       dwRes = WaitForSingleObject(overlapped_wr_.hEvent, INFINITE);
       dwErr = GetLastError();
@@ -63,7 +63,7 @@ void WinSerialPort::Write(std::span<std::uint8_t const> data) {
         case WAIT_OBJECT_0:
           if (!GetOverlappedResult(fd_, &overlapped_wr_, &dwWrite, FALSE)) {
             dwErr = GetLastError();
-            AE_TELED_ERROR("GetOverlappedResult error {}", dwErr);
+            AETHER_TELED_ERROR("GetOverlappedResult error {}", dwErr);
           } else {
             fSuccess = FALSE;
           }
@@ -80,10 +80,10 @@ void WinSerialPort::Write(std::span<std::uint8_t const> data) {
   if (overlapped_wr_.hEvent != NULL) CloseHandle(overlapped_wr_.hEvent);
 
   if (fSuccess == TRUE) {
-    AE_TELED_ERROR("Write to com port filed!");
+    AETHER_TELED_ERROR("Write to com port filed!");
   } else {
     if (dwWrite > 0) {
-      AE_TELED_DEBUG("Serial data write {} bytes", dwWrite);
+      AETHER_TELED_DEBUG("Serial data write {} bytes", dwWrite);
     }
   }
 }
@@ -101,7 +101,7 @@ void WinSerialPort::RequestRead() {
   BOOL fRes;
 
   if (fd_ == INVALID_HANDLE_VALUE) {
-    AE_TELE_ERROR(kAdapterSerialNotOpen, "Port is not open");
+    AETHER_TELE_ERROR(kAdapterSerialNotOpen, "Port is not open");
     return;
   }
 
@@ -113,7 +113,7 @@ void WinSerialPort::RequestRead() {
   if (!fRes) {
     dwErr = GetLastError();
     if (dwErr != ERROR_IO_PENDING) {
-      AE_TELED_ERROR("Read err {}", dwErr);
+      AETHER_TELED_ERROR("Read err {}", dwErr);
       return;
     }
   }
@@ -127,7 +127,7 @@ void WinSerialPort::HandleRead() {
 
   if (!::GetOverlappedResult(fd_, &overlapped_rd_, &dwRead, FALSE)) {
     dwErr = GetLastError();
-    AE_TELED_ERROR("GetOverlappedResult err {}", dwErr);
+    AETHER_TELED_ERROR("GetOverlappedResult err {}", dwErr);
     return;
   }
 
@@ -135,7 +135,7 @@ void WinSerialPort::HandleRead() {
     DataBuffer data(static_cast<std::size_t>(dwRead));
     std::copy(read_buffer_.begin(), read_buffer_.begin() + dwRead,
               data.begin());
-    AE_TELED_DEBUG("Serial data read {} bytes", data.size());
+    AETHER_TELED_DEBUG("Serial data read {} bytes", data.size());
 
     buffers_.emplace_back(std::move(data));
 
@@ -165,7 +165,7 @@ void* WinSerialPort::OpenPort(SerialInit const& serial_init) {
                    OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
 
   if (fd == INVALID_HANDLE_VALUE) {
-    AE_TELE_ERROR(kAdapterSerialNotOpen, "Failed to open port: {}",
+    AETHER_TELE_ERROR(kAdapterSerialNotOpen, "Failed to open port: {}",
                   GetLastError());
     return INVALID_HANDLE_VALUE;
   }
@@ -186,7 +186,7 @@ void* WinSerialPort::OpenPort(SerialInit const& serial_init) {
 bool WinSerialPort::SetOptions(void* fd, SerialInit const& serial_init) {
   DCB dcb{};
   if (!GetCommState(fd, &dcb)) {
-    AE_TELE_ERROR(kAdapterSerialPortState, "Failed to get port state");
+    AETHER_TELE_ERROR(kAdapterSerialPortState, "Failed to get port state");
     return false;
   }
 
@@ -197,7 +197,7 @@ bool WinSerialPort::SetOptions(void* fd, SerialInit const& serial_init) {
   dcb.fDtrControl = DTR_CONTROL_ENABLE;
 
   if (!SetCommState(fd, &dcb)) {
-    AE_TELE_ERROR(kAdapterSerialConfigurePort, "Failed to configure port");
+    AETHER_TELE_ERROR(kAdapterSerialConfigurePort, "Failed to configure port");
     return false;
   }
 
@@ -209,7 +209,7 @@ bool WinSerialPort::SetOptions(void* fd, SerialInit const& serial_init) {
   timeouts.WriteTotalTimeoutMultiplier = 10;
 
   if (!SetCommTimeouts(fd, &timeouts)) {
-    AE_TELED_ERROR("Failed to set timeouts");
+    AETHER_TELED_ERROR("Failed to set timeouts");
     return false;
   }
 

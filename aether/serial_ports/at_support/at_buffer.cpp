@@ -37,7 +37,7 @@ AtBuffer::iterator AtBuffer::FindPattern(std::string_view str, iterator start) {
   for (; it != std::end(data_lines_); ++it) {
     std::string_view it_str(reinterpret_cast<char const*>(it->data()),
                             it->size());
-    AE_TELED_DEBUG("Searching pattern {} in {}", str, it_str);
+    AETHER_TELED_DEBUG("Searching pattern {} in {}", str, it_str);
     if (it_str.find(str) != std::string::npos) {
       break;
     }
@@ -87,14 +87,14 @@ AtBuffer::iterator AtBuffer::erase(iterator first, iterator last) {
 }
 
 void AtBuffer::DataRead(std::span<std::uint8_t const> data) {
-  AE_TELED_DEBUG("AtBuffer receives packet {}", data);
+  AETHER_TELED_DEBUG("AtBuffer receives packet {}", data);
   auto data_str =
       std::string_view{reinterpret_cast<const char*>(data.data()), data.size()};
   auto start = std::end(data_lines_);
   while (!data_str.empty()) {
     auto line_end = data_str.find("\r\n");
     if (line_end == std::string_view::npos) {
-      AE_TELED_ERROR("The line without \\r\\n {}", data_str);
+      AETHER_TELED_ERROR("The line without \\r\\n {}", data_str);
       line_end = data_str.size();
     }
     // skip \r\n
@@ -107,7 +107,7 @@ void AtBuffer::DataRead(std::span<std::uint8_t const> data) {
       continue;
     }
 
-    AE_TELED_DEBUG("AtBuffer adds line {}", sub);
+    AETHER_TELED_DEBUG("AtBuffer adds line {}", sub);
     auto it = data_lines_.emplace(
         std::end(data_lines_),
         reinterpret_cast<std::uint8_t const*>(sub.data()),

@@ -45,7 +45,7 @@ TcpBase::OutDataEvent const& TcpBase::out_data_event() {
 }
 
 void TcpBase::Restream() {
-  AE_TELED_DEBUG("TCP restream");
+  AETHER_TELED_DEBUG("TCP restream");
   stream_info_.link_state = LinkState::kLinkError;
   Disconnect();
 }
@@ -74,7 +74,7 @@ void TcpBase::OnConnection(ISocket::ConnectionState connection_state) {
 
 void TcpBase::OnRecvData(Span<std::uint8_t> data) {
   auto sl = std::scoped_lock{buffer_lock_};
-  AE_TELED_DEBUG("Received data {}", data.size());
+  AETHER_TELED_DEBUG("Received data {}", data.size());
   data_packet_collector_.AddData(data.data(), data.size());
 
   // emit new data though scheduler stream
@@ -84,7 +84,7 @@ void TcpBase::OnRecvData(Span<std::uint8_t> data) {
       read_event_ = false;
       for (auto data = data_packet_collector_.PopPacket(); !data.empty();
            data = data_packet_collector_.PopPacket()) {
-        AE_TELE_DEBUG(kTcpTransportReceive,
+        AETHER_TELE_DEBUG(kTcpTransportReceive,
                       "Socket {} received data size {} \ndata{}", endpoint_,
                       data.size(), data);
         out_data_event_.Emit(data);
@@ -95,7 +95,7 @@ void TcpBase::OnRecvData(Span<std::uint8_t> data) {
 void TcpBase::OnReadyToWrite() {}
 void TcpBase::OnSocketError() {
   conn_state_sub_ = ae_context_.scheduler().Task([&]() {
-    AE_TELED_ERROR("Socket error, disconnect!");
+    AETHER_TELED_ERROR("Socket error, disconnect!");
     stream_info_.link_state = LinkState::kLinkError;
     Disconnect();
   });

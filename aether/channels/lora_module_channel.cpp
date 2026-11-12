@@ -47,7 +47,7 @@ class LoraModuleTransportBuilderAction final : public TransportBuilderAction {
         address_{std::move(address)},
         state_{State::kLoraModuleConnect},
         start_time_{Now()} {
-    AE_TELED_DEBUG("Lora module transport building");
+    AETHER_TELED_DEBUG("Lora module transport building");
   }
 
   UpdateStatus Update() override {
@@ -117,7 +117,7 @@ class LoraModuleTransportBuilderAction final : public TransportBuilderAction {
 
   void Connected() {
     auto built_time = std::chrono::duration_cast<Duration>(Now() - start_time_);
-    AE_TELED_DEBUG("Lora modem transport built by {:%S}", built_time);
+    AETHER_TELED_DEBUG("Lora modem transport built by {:%S}", built_time);
     channel_->channel_statistics().AddConnectionTime(built_time);
     state_ = State::kTransportConnected;
     Action::Trigger();

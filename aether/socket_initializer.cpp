@@ -29,7 +29,7 @@ SocketInitializer::SocketInitializer() : initialized_{false} {
   static constexpr auto WIN_SOCK_VERSION = MAKEWORD(2, 2);
   WSADATA wsaData;
   if (auto res = WSAStartup(WIN_SOCK_VERSION, &wsaData); res != 0) {
-    AE_TELED_ERROR("WSAStartup returns {}", res);
+    AETHER_TELED_ERROR("WSAStartup returns {}", res);
     assert(false);
     return;
   }

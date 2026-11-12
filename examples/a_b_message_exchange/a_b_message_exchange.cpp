@@ -82,6 +82,36 @@ static auto SelectClientSender(State* state, std::string_view name,
          ae::ex::with_timeout(ae::AeContext{*state->aether}, kStageTimeout);
 }
 
+// A restored client is selected before its receive connection has logged in.
+// Wait for a server acknowledgement before sending an unreliable P2P message.
+static auto WaitForClientReady(State* state, ae::Client::ptr State::* client,
+                               std::string_view name) {
+  return ae::ex::let_value([state, client, name]() noexcept {
+    return ae::ex::create<ae::ex::set_value_t(), ae::ex::set_error_t(int)>(
+               [state, client, name, listener = ae::CloudEventListener{}](
+                   auto& ctx) mutable noexcept {
+                 auto& cloud = (state->*client)->cloud_connection();
+                 Log("client.ready.start name={}", name);
+                 listener = ae::CloudEventListener{
+                     ae::ApiEventSubscriber{[&ctx, &listener, name](
+                                                ae::ClientApiSafe& api, auto*) {
+                       return api.ping_ack_event.Subscribe(
+                           [&ctx, &listener, name]() noexcept {
+                             listener.Reset();
+                             Log("client.ready.done name={}", name);
+                             return ae::ex::set_value(std::move(ctx.receiver));
+                           });
+                     }},
+                     cloud, ae::RequestPolicy::MainServer{}};
+                 cloud.CallApi(
+                     ae::ApiCall{[](ae::ApiContext<ae::AuthorizedApi>& api,
+                                    auto*) { api->Ping(5000, 5000); }},
+                     ae::RequestPolicy::MainServer{});
+               }) |
+           ae::ex::with_timeout(ae::AeContext{*state->aether}, kStageTimeout);
+  });
+}
+
 static void OpenAStream(State* state) {
   state->a_stream = std::make_shared<ae::P2pStream>(
       *state->aether, state->client_a.Load(), state->client_b->uid(),
@@ -183,6 +213,8 @@ int MessageServerExample() {
   auto pipeline = ae::ex::just() |
                   SelectClientSender(&state, "A", &State::client_a) |
                   SelectClientSender(&state, "B", &State::client_b) |
+                  WaitForClientReady(&state, &State::client_a, "A") |
+                  WaitForClientReady(&state, &State::client_b, "B") |
                   ae::ex::then([&state]() noexcept { OpenAStream(&state); }) |
                   SendMessageAtoB(&state, 1) | SendMessageBtoA(&state, 1) |
                   SendMessageAtoB(&state, 2) | SendMessageBtoA(&state, 2);

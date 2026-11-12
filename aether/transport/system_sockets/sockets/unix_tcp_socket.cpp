@@ -44,7 +44,7 @@ inline bool SetTcpNoDelay(int sock) {
   constexpr int one = 1;
   auto res = setsockopt(sock, SOL_TCP, TCP_NODELAY, &one, sizeof(one));
   if (res == -1) {
-    AE_TELED_ERROR("Socket set option TCP_NODELAY error {} {}", errno,
+    AETHER_TELED_ERROR("Socket set option TCP_NODELAY error {} {}", errno,
                    strerror(errno));
     return false;
   }
@@ -56,7 +56,7 @@ inline bool SetNoSigpipe([[maybe_unused]] int sock) {
   constexpr int one = 1;
   auto res = setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
   if (res == -1) {
-    AE_TELED_ERROR("Socket set option SO_NOSIGPIPE error {} {}", errno,
+    AETHER_TELED_ERROR("Socket set option SO_NOSIGPIPE error {} {}", errno,
                    strerror(errno));
     return false;
   }
@@ -66,7 +66,7 @@ inline bool SetNoSigpipe([[maybe_unused]] int sock) {
 
 inline bool SetNonblocking(int sock) {
   if (fcntl(sock, F_SETFL, O_NONBLOCK) != 0) {
-    AE_TELED_ERROR("Socket set O_NONBLOCK error {} {}", errno, strerror(errno));
+    AETHER_TELED_ERROR("Socket set O_NONBLOCK error {} {}", errno, strerror(errno));
     return false;
   }
   return true;
@@ -84,7 +84,7 @@ int UnixTcpSocket::MakeSocket() {
   // TCP socket
   int sock = socket(AF_INET, SOCK_STREAM, 0);
   if (sock == kInvalidDescriptor) {
-    AE_TELED_DEBUG("Socket creation error {} {}", errno, strerror(errno));
+    AETHER_TELED_DEBUG("Socket creation error {} {}", errno, strerror(errno));
     return kInvalidDescriptor;
   }
 
@@ -124,11 +124,11 @@ ISocket& UnixTcpSocket::Connect(AddressPort const& destination,
       connect(*socket_->fd(), addr.addr(), static_cast<socklen_t>(addr.size));
   if (res == -1) {
     if ((errno == EAGAIN) || (errno == EINPROGRESS)) {
-      AE_TELED_DEBUG("Wait connection");
+      AETHER_TELED_DEBUG("Wait connection");
       connection_state_ = ConnectionState::kConnecting;
       return *this;
     }
-    AE_TELED_ERROR("Not connected {} {}", errno, strerror(errno));
+    AETHER_TELED_ERROR("Not connected {} {}", errno, strerror(errno));
     connection_state_ = ConnectionState::kConnectionFailed;
     return *this;
   }
@@ -155,13 +155,13 @@ void UnixTcpSocket::OnConnectionEvent(DescriptorType fd) {
   // check socket status
   auto sock_err = GetSocketError(fd);
   if (!sock_err || (sock_err.value() != 0)) {
-    AE_TELED_ERROR("Connect error {}, {}", sock_err,
+    AETHER_TELED_ERROR("Connect error {}, {}", sock_err,
                    strerror(sock_err.value_or(0)));
     connection_state_ = ConnectionState::kConnectionFailed;
     return;
   }
 
-  AE_TELED_DEBUG("Socket connected");
+  AETHER_TELED_DEBUG("Socket connected");
   connection_state_ = ConnectionState::kConnected;
 }
 

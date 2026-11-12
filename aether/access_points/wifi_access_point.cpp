@@ -45,7 +45,7 @@ WifiConnectAction::WifiConnectAction(
       connection_event_{ae_context_},
       scheduler_sub_{
           ae_context_.scheduler().Task([this]() { EnsureConnected(); })} {
-  AE_TELED_DEBUG("WifiConnectAction created");
+  AETHER_TELED_DEBUG("WifiConnectAction created");
 }
 
 WifiConnectAction::ConnectionEvent const&
@@ -55,7 +55,7 @@ WifiConnectAction::connection_event() {
 
 void WifiConnectAction::EnsureConnected() {
   auto connected_to = driver_->connected_to();
-  AE_TELED_DEBUG("Driver connected to {}",
+  AETHER_TELED_DEBUG("Driver connected to {}",
                  connected_to.value_or("NOT CONNECTED"));
   // if already connected
   if (connected_to && (*connected_to == wifi_ap_.creds.ssid)) {
@@ -70,7 +70,7 @@ void WifiConnectAction::Connect() {
       [&](Result<WiFiBaseStation, int>& res) {
         connect_sub_.Reset();
         if (res) {
-          AE_TELED_INFO("Wifi connected");
+          AETHER_TELED_INFO("Wifi connected");
           // save base station to access point
           access_point_->SetWifiBaseStation(std::move(res).value());
           SetConnected(true);
@@ -81,7 +81,7 @@ void WifiConnectAction::Connect() {
             scheduler_sub_ = ae_context_.scheduler().Task([&]() { Connect(); });
             return;
           }
-          AE_TELED_ERROR("Wifi did not connected with error {}", res.error());
+          AETHER_TELED_ERROR("Wifi did not connected with error {}", res.error());
           SetConnected(false);
         }
       });

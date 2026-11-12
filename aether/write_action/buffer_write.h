@@ -39,11 +39,11 @@ namespace ae {
 #if DEBUG
 #  define BW_LOG_DEBUG(...)        \
     do {                           \
-      AE_TELED_DEBUG(__VA_ARGS__); \
+      AETHER_TELED_DEBUG(__VA_ARGS__); \
     } while (false)
 #  define BW_LOG_WARNING(...)        \
     do {                             \
-      AE_TELED_WARNING(__VA_ARGS__); \
+      AETHER_TELED_WARNING(__VA_ARGS__); \
     } while (false)
 
 #else

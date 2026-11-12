@@ -26,7 +26,7 @@ UdpBase::UdpBase(AeContext const& ae_context, AddressPort endpoint)
       stream_info_{},
       out_data_event_{ae_context_},
       stream_update_event_{ae_context_} {
-  AE_TELE_INFO(kUdpTransport);
+  AETHER_TELE_INFO(kUdpTransport);
   stream_info_.link_state = LinkState::kUnlinked;
   stream_info_.is_reliable = false;
   stream_info_.max_element_size = std::numeric_limits<std::uint32_t>::max();
@@ -40,7 +40,7 @@ UdpBase::OutDataEvent const& UdpBase::out_data_event() {
   return out_data_event_;
 }
 void UdpBase::Restream() {
-  AE_TELED_DEBUG("UDP restream");
+  AETHER_TELED_DEBUG("UDP restream");
   stream_info_.link_state = LinkState::kLinkError;
   Disconnect();
 }
@@ -52,7 +52,7 @@ void UdpBase::OnConnected(ISocket::ConnectionState connection_state) {
     case ISocket::ConnectionState::kConnectionFailed:
     case ISocket::ConnectionState::kDisconnected: {
       // Udp must be immediately connected
-      AE_TELE_ERROR(kUdpTransportConnectFailed,
+      AETHER_TELE_ERROR(kUdpTransportConnectFailed,
                     "Failed to connect udp transport to endpoint {}",
                     endpoint_);
       stream_info_.link_state = LinkState::kLinkError;
@@ -84,7 +84,7 @@ void UdpBase::OnRecvData(Span<std::uint8_t> data) {
       });
 
       for (auto const& d : buffers) {
-        AE_TELE_DEBUG(kUdpTransportReceive, "Socket {} received data size {}",
+        AETHER_TELE_DEBUG(kUdpTransportReceive, "Socket {} received data size {}",
                       endpoint_, d.size());
         out_data_event_.Emit(d);
       }
@@ -94,7 +94,7 @@ void UdpBase::OnRecvData(Span<std::uint8_t> data) {
 
 void UdpBase::OnSocketError() {
   conn_state_sub_ = ae_context_.scheduler().Task([&]() {
-    AE_TELED_ERROR("Socket error, disconnect!");
+    AETHER_TELED_ERROR("Socket error, disconnect!");
     stream_info_.link_state = LinkState::kLinkError;
     Disconnect();
   });

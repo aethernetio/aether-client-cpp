@@ -38,7 +38,7 @@ ClientApiUnsafe::ClientApiUnsafe(EventSystem& event_system,
 
 void ClientApiUnsafe::SendSafeApiData(SubApi<ClientApiSafe> sub_api) {
   auto unsafe_data = decrypt_provider_->Decrypt(std::move(sub_api).buffer());
-  AE_TELED_DEBUG("Client api unsafe data {}", unsafe_data);
+  AETHER_TELED_DEBUG("Client api unsafe data {}", unsafe_data);
 
   auto parser = ApiParser{server_context().protocol_context(), unsafe_data};
   // not fully parsed

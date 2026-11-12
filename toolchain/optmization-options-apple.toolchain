@@ -22,21 +22,14 @@
 
 # AppleClang compile options.
 set(_appleclang_compile_options
-    -ffast-math
-    # These explicit math flags are intentionally selected for this toolchain.
-    -fno-math-errno
-    -funsafe-math-optimizations
-    -fassociative-math
-    -freciprocal-math
-    -ffinite-math-only
-    -fno-signed-zeros
-    -fno-trapping-math
+    # Numeric's exponential formats require IEEE infinity/NaN checks.
+    -fno-fast-math
     -DNDEBUG
     -fdata-sections
     -ffunction-sections
-    -Os
+    -O3
     -flto)
-set(_appleclang_cxx_compile_options -fno-exceptions -fno-rtti)
+set(_appleclang_cxx_compile_options -fexceptions -frtti)
 
 add_compile_options(
     "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:C,AppleClang>>:${_appleclang_compile_options}>"

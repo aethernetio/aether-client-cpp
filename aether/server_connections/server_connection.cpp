@@ -139,11 +139,11 @@ ChannelEntry* ServerConnection::TopChannel() {
 void ServerConnection::SelectChannel() {
   // prevent new channel selection while one is active
   if (channel_select_action_ && !channel_select_action_->is_finished()) {
-    AE_TELED_DEBUG("Repeated select channel");
+    AETHER_TELED_DEBUG("Repeated select channel");
     return;
   }
 
-  AE_TELED_DEBUG("Select channel");
+  AETHER_TELED_DEBUG("Select channel");
   auto* top = TopChannel();
   if (top == nullptr) {
     DeferServerError();
@@ -170,7 +170,7 @@ void ServerConnection::SelectChannel() {
   // lost.
   channel_select_action_->Start();
 
-  AE_TELED_DEBUG("New channel selected");
+  AETHER_TELED_DEBUG("New channel selected");
   channel_changed_.Emit();
   stream_update_event_.Emit();
 }
@@ -180,7 +180,7 @@ void ServerConnection::DeferSelectChannel() {
   // callback: recreating transport_waiter on that stack is unsafe even though
   // the action is already finished.
   defer_sub_ = ae_context_.scheduler().Task([this]() {
-    AE_TELED_DEBUG("SERVER_CHANNEL_RESELECT_SCHEDULED");
+    AETHER_TELED_DEBUG("SERVER_CHANNEL_RESELECT_SCHEDULED");
     SelectChannel();
   });
   assert(!!defer_sub_);
@@ -188,7 +188,7 @@ void ServerConnection::DeferSelectChannel() {
 
 void ServerConnection::ChannelUpdated(ChannelEntry& new_channel,
                                       std::unique_ptr<ByteIStream>&& stream) {
-  AE_TELED_DEBUG("Channel updated");
+  AETHER_TELED_DEBUG("Channel updated");
   top_channel_ = &new_channel;
   stream_ = std::move(stream);
   assert(stream_->stream_info().link_state == LinkState::kLinked &&
@@ -222,7 +222,7 @@ void ServerConnection::ChannelUpdated(ChannelEntry& new_channel,
 }
 
 void ServerConnection::ChannelBuildFailed(ChannelEntry& attempted_channel) {
-  AE_TELED_ERROR("SERVER_CHANNEL_BUILD_FAILED");
+  AETHER_TELED_ERROR("SERVER_CHANNEL_BUILD_FAILED");
   channel_stream_update_sub_.Reset();
   channel_stream_out_data_sub_.Reset();
   stream_info_.is_writable = false;
@@ -236,7 +236,7 @@ void ServerConnection::ChannelBuildFailed(ChannelEntry& attempted_channel) {
 }
 
 void ServerConnection::ServerError() {
-  AE_TELED_ERROR("SERVER_CONNECTION_ERROR");
+  AETHER_TELED_ERROR("SERVER_CONNECTION_ERROR");
   channel_stream_update_sub_.Reset();
   channel_stream_out_data_sub_.Reset();
   // TODO: should we also reset connection.stream()
@@ -249,7 +249,7 @@ void ServerConnection::ServerError() {
 }
 
 void ServerConnection::ChannelError() {
-  AE_TELED_ERROR("Channel error");
+  AETHER_TELED_ERROR("Channel error");
   channel_stream_update_sub_.Reset();
   channel_stream_out_data_sub_.Reset();
   stream_info_.is_writable = false;
@@ -270,7 +270,7 @@ void ServerConnection::DeferServerError() {
   stream_info_.is_writable = false;
   defer_sub_ = ae_context_.scheduler().Task([&]() { ServerError(); });
   if (!defer_sub_) {
-    AE_TELED_ERROR("DeferServerError schedule failed; invoking ServerError");
+    AETHER_TELED_ERROR("DeferServerError schedule failed; invoking ServerError");
     ServerError();
   }
 }
