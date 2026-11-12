@@ -24,6 +24,12 @@ allocation failure follows the C++ runtime's termination policy.
 
 ## Startup and restart
 
+If Aether telemetry is disabled, or both statistics and console output are off,
+`AetherApp` does not bind, drain, disable or replace the global telemetry sinks.
+This permits concurrent disabled applications and preserves independently
+configured Objects telemetry. The explicit `DrainAetherTelemetry()` helper still
+drains both namespaces when requested by its caller.
+
 The bootstrap backend accepts events before the object domain exists. After
 `TeleStatistics` loads, startup transfers the bootstrap archive once and redirects
 late callbacks to the persistent backend. Loading imports already accepted metric

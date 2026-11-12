@@ -61,6 +61,7 @@ option(AE_INSTALL "Install aether" ${AE_ROOT_PORJECT})
 option(AE_BUILD_TOOLS "Build tools" ${AE_ROOT_PORJECT})
 option(AE_BUILD_EXAMPLES "Build examples" ${AE_ROOT_PORJECT})
 option(AE_BUILD_TESTS "Build tests" ${AE_ROOT_PORJECT})
+option(AE_BUILD_TELE_DISABLED_TESTS "Build the disabled-telemetry application regression" OFF)
 option(AE_BUILD_ANDROID_SMOKE "Build Android NDK smoke shared library and runner" Off)
 option(AE_ADDRESS_SANITIZE "Enable address sanitizer" Off)
 

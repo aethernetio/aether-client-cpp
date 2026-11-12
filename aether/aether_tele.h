@@ -103,7 +103,8 @@ struct AetherTeleConfig {
   static std::shared_ptr<tele::raw::IBackend> MakeBackend() {
     return MakeAetherTelemetryBackend();
   }
-  static constexpr bool kGlobalTeleEnabled = AE_TELE_ENABLED;
+  static constexpr bool kGlobalTeleEnabled =
+      AE_TELE_ENABLED && (AE_TELE_LOG_TO_STATISTICS || AE_TELE_LOG_CONSOLE);
 
   template <tele::Level::underlined_t L, std::uint32_t M>
   static consteval auto GetTeleConfig() {
@@ -137,8 +138,8 @@ struct AetherTeleConfig {
 
   static consteval auto GetEnvConfig() {
     return tele::EnvConfig{
-        .static_info = AE_TELE_COMPILATION_INFO,
-        .runtime_info = AE_TELE_RUNTIME_INFO,
+        .static_info = kGlobalTeleEnabled && AE_TELE_COMPILATION_INFO,
+        .runtime_info = kGlobalTeleEnabled && AE_TELE_RUNTIME_INFO,
     };
   };
 };
@@ -173,8 +174,7 @@ using TeleStatisticsTrap = ae::tele::StatisticsTrap<kStatisticsMaxSize>;
   AE_TELE_WARNING_TO(::ae::AetherTeleSink, ::kLog, __VA_ARGS__)
 #define AETHER_TELED_ERROR(...) \
   AE_TELE_ERROR_TO(::ae::AetherTeleSink, ::kLog, __VA_ARGS__)
-#define AETHER_TELE_ENV(...) \
-  AE_TELE_ENV_TO(::ae::AetherTeleSink, __VA_ARGS__)
+#define AETHER_TELE_ENV(...) AE_TELE_ENV_TO(::ae::AetherTeleSink, __VA_ARGS__)
 
 // Main module for aether and tags
 AE_TELE_MODULE(kAether, 2, 3, 5);

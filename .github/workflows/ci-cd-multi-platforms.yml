@@ -119,8 +119,27 @@ jobs:
           include-hidden-files: true
           overwrite: true
 
+  telemetry-disabled:
+    name: Telemetry disabled / no exceptions or RTTI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure disabled production library
+        run: >
+          cmake -S . -B build-disabled -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_CXX_FLAGS="-fno-exceptions -fno-rtti"
+          -DUSER_CONFIG=tests/test-tele-disabled/config.h
+          -DAE_INSTALL=OFF -DAE_BUILD_TOOLS=OFF -DAE_BUILD_EXAMPLES=OFF
+          -DAE_BUILD_TESTS=ON -DAE_BUILD_TELE_DISABLED_TESTS=ON
+          -DAE_OBJECTS_RAW_TELE=ON
+      - name: Build disabled-library regression
+        run: cmake --build build-disabled --target test-tele-disabled --parallel 4
+      - name: Run two-app regression
+        run: ctest --test-dir build-disabled -R '^test-tele-disabled$' --output-on-failure
+
   release:
-    needs: build
+    needs: [build, telemetry-disabled]
     runs-on: ubuntu-latest
     steps:
       - name: Download Firmware Files

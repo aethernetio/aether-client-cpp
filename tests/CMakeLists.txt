@@ -53,3 +53,7 @@ add_subdirectory(test-tele-namespace)
 add_subdirectory(test-tele-sender)
 
 add_subdirectory(test-tele-no-runtime)
+
+if(AE_BUILD_TELE_DISABLED_TESTS)
+  add_subdirectory(test-tele-disabled)
+endif()
