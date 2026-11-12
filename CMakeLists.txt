@@ -86,6 +86,7 @@ message(STATUS "Aether build options:
 ")
 
 include(cmake/CPM.cmake)
+find_package(Git REQUIRED)
 
 # For using CPM.cmake projects with external package managers, such as conan or vcpkg,
 # setting the variable CPM_USE_LOCAL_PACKAGES will make CPM.cmake try to add a package through
@@ -94,7 +95,7 @@ include(cmake/CPM.cmake)
 # the CMake option CPM_<dependency name>_SOURCE set to the absolute path of the local library.
 # All dependencies must be EXCLUDE_FROM_ALL FALSE to make them install together with the aether.
 # To avoid extra downloads it is recommend to set the CPM_SOURCE_CACHE environmental variable
-# Also it required to used PATCHES
+# Git applies patches consistently without depending on an unrelated patch.exe on PATH.
 #
 if (NOT CPM_SOURCE_CACHE)
   set(CPM_SOURCE_CACHE "${CMAKE_CURRENT_BINARY_DIR}/cpm.cache")
@@ -105,7 +106,8 @@ CPMAddPackage(
   GIT_REPOSITORY "https://github.com/rg3/libbcrypt.git"
   GIT_TAG "8aa32ad94ebe06b76853b0767c910c9fbf7ccef4"
   GIT_CONFIG "core.autocrlf=false"
-  PATCHES "${CMAKE_CURRENT_LIST_DIR}/third_party/libbcrypt.patch"
+  PATCH_COMMAND "${GIT_EXECUTABLE}" apply --whitespace=nowarn
+                "${CMAKE_CURRENT_LIST_DIR}/third_party/libbcrypt.patch"
   OPTIONS "ENABLE_INSTALL ${AE_INSTALL}"
   EXCLUDE_FROM_ALL FALSE
 )
@@ -115,7 +117,8 @@ CPMAddPackage(
   GIT_REPOSITORY "https://github.com/jedisct1/libhydrogen.git"
   GIT_TAG "bbca575b62510bfdc6dd927a4bfa7df4a51cb846"
   GIT_CONFIG "core.autocrlf=false"
-  PATCHES "${CMAKE_CURRENT_LIST_DIR}/third_party/libhydrogen.patch"
+  PATCH_COMMAND "${GIT_EXECUTABLE}" apply --whitespace=nowarn
+                "${CMAKE_CURRENT_LIST_DIR}/third_party/libhydrogen.patch"
   OPTIONS "ENABLE_INSTALL ${AE_INSTALL}"
   EXCLUDE_FROM_ALL FALSE
 )
@@ -124,7 +127,9 @@ CPMAddPackage(
   GIT_REPOSITORY "https://github.com/jedisct1/libsodium.git"
   GIT_TAG "fe84810bbd4c01c65e1503e97c5adf3e375555f0"
   GIT_CONFIG "core.autocrlf=false"
-  PATCHES "${CMAKE_CURRENT_LIST_DIR}/third_party/libsodium.patch" "${CMAKE_CURRENT_LIST_DIR}/third_party/libsodium_cmake.patch"
+  PATCH_COMMAND "${GIT_EXECUTABLE}" apply --whitespace=nowarn
+                "${CMAKE_CURRENT_LIST_DIR}/third_party/libsodium.patch"
+                "${CMAKE_CURRENT_LIST_DIR}/third_party/libsodium_cmake.patch"
   OPTIONS "ENABLE_INSTALL ${AE_INSTALL}"
   EXCLUDE_FROM_ALL FALSE
 )
@@ -177,13 +182,17 @@ CPMAddPackage(
           "AE_BUILD_TESTS ${AE_BUILD_TESTS}"
   EXCLUDE_FROM_ALL FALSE
 )
+# Object logs include the telemetry environment headers while compiling Objects,
+# before the Aether target's public version definitions can reach them.
+target_compile_definitions(aether-objects PRIVATE "AE_PROJECT_VERSION=\"${AE_PROJECT_VERSION}\"")
 CPMAddPackage(
   NAME etl
   GIT_REPOSITORY "https://github.com/ETLCPP/etl.git"
   GIT_TAG "20.44.2"
   GIT_CONFIG "core.autocrlf=false"
+  PATCH_COMMAND "${GIT_EXECUTABLE}" apply --whitespace=nowarn
+                "${CMAKE_CURRENT_LIST_DIR}/third_party/etl.patch"
   OPTIONS "GIT_DIR_LOOKUP_POLICY ALLOW_LOOKING_ABOVE_CMAKE_SOURCE_DIR" "ENABLE_INSTALL ${AE_INSTALL}"
-  PATCHES "${CMAKE_CURRENT_LIST_DIR}/third_party/etl.patch"
   EXCLUDE_FROM_ALL FALSE
 )
 CPMAddPackage(

@@ -30,14 +30,14 @@ jobs:
               name: "Windows MSVC x64",
               os: windows-latest,
               shell: "powershell",
-              cmake_args: '-G "Visual Studio 18 2026" -A x64 -DCMAKE_TOOLCHAIN_FILE=./toolchain/optmization-options-msvc.toolchain',
+              cmake_args: '-G "Visual Studio 18 2026" -A x64 "-DCMAKE_TOOLCHAIN_FILE=./toolchain/optmization-options-msvc.toolchain"',
               initial_cache: ".github/workflows/windows_msvc_x64_initial_cache.txt",
             }
           - {
               name: "Windows MSVC x86",
               os: windows-latest,
               shell: "powershell",
-              cmake_args: '-G "Visual Studio 18 2026" -A Win32 -DCMAKE_TOOLCHAIN_FILE=./toolchain/optmization-options-msvc.toolchain',
+              cmake_args: '-G "Visual Studio 18 2026" -A Win32 "-DCMAKE_TOOLCHAIN_FILE=./toolchain/optmization-options-msvc.toolchain"',
               initial_cache: ".github/workflows/windows_msvc_x86_initial_cache.txt",
             }
           - {
