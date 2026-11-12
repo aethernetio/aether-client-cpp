@@ -10,12 +10,17 @@ use another identity and backend.
 
 CMake uses Python 3 to generate the complete telemetry callsite catalog.
 
-Raw telemetry requires C++ exceptions to contain callback failures, and Aether
-uses RTTI when adopting persistent telemetry backends. The CMake target exports
-these compiler settings to its consumers. The provided optimization toolchains
-and ESP-IDF `sdkconfig.defaults` enable both features; existing ESP-IDF build
-configurations must enable `CONFIG_COMPILER_CXX_EXCEPTIONS` and
-`CONFIG_COMPILER_CXX_RTTI` as well.
+Exceptions and RTTI are optional. Backend adoption checks a process-local type
+token before casting and does not require RTTI. The CMake targets preserve the
+consumer's runtime settings. The provided optimization toolchains and ESP-IDF
+defaults enable exceptions and RTTI, but consumers may disable them.
+
+With exceptions enabled, telemetry contains callback exceptions and failed
+appends remain available for retry. Without exceptions, callbacks must report
+failure through their result; they must not throw across the boundary. Capacity,
+validation and drain failures remain recoverable. An unrecoverable startup
+checkpoint or fragment-serialization failure aborts instead of throwing, and
+allocation failure follows the C++ runtime's termination policy.
 
 ## Startup and restart
 

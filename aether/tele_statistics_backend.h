@@ -62,6 +62,9 @@ class TeleStatisticsBackend final
       std::size_t capacity = std::numeric_limits<std::size_t>::max(),
       std::string catalog = {});
 
+  static void const* StaticTypeToken() noexcept { return &type_token_; }
+  void const* TypeToken() const noexcept override { return StaticTypeToken(); }
+
   bool Append(std::string_view space,
               std::span<std::uint8_t const> bytes) override;
   bool RestoreMetrics(std::string_view space, std::uint32_t writer,
@@ -79,6 +82,9 @@ class TeleStatisticsBackend final
   bool MergeEarly(std::shared_ptr<TeleStatisticsBackend> const& early);
 
  private:
+  // A writable object has a unique address even with constant/data folding.
+  // This process-local identity is runtime state and is never serialized.
+  inline static unsigned char type_token_{};
   mutable std::mutex mutex_;
   TeleStatisticsArchive archive_;
   std::shared_ptr<TeleStatisticsBackend> forward_;

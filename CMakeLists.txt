@@ -168,7 +168,7 @@ CPMAddPackage(
 CPMAddPackage(
   NAME aether-tele
   GIT_REPOSITORY "https://github.com/aethernetio/aether-tele.git"
-  GIT_TAG "a496a19599d01a5525dd115933cf01202bb018e0"
+  GIT_TAG "a6e632daf8b7071f893d965c22f461b9b47aef46"
   OPTIONS "AE_TELE_INSTALL ${AE_INSTALL}"
           "AE_TELE_BUILD_TESTS ${AE_BUILD_TESTS}"
   EXCLUDE_FROM_ALL FALSE
@@ -177,7 +177,7 @@ set(AE_OBJECTS_RAW_TELE ON CACHE BOOL "Route object system telemetry to its inde
 CPMAddPackage(
   NAME aether-objects
   GIT_REPOSITORY "https://github.com/aethernetio/aether-objects.git"
-  GIT_TAG "94c97c694cb51c7d9bf854793875afcb71ac7cb8"
+  GIT_TAG "38a9b21f467e35daa57233814ffde75d7503bd03"
   OPTIONS "AE_INSTALL ${AE_INSTALL}"
           "AE_BUILD_TESTS ${AE_BUILD_TESTS}"
   EXCLUDE_FROM_ALL FALSE
@@ -373,13 +373,6 @@ target_compile_options(${TARGET_NAME} PRIVATE
       /wd4389 #Wno-sign-compare
       /Zc:preprocessor
       >
-)
-
-# Raw telemetry catches callback/allocation failures; backend adoption uses RTTI.
-# Public headers require the same language runtime settings in consumers.
-target_compile_options(${TARGET_NAME} PUBLIC
-  $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/EHsc;/GR>
-  $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,AppleClang>:-fexceptions;-frtti>
 )
 
 target_compile_options(${TARGET_NAME} PUBLIC

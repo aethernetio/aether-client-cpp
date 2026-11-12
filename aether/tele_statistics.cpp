@@ -82,7 +82,9 @@ bool TeleStatisticsBackend::Append(std::string_view space,
         return false;
       }
       auto [entry, inserted] = archive_.spaces.try_emplace(std::string{space});
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)
       try {
+#endif
         if (inserted) {
           auto const catalog = catalogs_.find(std::string{space});
           if (catalog != catalogs_.end()) {
@@ -91,12 +93,14 @@ bool TeleStatisticsBackend::Append(std::string_view space,
         }
         entry->second.blocks.insert(entry->second.blocks.end(), bytes.begin(),
                                     bytes.end());
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)
       } catch (...) {
         if (inserted) {
           archive_.spaces.erase(entry);
         }
         return false;
       }
+#endif
       return true;
     }
   }

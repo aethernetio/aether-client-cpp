@@ -49,15 +49,27 @@
 namespace ae {
 namespace aether_app_internal {
 void RequireTelemetry(bool result) {
-  if (!result)
+  if (!result) {
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)
     throw std::runtime_error(
         "Telemetry checkpoint or backend initialization failed");
+#else
+    std::abort();
+#endif
+  }
+}
+std::shared_ptr<TeleStatisticsBackend> CastTelemetryBackend(
+    std::shared_ptr<tele::raw::IBackend> const& backend) {
+  if (backend == nullptr ||
+      backend->TypeToken() != TeleStatisticsBackend::StaticTypeToken()) {
+    return {};
+  }
+  return std::static_pointer_cast<TeleStatisticsBackend>(backend);
 }
 }  // namespace aether_app_internal
 void AetherAppContext::TelemetryInit() {
   auto& sink = AetherTeleSink::Instance();
-  auto backend =
-      std::dynamic_pointer_cast<TeleStatisticsBackend>(sink.GetBackend());
+  auto backend = aether_app_internal::CastTelemetryBackend(sink.GetBackend());
   if (!backend) {
     backend = std::make_shared<TeleStatisticsBackend>();
     aether_app_internal::RequireTelemetry(
@@ -101,7 +113,7 @@ void AetherAppContext::TeleStatisticsInit(
   aether_app_internal::RequireTelemetry(
       sink.SetBackend(persistent, [&](auto const& old) {
         return persistent->MergeEarly(
-            std::dynamic_pointer_cast<TeleStatisticsBackend>(old));
+            aether_app_internal::CastTelemetryBackend(old));
       }));
   aether_app_internal::RequireTelemetry(sink.BindWriter(0));
 #  if AE_OBJECTS_RAW_TELE

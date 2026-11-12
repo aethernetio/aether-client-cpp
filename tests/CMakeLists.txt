@@ -51,3 +51,5 @@ add_subdirectory(test-tele-persistence)
 add_subdirectory(test-tele-namespace)
 
 add_subdirectory(test-tele-sender)
+
+add_subdirectory(test-tele-no-runtime)

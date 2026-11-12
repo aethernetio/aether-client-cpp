@@ -18,6 +18,7 @@
 #include "aether/ae_actions/telemetry_payload.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <limits>
 #include <map>
 #include <random>
@@ -39,7 +40,11 @@ Telemetric Encode(TelemetryFragment const& fragment) {
   auto encoded =
       seri::BinaryArchive{seri::BinaryVectorBuffer<>{payload.cpp.blob}};
   if (!encoded.Save(fragment)) {
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)
     throw std::runtime_error("Telemetry fragment serialization failed");
+#else
+    std::abort();
+#endif
   }
   return payload;
 }
