@@ -18,6 +18,7 @@ list(APPEND test_srcs
   main.cpp
   test-data-packet-collector.cpp
   test-packet-queue-manager.cpp
+  test-websocket.cpp
 )
 
 if(NOT CM_PLATFORM)

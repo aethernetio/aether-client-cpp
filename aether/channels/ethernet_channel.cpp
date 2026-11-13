@@ -28,6 +28,7 @@
 #include "aether/poller/poller.h"
 
 #include "aether/channels/ethernet_transport_factory.h"
+#include "aether/transport/websocket/websocket.h"
 
 #include "aether/tele.h"
 
@@ -40,6 +41,10 @@ ResolveSender ResolveAddress([[maybe_unused]] Ptr<DnsResolver> const& resolver,
                              [[maybe_unused]] NamedAddr const& addr,
                              [[maybe_unused]] std::uint16_t port,
                              [[maybe_unused]] Protocol protocol) {
+  // Preserve the hostname for browser DNS and TLS SNI/certificate validation.
+  if (protocol == Protocol::kWebSocket || protocol == Protocol::kWebSocketSecure) {
+    return ex::just(std::vector<Endpoint>{Endpoint{addr, port, protocol}});
+  }
 #if AE_SUPPORT_CLOUD_DNS
   return resolver->Resolve(addr, port, protocol);
 #else
@@ -56,7 +61,8 @@ ResolveSender ResolveAddress(Ptr<DnsResolver> const&, auto const& addr,
 auto CreateTransport(AeContext const& context, PtrView<IPoller> const& poller,
                      Endpoint const& e) {
   auto poller_ptr = poller.Lock();
-  assert(poller_ptr);
+  assert(poller_ptr || e.protocol == Protocol::kWebSocket ||
+         e.protocol == Protocol::kWebSocketSecure);
   return EthernetTransportFactory::Create(context.aether(), poller_ptr, e);
 }
 
@@ -167,10 +173,18 @@ EthernetChannel::EthernetChannel(ObjProp prop, ObjPtr<Aether> aether,
   auto protocol = address.protocol;
 
   switch (protocol) {
-    case Protocol::kTcp: {
+    case Protocol::kTcp:
+    case Protocol::kWebSocket:
+    case Protocol::kWebSocketSecure: {
       transport_properties_.connection_type = ConnectionType::kConnectionFull;
       transport_properties_.max_packet_size =
           std::numeric_limits<std::uint32_t>::max();
+#if AE_SUPPORT_WEBSOCKET
+      if (protocol == Protocol::kWebSocket ||
+          protocol == Protocol::kWebSocketSecure) {
+        transport_properties_.max_packet_size = WebSocketTransport::kMaxPacketSize;
+      }
+#endif
       transport_properties_.rec_packet_size = 1500;
       transport_properties_.reliability = Reliability::kReliable;
       break;
@@ -193,10 +207,12 @@ EthernetChannel::~EthernetChannel() = default;
 TransportBuildSender EthernetChannel::TransportBuilder() {
   auto resolver = dns_resolver_.Load();
 #if AE_SUPPORT_CLOUD_DNS
-  assert(resolver && "Resolver is not loaded");
+  assert((resolver || address.protocol == Protocol::kWebSocket ||
+          address.protocol == Protocol::kWebSocketSecure) && "Resolver is not loaded");
 #endif
   auto poller = poller_.Load();
-  assert(poller && "Poller is not loaded");
+  assert((poller || address.protocol == Protocol::kWebSocket ||
+          address.protocol == Protocol::kWebSocketSecure) && "Poller is not loaded");
 
   AETHER_TELED_DEBUG("Make transport builder for {}", address);
 

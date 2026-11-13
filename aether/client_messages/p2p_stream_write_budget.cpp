@@ -53,7 +53,7 @@ bool AddSize(std::size_t& total, std::size_t bytes) {
 }
 
 std::optional<std::size_t> PackedLengthBytes(std::size_t size) {
-  if (size > PackedSize::kUpper) {
+  if (static_cast<std::uint64_t>(size) > PackedSize::kUpper) {
     return std::nullopt;
   }
   std::uint8_t bytes[PackedSize::kMaxWireBytes];

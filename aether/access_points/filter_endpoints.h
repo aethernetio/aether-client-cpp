@@ -28,7 +28,9 @@ template <AddrVersion... supported_versions>
 bool FilterAddresses(Endpoint const& address) {
   auto addr_version = address.address.Index();
 #if !AE_SUPPORT_CLOUD_DNS
-  if (addr_version == AddrVersion::kNamed) {
+  if (addr_version == AddrVersion::kNamed &&
+      address.protocol != Protocol::kWebSocket &&
+      address.protocol != Protocol::kWebSocketSecure) {
     return false;
   }
 #endif
@@ -54,6 +56,12 @@ bool FilterAddresses(Endpoint const& address) {
 template <Protocol... supported_protocols>
 bool FilterProtocol(Endpoint const& address) {
   auto protocol = address.protocol;
+
+#if !AE_SUPPORT_WEBSOCKET || (!defined(__EMSCRIPTEN__) && !defined(AE_NATIVE_WEBSOCKET))
+  if (protocol == Protocol::kWebSocket || protocol == Protocol::kWebSocketSecure) {
+    return false;
+  }
+#endif
 
 #if !AE_SUPPORT_TCP
   if (protocol == Protocol::kTcp) {
