@@ -22,6 +22,13 @@
 #if AE_ENABLE_PING
 namespace ae {
 struct PingCloudServersTestAccess {
+  static void CancelPeriodicStart(PingCloudServers& pcs, ServerId server_id) {
+    auto it = pcs.server_pings_.find(server_id);
+    if (it != pcs.server_pings_.end()) {
+      it->second->start_sub_.Reset();
+    }
+  }
+
   static void TriggerPeriodicStart(PingCloudServers& pcs, ServerId server_id) {
     auto it = pcs.server_pings_.find(server_id);
     if (it != pcs.server_pings_.end()) {
@@ -36,7 +43,7 @@ struct PingCloudServersTestAccess {
   }
 
   static bool HasAwaitingLateClientPing(PingCloudServers& pcs,
-                                      ServerId server_id) {
+                                        ServerId server_id) {
     auto it = pcs.server_pings_.find(server_id);
     return it != pcs.server_pings_.end() && it->second->AwaitingLatePing();
   }

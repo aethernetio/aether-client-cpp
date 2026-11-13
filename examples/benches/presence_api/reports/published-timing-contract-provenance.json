@@ -1,0 +1,33 @@
+{
+  "source_repository": "https://nexus.aethernet.io/maven/releases/io/aether/client-server-work-api/",
+  "artifacts": [
+    {
+      "url": "https://nexus.aethernet.io/maven/releases/io/aether/client-server-work-api/0.0.100/client-server-work-api-0.0.100.jar",
+      "bytes": 971526,
+      "sha256": "9feb5191cd2b1eca707d71b3811ccb2990ebd0b45a1ba21abe5b2cd34fe670cf",
+      "adsl_zip_entry_sha256": "ecc735f1e26cc5e7a43fedcd0ea4c3868c15a6981d6c7c37c84d1639662e1a3c",
+      "saved_adsl_sha256": "1fc13ead1177106662cad20f7d88c78b4866976a44941226e3a3076f78fc3c08"
+    },
+    {
+      "url": "https://nexus.aethernet.io/maven/releases/io/aether/client-server-work-api/0.0.100/client-server-work-api-0.0.100-sources.jar",
+      "bytes": 283608,
+      "sha256": "007ad6b2a855f1720ae3cb95146dec2077792484a9d4d17dd2da2b7ef084ccff",
+      "adsl_zip_entry_sha256": "ecc735f1e26cc5e7a43fedcd0ea4c3868c15a6981d6c7c37c84d1639662e1a3c",
+      "saved_adsl_sha256": "1fc13ead1177106662cad20f7d88c78b4866976a44941226e3a3076f78fc3c08"
+    },
+    {
+      "url": "https://nexus.aethernet.io/maven/releases/io/aether/client-server-work-api/0.0.101/client-server-work-api-0.0.101.jar",
+      "bytes": 971526,
+      "sha256": "9feb5191cd2b1eca707d71b3811ccb2990ebd0b45a1ba21abe5b2cd34fe670cf",
+      "adsl_zip_entry_sha256": "ecc735f1e26cc5e7a43fedcd0ea4c3868c15a6981d6c7c37c84d1639662e1a3c",
+      "saved_adsl_sha256": "1fc13ead1177106662cad20f7d88c78b4866976a44941226e3a3076f78fc3c08"
+    },
+    {
+      "url": "https://nexus.aethernet.io/maven/releases/io/aether/client-server-work-api/0.0.101/client-server-work-api-0.0.101-sources.jar",
+      "bytes": 283608,
+      "sha256": "007ad6b2a855f1720ae3cb95146dec2077792484a9d4d17dd2da2b7ef084ccff",
+      "adsl_zip_entry_sha256": "ecc735f1e26cc5e7a43fedcd0ea4c3868c15a6981d6c7c37c84d1639662e1a3c",
+      "saved_adsl_sha256": "1fc13ead1177106662cad20f7d88c78b4866976a44941226e3a3076f78fc3c08"
+    }
+  ]
+}

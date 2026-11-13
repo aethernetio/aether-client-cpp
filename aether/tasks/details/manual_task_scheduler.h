@@ -25,6 +25,7 @@
 #include <mutex>
 
 #include "aether/tasks/details/task_manager.h"
+#include "aether/tasks/details/task_subsctiption.h"
 
 namespace ae {
 template <typename TaskManagerConf,
@@ -44,10 +45,38 @@ class ManualTaskScheduler {
     return AddSafe([&]() { return task_manager_.Task(std::forward<F>(f)); });
   }
 
+  // Bind the owner before another thread can execute and reclaim the task.
+  // Use this overload when posting owned work from a producer thread.
+  template <typename F>
+  bool Task(TaskSubscription& owner, F&& f) {
+    return AddOwnedSafe(
+        owner, [&]() { return task_manager_.Task(std::forward<F>(f)); });
+  }
+
+  // Coalesce producer notifications without reading the owner outside lock_.
+  template <typename F>
+  bool TaskIfAbsent(TaskSubscription& owner, F&& f) {
+    return AddOwnedSafe(
+        owner, [&]() { return task_manager_.Task(std::forward<F>(f)); }, false);
+  }
+
   template <typename F, typename TP>
   auto DelayedTask(F&& f, TP tp) {
     return AddSafe(
         [&]() { return task_manager_.DelayedTask(std::forward<F>(f), tp); });
+  }
+
+  template <typename F, typename TP>
+  bool DelayedTask(TaskSubscription& owner, F&& f, TP tp) {
+    return AddOwnedSafe(owner, [&]() {
+      return task_manager_.DelayedTask(std::forward<F>(f), tp);
+    });
+  }
+
+  // Synchronize cancellation with owned posting and task reclamation.
+  void Cancel(TaskSubscription& owner) {
+    auto lock = std::scoped_lock{lock_};
+    owner.Reset();
   }
 
   /**
@@ -97,6 +126,24 @@ class ManualTaskScheduler {
   std::size_t overflow_counter() const { return overflow_counter_; }
 
  private:
+  template <typename F>
+  bool AddOwnedSafe(TaskSubscription& owner, F&& f, bool replace = true) {
+    auto lock = std::scoped_lock{lock_};
+    if (!replace && owner) {
+      return true;
+    }
+    owner.Reset();
+    task_manager_.ReclaimInactive();
+    auto* p = std::invoke(std::forward<F>(f));
+    owner = p;
+    if (p == nullptr) {
+      overflow_counter_++;
+    }
+    trigger_.store(true, std::memory_order::release);
+    cv_.notify_one();
+    return p != nullptr;
+  }
+
   template <typename F>
   IActive* AddSafe(F&& f) {
     auto lock = std::scoped_lock{lock_};

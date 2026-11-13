@@ -18,6 +18,7 @@
 
 #include <utility>
 
+#include "aether/connection_manager/peer_presence_query.h"
 #include "aether/ae_actions/telemetry.h"
 
 #include "aether/aether.h"
@@ -98,6 +99,18 @@ P2pMessageStreamManager& Client::message_stream_manager() {
         *aether_, MakePtrFromThis(this));
   }
   return *message_stream_manager_;
+}
+
+bool Client::IsLocallyOnline() const noexcept {
+  return connectivity_policy_ && connectivity_policy_.Load()->IsLocallyOnline();
+}
+
+ae::PeerPresenceQuery& Client::QueryPeerPresence(Uid peer_uid) {
+  auto& query = peer_presence_queries_[peer_uid];
+  if (!query || query->is_finished()) {
+    query = std::make_unique<ae::PeerPresenceQuery>(AeContext{*aether_}, *this, peer_uid);
+  }
+  return *query;
 }
 
 void Client::SetConfig(std::string client_id, Uid parent_uid, Uid uid,

@@ -17,6 +17,8 @@
 #include <unity.h>
 #include <array>
 #include <atomic>
+#include <functional>
+#include <memory>
 #include <mutex>
 #include <thread>
 #include <vector>
@@ -222,17 +224,16 @@ void test_MultithreadCancelledDelayedVsRegular() {
   std::atomic_int accepted_regular{0};
   std::atomic_int executed_regular{0};
   std::mutex regular_subs_mu;
-  std::vector<TaskSubscription> regular_subs;
+  std::vector<std::unique_ptr<TaskSubscription>> regular_subs;
   regular_subs.reserve(kIterations + kPool);
 
   auto producer = std::thread{[&]() {
     while (!start.load(std::memory_order::acquire)) {
     }
     for (int i = 0; i < kIterations; ++i) {
-      TaskSubscription sub = task_sched.DelayedTask([]() {}, 60s);
-      if (sub) {
-        sub.Reset();
-      }
+      TaskSubscription sub;
+      task_sched.DelayedTask(sub, []() {}, 60s);
+      task_sched.Cancel(sub);
     }
     stop.store(true, std::memory_order::release);
   }};
@@ -241,18 +242,16 @@ void test_MultithreadCancelledDelayedVsRegular() {
     while (!start.load(std::memory_order::acquire)) {
     }
     while (!stop.load(std::memory_order::acquire)) {
-      TaskSubscription sub =
-          task_sched.Task([&]() { executed_regular.fetch_add(1); });
-      if (sub) {
+      auto sub = std::make_unique<TaskSubscription>();
+      if (task_sched.Task(*sub, [&]() { executed_regular.fetch_add(1); })) {
         accepted_regular.fetch_add(1);
         std::scoped_lock lock{regular_subs_mu};
         regular_subs.push_back(std::move(sub));
       }
     }
     for (int i = 0; i < kPool; ++i) {
-      TaskSubscription sub =
-          task_sched.Task([&]() { executed_regular.fetch_add(1); });
-      if (sub) {
+      auto sub = std::make_unique<TaskSubscription>();
+      if (task_sched.Task(*sub, [&]() { executed_regular.fetch_add(1); })) {
         accepted_regular.fetch_add(1);
         std::scoped_lock lock{regular_subs_mu};
         regular_subs.push_back(std::move(sub));
@@ -284,6 +283,140 @@ void test_MultithreadCancelledDelayedVsRegular() {
   (void)task_sched.Update(Now());
 }
 
+void test_OwnedPostReplacesOwnerBeforeAllocation() {
+  ManualTaskScheduler<TaskManagerConf<1>> scheduler;
+  TaskSubscription owner;
+  int cancelled_calls = 0;
+  int replacement_calls = 0;
+  TEST_ASSERT_TRUE(
+      scheduler.DelayedTask(owner, [&]() { ++cancelled_calls; }, 60s));
+  // The cancelled owner's slot must be reclaimed before allocating its
+  // replacement.
+  TEST_ASSERT_TRUE(scheduler.Task(owner, [&]() { ++replacement_calls; }));
+  scheduler.Update(Now());
+  TEST_ASSERT_EQUAL(0, cancelled_calls);
+  TEST_ASSERT_EQUAL(1, replacement_calls);
+  TEST_ASSERT_FALSE(owner);
+  TEST_ASSERT_EQUAL(0, scheduler.overflow_counter());
+}
+
+void test_OwnedPostCancellationAfterPoolReuseKeepsOtherTimer() {
+  ManualTaskScheduler<TaskManagerConf<2>> scheduler;
+  TaskSubscription io_owner;
+  TaskSubscription periodic_owner;
+  std::atomic_bool published{false};
+  std::atomic_bool slot_reused{false};
+  bool accepted = false;
+  int first_calls = 0;
+  int periodic_calls = 0;
+  auto io = std::thread{[&]() {
+    accepted = scheduler.Task(io_owner, [&]() { ++first_calls; });
+    published.store(true, std::memory_order::release);
+    while (!slot_reused.load(std::memory_order::acquire)) {
+      std::this_thread::yield();
+    }
+    // The consumer already executed/reclaimed this task and reused its pool
+    // slot for another owner's timer. This cancellation must not touch it.
+    scheduler.Cancel(io_owner);
+  }};
+  while (!published.load(std::memory_order::acquire)) {
+    std::this_thread::yield();
+  }
+  auto const epoch = TimePoint{};
+  scheduler.Update(epoch);
+  auto const timer_accepted = scheduler.DelayedTask(
+      periodic_owner, [&]() { ++periodic_calls; }, epoch + 1s);
+  slot_reused.store(true, std::memory_order::release);
+  io.join();
+  scheduler.Update(epoch + 2s);
+  TEST_ASSERT_TRUE(accepted);
+  TEST_ASSERT_TRUE(timer_accepted);
+  TEST_ASSERT_EQUAL(1, first_calls);
+  TEST_ASSERT_EQUAL(1, periodic_calls);
+  TEST_ASSERT_EQUAL(0, scheduler.overflow_counter());
+}
+
+void test_OwnedPostCoalescesUntilExecution() {
+  ManualTaskScheduler<TaskManagerConf<2>> scheduler;
+  TaskSubscription owner;
+  int first_calls = 0;
+  int second_calls = 0;
+  TEST_ASSERT_TRUE(scheduler.TaskIfAbsent(owner, [&]() { ++first_calls; }));
+  TEST_ASSERT_TRUE(scheduler.TaskIfAbsent(owner, [&]() { ++second_calls; }));
+  scheduler.Update(Now());
+  TEST_ASSERT_EQUAL(1, first_calls);
+  TEST_ASSERT_EQUAL(0, second_calls);
+  TEST_ASSERT_TRUE(scheduler.TaskIfAbsent(owner, [&]() { ++second_calls; }));
+  scheduler.Update(Now());
+  TEST_ASSERT_EQUAL(1, second_calls);
+}
+
+void test_MultithreadOwnedPostsKeepPeriodicTimers() {
+  static constexpr int kWorkers = 3;
+  static constexpr int kIterations = 1000;
+  ManualTaskScheduler<TaskManagerConf<64>> scheduler;
+  std::array<TaskSubscription, kWorkers> owners;
+  std::array<std::atomic_int, kWorkers> completed{};
+  std::array<std::thread, kWorkers> workers;
+  std::atomic_int workers_done{0};
+  std::atomic_bool stop{false};
+  std::atomic_int failed_posts{0};
+  auto epoch = TimePoint{};
+  TaskSubscription periodic;
+  int periodic_calls = 0;
+  std::function<void()> next_periodic;
+  next_periodic = [&]() {
+    ++periodic_calls;
+    scheduler.DelayedTask(periodic, [&]() { next_periodic(); }, epoch + 10us);
+  };
+  TEST_ASSERT_TRUE(scheduler.DelayedTask(
+      periodic, [&]() { next_periodic(); }, epoch + 10us));
+  for (int i = 0; i < kWorkers; ++i) {
+    workers[i] = std::thread{[&, i]() {
+      for (int n = 0; n < kIterations && !stop.load(); ++n) {
+        if (n % 25 == 0) {
+          if (!scheduler.DelayedTask(owners[i], []() {}, TimePoint{} + 1h)) {
+            ++failed_posts;
+          }
+          scheduler.Cancel(owners[i]);
+        }
+        if (!scheduler.Task(owners[i], [&, i]() { ++completed[i]; })) {
+          ++failed_posts;
+          break;
+        }
+        while (completed[i].load() <= n && !stop.load()) {
+          std::this_thread::yield();
+        }
+      }
+      scheduler.Cancel(owners[i]);
+      ++workers_done;
+    }};
+  }
+  // This guards against stalled tasks, rather than measuring throughput. Let
+  // producers acquire the scheduler lock even on slow or oversubscribed CI.
+  auto const deadline = Now() + 30s;
+  while (workers_done.load() < kWorkers && Now() < deadline) {
+    epoch += 1us;
+    scheduler.Update(epoch);
+    std::this_thread::yield();
+  }
+  stop.store(true);
+  for (auto& worker : workers) {
+    worker.join();
+  }
+  auto const before_drain = periodic_calls;
+  for (int n = 0; n < 100; ++n) {
+    epoch += 10us;
+    scheduler.Update(epoch);
+  }
+  TEST_ASSERT_EQUAL(0, failed_posts.load());
+  for (auto const& calls : completed) {
+    TEST_ASSERT_EQUAL(kIterations, calls.load());
+  }
+  TEST_ASSERT_EQUAL(before_drain + 100, periodic_calls);
+  TEST_ASSERT_EQUAL(0, scheduler.overflow_counter());
+}
+
 }  // namespace ae::test_manual_task_scheduler
 
 int test_manual_task_scheduler() {
@@ -298,5 +431,13 @@ int test_manual_task_scheduler() {
   RUN_TEST(ae::test_manual_task_scheduler::test_ResetUpdateRestoresAllSlots);
   RUN_TEST(ae::test_manual_task_scheduler::
                test_MultithreadCancelledDelayedVsRegular);
+  RUN_TEST(ae::test_manual_task_scheduler::
+               test_OwnedPostReplacesOwnerBeforeAllocation);
+  RUN_TEST(ae::test_manual_task_scheduler::
+               test_OwnedPostCancellationAfterPoolReuseKeepsOtherTimer);
+  RUN_TEST(
+      ae::test_manual_task_scheduler::test_OwnedPostCoalescesUntilExecution);
+  RUN_TEST(ae::test_manual_task_scheduler::
+               test_MultithreadOwnedPostsKeepPeriodicTimers);
   return UNITY_END();
 }

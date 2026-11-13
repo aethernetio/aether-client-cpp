@@ -23,6 +23,7 @@
 #include "aether-miscpp/misc/defer.h"
 
 #include "aether/types/data_buffer.h"
+#include "aether/diagnostics/presence_api_trace.h"
 
 #include "aether/api_protocol/details/api_internal_context.h"
 #include "aether/api_protocol/details/api_message.h"
@@ -62,7 +63,9 @@ class ApiParser {
         assert(false && "message_id didn't loaded");
         return false;
       }
+      PresenceApiTrace("api_dispatch", *msg_id);
       if (!api_class.LoadMethod(*msg_id)) {
+        PresenceApiTrace("api_parse_failed", *msg_id);
         return false;
       }
     }

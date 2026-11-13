@@ -15,6 +15,7 @@
  */
 
 #include "aether/work_cloud_api/client_api/client_api_unsafe.h"
+#include "aether/diagnostics/presence_api_trace.h"
 
 #include "aether/tele.h"
 

@@ -22,6 +22,10 @@
 #  include <winsock2.h>
 #  include <ws2def.h>
 #  include <ws2ipdef.h>
+#  if AE_BENCH_TCP_PROXY
+#    include <cstdlib>
+#    include <cstring>
+#  endif
 
 #  include "aether-miscpp/misc/defer.h"
 #  include "aether/transport/system_sockets/sockets/get_sock_addr.h"
@@ -90,9 +94,10 @@ ISocket& WinTcpSocket::Connect(AddressPort const& destination,
   assert(socket_ != INVALID_SOCKET);
 
   connected_cb_ = std::move(connected_cb);
+  bool already_polled = false;
 
   ae_defer[&]() {
-    Poll();
+    if (!already_polled) { Poll(); }
     connected_cb_(connection_state_);
   };
 
@@ -118,8 +123,41 @@ ISocket& WinTcpSocket::Connect(AddressPort const& destination,
   }
 
   auto addr = GetSockAddr(destination);
-  if (!connect_ex(socket_, addr.addr(), static_cast<int>(addr.size), NULL, 0,
-                  NULL, &conn_overlapped_)) {
+  void* initial_data = nullptr;
+  DWORD initial_size = 0;
+#  if defined(AE_BENCH_TCP_PROXY) && AE_BENCH_TCP_PROXY
+  // Opt-in only: redirect this process to its private loopback fault proxy.
+  // The first six bytes carry the real IPv4 address and network-order port.
+  char proxy_port[16]{};
+  auto const port_length = GetEnvironmentVariableA(
+      "AE_BENCH_TCP_PROXY_PORT", proxy_port, sizeof(proxy_port));
+  if (port_length > 0) {
+    if (port_length >= sizeof(proxy_port)) {
+      connection_state_ = ConnectionState::kConnectionFailed;
+      return *this;
+    }
+    char* port_end = nullptr;
+    auto const port = std::strtoul(proxy_port, &port_end, 10);
+    if (port == 0 || port > 65535 || *port_end != '\0' ||
+        addr.data.ipv4.sin_family != AF_INET) {
+      connection_state_ = ConnectionState::kConnectionFailed;
+      return *this;
+    }
+    std::memcpy(proxy_header_, &addr.data.ipv4.sin_addr.s_addr, 4);
+    std::memcpy(proxy_header_ + 4, &addr.data.ipv4.sin_port, 2);
+    addr.data.ipv4.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.data.ipv4.sin_port = htons(static_cast<unsigned short>(port));
+    initial_data = proxy_header_;
+    initial_size = sizeof(proxy_header_);
+    // Loopback ConnectEx can complete before the normal deferred Poll().
+    // Associate with IOCP first so that completion cannot be lost.
+    connection_state_ = ConnectionState::kConnecting;
+    Poll();
+    already_polled = true;
+  }
+#  endif
+  if (!connect_ex(socket_, addr.addr(), static_cast<int>(addr.size), initial_data,
+                  initial_size, NULL, &conn_overlapped_)) {
     auto err_code = WSAGetLastError();
     if (err_code != WSA_IO_PENDING) {
       AETHER_TELED_ERROR("Socket connect error {}", err_code);

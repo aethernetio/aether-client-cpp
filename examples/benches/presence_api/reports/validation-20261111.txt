@@ -1,0 +1,65 @@
+HISTORICAL: bench/presence-api-1s, not this streaming port.
+
+Бенчмарк штатного presence API Эфира — 2026-11-11 (America/Los_Angeles)
+
+Реализован отдельный benchmark на Client::IsLocallyOnline() и асинхронном
+Client::QueryPeerPresence(). Self-message, peer echo и транспортная доступность
+не используются как замена API. Предыдущие echo-результаты к этому API не относятся.
+
+База: историческая API-ветка Cursor 6beb3150, содержащая f6559e87 и исправления
+be05eb6e/18c255c0. Это не текущая streaming/push ветка. Более новая по дате
+fc61d36c также использует promise/request-ID протокол; она не проверялась этим запуском.
+Из presence SDK ничего не переносилось и логика его состояний не менялась.
+SDK diff от выбранной базы — только отключаемый per-process TCP proxy hook.
+
+Настройки: native Ping interval=1s, RX window=1s, offline_detection_timeout=1s;
+локальный getter опрашивается в цикле с ожиданием не более10ms. Remote query
+планируется раз в1s, только один outstanding на клиента. Busy tick, overdue,
+Unknown, Error и завершение без наблюдаемого callback сохраняются отдельно.
+Они никогда не превращаются в Offline. Callback копирует исходный результат
+и per-server samples; следующий action создаётся вне callback, после Finish.
+Управление обрывами не читает echo и требует настоящих свежих Online результатов API.
+
+Живая проверка НЕ дошла до presence:
+- Оба fresh native клиента завершились с exit2 на регистрации примерно за80s.
+- Proxy каждого зафиксировал7bytes out /0bytes in, затем закрытие сервера
+  34.60.244.148:9010. Ни один клиент не был selected.
+- Управляемых обрывов0; IsLocallyOnline/QueryPeerPresence observations0;
+  чисел offline/online latency нет (n=0, percentile=null).
+- Обычные native бинарники без proxy env также не прошли: AB fresh/saved
+  exit1 через5.141/5.047s; cloud fresh/saved exit1 через80.187/80.078s.
+- Контрольный рабочий push SDK прошёл fresh cloud smoke за1.081s в тот же период.
+  Это контроль bootstrap/транспорта, а не измерение presence.
+
+Наблюдение согласуется с несовместимостью контракта bootstrap: эта API-ветка
+отправляет request-ID/promise RPC, рабочая push-ветка адаптирована к текущему
+серверу. get_client_timing35 в этом запуске вообще не вызывался, поэтому
+поддержка этого метода сервером и качество штатного presence НЕ установлены.
+Для честного fault matrix сначала необходим успешный bootstrap этой API-ветки.
+Сервер и настройки сети не изменялись, результаты не подменены echo.
+
+Проверки:
+- Сборка пяти целей успешна: native_presence_api_bench, test-local-presence,
+  remote-presence-live, ab-message-exchange, aether-client-cpp-cloud.
+-13 новых Python тестов прошли: состояния, Unknown/Error/pending, свежесть,
+  single-flight health, startup failure без cuts, memory guard и артефакты.
+- Штатный native suite:36/37 passed. Существующий тест
+  test_IntervalZeroWithPongClearsFuturePresence (main.cpp:1023) падает на
+  has_confirmed_schedule(): be05 нормализует interval0 в default interval.
+  В тестируемом профиле interval1000ms; этот провал не скрыт и SDK не исправлялся.
+
+Сборка MSVC18/x64 Release, отдельный build, Hydro/TCP-only, filtration,
+events4096/tasks1024/TCPqueue512. Использованы совместимые исторические CPM
+кеши с точным numeric3ab9e731. Dependency manifest фиксирует их SHA и ранее
+существовавший16-line GraphSerializationScope patch в objects394f; исходники
+зависимостей в этой работе не редактировались. Серверные репозитории читались,
+но не изменялись. Все коммиты локальные.
+
+Команда пилота (новый output directory):
+python examples/benches/presence_api/run_campaign.py --exe <native_presence_api_bench.exe> --out <new-dir>
+python examples/benches/presence_api/analyze.py <new-dir>
+Полная матрица после API-ready: --baseline 60 --off 3 10 30 60 --repeats 2
+(пробелы между именами параметров и значениями обязательны; см.README).
+No admin/firewall/NIC/global route changes. Прокси изолирует только свои процессы;
+DNS остаётся независимым. Проверка UDP/NAT/реального TCP RTO в scope не входит.
+Ключи, private state и UID-файлы в архив не входят.

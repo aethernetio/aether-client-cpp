@@ -102,7 +102,7 @@ class PacketQueueManager {
   }
 
   void EmitDeferredTerminalUnlocked(std::unique_lock<std::mutex>& lock,
-                                  std::size_t idx) {
+                                    std::size_t idx) {
     if (idx >= queue_.size()) {
       return;
     }
@@ -135,12 +135,10 @@ class PacketQueueManager {
   }
 
   void Enqueue() {
-    if (!enqueue_sub_) {
-      enqueue_sub_ = ae_context_.scheduler().Task([&]() {
-        enqueue_sub_.Reset();
-        Send();
-      });
-    }
+    ae_context_.scheduler().TaskIfAbsent(enqueue_sub_, [&]() {
+      ae_context_.scheduler().Cancel(enqueue_sub_);
+      Send();
+    });
   }
 
   AeContext ae_context_;

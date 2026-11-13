@@ -50,6 +50,7 @@ list(APPEND aether_srcs
             "dns/esp32_dns_resolve.cpp")
 
 list(APPEND aether_srcs
+            "ae_actions/query_peer_presence.cpp"
             "ae_actions/get_servers.cpp"
             "ae_actions/ping.cpp"
             "ae_actions/check_access_for_send_message.cpp"
@@ -184,6 +185,7 @@ list(APPEND aether_srcs
             "server_connections/server_connection.cpp")
 
 list(APPEND aether_srcs
+            "connection_manager/peer_presence_query.cpp"
             "connection_manager/get_cloud_aether.cpp"
             "connection_manager/client_cloud_manager.cpp"
             "connection_manager/server_connection_manager.cpp")

@@ -9,7 +9,9 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <thread>
 #include <utility>
+#include <vector>
 
 #include <unity.h>
 
@@ -25,7 +27,6 @@
 #include "aether/client.h"
 #include "aether/client_connectivity_policy.h"
 #include "aether/client_messages/p2p_message_stream_manager.h"
-#include "aether/work_cloud_api/ae_message.h"
 #include "aether/cloud.h"
 #include "aether/cloud_connections/cloud_server_connection.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
@@ -41,6 +42,7 @@
 #include "aether/socket_initializer.h"
 #include "aether/stream_api/istream.h"
 #include "aether/types/address.h"
+#include "aether/work_cloud_api/ae_message.h"
 #include "aether/write_action/write_action.h"
 
 #include "ping_cloud_servers_test_access.h"
@@ -123,8 +125,9 @@ class TrackedMockStream final : public ByteIStream {
         out_data_event_{context_},
         stream_update_event_{context_} {}
 
-  WriteAction& Write(DataBuffer&&) override {
+  WriteAction& Write(DataBuffer&& data) override {
     ++write_count_;
+    writes_.push_back(std::move(data));
     return write_;
   }
   StreamUpdateEvent const& stream_update_event() override {
@@ -139,6 +142,7 @@ class TrackedMockStream final : public ByteIStream {
   ServerId server_id() const { return server_id_; }
   int write_count() const { return write_count_; }
   int restream_count() const { return restream_count_; }
+  auto const& writes() const { return writes_; }
 
  private:
   class OkWrite final : public WriteAction {
@@ -160,6 +164,7 @@ class TrackedMockStream final : public ByteIStream {
   OkWrite write_{context_};
   int write_count_{0};
   int restream_count_{0};
+  std::vector<DataBuffer> writes_;
 };
 
 struct ChannelPolicy {
@@ -208,23 +213,36 @@ class FakeChannel final : public Channel {
 
 class Factory final : public IServerConnectionFactory {
  public:
-  Factory(AeContext ctx, ObjPtr<Client> client) : ctx_{ctx}, client_{client} {}
+  Factory(AeContext ctx, ObjPtr<Client> client, bool retain_connections = false)
+      : ctx_{ctx}, client_{client}, retain_connections_{retain_connections} {}
   std::shared_ptr<ClientServerConnection> CreateConnection(
       Ptr<Server> const& server) override {
-    return std::make_shared<ClientServerConnection>(ctx_, client_.Load(), server);
+    auto connection =
+        std::make_shared<ClientServerConnection>(ctx_, client_.Load(), server);
+    if (retain_connections_) {
+      retained_connections_.push_back(connection);
+    }
+    return connection;
   }
 
  private:
   AeContext ctx_;
   ObjPtr<Client> client_;
+  bool retain_connections_;
+  std::vector<std::shared_ptr<ClientServerConnection>> retained_connections_;
 };
 
 class InboundKeyProvider final : public ISyncKeyProvider {
  public:
-  InboundKeyProvider(ObjPtr<Client> client, ServerId server_id)
-      : client_{client}, server_id_{server_id} {}
+  InboundKeyProvider(ObjPtr<Client> client, ServerId server_id,
+                     bool client_to_server = false)
+      : client_{client},
+        server_id_{server_id},
+        client_to_server_{client_to_server} {}
   Key GetKey() const override {
-    return client_.Load()->server_state(server_id_)->server_to_client();
+    auto* state = client_.Load()->server_state(server_id_);
+    return client_to_server_ ? state->client_to_server()
+                             : state->server_to_client();
   }
   CryptoNonce const& Nonce() const override {
     auto* st = client_.Load()->server_state(server_id_);
@@ -235,6 +253,7 @@ class InboundKeyProvider final : public ISyncKeyProvider {
  private:
   ObjPtr<Client> client_;
   ServerId server_id_;
+  bool client_to_server_;
 };
 
 DataBuffer PingAckPlaintext() {
@@ -267,7 +286,9 @@ struct Env {
   Env() : ae_ctx{ctx}, domain{std::make_unique<Domain>(storage, &ctx)} {}
 };
 
-std::unique_ptr<Env> MakeEnv(bool start_ping_cloud = true) {
+std::unique_ptr<Env> MakeEnv(bool start_ping_cloud = true,
+                             std::size_t max_selected = kMaxSelectedServers,
+                             bool retain_connections = false) {
   auto env = std::make_unique<Env>();
   Env& e = *env;
 
@@ -292,13 +313,14 @@ std::unique_ptr<Env> MakeEnv(bool start_ping_cloud = true) {
 
   for (auto sid : {kServerA, kServerB}) {
     auto server = aether->GetServer(sid).Load();
-    ChannelPolicy pol{.ctx = &e.ae_ctx, .server_id = sid, .streams = &e.streams};
+    ChannelPolicy pol{
+        .ctx = &e.ae_ctx, .server_id = sid, .streams = &e.streams};
     server->channels = {FakeChannel::ptr::Create(CreateWith{*e.domain}, pol)};
   }
 
-  e.factory = std::make_unique<Factory>(e.ae_ctx, e.client);
-  e.connections.emplace(e.ae_ctx, e.client->cloud().Load(), std::move(e.factory),
-                        kMaxSelectedServers);
+  e.factory = std::make_unique<Factory>(e.ae_ctx, e.client, retain_connections);
+  e.connections.emplace(e.ae_ctx, e.client->cloud().Load(),
+                        std::move(e.factory), max_selected);
 
   auto& policy = *e.client->connectivity_policy().Load();
   policy.ConfigureRxTimings().ForAllPriorities(
@@ -330,6 +352,133 @@ void DeliverPingAck(Env& e, ServerId id) {
   stream->Deliver(PackEncryptedSafeApi(e.client, id, PingAckPlaintext()));
 }
 
+std::vector<DataBuffer> AuthorizedWrites(Env& e, ServerId id) {
+  SyncDecryptProvider decoder{
+      std::make_unique<InboundKeyProvider>(e.client, id, true)};
+  std::vector<DataBuffer> result;
+  for (auto const& packet : e.streams[id]->writes()) {
+    PacketReader reader{packet};
+    auto command = reader.TryExtract<MessageId>();
+    if (!command || *command != MessageId{5}) {
+      continue;
+    }
+    auto uid = reader.TryExtract<Uid>();
+    auto ciphertext = reader.TryExtract<DataBuffer>();
+    if (uid && ciphertext) {
+      result.push_back(decoder.Decrypt(*ciphertext));
+    }
+  }
+  return result;
+}
+
+int CountAuthorizedWrites(Env& e, ServerId id, MessageId command) {
+  int count = 0;
+  for (auto const& packet : AuthorizedWrites(e, id)) {
+    count += !packet.empty() && packet.front() == command;
+  }
+  return count;
+}
+
+void test_LatePongReselectionCannotCancelPeriodicResume() {
+  auto env = MakeEnv(false, 2, true);
+  TEST_ASSERT_NOT_NULL(env);
+  auto& h = *env;
+  auto& policy = *h.client->connectivity_policy().Load();
+  policy.ConfigureRxTimings(RequestPolicy::All{})
+      .ForAllPriorities(RxTimingConf::Every(std::chrono::milliseconds{200})
+                            .WithWindow(std::chrono::milliseconds{5}));
+  h.ping_cloud =
+      std::make_unique<PingCloudServers>(h.ae_ctx, *h.connections, policy);
+  h.ctx.Advance(std::chrono::milliseconds{300});
+  auto* a = FindServer(*h.connections, kServerA);
+  TEST_ASSERT_NOT_NULL(a);
+  TEST_ASSERT_TRUE(a->quarantine());
+  TEST_ASSERT_TRUE(h.connections->selected_servers().empty());
+  TEST_ASSERT_TRUE(PingCloudServersTestAccess::HasAwaitingLateClientPing(
+      *h.ping_cloud, kServerA));
+
+  // Both slots timed out. Recovery must fill the vacancy through Connect(),
+  // whose fixture factory returns a new connection. The old Ping must retire
+  // before that replacement can invalidate its completion binding.
+  DeliverPingAck(h, kServerA);
+  h.ctx.Advance(std::chrono::milliseconds{10});
+  // The resumed Ping may itself time out under this silent mock transport;
+  // the essential observation is that its request reached the new transport.
+  TEST_ASSERT_GREATER_THAN(0, CountAuthorizedWrites(h, kServerA, MessageId{4}));
+  TEST_ASSERT_EQUAL(0, h.streams[kServerA]->restream_count());
+}
+
+void test_NormalPongRetirementRearmsMissingPeriodicStart() {
+  auto env = MakeEnv(false, 2);
+  TEST_ASSERT_NOT_NULL(env);
+  auto& h = *env;
+  auto& policy = *h.client->connectivity_policy().Load();
+  policy.ResetRxTimings();
+  policy.ConfigureRxTimings(RequestPolicy::All{})
+      .ForAllPriorities(RxTimingConf::Every(std::chrono::milliseconds{10})
+                            .WithWindow(std::chrono::milliseconds{5}));
+  h.ctx.test_now_ = Now();
+  h.ping_cloud =
+      std::make_unique<PingCloudServers>(h.ae_ctx, *h.connections, policy);
+  for (int tick = 0;
+       tick < 40 && CountAuthorizedWrites(h, kServerA, MessageId{4}) == 0;
+       ++tick) {
+    h.ctx.Advance(std::chrono::milliseconds{1});
+  }
+  auto const before = CountAuthorizedWrites(h, kServerA, MessageId{4});
+  TEST_ASSERT_GREATER_THAN(0, before);
+  TEST_ASSERT_TRUE(PingCloudServersTestAccess::HasPendingClientPing(
+      *h.ping_cloud, kServerA));
+  // Inject the missing periodic handle seen in the live stall. A valid Pong
+  // still retires its own Ping and must establish the next cadence deadline.
+  PingCloudServersTestAccess::CancelPeriodicStart(*h.ping_cloud, kServerA);
+  DeliverPingAck(h, kServerA);
+  DeliverPingAck(h, kServerB);
+  h.ctx.Advance(std::chrono::milliseconds{20});
+  TEST_ASSERT_GREATER_THAN(before,
+                           CountAuthorizedWrites(h, kServerA, MessageId{4}));
+  TEST_ASSERT_EQUAL(0, h.streams[kServerA]->restream_count());
+}
+
+void test_NormalPongsAndDueStartsKeepCadenceForHundredCycles() {
+  auto env = MakeEnv(false, 2);
+  TEST_ASSERT_NOT_NULL(env);
+  auto& h = *env;
+  auto& policy = *h.client->connectivity_policy().Load();
+  policy.ResetRxTimings();
+  policy.ConfigureRxTimings(RequestPolicy::All{})
+      .ForAllPriorities(RxTimingConf::Every(std::chrono::milliseconds{1})
+                            .WithWindow(std::chrono::milliseconds{1}));
+  h.ping_cloud =
+      std::make_unique<PingCloudServers>(h.ae_ctx, *h.connections, policy);
+  std::map<ServerId, int> acknowledged;
+  auto const deadline = Now() + std::chrono::seconds{5};
+  while (Now() < deadline &&
+         (acknowledged[kServerA] < 100 || acknowledged[kServerB] < 100)) {
+    // ServerPing schedules from the real system clock, so this cadence test
+    // must use the same clock rather than expiring fresh timeouts
+    // synthetically.
+    h.ctx.scheduler().Update(Now());
+    for (auto id : {kServerA, kServerB}) {
+      auto const writes = CountAuthorizedWrites(h, id, MessageId{4});
+      if (writes > acknowledged[id] &&
+          PingCloudServersTestAccess::HasPendingClientPing(*h.ping_cloud, id)) {
+        DeliverPingAck(h, id);
+        acknowledged[id] = writes;
+      }
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds{1});
+  }
+  TEST_ASSERT_GREATER_OR_EQUAL(100, acknowledged[kServerA]);
+  TEST_ASSERT_GREATER_OR_EQUAL(100, acknowledged[kServerB]);
+  TEST_ASSERT_GREATER_OR_EQUAL(
+      100, CountAuthorizedWrites(h, kServerA, MessageId{4}));
+  TEST_ASSERT_GREATER_OR_EQUAL(
+      100, CountAuthorizedWrites(h, kServerB, MessageId{4}));
+  TEST_ASSERT_EQUAL(0, h.streams[kServerA]->restream_count());
+  TEST_ASSERT_EQUAL(0, h.streams[kServerB]->restream_count());
+}
+
 void test_PingTimeoutSoftQuarantineKeepsInboundAndSwapsMain() {
   auto env = MakeEnv();
   TEST_ASSERT_NOT_NULL(env);
@@ -345,9 +494,8 @@ void test_PingTimeoutSoftQuarantineKeepsInboundAndSwapsMain() {
                                                             kServerB)) {
     ping_id = kServerB;
   }
-  TEST_ASSERT_TRUE(
-      PingCloudServersTestAccess::HasAwaitingLateClientPing(*h.ping_cloud,
-                                                            ping_id));
+  TEST_ASSERT_TRUE(PingCloudServersTestAccess::HasAwaitingLateClientPing(
+      *h.ping_cloud, ping_id));
   auto* timed_out = FindServer(*h.connections, ping_id);
   TEST_ASSERT_NOT_NULL(timed_out);
   TEST_ASSERT_TRUE(timed_out->quarantine());
@@ -376,8 +524,8 @@ void test_LatePongRecoversWithoutReconnectAndIgnoresStaleExpiry() {
   TEST_ASSERT_FALSE(a->quarantine());
   TEST_ASSERT_NOT_NULL(a->client_connection());
 
-  h.ctx.Advance(std::chrono::milliseconds{AE_CLOUD_SERVER_QUARANTINE_TIME_MS +
-                                          500});
+  h.ctx.Advance(
+      std::chrono::milliseconds{AE_CLOUD_SERVER_QUARANTINE_TIME_MS + 500});
   TEST_ASSERT_FALSE(a->quarantine());
   TEST_ASSERT_NOT_NULL(a->client_connection());
 }
@@ -498,8 +646,8 @@ void test_ExpiryWithoutPongDisconnectsOnce() {
   auto* a = FindServer(*h.connections, kServerA);
   h.ctx.Advance(std::chrono::milliseconds{500});
   TEST_ASSERT_TRUE(a->quarantine());
-  h.ctx.Advance(std::chrono::milliseconds{AE_CLOUD_SERVER_QUARANTINE_TIME_MS +
-                                          500});
+  h.ctx.Advance(
+      std::chrono::milliseconds{AE_CLOUD_SERVER_QUARANTINE_TIME_MS + 500});
   TEST_ASSERT_FALSE(a->quarantine());
   TEST_ASSERT_NULL(a->client_connection());
 }
@@ -512,13 +660,12 @@ void test_PeriodicStartDoesNotReplaceAwaitingLatePing() {
       PingCloudServersTestAccess::ClientPingPtr(*h.ping_cloud, kServerA);
   TEST_ASSERT_NOT_NULL(before);
   h.ctx.Advance(std::chrono::milliseconds{500});
-  TEST_ASSERT_TRUE(
-      PingCloudServersTestAccess::HasAwaitingLateClientPing(*h.ping_cloud,
-                                                            kServerA));
+  TEST_ASSERT_TRUE(PingCloudServersTestAccess::HasAwaitingLateClientPing(
+      *h.ping_cloud, kServerA));
   PingCloudServersTestAccess::TriggerPeriodicStart(*h.ping_cloud, kServerA);
   h.ctx.Advance(std::chrono::milliseconds{50});
-  TEST_ASSERT_EQUAL_PTR(
-      before, PingCloudServersTestAccess::ClientPingPtr(*h.ping_cloud, kServerA));
+  TEST_ASSERT_EQUAL_PTR(before, PingCloudServersTestAccess::ClientPingPtr(
+                                    *h.ping_cloud, kServerA));
 }
 
 void test_TransportErrorAfterSoftQuarantineBlocksLateRecovery() {
@@ -555,8 +702,8 @@ void test_P2pReceivePersistsThroughSoftPingQuarantine() {
   Uid const peer_uid{{0x11}};
   int rx_count = 0;
   auto port = mgr.CreatePort(peer_uid);
-  Subscription rx_sub{port.out_data_event().Subscribe(
-      [&](DataBuffer const&) { ++rx_count; })};
+  Subscription rx_sub{
+      port.out_data_event().Subscribe([&](DataBuffer const&) { ++rx_count; })};
 
   auto* server = CloudServerConnectionsTestAccess::Main(cloud);
   TEST_ASSERT_NOT_NULL(server);
@@ -570,8 +717,8 @@ void test_P2pReceivePersistsThroughSoftPingQuarantine() {
 
   TEST_ASSERT_FALSE(server->quarantine());
 
-  TEST_ASSERT_TRUE(CloudServerConnectionsTestAccess::QuarantinePingTimeout(
-      cloud, *server));
+  TEST_ASSERT_TRUE(
+      CloudServerConnectionsTestAccess::QuarantinePingTimeout(cloud, *server));
   TEST_ASSERT_TRUE(server->quarantine());
   TEST_ASSERT_TRUE(std::find(cloud.selected_servers().begin(),
                              cloud.selected_servers().end(),
@@ -612,8 +759,8 @@ void test_P2pReceiveSubscribesAfterLateLink() {
   Uid const peer_uid{{0x33}};
   auto port = mgr.CreatePort(peer_uid);
   int rx_count = 0;
-  Subscription rx_sub{port.out_data_event().Subscribe(
-      [&](DataBuffer const&) { ++rx_count; })};
+  Subscription rx_sub{
+      port.out_data_event().Subscribe([&](DataBuffer const&) { ++rx_count; })};
   auto* server = FindServer(cloud, kServerA);
   TEST_ASSERT_NOT_NULL(server);
   server->Disconnect();
@@ -630,9 +777,9 @@ void test_P2pReceiveSubscribesAfterLateLink() {
   AeMessage message{.uid = peer_uid, .data = Bytes({1})};
   cc->client_safe_api().SendMessage(message);
   h.ctx.Advance(std::chrono::milliseconds{20});
-  TEST_ASSERT_EQUAL_MESSAGE(
-      1, rx_count,
-      "a late-linked server must deliver a message to the existing P2P port once");
+  TEST_ASSERT_EQUAL_MESSAGE(1, rx_count,
+                            "a late-linked server must deliver a message to "
+                            "the existing P2P port once");
   (void)rx_sub;
 }
 
@@ -646,8 +793,8 @@ void test_P2pSubscriptionClearsAfterDisconnect() {
   Uid const peer_uid{{0x22}};
   auto port = mgr.CreatePort(peer_uid);
   int rx_count = 0;
-  Subscription rx_sub{port.out_data_event().Subscribe(
-      [&](DataBuffer const&) { ++rx_count; })};
+  Subscription rx_sub{
+      port.out_data_event().Subscribe([&](DataBuffer const&) { ++rx_count; })};
   auto* server = FindServer(cloud, kServerA);
   TEST_ASSERT_NOT_NULL(server);
   auto* cc = server->client_connection();
@@ -656,8 +803,7 @@ void test_P2pSubscriptionClearsAfterDisconnect() {
   cc->client_safe_api().SendMessage(message);
   h.ctx.Advance(std::chrono::milliseconds{20});
   TEST_ASSERT_EQUAL(1, rx_count);
-  TEST_ASSERT_TRUE(
-      P2pMessageStreamManagerTestAccess::HasSubscriptions(mgr));
+  TEST_ASSERT_TRUE(P2pMessageStreamManagerTestAccess::HasSubscriptions(mgr));
 
   // All receive connections must be gone before testing the real subscription
   // owner. Do not inspect or invoke the client connection after destruction.
@@ -667,8 +813,7 @@ void test_P2pSubscriptionClearsAfterDisconnect() {
     TEST_ASSERT_NULL(connected_server->client_connection());
   }
   CloudServerConnectionsTestAccess::EmitServersUpdate(cloud);
-  TEST_ASSERT_FALSE(
-      P2pMessageStreamManagerTestAccess::HasSubscriptions(mgr));
+  TEST_ASSERT_FALSE(P2pMessageStreamManagerTestAccess::HasSubscriptions(mgr));
   h.ctx.Advance(std::chrono::milliseconds{50});
   (void)rx_sub;
   TEST_ASSERT_EQUAL(1, rx_count);
@@ -692,12 +837,19 @@ void test_LatePongOnOtherServerDoesNotRecoverMain() {
 int test_ping_timeout_recovery_run() {
   UNITY_BEGIN();
   RUN_TEST(ae::test_ping_timeout_recovery::
+               test_LatePongReselectionCannotCancelPeriodicResume);
+  RUN_TEST(ae::test_ping_timeout_recovery::
+               test_NormalPongRetirementRearmsMissingPeriodicStart);
+  RUN_TEST(ae::test_ping_timeout_recovery::
+               test_NormalPongsAndDueStartsKeepCadenceForHundredCycles);
+  RUN_TEST(ae::test_ping_timeout_recovery::
                test_PingTimeoutSoftQuarantineKeepsInboundAndSwapsMain);
   RUN_TEST(ae::test_ping_timeout_recovery::
                test_LatePongRecoversWithoutReconnectAndIgnoresStaleExpiry);
   RUN_TEST(ae::test_ping_timeout_recovery::
                test_LatePongStandbyDoesNotPingUntilSelectedAgain);
-  RUN_TEST(ae::test_ping_timeout_recovery::test_ExpiryWithoutPongDisconnectsOnce);
+  RUN_TEST(
+      ae::test_ping_timeout_recovery::test_ExpiryWithoutPongDisconnectsOnce);
   RUN_TEST(ae::test_ping_timeout_recovery::
                test_PeriodicStartDoesNotReplaceAwaitingLatePing);
   RUN_TEST(ae::test_ping_timeout_recovery::
@@ -708,8 +860,8 @@ int test_ping_timeout_recovery_run() {
                test_P2pReceivePersistsThroughSoftPingQuarantine);
   RUN_TEST(
       ae::test_ping_timeout_recovery::test_P2pReceiveSubscribesAfterLateLink);
-  RUN_TEST(
-      ae::test_ping_timeout_recovery::test_P2pSubscriptionClearsAfterDisconnect);
+  RUN_TEST(ae::test_ping_timeout_recovery::
+               test_P2pSubscriptionClearsAfterDisconnect);
   return UNITY_END();
 }
 

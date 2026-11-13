@@ -1,0 +1,61 @@
+Presence window audit (client-only; server sources read, never changed)
+
+Historical pre-fix observations below. The missing reply cause was subsequently
+established and fixed; see push-timing-fix-20261112.txt. The deployed published
+contract uses void request 35 and push response 41, unlike the RPC reference.
+
+Client integration base: main 3ac320a0.
+Server reference inspected: aether-server-ref defaae3 (not a claim about the
+deployed server revision).
+
+Client Ping::Start sends Ping(next_ping_hint_ms, rx_window_ms), method 4.
+The current main protocol confirms Ping through push PingAck, without an RPC
+request ID. Its single outstanding Ping and late-Ack lifecycle are preserved.
+
+In the reference server ClientUapState.applyPing at receipt time t:
+  nextPingDeadlineMs = t + nextPingDelayMs
+  mainRxUntilMs = t + rxWindowMs
+These are different deadlines. Closing the current receive window is not
+evidence that the peer missed its announced next Ping.
+
+GetClientTiming, method 35, returns lastActivityDeltaMs then nextPingDeltaMs.
+nextPingDeltaMs is positive before the announced deadline, negative afterwards
+(including -1 exactly at the deadline), and zero if no Ping was announced.
+The observer projects this relative delta onto its monotonic query midpoint;
+the classification deadline adds the configured offline-detection tolerance.
+The RPC retry timeout is separate from this presence deadline.
+
+An authenticated transport session reset clears the previous Ping promise.
+Ordinary activity and temporary/scheduled receive windows do not establish the
+next-Ping promise. The observer also needs a receive window for server replies:
+LoginApiImpl sets its safe API active predicate to isReceiveWindowOpen.
+
+Cursor's f6559e87 live benchmark waits for local Online before peer queries.
+The old probe published its UID before any confirmed Ping. The new probe waits
+for configured, confirmed schedules on all selected servers and additionally
+reads its own timing from each server through method 35.
+
+Do not infer server API absence from a final Unknown. Distinguish:
+  decoded timing, nextPingDeltaMs == 0: no announcement recorded;
+  decoded timing, expired deadline: Offline;
+  has_timing == false: no successfully decoded timing (RPC/setup/transport).
+Historical logs with no decoded timing do not prove the first case.
+
+Validation on 2026-11-12:
+- Main integration: all targets built, CTest 57/57 passed (55.52 seconds).
+- After adding wire/write diagnostics: affected CTest suites 3/3 passed.
+- Controller/analyzer Python tests: 14/14 passed.
+- AB fresh/saved and cloud fresh/saved smokes: all four exit 0; seven seconds
+  between each fresh/saved pair. Isolated state directories only.
+- TCP-only live pilots: 75 and 45 seconds startup budgets, two isolated clients.
+  Both clients confirmed 1-second schedules on servers 20, 21, 24 before
+  publishing UID. Both own-UID and peer timing requests received no decoded DTO.
+- Second pilot: 60 encoded method-35 frames, each 21 bytes before encryption;
+  all 60 reported successful client writes. No result-0/error-1 dispatch, no
+  parser failures; 260 PingAck dispatches continued during the same pilot.
+- A successful client write does not prove server method execution. The live
+  deployed server revision and its RPC execution have not been established.
+  This evidence cannot identify missing API versus a server/RPC routing issue.
+- Neither pilot established peer Online, so no faults were injected and no
+  peer Offline/Online latency is claimed. Historical benchmark latencies do not
+  validate this integration. No server edits, firewall/NIC changes, or pushes.

@@ -58,13 +58,16 @@ class Ping {
 
   void Start(TimePoint current_time);
 
-  bool IsPending() const noexcept {
-    return state_ == RequestState::kPending;
-  }
+  bool IsPending() const noexcept { return state_ == RequestState::kPending; }
 
   bool IsAwaitingLateResponse() const noexcept {
     return state_ == RequestState::kTimedOut;
   }
+
+  TimePoint send_time() const noexcept { return request_start_; }
+  TimePoint pong_time() const noexcept { return pong_receive_time_; }
+  Duration interval() const noexcept { return next_ping_hint_; }
+  Duration rx_window() const noexcept { return rx_window_; }
 
  private:
   friend struct PingTestAccess;
@@ -91,6 +94,7 @@ class Ping {
   ServerId server_id_;
 
   TimePoint request_start_;
+  TimePoint pong_receive_time_;
   Subscription wait_result_sub_;
   TaskSubscription timeout_sub_;
   Subscription write_sub_;
