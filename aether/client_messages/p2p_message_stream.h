@@ -44,8 +44,10 @@ class MessageSendStream;
 
 class P2pStream final : public ByteIStream {
  public:
-  P2pStream(AeContext const& ae_context, Ptr<Client> const& client,
-            Uid destination, P2pPortHandle handle);
+  P2pStream(
+      AeContext const& ae_context, Ptr<Client> const& client, Uid destination,
+      P2pPortHandle handle,
+      RequestPolicy::Variant send_request_policy = RequestPolicy::MainServer{});
 
   ~P2pStream() override;
 
@@ -59,6 +61,12 @@ class P2pStream final : public ByteIStream {
 
   void WriteOut(DataBuffer const& data);
   Uid const& destination() const;
+  struct SendPathTransportView {
+    StreamInfo aggregated{};
+    bool linked_udp_endpoint{false};
+    bool linked_tcp_endpoint{false};
+  };
+  SendPathTransportView InspectSendPathTransport() const;
 
  private:
   static constexpr auto kBufferCapacity = AE_P2P_MESSAGE_STREAM_BUFFER_CAPACITY;
@@ -77,6 +85,7 @@ class P2pStream final : public ByteIStream {
   Uid destination_{};
 
   P2pPortHandle handle_;
+  RequestPolicy::Variant send_request_policy_;
 
   // connection to destination cloud
   std::unique_ptr<CloudServerConnections> dest_cloud_conn_;

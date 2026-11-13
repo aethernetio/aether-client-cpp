@@ -151,6 +151,25 @@ class UdpTransport final : public upd_internal::UdpBase {
         .Connect(endpoint_, MethodPtr<&UdpTransport::OnConnected>{this});
   }
 
+  UdpTransport(AeContext const& ae_context, AddressPort endpoint, Socket&& socket)
+      : upd_internal::UdpBase{ae_context, std::move(endpoint)},
+        socket_{std::move(socket)},
+        send_queue_manager_{ae_context} {
+    ConnectSocket();
+  }
+
+ private:
+  void ConnectSocket() {
+    // Make connection
+    AETHER_TELE_INFO(kUdpTransportConnect, "Udp connect to endpoint {}", endpoint_);
+
+    socket_.RecvData(MethodPtr<&UdpTransport::OnRecvData>{this})
+        .ReadyToWrite(MethodPtr<&UdpTransport::OnReadyToWrite>{this})
+        .Error(MethodPtr<&UdpTransport::OnSocketError>{this})
+        .Connect(endpoint_, MethodPtr<&UdpTransport::OnConnected>{this});
+  }
+
+ public:
   ~UdpTransport() override {
     stream_info_.link_state = LinkState::kUnlinked;
     Disconnect();

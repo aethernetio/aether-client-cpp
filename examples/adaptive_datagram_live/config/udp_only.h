@@ -1,0 +1,10 @@
+// Register clients in a separate TCP-capable process, then load their state.
+#ifndef EXAMPLES_ADAPTIVE_DATAGRAM_LIVE_CONFIG_UDP_ONLY_H_
+#define EXAMPLES_ADAPTIVE_DATAGRAM_LIVE_CONFIG_UDP_ONLY_H_
+
+#define AE_SUPPORT_UDP 1
+#define AE_SUPPORT_TCP 0
+#define AE_EVENTS_MAX_COUNT 512
+#define AETHER_TELE_LOG_BLOB 0
+
+#endif  // EXAMPLES_ADAPTIVE_DATAGRAM_LIVE_CONFIG_UDP_ONLY_H_

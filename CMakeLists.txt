@@ -469,3 +469,10 @@ if(AE_INSTALL)
           NAMESPACE ${TARGET_NAME}::
           DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${TARGET_NAME})
 endif()
+
+if((AE_BUILD_TESTS OR AE_BUILD_EXAMPLES) AND NOT CM_PLATFORM)
+  add_subdirectory(examples/adaptive_datagram_emulation)
+endif()
+if(AE_BUILD_EXAMPLES AND NOT CM_PLATFORM)
+  add_subdirectory(examples/adaptive_datagram_live)
+endif()

@@ -17,6 +17,7 @@
 #include "aether/client_messages/p2p_message_stream.h"
 
 #include <algorithm>
+#include "aether/channels/channel.h"
 
 #include "aether/config.h"
 
@@ -152,15 +153,18 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
 }  // namespace p2p_stream_internal
 
 P2pStream::P2pStream(AeContext const& ae_context, Ptr<Client> const& client,
-                     Uid destination, P2pPortHandle handle)
+                     Uid destination, P2pPortHandle handle,
+                     RequestPolicy::Variant send_request_policy)
     : ae_context_{ae_context},
       client_{client},
       destination_{std::move(destination)},
       handle_{std::move(handle)},
+      send_request_policy_{std::move(send_request_policy)},
       buffer_write_{ae_context_, MethodPtr<&P2pStream::OnWrite>{this}},
       out_data_event_{ae_context_},
       stream_update_event_{ae_context_} {
-  AETHER_TELE_DEBUG(kP2pMessageStreamNew, "P2pStream created for {}", destination_);
+  AETHER_TELE_DEBUG(kP2pMessageStreamNew, "P2pStream created for {}",
+                    destination_);
   assert(!destination_.empty());
 
   if (handle_) {
@@ -173,7 +177,7 @@ P2pStream::~P2pStream() = default;
 
 WriteAction& P2pStream::Write(DataBuffer&& data) {
   AETHER_TELED_DEBUG("Write message for uid {} size:{} data:{}", destination_,
-                 data.size(), data);
+                     data.size(), data);
   AeMessage message_data{destination_, std::move(data)};
   return buffer_write_.Write(std::move(message_data));
 }
@@ -230,7 +234,7 @@ void P2pStream::ConnectSend() {
                                 .GetServerConnectionFactory());
           message_send_stream_ =
               std::make_unique<p2p_stream_internal::MessageSendStream>(
-                  ae_context_, *dest_cloud_conn_, RequestPolicy::MainServer{});
+                  ae_context_, *dest_cloud_conn_, send_request_policy_);
           message_send_stream_->stream_update_event().Subscribe(
               MethodPtr<&StreamUpdateEvent::Emit>{&stream_update_event_});
           AETHER_TELED_DEBUG("Send connected");
@@ -258,4 +262,30 @@ WriteAction* P2pStream::OnWrite(AeMessage&& message) {
   return &message_send_stream_->Write(std::move(message));
 }
 
+P2pStream::SendPathTransportView P2pStream::InspectSendPathTransport() const {
+  SendPathTransportView view;
+  view.aggregated = stream_info();
+  if (dest_cloud_conn_) {
+    dest_cloud_conn_->ForServers(
+        [&](auto* sc) {
+          auto* con = sc->client_connection();
+          if (con == nullptr ||
+              con->stream_info().link_state != LinkState::kLinked) {
+            return;
+          }
+          auto channel = con->server_connection().current_channel();
+          if (channel == nullptr) {
+            return;
+          }
+          auto endpoint = channel->endpoint();
+          if (!endpoint) {
+            return;
+          }
+          view.linked_udp_endpoint |= endpoint->protocol == Protocol::kUdp;
+          view.linked_tcp_endpoint |= endpoint->protocol == Protocol::kTcp;
+        },
+        send_request_policy_);
+  }
+  return view;
+}
 }  // namespace ae

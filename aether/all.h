@@ -112,3 +112,5 @@
 // IWYU pragma: end_exports
 
 #endif  // AETHER_ALL_H_
+
+#include "aether/client_messages/p2p_adaptive_datagram_stream.h"

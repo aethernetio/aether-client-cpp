@@ -211,3 +211,10 @@ list(APPEND aether_srcs
             "channels/modem_channel.cpp")
 
 target_sources(${TARGET_NAME} PRIVATE ${aether_srcs})
+
+target_sources(aether PRIVATE
+   adaptive_datagram/adaptive_datagram_stream.cpp
+   adaptive_datagram/rate_controller.cpp
+   transport/emulated/emulated_datagram_socket.cpp
+   client_messages/p2p_adaptive_datagram_stream.cpp
+   client_messages/p2p_stream_write_budget.cpp)
