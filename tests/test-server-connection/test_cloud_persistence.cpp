@@ -29,6 +29,9 @@
 #include "aether/aether.h"
 #include "aether/channels/ethernet_channel.h"
 #include "aether/cloud.h"
+#include "aether/client.h"
+#include "aether/connection_manager/client_cloud_manager.h"
+#include "aether/connection_manager/get_cloud_aether.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
 #include "aether/dns/dns_resolve.h"
 #include "aether/poller/poller.h"
@@ -329,6 +332,58 @@ void test_ServerRebuildsUnsupportedCachedChannelAndPreservesValidIds() {
   }
 }
 
+void test_CloudResolutionCompletesAndReleasesActionPool() {
+  TestContext context;
+  AeContext ae_context{context};
+  RamDomainStorage storage;
+  Domain domain{storage, &context};
+  auto aether = Aether::ptr::Create(CreateWith{domain});
+  auto client = Client::ptr::Create(CreateWith{domain}, aether);
+  auto manager =
+      ClientCloudManager::ptr::Create(CreateWith{domain}, aether, client);
+  auto cloud = Cloud::ptr::Create(CreateWith{domain});
+  // Inject decoded server publications without a real network connection.
+  auto& updates = const_cast<ClientCloudManager::CloudUpdateEvent&>(
+      manager->cloud_update_event());
+  CloudServerConnections connections{
+      ae_context, cloud.Load(), std::make_unique<CountingNullFactory>(), 1};
+  ActionPool<AeContext, GetCloudFromAether, 2> actions{ae_context};
+  auto const uid = Uid::FromString("11111111-1111-1111-1111-111111111111");
+  auto const other = Uid::FromString("22222222-2222-2222-2222-222222222222");
+  // More resolutions than pool slots, covering both terminal result kinds.
+  for (int iteration = 0; iteration < 12; ++iteration) {
+    auto* action = actions.Create(ae_context, *manager, connections, uid);
+    TEST_ASSERT_NOT_NULL(action);
+    int results = 0;
+    bool success = false;
+    Subscription result_sub =
+        action->result_event().Subscribe([&](auto const& result) {
+          ++results;
+          success = result.IsOk();
+        });
+    updates.Emit(other, Ok<Cloud::ptr const&>{cloud});
+    TEST_ASSERT_EQUAL_INT(0, results);
+    TEST_ASSERT_FALSE(action->is_finished());
+    bool const expected_success = iteration % 2 == 0;
+    if (expected_success) {
+      updates.Emit(uid, Ok<Cloud::ptr const&>{cloud});
+    } else {
+      updates.Emit(uid, Error{-1});
+    }
+    TEST_ASSERT_EQUAL_INT(1, results);
+    TEST_ASSERT_EQUAL(expected_success, success);
+    TEST_ASSERT_TRUE(action->is_finished());
+    // A second cloud publication before deferred reclamation is not a second
+    // terminal result and must not queue destruction of the same slot twice.
+    updates.Emit(uid, Ok<Cloud::ptr const&>{cloud});
+    TEST_ASSERT_EQUAL_INT(1, results);
+    result_sub.Reset();
+    context.Update();
+    context.Update();
+    TEST_ASSERT_TRUE(actions.empty());
+  }
+}
+
 }  // namespace test_cloud_persistence
 }  // namespace ae
 
@@ -336,6 +391,7 @@ int run_test_cloud_persistence() {
   using namespace ae::test_cloud_persistence;  // NOLINT
 
   UNITY_BEGIN();
+  RUN_TEST(test_CloudResolutionCompletesAndReleasesActionPool);
   RUN_TEST(test_ServerRebuildsUnsupportedCachedChannelAndPreservesValidIds);
   RUN_TEST(test_CloudSetServersReplacesEntries);
   RUN_TEST(test_CloudAddServerAppendsAndPreservesExistingPriority);
