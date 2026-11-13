@@ -39,7 +39,10 @@ class PacketQueueManager {
   explicit PacketQueueManager(AeContext const& ae_context) noexcept
       : ae_context_{ae_context} {}
 
-  ~PacketQueueManager() { AETHER_TELED_DEBUG("Packet queue manager remove"); }
+  ~PacketQueueManager() {
+    ae_context_.scheduler().Cancel(enqueue_sub_);
+    AETHER_TELED_DEBUG("Packet queue manager remove");
+  }
 
   AE_CLASS_NO_COPY_MOVE(PacketQueueManager)
 
@@ -53,8 +56,17 @@ class PacketQueueManager {
       return nullptr;
     }
     queue_.push(T{std::forward<Args>(args)...});
-    Enqueue();
+    RequestSend();
     return &queue_.back();
+  }
+
+  // Poller callbacks may hold a descriptor lock. Never take queue_lock_ or
+  // perform socket I/O there: marshal/coalesce readiness to the owner loop.
+  void RequestSend() {
+    ae_context_.scheduler().TaskIfAbsent(enqueue_sub_, [this]() {
+      ae_context_.scheduler().Cancel(enqueue_sub_);
+      Send();
+    });
   }
 
   /**
@@ -83,7 +95,7 @@ class PacketQueueManager {
       }
       if (index_ == work_index && !send_completed) {
         if (queue_[index_].re_enqueue()) {
-          Enqueue();
+          RequestSend();
         }
         break;
       }
@@ -132,13 +144,6 @@ class PacketQueueManager {
       }
       ++i;
     }
-  }
-
-  void Enqueue() {
-    ae_context_.scheduler().TaskIfAbsent(enqueue_sub_, [&]() {
-      ae_context_.scheduler().Cancel(enqueue_sub_);
-      Send();
-    });
   }
 
   AeContext ae_context_;

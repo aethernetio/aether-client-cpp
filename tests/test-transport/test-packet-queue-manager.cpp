@@ -6,6 +6,7 @@
 
 #include <array>
 #include <chrono>
+#include <thread>
 #include <vector>
 
 #include "aether/ae_context.h"
@@ -550,23 +551,136 @@ void test_TcpSendMultipleFillDrainCycles() {
   }
 }
 
+class ReadinessSocket final : public ISocket {
+ public:
+  explicit ReadinessSocket(Ptr<IPoller> const&) { last = this; }
+  ISocket& ReadyToWrite(ReadyToWriteCb cb) override {
+    ready = std::move(cb);
+    return *this;
+  }
+  ISocket& RecvData(RecvDataCb) override { return *this; }
+  ISocket& Error(ErrorCb) override { return *this; }
+  ISocket& Connect(AddressPort const&, ConnectedCb cb) override {
+    cb(ConnectionState::kConnected);
+    return *this;
+  }
+  std::optional<std::size_t> Send(Span<std::uint8_t> data) override {
+    ++send_calls;
+    send_thread = std::this_thread::get_id();
+    return writable ? data.size() : 0;
+  }
+  void Disconnect() override { ready = {}; }
+  inline static ReadinessSocket* last{};
+  ReadyToWriteCb ready;
+  bool writable{false};
+  int send_calls{0};
+  std::thread::id send_thread;
+};
+
+void test_TcpReadinessDefersSocketWorkToOwnerThread() {
+  TestContext tctx;
+  AeContext ctx{tctx};
+  auto const owner = std::this_thread::get_id();
+  {
+    TcpTransport<ReadinessSocket, 4> transport{ctx, Ptr<IPoller>{},
+                                               AddressPort{}};
+    auto* socket = ReadinessSocket::last;
+    auto& action = transport.Write(MakeSmallPayload());
+    int completions = 0;
+    Subscription sub = action.status_event().Subscribe([&](auto status) {
+      if (status == WriteAction::Status::kSuccess) ++completions;
+    });
+    Pump(tctx);
+    auto const blocked_calls = socket->send_calls;
+    TEST_ASSERT_GREATER_THAN_INT(0, blocked_calls);
+    socket->writable = true;
+    // Native readiness callbacks hold the poller/descriptor mutex. Sending
+    // synchronously here inverts it against the owner's queue -> socket path.
+    std::thread producer{[&]() {
+      for (int i = 0; i < 100; ++i) socket->ready();
+    }};
+    producer.join();
+    TEST_ASSERT_EQUAL_INT(blocked_calls, socket->send_calls);
+    Pump(tctx);
+    Pump(tctx);
+    TEST_ASSERT_EQUAL_INT(1, completions);
+    TEST_ASSERT_TRUE(socket->send_thread == owner);
+    // Destruction cancels already-posted readiness before queue storage dies.
+    socket->ready();
+  }
+  Pump(tctx);
+  TEST_ASSERT_EQUAL_UINT(0, tctx.sched.overflow_counter());
+}
+
+class ReceiveProbe final : public tcp_internal::TcpBase {
+ public:
+  explicit ReceiveProbe(AeContext const& ctx) : TcpBase{ctx, AddressPort{}} {}
+  WriteAction& Write(DataBuffer&&) override { return FailedWrite(); }
+  void Feed(DataBuffer& bytes) {
+    OnRecvData(Span{bytes.data(), bytes.size()});
+  }
+  bool TryReceiveLock() {
+    if (!buffer_lock_.try_lock()) return false;
+    buffer_lock_.unlock();
+    return true;
+  }
+
+ protected:
+  void Disconnect() override {}
+};
+
+void test_TcpReceiveCallbacksRunOutsideBufferLock() {
+  TestContext tctx;
+  AeContext ctx{tctx};
+  ReceiveProbe transport{ctx};
+  bool lock_available = false;
+  DataBuffer received;
+  Subscription sub =
+      transport.out_data_event().Subscribe([&](DataBuffer const& data) {
+        received = data;
+        std::thread probe{
+            [&]() { lock_available = transport.TryReceiveLock(); }};
+        probe.join();
+      });
+  auto payload = MakeSmallPayload();
+  DataBuffer framed;
+  VectorBuffer<PacketSize> writer{framed};
+  writer.Write(seri::SizeWriteTag(payload.size()));
+  writer.Write(seri::DataWriteTag{payload.data(), payload.size()});
+  transport.Feed(framed);
+  Pump(tctx);
+  TEST_ASSERT_TRUE(received == payload);
+  TEST_ASSERT_TRUE(lock_available);
+}
+
 #endif  // AE_SUPPORT_TCP
 
 }  // namespace ae::test_packet_queue_manager
 
 int test_packet_queue_manager() {
-  RUN_TEST(ae::test_packet_queue_manager::test_FinishedPendingFinishedPrefixPop);
+  RUN_TEST(
+      ae::test_packet_queue_manager::test_FinishedPendingFinishedPrefixPop);
   RUN_TEST(ae::test_packet_queue_manager::test_PendingFrontBlocksFinishedTail);
   RUN_TEST(ae::test_packet_queue_manager::test_AllFinishedFreesCapacity);
 #if AE_SUPPORT_TCP
-  RUN_TEST(ae::test_packet_queue_manager::test_TcpSendDeferredFinishReclaimOnAddWithoutSecondSend);
-  RUN_TEST(ae::test_packet_queue_manager::test_TcpSendSchedulerOverflowDeferredTerminal);
+  RUN_TEST(ae::test_packet_queue_manager::
+               test_TcpReadinessDefersSocketWorkToOwnerThread);
+  RUN_TEST(ae::test_packet_queue_manager::
+               test_TcpReceiveCallbacksRunOutsideBufferLock);
+  RUN_TEST(ae::test_packet_queue_manager::
+               test_TcpSendDeferredFinishReclaimOnAddWithoutSecondSend);
+  RUN_TEST(ae::test_packet_queue_manager::
+               test_TcpSendSchedulerOverflowDeferredTerminal);
   RUN_TEST(ae::test_packet_queue_manager::test_TcpSendMultipleFillDrainCycles);
   RUN_TEST(ae::test_packet_queue_manager::test_TcpAddPacketFromTerminalEvents);
-  RUN_TEST(ae::test_packet_queue_manager::test_TcpAddPacketRejectedUntilDeferredFinishPump);
-  RUN_TEST(ae::test_packet_queue_manager::test_TcpSchedulerOverflowTerminalReentrancyCombined);
-  RUN_TEST(ae::test_packet_queue_manager::test_TcpStopAfterOverflowPendingSingleTerminal);
-  RUN_TEST(ae::test_packet_queue_manager::test_TcpStopAfterOverflowReentrantAddSingleTerminal);
+  RUN_TEST(ae::test_packet_queue_manager::
+               test_TcpAddPacketRejectedUntilDeferredFinishPump);
+  RUN_TEST(ae::test_packet_queue_manager::
+               test_TcpSchedulerOverflowTerminalReentrancyCombined);
+  RUN_TEST(ae::test_packet_queue_manager::
+               test_TcpStopAfterOverflowPendingSingleTerminal);
+  RUN_TEST(ae::test_packet_queue_manager::
+               test_TcpStopAfterOverflowReentrantAddSingleTerminal);
 #endif
   return 0;
 }

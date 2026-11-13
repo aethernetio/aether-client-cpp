@@ -80,10 +80,19 @@ void TcpBase::OnRecvData(Span<std::uint8_t> data) {
   // emit new data though scheduler stream
   if (!read_event_.exchange(true)) {
     ae_context_.scheduler().Task(read_event_sub_, [&]() {
-      auto sl = std::scoped_lock{buffer_lock_};
-      read_event_ = false;
-      for (auto data = data_packet_collector_.PopPacket(); !data.empty();
-           data = data_packet_collector_.PopPacket()) {
+      auto packets = std::invoke([this]() {
+        auto lock = std::scoped_lock{buffer_lock_};
+        read_event_ = false;
+        std::vector<DataBuffer> pending;
+        for (auto data = data_packet_collector_.PopPacket(); !data.empty();
+             data = data_packet_collector_.PopPacket()) {
+          pending.push_back(std::move(data));
+        }
+        return pending;
+      });
+      // Consumers may write/disconnect. Do not hold the receive mutex while
+      // they acquire socket/poller locks (the poller takes them in reverse).
+      for (auto const& data : packets) {
         AETHER_TELE_DEBUG(kTcpTransportReceive,
                           "Socket {} received data size {} \ndata{}", endpoint_,
                           data.size(), data);

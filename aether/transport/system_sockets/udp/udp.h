@@ -200,7 +200,7 @@ class UdpTransport final : public upd_internal::UdpBase {
   }
 
  protected:
-  void OnReadyToWrite() { send_queue_manager_.Send(); }
+  void OnReadyToWrite() { send_queue_manager_.RequestSend(); }
 
   void DeferSendErrorDisconnect() {
     ae_context_.scheduler().Task(defer_task_sub_, [&]() noexcept {
