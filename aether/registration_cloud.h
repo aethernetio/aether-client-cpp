@@ -17,6 +17,7 @@
 #define AETHER_REGISTRATION_CLOUD_H_
 
 #include "aether-objects/obj/dummy_obj.h"  // IWYU pragma: keep
+#include "aether/common.h"
 #include "aether/config.h"
 
 #if AE_SUPPORT_REGISTRATION

@@ -16,6 +16,8 @@
 
 #include "aether/cloud_connections/cloud_subscription.h"
 
+#include "aether/stream_api/istream.h"
+
 namespace ae {
 CloudEventListener::CloudEventListener(ApiEventSubscriber subscriber,
                                        CloudServerConnections& cloud_connection,
@@ -56,14 +58,24 @@ CloudEventListener& CloudEventListener::operator=(
 
 void CloudEventListener::ServersUpdate() {
   subscriptions_.Reset();
-  cloud_connection_->ForServers(
-      [&](auto* sc) {
-        auto* conn = sc->client_connection();
-        assert((conn != nullptr) && "ClientConnection is null");
-        auto sub = subscriber_(conn->client_safe_api(), sc);
-        subscriptions_ += std::move(sub);
-      },
-      request_policy_);
+  auto subscribe = [&](auto* sc) {
+    auto* conn = sc->client_connection();
+    if (conn == nullptr ||
+        conn->stream_info().link_state != LinkState::kLinked) {
+      return;
+    }
+    auto sub = subscriber_(conn->client_safe_api(), sc);
+    subscriptions_ += std::move(sub);
+  };
+  if (std::holds_alternative<RequestPolicy::All>(request_policy_)) {
+    // A ping timeout changes send selection while the connection can still
+    // receive messages and late acknowledgements.
+    for (auto* sc : cloud_connection_->servers()) {
+      subscribe(sc);
+    }
+  } else {
+    cloud_connection_->ForServers(subscribe, request_policy_);
+  }
 }
 
 void CloudEventListener::Reset() {

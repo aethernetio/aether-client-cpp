@@ -23,7 +23,9 @@
 #  include <utility>
 
 #  include "aether/cloud_connections/cloud_server_connection.h"
+#  include "aether/server_connections/client_server_connection.h"
 #  include "aether/work_cloud_api/work_server_api/authorized_api.h"
+#  include "aether/write_action/write_action.h"
 
 #  include "aether/ae_actions/ae_actions_tele.h"
 
@@ -76,6 +78,8 @@ Ping::Ping(AeContext const& ae_context,
 
 Ping::ResultEvent const& Ping::result_event() const { return result_event_; }
 
+Ping::~Ping() { ResetRequestSubscriptions(); }
+
 void Ping::Start(TimePoint current_time) {
   auto* cc = cloud_server_connection_->client_connection();
   assert(cc != nullptr && "Ping::Start requires a client connection");
@@ -109,10 +113,10 @@ void Ping::Start(TimePoint current_time) {
       if (state_ != RequestState::kPending) {
         return;
       }
-      AETHER_TELE_ERROR(kPingWriteError, "Ping write error");
-      state_ = RequestState::kFinished;
-      ResetRequestSubscriptions();
-      result_event_.Emit(PingResult{Error{1}});
+      write_fail_dispatch_sub_ = ae_context_.scheduler().Task([this]() {
+        write_fail_dispatch_sub_.Reset();
+        EmitWriteFailureFromWriteCallback();
+      });
     }
   });
   if (state_ != RequestState::kPending) {
@@ -135,7 +139,23 @@ void Ping::ArmResponse(ClientApiSafe& api, TimePoint current_time) {
       [this]() { PingResponseTimeout(RequestId{}); }, current_time + timeout_);
 }
 
+void Ping::EmitWriteFailureFromWriteCallback() {
+  if (state_ != RequestState::kPending) {
+    return;
+  }
+  AETHER_TELE_ERROR(kPingWriteError, "Ping write error");
+  state_ = RequestState::kFinished;
+  ResetRequestSubscriptions();
+  result_event_.Emit(PingResult{Error{1}});
+}
+
 void Ping::PingResponse(RequestId request_id) {
+  write_fail_dispatch_sub_.Reset();
+  ack_dispatch_sub_ = ae_context_.scheduler().Task(
+      [this, request_id]() { PingResponseImpl(request_id); });
+}
+
+void Ping::PingResponseImpl(RequestId request_id) {
   auto current_time = Now();
   auto ping_duration =
       std::chrono::duration_cast<Duration>(current_time - request_start_);
@@ -178,7 +198,7 @@ void Ping::PingResponseTimeout(RequestId request_id) {
   AETHER_TELE_ERROR(kPingTimeoutError, "Ping timeout server id {} request {}",
                     server_id_, request_id);
   state_ = RequestState::kTimedOut;
-  wait_result_sub_.Reset();
+  // Keep the acknowledgement subscription until late recovery or destruction.
   timeout_sub_.Reset();
   write_sub_.Reset();
   result_event_.Emit(PingResult{Error{2}});
@@ -188,6 +208,8 @@ void Ping::ResetRequestSubscriptions() {
   wait_result_sub_.Reset();
   timeout_sub_.Reset();
   write_sub_.Reset();
+  ack_dispatch_sub_.Reset();
+  write_fail_dispatch_sub_.Reset();
 }
 
 }  // namespace ae

@@ -25,7 +25,6 @@
 #include "aether-miscpp/reflect/reflect.h"
 
 namespace ae {
-#if AE_SIGNATURE != AE_NONE
 struct SignedKey {
   AE_REFLECT_MEMBERS(key, sign)
 
@@ -33,6 +32,7 @@ struct SignedKey {
   Sign sign;
 };
 
+#if AE_SIGNATURE != AE_NONE
 // Signature
 bool CryptoSignVerify(Sign const& signature, Key const& pk, Key const& sign_pk);
 #endif  // AE_SIGNATURE != AE_NONE

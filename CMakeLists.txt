@@ -86,6 +86,21 @@ message(STATUS "Aether build options:
    AE_REG_CLOUD_ADDR=${AE_REG_CLOUD_ADDR}
 ")
 
+# Must be before add_library/CPM so the SDK and dependencies share sanitizer flags.
+if(AE_ADDRESS_SANITIZE)
+  if(MSVC)
+    add_compile_options(/fsanitize=address)
+    add_link_options(/INFERASANLIBS)
+    if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_CONFIGURATION_TYPES)
+      add_compile_options($<$<CONFIG:Release>:/Zi>)
+      add_link_options($<$<CONFIG:Release>:/DEBUG>)
+    endif()
+  else()
+    add_compile_options(-fsanitize=address)
+    add_link_options(-fsanitize=address)
+  endif()
+endif()
+
 include(cmake/CPM.cmake)
 find_package(Git REQUIRED)
 
@@ -169,16 +184,23 @@ CPMAddPackage(
 CPMAddPackage(
   NAME aether-tele
   GIT_REPOSITORY "https://github.com/aethernetio/aether-tele.git"
-  GIT_TAG "main"
+  GIT_TAG "64183232c1c6d8ad6119f75ff7e833f43467de57"
   OPTIONS "AE_TELE_INSTALL ${AE_INSTALL}"
           "AE_TELE_BUILD_TESTS ${AE_BUILD_TESTS}"
   EXCLUDE_FROM_ALL FALSE
 )
+# Keep third-party header diagnostics separate from the SDK's strict warnings.
+foreach(_ae_external_target IN ITEMS gcem ae-numeric aether-tele)
+  get_target_property(_ae_external_includes ${_ae_external_target}
+    INTERFACE_INCLUDE_DIRECTORIES)
+  set_property(TARGET ${_ae_external_target} APPEND PROPERTY
+    INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_ae_external_includes}")
+endforeach()
 set(AE_OBJECTS_RAW_TELE ON CACHE BOOL "Route object system telemetry to its independent raw space")
 CPMAddPackage(
   NAME aether-objects
   GIT_REPOSITORY "https://github.com/aethernetio/aether-objects.git"
-  GIT_TAG "80fbb4c33bebd660c9bdf0687311cee30de74f39"
+  GIT_TAG "fa4cd4d0f0bb1b79b03e58eb723651091deb20e9"
   OPTIONS "AE_INSTALL ${AE_INSTALL}"
           "AE_BUILD_TESTS ${AE_BUILD_TESTS}"
   EXCLUDE_FROM_ALL FALSE
@@ -333,10 +355,11 @@ if(NOT "${AE_REG_CLOUD_ADDR}" STREQUAL "")
   target_compile_definitions(${TARGET_NAME} PUBLIC "_AE_REG_CLOUD_IP=\"${AE_REG_CLOUD_ADDR}\"")
 endif()
 
-# build with address sanitizer
-if (AE_ADDRESS_SANITIZE)
-  add_compile_options(-fsanitize=address)
-  add_link_options(-fsanitize=address)
+# clang-cl's -Wall enables /Wall diagnostics, including C++98 compatibility.
+# Keep the existing warning policy and select the level by command-line frontend.
+set(_ae_clang_warning_level -Wall -Werror)
+if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+  set(_ae_clang_warning_level /W4 /WX)
 endif()
 
 # setup warnings an Werror
@@ -356,8 +379,7 @@ target_compile_options(${TARGET_NAME} PRIVATE
     -Wno-stringop-overflow
     >
   $<$<CXX_COMPILER_ID:Clang>:
-      -Werror
-      -Wall
+      ${_ae_clang_warning_level}
       -Wextra
       -Wconversion
       -Wimplicit-fallthrough
@@ -377,6 +399,10 @@ target_compile_options(${TARGET_NAME} PRIVATE
 )
 
 target_compile_options(${TARGET_NAME} PUBLIC
+  # Clang's MSVC ABI ignores the standard no_unique_address attribute in headers.
+  $<$<AND:$<CXX_COMPILER_ID:Clang>,$<STREQUAL:${CMAKE_CXX_COMPILER_FRONTEND_VARIANT},MSVC>>:
+      -Wno-unknown-attributes
+      >
   $<$<CXX_COMPILER_ID:MSVC>:
       /wd4100 /wd4101 /wd4127 /wd4244 /wd4324
       /wd4456 /wd4459 /wd4714

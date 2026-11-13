@@ -23,6 +23,7 @@
 #  include <map>
 #  include <memory>
 #  include <optional>
+#  include <utility>
 
 #  include "aether/ae_context.h"
 #  include "aether/executors/executors.h"
@@ -34,10 +35,15 @@
 #  include "aether/cloud_connections/cloud_server_connections.h"
 
 namespace ae {
+class Channel;
+struct PingCloudServersTestAccess;
+
 class PingCloudServers {
   class ServerPing {
+    friend struct PingCloudServersTestAccess;
    public:
     ServerPing(AeContext const& ae_context, ClientConnectivityPolicy& policy,
+               CloudServerConnections& cloud_server_connections,
                CloudServerConnection& cloud_sc, std::size_t priority);
     ~ServerPing();
 
@@ -49,9 +55,11 @@ class PingCloudServers {
     std::size_t priority() const noexcept { return priority_; }
     RxTimingConf const& timing() const noexcept { return timing_conf_; }
     bool stopped() const noexcept { return stop_; }
+    bool AwaitingLatePing() const noexcept;
 
    private:
     void Start();
+    bool IsCurrentRxTarget() const;
 
     template <typename F>
     void WaitForLink(ClientServerConnection& cc, F&& f);
@@ -65,6 +73,7 @@ class PingCloudServers {
 
     AeContext ae_context_;
     ClientConnectivityPolicy* policy_;
+    CloudServerConnections* cloud_server_connections_;
     CloudServerConnection* cloud_sc_;
     RxTimingConf timing_conf_{};
     std::size_t priority_{};
@@ -81,6 +90,25 @@ class PingCloudServers {
     ClientConnectivityPolicy::SuspendBlocker rx_window_blocker_;
     ClientConnectivityPolicy::SuspendBlocker restream_blocker_;
     TimePoint next_ping_time_;
+    bool deferred_start_after_ping_{false};
+
+    void ScheduleNextPeriodicStart();
+    void HandlePingTimeoutOnScheduler(std::uint32_t epoch);
+    void HandleLatePingOnScheduler(Ping::LateDuration const& late,
+                                   std::uint32_t epoch);
+    bool PingWaitBindingMatches(std::uint32_t epoch) const;
+
+    template <typename F>
+    void SchedulePingDeferred(std::uint32_t epoch, F&& fn);
+
+    template <typename F>
+    void SchedulePingFinish(std::uint32_t epoch, F&& fn);
+
+    std::uint32_t ping_epoch_{0};
+    ClientServerConnection* ping_wait_connection_{nullptr};
+    Channel* ping_wait_channel_{nullptr};
+    TaskSubscription ping_deferred_sub_;
+    TaskSubscription ping_finish_sub_;
   };
 
  public:
@@ -105,8 +133,37 @@ class PingCloudServers {
   Subscription server_quarantine_released_sub_;
   TaskSubscription task_sub_;
 
+  friend struct PingCloudServersTestAccess;
+
   std::map<ServerId, std::unique_ptr<ServerPing>> server_pings_;
 };
+
+template <typename F>
+void PingCloudServers::ServerPing::SchedulePingDeferred(std::uint32_t epoch,
+                                                        F&& fn) {
+  ping_deferred_sub_ = ae_context_.scheduler().Task(
+      [this, epoch, f = std::forward<F>(fn)]() mutable {
+        ping_deferred_sub_.Reset();
+        if (stop_ || epoch != ping_epoch_ || !PingWaitBindingMatches(epoch)) {
+          return;
+        }
+        f();
+      });
+}
+
+template <typename F>
+void PingCloudServers::ServerPing::SchedulePingFinish(std::uint32_t epoch,
+                                                      F&& fn) {
+  ping_finish_sub_ = ae_context_.scheduler().Task(
+      [this, epoch, f = std::forward<F>(fn)]() mutable {
+        ping_finish_sub_.Reset();
+        if (stop_ || epoch != ping_epoch_ || !PingWaitBindingMatches(epoch)) {
+          return;
+        }
+        f();
+      });
+}
+
 }  // namespace ae
 
 #endif

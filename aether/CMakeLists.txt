@@ -169,7 +169,6 @@ list(APPEND aether_srcs
             "work_cloud_api/client_api/client_api_unsafe.cpp"
             "work_cloud_api/client_api/client_api_safe.cpp")
 
-
 list(APPEND aether_srcs
             "cloud_connections/cloud_server_connection.cpp"
             "cloud_connections/cloud_server_connections.cpp"

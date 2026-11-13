@@ -24,6 +24,7 @@
 
 #include "aether/ae_context.h"
 #include "aether/common.h"
+#include "aether/config.h"
 #include "aether/transport/packet_send_action.h"
 
 #include "aether/transport/transport_tele.h"
@@ -44,7 +45,9 @@ class PacketQueueManager {
 
   template <typename... Args>
   T* AddPacket(Args&&... args) {
-    auto lock = std::scoped_lock{queue_lock_};
+    std::unique_lock lock{queue_lock_};
+    DrainFinishedLocked();
+    RetryDeferredTerminalsLocked(lock);
     if (queue_.size() == kMaxSize) {
       // queue is full, drop the packet
       return nullptr;
@@ -58,39 +61,79 @@ class PacketQueueManager {
    * \brief Triggers send on queued action.
    */
   void Send() {
-    auto lock = std::scoped_lock{queue_lock_};
+    std::unique_lock lock{queue_lock_};
+    DrainFinishedLocked();
+    RetryDeferredTerminalsLocked(lock);
+
+    while (index_ < queue_.size()) {
+      if (queue_[index_].is_done()) {
+        ++index_;
+        continue;
+      }
+      std::size_t const work_index = index_;
+      queue_[work_index].Send();
+      bool const send_completed = queue_[work_index].is_done();
+      EmitDeferredTerminalUnlocked(lock, work_index);
+      if (index_ >= queue_.size()) {
+        break;
+      }
+      if (queue_[index_].is_done()) {
+        ++index_;
+        continue;
+      }
+      if (index_ == work_index && !send_completed) {
+        if (queue_[index_].re_enqueue()) {
+          Enqueue();
+        }
+        break;
+      }
+      continue;
+    }
+  }
+
+ private:
+  void DrainFinishedLocked() {
     std::size_t removed = 0;
     while (!queue_.empty() && queue_.front().is_finished()) {
       queue_.pop();
       ++removed;
     }
     index_ = (index_ <= removed) ? 0 : index_ - removed;
+  }
 
-    // send queued packets
-    for (; index_ < queue_.size(); index_++) {
-      auto& current = queue_[index_];
-      if (current.is_done()) {
+  void EmitDeferredTerminalUnlocked(std::unique_lock<std::mutex>& lock,
+                                  std::size_t idx) {
+    if (idx >= queue_.size()) {
+      return;
+    }
+    T& slot = queue_[idx];
+    if (!slot.is_done() || slot.is_finished()) {
+      return;
+    }
+    lock.unlock();
+    slot.TryEmitDeferredTerminal();
+    lock.lock();
+  }
+
+  void RetryDeferredTerminalsLocked(std::unique_lock<std::mutex>& lock) {
+    for (std::size_t i = 0; i < queue_.size();) {
+      if (queue_[i].is_done() && !queue_[i].is_finished()) {
+        EmitDeferredTerminalUnlocked(lock, i);
+        DrainFinishedLocked();
+        if (i >= queue_.size()) {
+          break;
+        }
+        if (queue_[i].is_done() && !queue_[i].is_finished()) {
+          ++i;
+          continue;
+        }
+        i = index_;
         continue;
       }
-      // make a send
-      // then three states is possible:
-      // it fully sent or failed - it's done
-      // it requires additional pass - it's re_enqueue
-      // it waits for completion - it's nothing, and next Send will return the
-      // actual state.
-      current.Send();
-      if (current.is_done()) {
-        continue;
-      }
-      if (current.re_enqueue()) {
-        Enqueue();
-      }
-      // current waits for completion, wait for next Send call.
-      break;
+      ++i;
     }
   }
 
- private:
   void Enqueue() {
     if (!enqueue_sub_) {
       enqueue_sub_ = ae_context_.scheduler().Task([&]() {

@@ -19,26 +19,31 @@
 
 #include "aether/config.h"
 
+#include <cstdint>
+#include <string>
+
+#include "aether-miscpp/reflect/reflect.h"
+#include "aether/crypto/signed_key.h"
+#include "aether/types/uid.h"
+
 #if AE_SUPPORT_REGISTRATION
 
-#  include <string>
 #  include <vector>
-
-#  include "aether-miscpp/reflect/reflect.h"
 
 #  include "aether/crypto/crypto_definitions.h"
 #  include "aether/crypto/icrypto_provider.h"
 #  include "aether/crypto/key.h"
-#  include "aether/crypto/signed_key.h"
 #  include "aether/types/server_id.h"
-#  include "aether/types/uid.h"
 
 #  include "aether/api_protocol/api_protocol.h"
 #  include "aether/registration/api/global_reg_server_api.h"
 #  include "aether/work_cloud_api/server_descriptor.h"
 
+#endif  // AE_SUPPORT_REGISTRATION
+
 namespace ae {
 
+// Work-cloud messages carry this payload even when registration is disabled.
 struct PowParams {
   AE_REFLECT_MEMBERS(parent, salt, password_suffix, pool_size, max_hash_value,
                      global_key)
@@ -50,39 +55,31 @@ struct PowParams {
   SignedKey global_key;
 };
 
+#if AE_SUPPORT_REGISTRATION
 
 class ServerRegistrationApi : public DeclareApi<ServerRegistrationApi> {
  public:
   explicit ServerRegistrationApi(IEncryptProvider& encrypt_provider);
-
 
   void RegistrationDirect(std::string const& salt,
                           std::string const& password_suffix,
                           std::vector<std::uint32_t> const& passwords,
                           Uid const& parent_uid, Key const& master_key);
 
-
-
-
-  void RequestProofOfWorkData(Uid const& parent_id,
-                                 PowMethod pow_method);
-
-
+  void RequestProofOfWorkData(Uid const& parent_id, PowMethod pow_method);
 
   void ResolveServers(std::vector<ServerId> const& servers);
 
   void SetReturnKey(Key const& key);
 
-
   API_LIST(METHOD(4, RequestProofOfWorkData), METHOD(5, ResolveServers),
            METHOD(6, SetReturnKey), METHOD(7, RegistrationDirect))
-
 
  private:
   IEncryptProvider* encrypt_provider_;
   GlobalRegServerApi global_reg_server_api_;
 };
+#endif  // AE_SUPPORT_REGISTRATION
 }  // namespace ae
 
-#endif
 #endif  // AETHER_REGISTRATION_API_SERVER_REGISTRATION_API_H_

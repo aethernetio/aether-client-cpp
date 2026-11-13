@@ -21,6 +21,7 @@
 #include <vector>  // IWYU pragma: keep
 
 #include "aether-objects/obj/dummy_obj.h"  // IWYU pragma: keep
+#include "aether/common.h"
 #include "aether/config.h"
 #if AE_SUPPORT_CLOUD_DNS
 #  include "aether-objects/obj/obj.h"

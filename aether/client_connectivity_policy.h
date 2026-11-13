@@ -106,9 +106,7 @@ class ClientConnectivityPolicy : public Obj {
   };
 
   ClientConnectivityPolicy();
-#ifdef AE_DISTILLATION
   explicit ClientConnectivityPolicy(ObjProp prop);
-#endif
 
   AE_CLASS_NO_COPY_MOVE(ClientConnectivityPolicy);
 

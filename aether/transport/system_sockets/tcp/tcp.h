@@ -83,17 +83,37 @@ class SendAction final : public PacketSendAction {
   void Stop() noexcept override {
     is_done_ = true;
     set_status_.Reset();
+    pending_terminal_status_.reset();
     WriteAction::SetStatus(WriteAction::Status::kStop);
   }
 
   bool is_done() const override { return is_done_; }
   bool re_enqueue() const override { return reenqueue_; }
 
+  void TryEmitDeferredTerminal() noexcept override {
+    if (!pending_terminal_status_.has_value()) {
+      return;
+    }
+    WriteAction::Status const status = *pending_terminal_status_;
+    set_status_ = ae_context_.scheduler().Task([&, status]() {
+      pending_terminal_status_.reset();
+      WriteAction::SetStatus(status);
+    });
+    if (set_status_) {
+      return;
+    }
+    pending_terminal_status_.reset();
+    WriteAction::SetStatus(status);
+  }
+
  protected:
   void SetStatus(WriteAction::Status status) noexcept override {
     is_done_ = true;
     set_status_ = ae_context_.scheduler().Task(
         [&, status]() { WriteAction::SetStatus(status); });
+    if (!set_status_) {
+      pending_terminal_status_ = status;
+    }
   }
 
  private:
@@ -104,6 +124,7 @@ class SendAction final : public PacketSendAction {
   bool is_done_ = false;
   bool reenqueue_ = false;
   TaskSubscription set_status_;
+  std::optional<WriteAction::Status> pending_terminal_status_;
 };
 
 class TcpBase : public ByteIStream {
