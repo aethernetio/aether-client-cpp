@@ -1,0 +1,176 @@
+{
+  "window-pilot": {
+    "A": {
+      "confirmed_servers": [
+        "20",
+        "21",
+        "24"
+      ],
+      "self_timing_results": [
+        {
+          "server": "24",
+          "next_delta_ms": 0,
+          "has_timing": false
+        },
+        {
+          "server": "21",
+          "next_delta_ms": 0,
+          "has_timing": false
+        },
+        {
+          "server": "20",
+          "next_delta_ms": 0,
+          "has_timing": false
+        }
+      ],
+      "remote_results": {
+        "-1": 3
+      },
+      "timing_requests": 45,
+      "timing_frames": 0,
+      "timing_received": 0,
+      "rpc_errors": 0,
+      "api_dispatch": {
+        "70": 1,
+        "67": 1,
+        "66": 1,
+        "68": 1,
+        "4": 223,
+        "24": 220,
+        "21": 3
+      },
+      "parse_failed": 0,
+      "timing_write_success": 0
+    },
+    "B": {
+      "confirmed_servers": [
+        "20",
+        "21",
+        "24"
+      ],
+      "self_timing_results": [
+        {
+          "server": "21",
+          "next_delta_ms": 0,
+          "has_timing": false
+        },
+        {
+          "server": "20",
+          "next_delta_ms": 0,
+          "has_timing": false
+        },
+        {
+          "server": "24",
+          "next_delta_ms": 0,
+          "has_timing": false
+        }
+      ],
+      "remote_results": {
+        "-1": 3
+      },
+      "timing_requests": 45,
+      "timing_frames": 0,
+      "timing_received": 0,
+      "rpc_errors": 0,
+      "api_dispatch": {
+        "70": 1,
+        "67": 1,
+        "66": 1,
+        "68": 1,
+        "4": 224,
+        "24": 221,
+        "21": 3
+      },
+      "parse_failed": 0,
+      "timing_write_success": 0
+    },
+    "cuts": 0
+  },
+  "window-wire-pilot": {
+    "A": {
+      "confirmed_servers": [
+        "20",
+        "21",
+        "24"
+      ],
+      "self_timing_results": [
+        {
+          "server": "24",
+          "next_delta_ms": 0,
+          "has_timing": false
+        },
+        {
+          "server": "21",
+          "next_delta_ms": 0,
+          "has_timing": false
+        },
+        {
+          "server": "20",
+          "next_delta_ms": 0,
+          "has_timing": false
+        }
+      ],
+      "remote_results": {
+        "-1": 2
+      },
+      "timing_requests": 30,
+      "timing_frames": 30,
+      "timing_received": 0,
+      "rpc_errors": 0,
+      "api_dispatch": {
+        "70": 1,
+        "67": 1,
+        "66": 1,
+        "68": 1,
+        "4": 131,
+        "24": 128,
+        "21": 3
+      },
+      "parse_failed": 0,
+      "timing_write_success": 30
+    },
+    "B": {
+      "confirmed_servers": [
+        "20",
+        "21",
+        "24"
+      ],
+      "self_timing_results": [
+        {
+          "server": "24",
+          "next_delta_ms": 0,
+          "has_timing": false
+        },
+        {
+          "server": "21",
+          "next_delta_ms": 0,
+          "has_timing": false
+        },
+        {
+          "server": "20",
+          "next_delta_ms": 0,
+          "has_timing": false
+        }
+      ],
+      "remote_results": {
+        "-1": 2
+      },
+      "timing_requests": 30,
+      "timing_frames": 30,
+      "timing_received": 0,
+      "rpc_errors": 0,
+      "api_dispatch": {
+        "70": 1,
+        "67": 1,
+        "66": 1,
+        "68": 1,
+        "4": 135,
+        "24": 132,
+        "21": 3
+      },
+      "parse_failed": 0,
+      "timing_write_success": 30
+    },
+    "cuts": 0
+  }
+}

@@ -31,6 +31,7 @@
 
 #include "aether/adapter_registry.h"
 #include "aether/ae_actions/ping.h"
+#include "aether/ae_actions/query_peer_presence.h"
 #include "aether/aether.h"
 #include "aether/api_protocol/api_protocol.h"
 #include "aether/channels/channel.h"
@@ -113,10 +114,9 @@ class FailWriteAction : public WriteAction {
   TaskSubscription completion_sub_;
 };
 
-inline WriteAction& SelectWriteAction(
-    AeContext const& context, bool fail_write,
-    std::optional<ImmediateWriteAction>& ok,
-    std::optional<FailWriteAction>& fail) {
+inline WriteAction& SelectWriteAction(AeContext const& context, bool fail_write,
+                                      std::optional<ImmediateWriteAction>& ok,
+                                      std::optional<FailWriteAction>& fail) {
   if (fail_write) {
     return fail.emplace(context);
   }
@@ -145,7 +145,9 @@ class LinkedMockStream final : public ByteIStream {
   OutDataEvent const& out_data_event() override { return out_data_event_; }
   void Restream() override {}
 
-  void SimulateInbound(DataBuffer data) { out_data_event_.Emit(std::move(data)); }
+  void SimulateInbound(DataBuffer data) {
+    out_data_event_.Emit(std::move(data));
+  }
 
   void SetWriteHook(std::function<void()> hook) {
     on_write_hook_ = std::move(hook);
@@ -189,7 +191,7 @@ class PingPushAckFakeChannel final : public Channel {
   TransportBuildSender TransportBuilder() override {
     assert(policy_.context != nullptr);
     auto stream = std::make_unique<LinkedMockStream>(*policy_.context,
-                                                    policy_.fail_write);
+                                                     policy_.fail_write);
     if (policy_.on_stream_built) {
       policy_.on_stream_built(policy_.server_id, stream.get());
     }
@@ -212,9 +214,7 @@ class LinkedClientFactory final : public IServerConnectionFactory {
  public:
   LinkedClientFactory(AeContext ae_context, ObjPtr<Client> client,
                       FakeBuildPolicy policy)
-      : ae_context_{ae_context},
-        client_{std::move(client)},
-        policy_{policy} {}
+      : ae_context_{ae_context}, client_{std::move(client)}, policy_{policy} {}
 
   std::shared_ptr<ClientServerConnection> CreateConnection(
       Ptr<Server> const& server) override {
@@ -261,6 +261,7 @@ struct PingHarness {
     policy.fail_write = fail_write;
     policy.on_stream_built = [this](ServerId id, LinkedMockStream* stream) {
       streams_by_server_[id] = stream;
+      ++stream_build_counts_[id];
     };
     ready = AttachLinkedServer(kServerId) && AttachLinkedServer(kServerIdB);
     if (connect_primary) {
@@ -280,8 +281,8 @@ struct PingHarness {
     }
     FakeBuildPolicy channel_policy = policy;
     channel_policy.server_id = id;
-    server->channels = {PingPushAckFakeChannel::ptr::Create(
-        CreateWith{domain}, channel_policy)};
+    server->channels = {PingPushAckFakeChannel::ptr::Create(CreateWith{domain},
+                                                            channel_policy)};
     return true;
   }
 
@@ -320,6 +321,7 @@ struct PingHarness {
   ObjPtr<Client> client;
   FakeBuildPolicy policy{};
   std::map<ServerId, LinkedMockStream*> streams_by_server_;
+  std::map<ServerId, int> stream_build_counts_;
   std::unique_ptr<LinkedClientFactory> factory;
   std::unique_ptr<CloudServerConnection> cloud_conn;
 };
@@ -403,14 +405,14 @@ DataBuffer PackSendSafeApiEncrypted(ObjPtr<Client> const& client,
 void DeliverPingAckViaStream(PingHarness& h, ServerId server_id) {
   auto* stream = h.Stream(server_id);
   TEST_ASSERT_NOT_NULL(stream);
-  stream->SimulateInbound(
-      PackSendSafeApiEncrypted(h.client, server_id, MakeSerializedPingAckPacket()));
+  stream->SimulateInbound(PackSendSafeApiEncrypted(
+      h.client, server_id, MakeSerializedPingAckPacket()));
 }
 
 std::unique_ptr<Ping> MakePing(PingHarness& h) {
-  return std::unique_ptr<Ping>(new Ping(
-      h.ae_ctx, h.CloudConn(), PingHarness::kHint, PingHarness::kRxWindow,
-      PingHarness::kPingTimeout));
+  return std::unique_ptr<Ping>(
+      new Ping(h.ae_ctx, h.CloudConn(), PingHarness::kHint,
+               PingHarness::kRxWindow, PingHarness::kPingTimeout));
 }
 
 void StartPing(PingHarness& h, Ping& ping, ResultCapture& cap) {
@@ -421,6 +423,105 @@ void StartPing(PingHarness& h, Ping& ping, ResultCapture& cap) {
 }
 
 }  // namespace
+
+void DeliverPresenceTiming(PingHarness& h, RequestId request,
+                           std::int64_t next) {
+  DataBuffer payload;
+  ApiPacker packer{payload};
+  packer.Pack(MessageId{0},
+              GenericMessage<RequestId, ClientTiming>{
+                  request, ClientTiming{.next_ping_delta_ms = next,
+                                        .last_connect_delta_ms = 0}});
+  h.Stream(kServerId)->SimulateInbound(
+      PackSendSafeApiEncrypted(h.client, kServerId, payload));
+}
+
+void test_PresenceQueryUsesCorrelatedServerTiming() {
+  PingHarness h;
+  TEST_ASSERT_TRUE(h.ready);
+  QueryPeerPresence query{h.ae_ctx, h.CloudConn(), Uid{{9}},
+                          std::chrono::seconds{1},
+                          CloudRequestExecutionPolicy::Default()};
+  int calls = 0;
+  RemoteServerPresenceSample sample;
+  Subscription sub = query.result_event().Subscribe([&](auto const& value) {
+    ++calls;
+    sample = value;
+  });
+  h.ctx.Advance(std::chrono::milliseconds{20});
+  DeliverPresenceTiming(h, RequestId{999}, 1000);
+  TEST_ASSERT_EQUAL(0, calls);
+  DeliverPresenceTiming(h, RequestId{0}, 1000);
+  TEST_ASSERT_EQUAL(1, calls);
+  TEST_ASSERT_TRUE(query.is_finished());
+  TEST_ASSERT_TRUE(sample.has_timing);
+  TEST_ASSERT_EQUAL(static_cast<int>(RemoteServerPresence::kOnline),
+                    static_cast<int>(sample.status));
+  DeliverPresenceTiming(h, RequestId{0}, 1000);
+  TEST_ASSERT_EQUAL(1, calls);
+}
+
+void test_PresenceQueryWithoutAnnouncementIsUnknown() {
+  PingHarness h;
+  TEST_ASSERT_TRUE(h.ready);
+  QueryPeerPresence query{h.ae_ctx, h.CloudConn(), Uid{{9}},
+                          std::chrono::seconds{1},
+                          CloudRequestExecutionPolicy::Default()};
+  RemoteServerPresenceSample sample;
+  Subscription sub = query.result_event().Subscribe(
+      [&](auto const& value) { sample = value; });
+  h.ctx.Advance(std::chrono::milliseconds{20});
+  DeliverPresenceTiming(h, RequestId{0}, 0);
+  TEST_ASSERT_TRUE(query.is_finished());
+  TEST_ASSERT_TRUE(sample.has_timing);
+  TEST_ASSERT_EQUAL(static_cast<int>(RemoteServerPresence::kUnknown),
+                    static_cast<int>(sample.status));
+}
+
+void test_PresenceTimeoutDoesNotRestreamOrQuarantine() {
+  PingHarness h;
+  TEST_ASSERT_TRUE(h.ready);
+  auto* original_connection = h.Connection();
+  auto original_builds = h.stream_build_counts_[kServerId];
+  auto policy = CloudRequestExecutionPolicy::Default();
+  policy.retry_count = 0;
+  QueryPeerPresence query{h.ae_ctx, h.CloudConn(), Uid{{9}},
+                          std::chrono::seconds{1}, policy};
+  int calls = 0;
+  RemoteServerPresenceSample sample;
+  Subscription sub = query.result_event().Subscribe([&](auto const& value) {
+    ++calls;
+    sample = value;
+  });
+  h.ctx.Advance(std::chrono::milliseconds{7000});
+  TEST_ASSERT_EQUAL(1, calls);
+  TEST_ASSERT_TRUE(query.is_finished());
+  TEST_ASSERT_FALSE(sample.has_timing);
+  TEST_ASSERT_EQUAL(static_cast<int>(RemoteServerPresence::kUnknown),
+                    static_cast<int>(sample.status));
+  TEST_ASSERT_FALSE(h.CloudConn().quarantine());
+  TEST_ASSERT_EQUAL_PTR(original_connection, h.Connection());
+  TEST_ASSERT_EQUAL(original_builds, h.stream_build_counts_[kServerId]);
+  TEST_ASSERT_EQUAL(static_cast<int>(LinkState::kLinked),
+                    static_cast<int>(h.Connection()->stream_info().link_state));
+}
+
+void test_DestroyPresenceQueryRemovesReplySubscription() {
+  PingHarness h;
+  TEST_ASSERT_TRUE(h.ready);
+  int calls = 0;
+  Subscription sub;
+  {
+    QueryPeerPresence query{h.ae_ctx, h.CloudConn(), Uid{{9}},
+                            std::chrono::seconds{1},
+                            CloudRequestExecutionPolicy::Default()};
+    sub = query.result_event().Subscribe([&](auto const&) { ++calls; });
+    h.ctx.Advance(std::chrono::milliseconds{20});
+  }
+  DeliverPresenceTiming(h, RequestId{0}, 1000);
+  h.ctx.Advance(std::chrono::milliseconds{7000});
+  TEST_ASSERT_EQUAL(0, calls);
+}
 
 void test_SchedulerDelayedTaskFiresOnceThroughAeContext() {
   TestContext ctx;
@@ -623,6 +724,10 @@ namespace {
 int RunPingPushAckTestsOnce() {
   UNITY_BEGIN();
 
+  RUN_TEST(test_PresenceQueryUsesCorrelatedServerTiming);
+  RUN_TEST(test_PresenceQueryWithoutAnnouncementIsUnknown);
+  RUN_TEST(test_PresenceTimeoutDoesNotRestreamOrQuarantine);
+  RUN_TEST(test_DestroyPresenceQueryRemovesReplySubscription);
   RUN_TEST(test_SchedulerDelayedTaskFiresOnceThroughAeContext);
   RUN_TEST(test_PushPingAckCompletesPingBeforeTimeout);
   RUN_TEST(test_FastPingAckDuringTransportWriteBeforeStartReturns);

@@ -42,6 +42,9 @@ class WinTcpSocket final : public WinSocket {
   ConnectedCb connected_cb_;
   ConnectionState connection_state_;
   OVERLAPPED conn_overlapped_;
+#  if AE_BENCH_TCP_PROXY
+  char proxy_header_[6]{};
+#  endif
 };
 }  // namespace ae
 #endif

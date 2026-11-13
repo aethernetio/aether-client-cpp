@@ -545,4 +545,10 @@
 #  endif
 #  define AE_DISTILLATION 1
 #endif
+#ifndef AE_OFFLINE_DETECTION_TIMEOUT_MS
+#  define AE_OFFLINE_DETECTION_TIMEOUT_MS 1000
+#endif
+#ifndef AE_BENCH_TCP_PROXY
+#define AE_BENCH_TCP_PROXY 0
+#endif
 #endif  // AETHER_CONFIG_H_

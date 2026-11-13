@@ -16,6 +16,7 @@
 
 #include "aether/work_cloud_api/work_server_api/login_api.h"
 
+#include "aether/diagnostics/presence_api_trace.h"
 #include "aether/tele.h"
 
 namespace ae {
@@ -31,14 +32,15 @@ void LoginApi::LoginByUid(Uid const& uid, SubApi<AuthorizedApi> sub_api) {
 
 void LoginApi::LoginByAlias(Uid const& alias, SubApi<AuthorizedApi> sub_api) {
   auto auth_data = std::move(sub_api)(auth_api_, client_context());
+  if (!auth_data.empty() && auth_data.front() == 35) {
+    PresenceApiTrace("timing_wire", auth_data.front(), auth_data.size());
+  }
   AETHER_TELED_DEBUG("Login alias {} bytes {}", alias, auth_data.size());
   auto enc_data = encrypt_provider_->Encrypt(auth_data);
   ClientMethod<&LoginApi::LoginByAlias>(alias, std::move(enc_data));
 }
 
+void LoginApi::GetMyIp() { ClientMethod<&LoginApi::GetMyIp>(); }
 
-void LoginApi::GetMyIp() {
-  ClientMethod<&LoginApi::GetMyIp>();
-}
 
 }  // namespace ae

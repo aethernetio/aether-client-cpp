@@ -39,6 +39,7 @@
 namespace ae {
 class Aether;
 class Telemetry;
+class PeerPresenceQuery;
 
 class Client : public Obj {
   AE_OBJECT(Client, Obj, 0)
@@ -64,6 +65,9 @@ class Client : public Obj {
   CloudServerConnections& cloud_connection();
   ClientConnectivityPolicy::ptr const& connectivity_policy();
   P2pMessageStreamManager& message_stream_manager();
+
+  bool IsLocallyOnline() const noexcept;
+  ae::PeerPresenceQuery& QueryPeerPresence(Uid peer_uid);
 
   void SetConfig(std::string client_id, Uid parent_uid, Uid uid,
                  Uid ephemeral_uid, Key master_key, Cloud::ptr c);
@@ -91,6 +95,7 @@ class Client : public Obj {
   std::unique_ptr<ServerConnectionManager> server_connection_manager_;
   std::unique_ptr<CloudServerConnections> cloud_connection_;
   std::unique_ptr<P2pMessageStreamManager> message_stream_manager_;
+  std::map<Uid, std::unique_ptr<ae::PeerPresenceQuery>> peer_presence_queries_;
 
 #if AE_ENABLE_PING
   std::unique_ptr<PingCloudServers> ping_cloud_servers_;

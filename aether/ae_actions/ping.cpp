@@ -156,6 +156,7 @@ void Ping::PingResponse(RequestId request_id) {
 }
 
 void Ping::PingResponseImpl(RequestId request_id) {
+  pong_receive_time_ = Now();
   auto current_time = Now();
   auto ping_duration =
       std::chrono::duration_cast<Duration>(current_time - request_start_);

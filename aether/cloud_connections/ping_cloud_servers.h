@@ -41,6 +41,7 @@ struct PingCloudServersTestAccess;
 class PingCloudServers {
   class ServerPing {
     friend struct PingCloudServersTestAccess;
+
    public:
     ServerPing(AeContext const& ae_context, ClientConnectivityPolicy& policy,
                CloudServerConnections& cloud_server_connections,
@@ -76,6 +77,7 @@ class PingCloudServers {
     CloudServerConnections* cloud_server_connections_;
     CloudServerConnection* cloud_sc_;
     RxTimingConf timing_conf_{};
+    Duration selected_rtt_{};
     std::size_t priority_{};
 
     std::optional<ex::AnyWaiter<ex::set_value_t(), ex::set_error_t(int)>>

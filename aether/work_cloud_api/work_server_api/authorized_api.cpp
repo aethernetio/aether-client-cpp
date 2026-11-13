@@ -19,9 +19,8 @@
 namespace ae {
 
 void AuthorizedApi::Ping(std::uint64_t next_connect_ms_duration,
-                                   std::uint64_t rx_window_ms) {
-  ClientMethod<&AuthorizedApi::Ping>(next_connect_ms_duration,
-                                     rx_window_ms);
+                         std::uint64_t rx_window_ms) {
+  ClientMethod<&AuthorizedApi::Ping>(next_connect_ms_duration, rx_window_ms);
 }
 
 void AuthorizedApi::SendMessage(AeMessage const& message) {
@@ -40,6 +39,10 @@ void AuthorizedApi::ResolveServer(std::vector<ServerId> const& sids) {
 }
 void AuthorizedApi::ResolveClouds(std::vector<Uid> const& uids) {
   ClientMethod<&AuthorizedApi::ResolveClouds>(uids);
+}
+
+ApiPromise<ClientTiming> AuthorizedApi::GetClientTiming(Uid const& uid) {
+  return ClientMethod<&AuthorizedApi::GetClientTiming>(uid);
 }
 
 void AuthorizedApi::SendTelemetry(Telemetric const& telemetric) {

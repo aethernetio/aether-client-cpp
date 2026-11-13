@@ -1,4 +1,3 @@
-
 /*
  * Copyright 2026 Aethernet Inc.
  *
@@ -23,38 +22,25 @@
 #include "aether/events/events.h"
 #include "aether/tasks/manual_task_scheduler.h"
 
+#include "aether/work_cloud_api/work_server_api/authorized_api.h"
 #include "assert_packet.h"
 
 namespace ae::test_api_protocol_request_response {
-
-struct IntMessage {
-  std::int32_t value;
-  AE_REFLECT_MEMBERS(value)
-};
-
 
 class ResponseApi : public DeclareApi<ResponseApi> {
  public:
   virtual ~ResponseApi() = default;
 
-  virtual void Request() = 0;
-  virtual void OnResponse(std::int32_t value) = 0;
+  virtual ApiPromise<std::int32_t> Request() = 0;
 
-  API_LIST(METHOD(2, Request), METHOD(3, OnResponse))
+  API_LIST(METHOD(2, Request))
 };
 
 class ClientResponseApi final : public ResponseApi {
  public:
-  explicit ClientResponseApi(EventSystem& event_system)
-      : response{event_system} {}
-
-
-
-  void Request() override { ClientMethod<&ResponseApi::Request>(); }
-
-  void OnResponse(std::int32_t value) override { response.Emit(value); }
-
-  Event<void(std::int32_t)> response;
+  ApiPromise<std::int32_t> Request() override {
+    return ClientMethod<&ResponseApi::Request>();
+  }
 };
 
 class ServerResponseApi final : public ResponseApi {
@@ -62,11 +48,12 @@ class ServerResponseApi final : public ResponseApi {
   explicit ServerResponseApi(EventSystem& event_system)
       : request{event_system} {}
 
-  void Request() override { request.Emit(); }
+  ApiPromise<std::int32_t> Request() override {
+    request.Emit(server_context().request_id());
+    return {};
+  }
 
-  void OnResponse(std::int32_t) override {}
-
-  Event<void()> request;
+  Event<void(RequestId)> request;
 };
 
 struct RequestResponseFixture {
@@ -75,50 +62,153 @@ struct RequestResponseFixture {
   ProtocolContext protocol_context{scheduler, event_system};
 };
 
-void test_RequestSendsWithoutRequestId() {
+void test_SendErrorWireFormat() {
+  EventSystem event_system;
+  auto api = ServerResponseApi{event_system};
+  auto context = ApiContext{api};
+  context->SendError(RequestId{42}, 7, -9);
+
+  DataBuffer packet = std::move(context);
+  AssertPacket(packet, MessageId{1}, RequestId{42}, std::uint8_t{7},
+               std::int32_t{-9});
+}
+
+void test_ErrorResponseCompletesPromiseOnce() {
   RequestResponseFixture fxtr;
-  auto client_api = ClientResponseApi{fxtr.event_system};
+  auto client_api = ClientResponseApi{};
   auto client_context = ApiContext{client_api, fxtr.protocol_context};
 
-  client_context->Request();
+  auto promise = client_context->Request();
+  auto completion_count = 0;
+  auto error_code = std::int32_t{};
+  Subscription subscription = promise.Subscribe([&](auto const& result) {
+    TEST_ASSERT_FALSE(result.IsOk());
+    error_code = static_cast<std::int32_t>(result.error());
+    ++completion_count;
+  });
+  (void)subscription;
 
   DataBuffer request = std::move(client_context);
-  AssertPacket(request, MessageId{2});
+  auto server_api = ServerResponseApi{fxtr.event_system};
+  DataBuffer response;
+  Subscription response_subscription =
+      server_api.request.Subscribe([&](RequestId request_id) {
+        auto response_context = ApiContext{server_api};
+        response_context->SendError(request_id, 3, -42);
+        response = std::move(response_context);
+
+        auto response_parser = ApiParser{fxtr.protocol_context, response};
+        TEST_ASSERT_TRUE(response_parser.Parse(server_api));
+      });
+  (void)response_subscription;
+
+  auto request_parser = ApiParser{fxtr.protocol_context, request};
+  TEST_ASSERT_TRUE(request_parser.Parse(server_api));
+  TEST_ASSERT_EQUAL(1, completion_count);
+  TEST_ASSERT_EQUAL(-42, error_code);
+
+  auto duplicate_response_parser = ApiParser{fxtr.protocol_context, response};
+  TEST_ASSERT_FALSE(duplicate_response_parser.Parse(server_api));
+  TEST_ASSERT_EQUAL(1, completion_count);
 }
 
-void test_PushResponseIsDeliveredToClientEvent() {
+void test_TruncatedResultCompletesPromiseWithDecodeError() {
   RequestResponseFixture fxtr;
-  auto client_api = ClientResponseApi{fxtr.event_system};
-
-  auto response_value = std::int32_t{0};
-  auto response_received = false;
-  Subscription subscription = client_api.response.Subscribe([&](std::int32_t v) {
-    response_value = v;
-    response_received = true;
+  auto client_api = ClientResponseApi{};
+  auto client_context = ApiContext{client_api, fxtr.protocol_context};
+  auto promise = client_context->Request();
+  auto completion_count = 0;
+  auto error_code = std::int32_t{};
+  Subscription subscription = promise.Subscribe([&](auto const& result) {
+    TEST_ASSERT_FALSE(result.IsOk());
+    error_code = static_cast<std::int32_t>(result.error());
+    ++completion_count;
   });
+  (void)subscription;
 
-  DataBuffer response;
-  ApiPacker packer{response};
-  packer.Pack(MessageId{3}, IntMessage{78});
+  auto server_api = ServerResponseApi{fxtr.event_system};
+  auto response_context = ApiContext{server_api};
+  response_context->SendResult(promise.request_id(), std::int32_t{42});
+  DataBuffer response = std::move(response_context);
+  response.pop_back();
 
   auto parser = ApiParser{fxtr.protocol_context, response};
-  TEST_ASSERT_TRUE(parser.Parse(client_api));
-  TEST_ASSERT_TRUE(response_received);
-  TEST_ASSERT_EQUAL(78, response_value);
+  TEST_ASSERT_FALSE(parser.Parse(server_api));
+  TEST_ASSERT_EQUAL(1, completion_count);
+  TEST_ASSERT_EQUAL(-2, error_code);
 }
 
-void test_TruncatedPushResponseIsRejected() {
+void test_TruncatedResponseRequestIdDoesNotCompletePromise() {
   RequestResponseFixture fxtr;
-  auto client_api = ClientResponseApi{fxtr.event_system};
+  auto client_api = ClientResponseApi{};
+  auto client_context = ApiContext{client_api, fxtr.protocol_context};
+  auto promise = client_context->Request();
+  auto completion_count = 0;
+  Subscription subscription =
+      promise.Subscribe([&](auto const&) { ++completion_count; });
+  (void)subscription;
 
-  DataBuffer malformed_packet{0xFF, 0xFF};
+  auto server_api = ServerResponseApi{fxtr.event_system};
+  auto malformed_packet = DataBuffer{0};
   auto parser = ApiParser{fxtr.protocol_context, malformed_packet};
-  TEST_ASSERT_FALSE(parser.Parse(client_api));
+
+  TEST_ASSERT_FALSE(parser.Parse(server_api));
+  TEST_ASSERT_EQUAL(0, completion_count);
 }
 
-// TODO(push-model): The old request/response tests (SendError wire format,
-// promise completion, etc.) are removed because request_id and ApiPromise
-// no longer exist in the push model.
+void test_TruncatedErrorDoesNotCompletePromise() {
+  RequestResponseFixture fxtr;
+  auto client_api = ClientResponseApi{};
+  auto client_context = ApiContext{client_api, fxtr.protocol_context};
+  auto promise = client_context->Request();
+  auto completion_count = 0;
+  Subscription subscription =
+      promise.Subscribe([&](auto const&) { ++completion_count; });
+  (void)subscription;
+
+  auto server_api = ServerResponseApi{fxtr.event_system};
+  auto response_context = ApiContext{server_api};
+  response_context->SendError(promise.request_id(), 3, -42);
+  DataBuffer response = std::move(response_context);
+  response.pop_back();
+
+  auto parser = ApiParser{fxtr.protocol_context, response};
+  TEST_ASSERT_FALSE(parser.Parse(server_api));
+  TEST_ASSERT_EQUAL(0, completion_count);
+}
+
+void test_PushPingAndTimingRpcShareProtocol() {
+  RequestResponseFixture fxtr;
+  AuthorizedApi api;
+  auto push = ApiContext{api, fxtr.protocol_context};
+  push->Ping(1000, 1000);
+  DataBuffer ping_packet = std::move(push);
+  AssertPacket(ping_packet, MessageId{4}, std::uint64_t{1000},
+               std::uint64_t{1000});
+
+  auto rpc = ApiContext{api, fxtr.protocol_context};
+  auto uid = Uid{};
+  auto promise = rpc->GetClientTiming(uid);
+  TEST_ASSERT_EQUAL(0, promise.request_id().id);
+  auto count = 0;
+  Subscription sub = promise.Subscribe([&](auto const& result) {
+    TEST_ASSERT_TRUE(result.IsOk());
+    TEST_ASSERT_EQUAL(-1500, result.value().next_ping_delta_ms);
+    TEST_ASSERT_EQUAL(42, result.value().last_connect_delta_ms);
+    ++count;
+  });
+  DataBuffer request = std::move(rpc);
+  AssertPacket(request, MessageId{35}, promise.request_id(), uid);
+  auto reply = ApiContext{api};
+  reply->SendResult(promise.request_id(), ClientTiming{-1500, 42});
+  DataBuffer response = std::move(reply);
+  AssertPacket(response, MessageId{0}, promise.request_id(), std::int64_t{42},
+               std::int64_t{-1500});
+  auto parser = ApiParser{fxtr.protocol_context, response};
+  ClientResponseApi receiver;
+  TEST_ASSERT_TRUE(parser.Parse(receiver));
+  TEST_ASSERT_EQUAL(1, count);
+}
 
 }  // namespace ae::test_api_protocol_request_response
 
@@ -126,8 +216,11 @@ int test_api_protocol_request_response() {
   UNITY_BEGIN();
   using namespace ae::test_api_protocol_request_response;  // NOLINT
 
-  RUN_TEST(test_RequestSendsWithoutRequestId);
-  RUN_TEST(test_PushResponseIsDeliveredToClientEvent);
-  RUN_TEST(test_TruncatedPushResponseIsRejected);
+  RUN_TEST(test_PushPingAndTimingRpcShareProtocol);
+  RUN_TEST(test_SendErrorWireFormat);
+  RUN_TEST(test_ErrorResponseCompletesPromiseOnce);
+  RUN_TEST(test_TruncatedResultCompletesPromiseWithDecodeError);
+  RUN_TEST(test_TruncatedResponseRequestIdDoesNotCompletePromise);
+  RUN_TEST(test_TruncatedErrorDoesNotCompletePromise);
   return UNITY_END();
 }

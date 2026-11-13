@@ -42,13 +42,14 @@ PingCloudServers::ServerPing::ServerPing(
          "Server ping priority should be in timings range");
 
   auto const& timings = policy_->rx_timings()[priority_];
-  timing_conf_ = timings.conf;
+  policy_->BindServerPriority(cloud_sc.server_id(), priority_);
+  timing_conf_ = policy_->EnsureServerPresence(cloud_sc.server_id()).desired;
 
   // if it's to early for next rx wait a bit
   if ((timings.next_rx_point != TimePoint{}) &&
       (Now() < timings.next_rx_point)) {
     AETHER_TELED_DEBUG("Wait a bit for next rx point till {}",
-                   timings.next_rx_point);
+                       timings.next_rx_point);
     start_sub_ = ae_context_.scheduler().DelayedTask([&]() { Start(); },
                                                      timings.next_rx_point);
   } else {
@@ -111,45 +112,51 @@ auto PingCloudServers::ServerPing::EnsureLinked() {
 
 auto PingCloudServers::ServerPing::MakePing() {
   return ex::let_value([&]() noexcept {
-    return ex::create<ex::set_value_t(), ex::set_error_t(int)>(
-        [&](auto& ctx) noexcept {
-          // make ping action with timeout based on response statistics
-          // and timing properties for current server RxTimings
-          // during the ping and rx window setup suspend blocker
-          // and save expected next_ping_time_
-          auto* cc = cloud_sc_->client_connection();
-          assert(cc != nullptr && "Client connection should exists");
+    return ex::create<ex::set_value_t(),
+                      ex::set_error_t(int)>([&](auto& ctx) noexcept {
+      // make ping action with timeout based on response statistics
+      // and timing properties for current server RxTimings
+      // during the ping and rx window setup suspend blocker
+      // and save expected next_ping_time_
+      auto* cc = cloud_sc_->client_connection();
+      assert(cc != nullptr && "Client connection should exists");
 
-          auto c = cc->server_connection().current_channel();
-          if (c == nullptr) {
-            AETHER_TELED_ERROR("Current channel value invalid");
-            return ex::set_error(std::move(ctx.receiver), 2);
-          }
+      auto c = cc->server_connection().current_channel();
+      if (c == nullptr) {
+        AETHER_TELED_ERROR("Current channel value invalid");
+        return ex::set_error(std::move(ctx.receiver), 2);
+      }
 
-          ++ping_epoch_;
-          ping_wait_connection_ = cc;
-          ping_wait_channel_ = c.get();
-          ping_.emplace(ae_context_, *cloud_sc_, timing_conf_.interval,
-                        timing_conf_.rx_window, c->ResponseTimeout());
+      timing_conf_ =
+          policy_->EnsureServerPresence(cloud_sc_->server_id()).desired;
+      selected_rtt_ =
+          c->channel_statistics().response_time_statistics().PercentileValue(
+              policy_->EnsureServerPresence(cloud_sc_->server_id())
+                  .rtt_reliability_percentile);
+      ++ping_epoch_;
+      ping_wait_connection_ = cc;
+      ping_wait_channel_ = c.get();
+      ping_.emplace(ae_context_, *cloud_sc_, timing_conf_.interval,
+                    timing_conf_.rx_window, c->ResponseTimeout());
 
-          ping_blocker_ = policy_->AcquireSuspendBlock();
-          ping_->result_event().Subscribe(
-              [this](Ping::PingResult const& res) noexcept {
-                OnPingResult(res);
-                ping_blocker_.Reset();
-              });
+      ping_blocker_ = policy_->AcquireSuspendBlock();
+      ping_->result_event().Subscribe(
+          [this](Ping::PingResult const& res) noexcept {
+            OnPingResult(res);
+            ping_blocker_.Reset();
+          });
 
-          // run ping request and open rx window
-          auto const current_time = Now();
-          ping_->Start(current_time);
-          OpenRxWindow(current_time);
-          next_ping_time_ = current_time + timing_conf_.interval;
-          policy_->ReportNextServiceTime(priority_, next_ping_time_);
-          AETHER_TELED_DEBUG("Next ping time for priority {} at {} after {}",
+      // run ping request and open rx window
+      auto const current_time = Now();
+      ping_->Start(current_time);
+      OpenRxWindow(current_time);
+      next_ping_time_ = current_time + timing_conf_.interval;
+      policy_->ReportNextServiceTime(priority_, next_ping_time_);
+      AETHER_TELED_DEBUG("Next ping time for priority {} at {} after {}",
                          priority_, next_ping_time_, timing_conf_.interval);
 
-          return ex::set_value(std::move(ctx.receiver));
-        });
+      return ex::set_value(std::move(ctx.receiver));
+    });
   });
 }
 
@@ -230,8 +237,8 @@ void PingCloudServers::ServerPing::ScheduleNextPeriodicStart() {
   if (stop_) {
     return;
   }
-  start_sub_ = ae_context_.scheduler().DelayedTask(
-      [&]() noexcept { Start(); }, next_ping_time_);
+  start_sub_ = ae_context_.scheduler().DelayedTask([&]() noexcept { Start(); },
+                                                   next_ping_time_);
 }
 
 bool PingCloudServers::ServerPing::PingWaitBindingMatches(
@@ -286,9 +293,8 @@ void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
   if (auto const* err = std::get_if<Error<int>>(&res)) {
     if (err->error == 2) {
       deferred_start_after_ping_ = false;
-      SchedulePingDeferred(epoch, [this, epoch]() {
-        HandlePingTimeoutOnScheduler(epoch);
-      });
+      SchedulePingDeferred(
+          epoch, [this, epoch]() { HandlePingTimeoutOnScheduler(epoch); });
       return;
     }
     AETHER_TELED_ERROR("Ping error!");
@@ -300,6 +306,16 @@ void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
       ScheduleRestream();
     });
     return;
+  }
+
+  auto* const cc = cloud_sc_->client_connection();
+  if (ping_ && PingWaitBindingMatches(epoch) && cc != nullptr &&
+      cc->server_connection().current_channel().get() == ping_wait_channel_ &&
+      (std::holds_alternative<Ok<Duration>>(res) ||
+       std::holds_alternative<Ping::LateDuration>(res))) {
+    policy_->ConfirmServerPong(cloud_sc_->server_id(), ping_->send_time(),
+                               ping_->pong_time(), ping_->interval(),
+                               ping_->rx_window(), selected_rtt_);
   }
 
   if (auto const* ok = std::get_if<Ok<Duration>>(&res)) {
@@ -390,12 +406,17 @@ void PingCloudServers::ServersUpdate() {
 }
 
 void PingCloudServers::DispatchToServers() {
+  for (auto* sc : cloud_server_connections_->servers()) {
+    policy_->SetServerSelectedForAggregate(sc->server_id(), false);
+    policy_->SetServerQuarantined(sc->server_id(), sc->quarantine());
+  }
   cloud_server_connections_->ForServers(
       [this](CloudServerConnection* cloud_sc) {
         if (cloud_sc == nullptr) {
           AETHER_TELED_ERROR("Visit empty cloud server connection!");
           return;
         }
+        policy_->SetServerSelectedForAggregate(cloud_sc->server_id(), true);
         auto const& server = cloud_sc->server();
         if (server) {
           ReconcileServer(*cloud_sc);
@@ -418,10 +439,9 @@ void PingCloudServers::ReconcileServer(CloudServerConnection& cloud_sc) {
       it->second.reset();
     }
     server_pings_.insert_or_assign(
-        server_id,
-        std::make_unique<ServerPing>(ae_context_, *policy_,
-                                     *cloud_server_connections_, cloud_sc,
-                                     priority));
+        server_id, std::make_unique<ServerPing>(ae_context_, *policy_,
+                                                *cloud_server_connections_,
+                                                cloud_sc, priority));
     return;
   }
 }

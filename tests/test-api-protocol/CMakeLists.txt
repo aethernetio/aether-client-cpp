@@ -72,3 +72,11 @@ if(NOT CM_PLATFORM)
 else()
   message(WARNING "Not implemented for ${CM_PLATFORM}")
 endif()
+
+# Large user-configured event pools in stack-based fixtures exceed Windows' 1 MiB default.
+if(MSVC)
+  target_link_options(test-api-protocol PRIVATE /STACK:16777216)
+  foreach(suite IN LISTS test_api_protocol_suites)
+    target_link_options(test-api-protocol-${suite} PRIVATE /STACK:16777216)
+  endforeach()
+endif()
