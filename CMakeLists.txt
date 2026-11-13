@@ -64,6 +64,8 @@ option(AE_BUILD_TESTS "Build tests" ${AE_ROOT_PORJECT})
 option(AE_BUILD_TELE_DISABLED_TESTS "Build the disabled-telemetry application regression" OFF)
 option(AE_BUILD_ANDROID_SMOKE "Build Android NDK smoke shared library and runner" Off)
 option(AE_ADDRESS_SANITIZE "Enable address sanitizer" Off)
+option(AE_NATIVE_WEBSOCKET "Build native ws/wss transport (browser uses its built-in API)" OFF)
+option(AE_BUILD_WEBSOCKET_PROBE "Build the real-server WebSocket transport probe" OFF)
 
 set(UTM_ID "0" CACHE STRING "User Tracking Measurement ID, must be a uint32 value")
 set(USER_CONFIG "" CACHE PATH "Path to user provided configuration header file")
@@ -229,6 +231,51 @@ CPMAddPackage(
 add_library(${TARGET_NAME} STATIC )
 # collect sources
 add_subdirectory(aether)
+
+if(EMSCRIPTEN)
+  target_link_options(aether PUBLIC -lwebsocket.js)
+elseif(AE_NATIVE_WEBSOCKET)
+  # Pin TLS and RFC 6455 implementations. Certificate and hostname validation
+  # stay enabled. Native transport remains an explicit build feature.
+  CPMAddPackage(
+    NAME mbedtls
+    GIT_REPOSITORY "https://github.com/Mbed-TLS/mbedtls.git"
+    GIT_TAG "0bebf8b8c7f07abe3571ded48a11aa907a1ffb20"
+    OPTIONS "ENABLE_TESTING OFF" "ENABLE_PROGRAMS OFF"
+            "MBEDTLS_FATAL_WARNINGS OFF" "DISABLE_PACKAGE_CONFIG_AND_INSTALL OFF"
+    EXCLUDE_FROM_ALL FALSE)
+  if(WIN32)
+    # The SDK also has a PASSWORD hashing target named bcrypt. mbedTLS means
+    # Windows CNG here, which must never resolve to that unrelated CMake target.
+    if(MSVC)
+      set(_ae_cng_library "bcrypt.lib")
+    else()
+      set(_ae_cng_library "-lbcrypt")
+    endif()
+    foreach(_ae_tls_target IN ITEMS mbedcrypto mbedx509 mbedtls)
+      foreach(_ae_link_property IN ITEMS LINK_LIBRARIES INTERFACE_LINK_LIBRARIES)
+        get_target_property(_ae_links ${_ae_tls_target} ${_ae_link_property})
+        if(_ae_links)
+          string(REPLACE "bcrypt" "${_ae_cng_library}" _ae_links "${_ae_links}")
+          set_property(TARGET ${_ae_tls_target} PROPERTY ${_ae_link_property} "${_ae_links}")
+        endif()
+      endforeach()
+    endforeach()
+  endif()
+  set(MBEDTLS_FOUND TRUE)
+  set(MBEDTLS_INCLUDE_DIRS "${mbedtls_SOURCE_DIR}/include")
+  set(MBEDTLS_LIBRARIES mbedtls mbedx509 mbedcrypto)
+  CPMAddPackage(
+    NAME ixwebsocket
+    GIT_REPOSITORY "https://github.com/machinezone/IXWebSocket.git"
+    GIT_TAG "f4098c6fda378f3426ba0098fa9de5cc6d9fa81d"
+    OPTIONS "USE_TLS ON" "USE_MBED_TLS ON" "USE_ZLIB OFF"
+            "BUILD_DEMO OFF" "IXWEBSOCKET_INSTALL ${AE_INSTALL}"
+    EXCLUDE_FROM_ALL FALSE)
+  target_compile_definitions(ixwebsocket PRIVATE IXWEBSOCKET_USE_MBED_TLS_MIN_VERSION_3)
+  target_compile_definitions(aether PUBLIC AE_NATIVE_WEBSOCKET=1)
+  target_link_libraries(aether PRIVATE ixwebsocket)
+endif()
 
 # https://stackoverflow.com/questions/25676277/cmake-target-include-directories-prints-an-error-when-i-try-to-add-the-source
 target_include_directories(${TARGET_NAME} PUBLIC
@@ -478,6 +525,9 @@ endif()
 
 if((AE_BUILD_TESTS OR AE_BUILD_EXAMPLES) AND NOT CM_PLATFORM)
   add_subdirectory(examples/adaptive_datagram_emulation)
+endif()
+if(AE_BUILD_WEBSOCKET_PROBE)
+  add_subdirectory(examples/websocket_probe)
 endif()
 if(AE_BUILD_EXAMPLES AND NOT CM_PLATFORM)
   add_subdirectory(examples/adaptive_datagram_live)

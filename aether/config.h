@@ -76,7 +76,11 @@
 #endif  // AE_SUPPORT_IPV6
 
 #ifndef AE_SUPPORT_UDP
-#  define AE_SUPPORT_UDP 1
+#  if defined(__EMSCRIPTEN__)
+#    define AE_SUPPORT_UDP 0
+#  else
+#    define AE_SUPPORT_UDP 1
+#  endif
 #endif  // AE_SUPPORT_UDP
 
 #ifndef AE_UDP_PACKET_QUEUE_SIZE
@@ -84,7 +88,11 @@
 #endif  // AE_TCP_PACKET_QUEUE_SIZE
 
 #ifndef AE_SUPPORT_TCP
-#  define AE_SUPPORT_TCP 1
+#  if defined(__EMSCRIPTEN__)
+#    define AE_SUPPORT_TCP 0
+#  else
+#    define AE_SUPPORT_TCP 1
+#  endif
 #endif  // AE_SUPPORT_TCP
 
 #ifndef AE_TCP_PACKET_QUEUE_SIZE

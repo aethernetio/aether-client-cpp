@@ -35,7 +35,7 @@ namespace {
 // ciphertext buffer. The binary archive only asks this buffer to count bytes.
 struct FramingSizeBuffer {
   seri::SeriResult Write(seri::SizeWriteTag tag) {
-    if (tag.size > PackedSize::kUpper) {
+    if (static_cast<std::uint64_t>(tag.size) > PackedSize::kUpper) {
       return Error{seri::write_error};
     }
     std::uint8_t prefix[PackedSize::kMaxWireBytes];

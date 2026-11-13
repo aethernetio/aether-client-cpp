@@ -24,6 +24,7 @@
 // IWYU pragma: begin_keeps
 #include "aether/transport/system_sockets/tcp/tcp.h"
 #include "aether/transport/system_sockets/udp/udp.h"
+#include "aether/transport/websocket/websocket.h"
 
 #include "aether/transport/system_sockets/sockets/lwip_cb_tcp_socket.h"
 #include "aether/transport/system_sockets/sockets/lwip_cb_udp_socket.h"
@@ -48,6 +49,14 @@ static constexpr auto kUdpPacketQueueCapacity = AE_UDP_PACKET_QUEUE_SIZE;
 std::unique_ptr<ByteIStream> EthernetTransportFactory::Create(
     AeContext const& ae_context, Ptr<IPoller> const& poller,
     Endpoint address_port_protocol) {
+  if (address_port_protocol.protocol == Protocol::kWebSocket ||
+      address_port_protocol.protocol == Protocol::kWebSocketSecure) {
+#if AE_SUPPORT_WEBSOCKET && (defined(__EMSCRIPTEN__) || defined(AE_NATIVE_WEBSOCKET))
+    return std::make_unique<WebSocketTransport>(ae_context, address_port_protocol);
+#else
+    return nullptr;
+#endif
+  }
   assert((address_port_protocol.address.Index() == AddrVersion::kIpV4 ||
           address_port_protocol.address.Index() == AddrVersion::kIpV6) &&
          "Invalid address type");

@@ -39,6 +39,12 @@ list(APPEND aether_srcs
             "types/address.cpp")
 
 list(APPEND aether_srcs
+            "transport/websocket/websocket.cpp"
+            "transport/websocket/native_websocket_backend.cpp"
+            "transport/websocket/browser_websocket_backend.cpp"
+            "transport/websocket/disabled_websocket_backend.cpp")
+
+list(APPEND aether_srcs
             "poller/epoll_poller.cpp"
             "poller/kqueue_poller.cpp"
             "poller/freertos_poller.cpp"

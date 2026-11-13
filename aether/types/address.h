@@ -115,7 +115,8 @@ struct AddressPort {
 enum class Protocol : std::uint8_t {
   kTcp,
   kUdp,
-  kWebSocket,  // does not supported really
+  kWebSocket,
+  kWebSocketSecure,
   // TODO: rest does not supported yet
   /*
   kAny,

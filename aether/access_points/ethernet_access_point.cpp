@@ -49,7 +49,8 @@ std::vector<ObjPtr<Channel>> EthernetAccessPoint::GenerateChannels(
                          AddrVersion::kNamed>(endpoint)) {
       continue;
     }
-    if (!FilterProtocol<Protocol::kTcp, Protocol::kUdp>(endpoint)) {
+    if (!FilterProtocol<Protocol::kTcp, Protocol::kUdp, Protocol::kWebSocket,
+                        Protocol::kWebSocketSecure>(endpoint)) {
       continue;
     }
     channels.emplace_back(EthernetChannel::ptr::Create(domain, aether, resolver,
