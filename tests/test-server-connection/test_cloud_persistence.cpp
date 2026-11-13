@@ -24,9 +24,14 @@
 #include "aether-objects/obj/domain.h"
 
 #include "aether/adapter_registry.h"
+#include "aether/adapters/ethernet.h"
 #include "aether/ae_context.h"
+#include "aether/aether.h"
+#include "aether/channels/ethernet_channel.h"
 #include "aether/cloud.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
+#include "aether/dns/dns_resolve.h"
+#include "aether/poller/poller.h"
 #include "aether/server.h"
 #include "aether/server_connections/client_server_connection.h"
 #include "aether/server_connections/iserver_connection_factory.h"
@@ -225,7 +230,8 @@ void test_CloudServerConnectionPriorityRoundTripsAndRestoresSelectionOrder() {
   TEST_ASSERT_EQUAL_INT(0, initial_attempts);
   TEST_ASSERT_EQUAL_UINT(0, initial_overflows);
 
-  Domain restarted_domain{storage};
+  TestContext restored_context;
+  Domain restarted_domain{storage, &restored_context};
   auto restored_cloud =
       WorkCloud::ptr::Declare(CreateWith{restarted_domain}.with_id(cloud.id()));
   restored_cloud.Load();
@@ -244,7 +250,6 @@ void test_CloudServerConnectionPriorityRoundTripsAndRestoresSelectionOrder() {
     std::vector<ServerId> server_ids;
   } restored_connection_state;
   {
-    TestContext restored_context;
     AeContext restored_ae_context{restored_context};
     auto factory = std::make_unique<CountingNullFactory>();
     auto* factory_raw = factory.get();
@@ -285,6 +290,45 @@ void test_CloudServerConnectionPriorityRoundTripsAndRestoresSelectionOrder() {
   }
 }
 
+void test_ServerRebuildsUnsupportedCachedChannelAndPreservesValidIds() {
+  constexpr auto supported_protocol = AE_SUPPORT_TCP ? Protocol::kTcp : Protocol::kUdp;
+  TestContext context;
+  RamDomainStorage storage;
+  ObjId server_id;
+  ObjId valid_channel_id;
+  {
+    Domain domain{storage, &context};
+    auto registry = AdapterRegistry::ptr::Create(CreateWith{domain});
+    registry->Add(EthernetAdapter::ptr::Create(
+        CreateWith{domain}, Aether::ptr{}, IPoller::ptr{}, DnsResolver::ptr{}));
+    Endpoint endpoint{{IpV4Addr{127, 0, 0, 1}, 9020}, supported_protocol};
+    auto server = Server::ptr::Create(CreateWith{domain}, ServerId{7},
+                                      std::vector{endpoint}, registry);
+    TEST_ASSERT_EQUAL_UINT(1, server->channels.size());
+    server_id = server.id();
+    valid_channel_id = server->channels.front().id();
+    server.Save();
+  }
+  {
+    Domain domain{storage, &context};
+    auto server = Server::ptr::Declare(CreateWith{domain}.with_id(server_id));
+    server.Load();
+    TEST_ASSERT_TRUE(valid_channel_id == server->channels.front().id());
+    auto channel = static_cast<EthernetChannel*>(&*server->channels.front());
+    channel->address.protocol = static_cast<Protocol>(255);
+    server.Save();
+  }
+  {
+    Domain domain{storage, &context};
+    auto server = Server::ptr::Declare(CreateWith{domain}.with_id(server_id));
+    server.Load();
+    TEST_ASSERT_EQUAL_UINT(1, server->channels.size());
+    TEST_ASSERT_TRUE(server->channels.front().id() != valid_channel_id);
+    TEST_ASSERT_TRUE(server->channels.front()->endpoint()->protocol ==
+                     supported_protocol);
+  }
+}
+
 }  // namespace test_cloud_persistence
 }  // namespace ae
 
@@ -292,6 +336,7 @@ int run_test_cloud_persistence() {
   using namespace ae::test_cloud_persistence;  // NOLINT
 
   UNITY_BEGIN();
+  RUN_TEST(test_ServerRebuildsUnsupportedCachedChannelAndPreservesValidIds);
   RUN_TEST(test_CloudSetServersReplacesEntries);
   RUN_TEST(test_CloudAddServerAppendsAndPreservesExistingPriority);
   RUN_TEST(test_CloudServerConnectionPriorityUsesCloudMap);

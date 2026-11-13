@@ -47,6 +47,10 @@ void SizedPacketGate::WriteOut(DataBuffer const& buffer) {
 
 std::size_t SizedPacketGate::Overhead() const { return kSizedPacketOverhead; }
 
+void SizedPacketGate::Reset() {
+  data_packet_collector_ = StreamDataPacketCollector{};
+}
+
 Event<void(DataBuffer const& data)> const& SizedPacketGate::out_data_event() {
   return out_data_event_;
 }

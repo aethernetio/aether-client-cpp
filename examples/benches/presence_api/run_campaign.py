@@ -13,10 +13,12 @@ import json
 import os
 from pathlib import Path
 import random
+import shutil
 import socket
 import struct
 import subprocess
 import time
+from udp_fault_proxy import UdpFaultProxy
 
 
 def us():
@@ -202,10 +204,12 @@ class TraceReader:
 
 
 class Workers:
-    def __init__(self, exe, out, proxies, journal, max_worker_mb=256, require_remote=True):
+    def __init__(self, exe, out, proxies, journal, max_worker_mb=256, require_remote=True,
+                 identity_name=None):
         self.exe, self.out, self.proxies, self.journal = exe, out, proxies, journal
         self.max_bytes = int(max_worker_mb * 1024 * 1024)
         self.require_remote = require_remote
+        self.identity_name = identity_name or out.name
         self.processes, self.handles = {}, []
         self.segment = 0
 
@@ -223,11 +227,13 @@ class Workers:
             self.handles += [stdout, stderr]
             peer = self.out / ("B" if side == "A" else "A") / "uid.txt"
             command = [str(self.exe), "--side", side,
-                       "--name", f"presence_api_{self.out.name}_{side}",
+                       "--name", f"presence_api_{self.identity_name}_{side}",
                        "--uid-file", str(folder / "uid.txt"),
                        "--peer-file", str(peer), "--stop-file", str(stop),
                        "--trace", str(trace), "--seconds", "43200"]
-            env = dict(os.environ, AE_BENCH_TCP_PROXY_PORT=str(self.proxies[side].port))
+            env = dict(os.environ, AE_BENCH_TCP_PROXY_PORT=str(self.proxies[side].port),
+                       AE_BENCH_UDP_PROXY_PORT=str(self.proxies[side].port),
+                       AE_BENCH_PING_CONTROL=str(folder / "ping-control.txt"))
             self.processes[side] = subprocess.Popen(
                 command, cwd=folder, env=env, stdout=stdout, stderr=stderr,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
@@ -307,22 +313,39 @@ class Workers:
 async def campaign(args):
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
-    config = dict(vars(args), executable_sha256=hashlib.sha256(args.exe.read_bytes()).hexdigest(),
+    identity_source = getattr(args, "identity_source", None)
+    identity_name = None
+    if identity_source:
+        identity_source = identity_source.resolve()
+        identity_name = identity_source.name
+        previous_config = identity_source / "config.json"
+        if previous_config.is_file():
+            previous = json.loads(previous_config.read_text(encoding="utf-8"))
+            # A reused seed retains its original SelectClient name, even when
+            # the containing campaign has a different name or transport.
+            identity_name = previous.get("identity_name") or (
+                Path(str(previous["identity_source"]).replace("\\", "/")).name
+                if previous.get("identity_source") else identity_source.name)
+        for side in ("A", "B"):
+            shutil.copytree(identity_source / side / "state", out / side / "state")
+    config = dict(vars(args), identity_name=identity_name, executable_sha256=hashlib.sha256(args.exe.read_bytes()).hexdigest(),
                   runner_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
                   local_presence_source="Client::IsLocallyOnline",
                   remote_presence_source="Client::QueryPeerPresence",
                   query_period_ms=1000, healthy_result_max_age_ms=3000,
-                  fault_model="per_process_tcp_silence",
+                  fault_model="per_process_udp_drop" if getattr(args, "transport", "tcp") == "udp" else "per_process_tcp_silence",
                   baseline_requirement="local_only" if getattr(args, "local_only", False) else "local_and_remote")
     (out / "config.json").write_text(json.dumps(config, default=str, indent=2))
     journal = Journal(out / "controller.jsonl")
     proxies = {}
     workers = Workers(args.exe.resolve(), out, proxies, journal, args.max_worker_mb,
-                      require_remote=not getattr(args, "local_only", False))
+                      require_remote=not getattr(args, "local_only", False),
+                      identity_name=identity_name)
     rng = random.Random(args.seed)
     try:
         for side in ("A", "B"):
-            proxies[side] = await FaultProxy(side, journal).start()
+            proxy_type = UdpFaultProxy if getattr(args, "transport", "tcp") == "udp" else FaultProxy
+            proxies[side] = await proxy_type(side, journal).start()
         await workers.start()
         if not await workers.wait_healthy(args.startup_budget, args.stable_recovery):
             journal.log("startup_failed", segment=workers.segment)
@@ -331,6 +354,29 @@ async def campaign(args):
         journal.log("baseline_start", segment=workers.segment)
         await workers.sleep_checked(args.baseline)
         journal.log("baseline_end", segment=workers.segment)
+        if getattr(args, "ping_faults", False):
+            for mode in ("ping", "ack"):
+                for count in args.ping_counts:
+                    for side in ("A", "B"):
+                        if not await workers.wait_healthy(30, args.stable_recovery):
+                            raise RuntimeError("No healthy API baseline before typed Ping omission")
+                        token = f"{mode}-{count}-{side}"
+                        control = out / side / "ping-control.txt"
+                        control.write_text(f"{token} {mode} {count}\n")
+                        journal.log("ping_fault_arm", side=side, token=token,
+                                    mode=mode, count=count, segment=workers.segment)
+                        await workers.sleep_checked(max(12, count * 4))
+                        stderr = (out / side / f"stderr-{workers.segment}.log").read_text(errors="replace")
+                        injected = stderr.count(f"PING_FAULT,{token},{mode},")
+                        control.write_text(f"{token}-clear none 0\n")
+                        if injected != count:
+                            raise RuntimeError(f"Requested {count} {mode} omissions; observed {injected}")
+                        recovered = await workers.wait_healthy(args.recovery_budget, args.stable_recovery)
+                        journal.log("ping_fault_end", side=side, token=token,
+                                    count=injected, recovered=recovered, segment=workers.segment)
+                        print("typed omission", token, "recovered", recovered, flush=True)
+                        if not recovered:
+                            raise RuntimeError("API did not recover after typed Ping omission")
         trial = 0
         for repeat in range(args.repeats):
             for duration in args.off:
@@ -378,6 +424,11 @@ async def campaign(args):
 def main():
     parser = argparse.ArgumentParser(description="Benchmark real SDK presence APIs; default is a two-cut pilot.")
     parser.add_argument("--exe", required=True, type=Path)
+    parser.add_argument("--transport", choices=("tcp", "udp"), default="tcp")
+    parser.add_argument("--identity-source", type=Path,
+                        help="Reuse only a previous campaign's private SDK state and identity names")
+    parser.add_argument("--ping-faults", action="store_true")
+    parser.add_argument("--ping-counts", type=int, nargs="+", default=[1, 3])
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--local-only", action="store_true",
                         help="Measure local API when remote API replies are unavailable; remote results remain recorded, never synthesized")

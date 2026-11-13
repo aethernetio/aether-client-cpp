@@ -17,8 +17,11 @@
 #ifndef AETHER_ACTIONS_ACTION_POLL_H_
 #define AETHER_ACTIONS_ACTION_POLL_H_
 
-#include <variant>
+#include <algorithm>
+#include <array>
+#include <cassert>
 #include <type_traits>
+#include <variant>
 
 #include "aether/warning_disable.h"
 
@@ -41,6 +44,9 @@ class ActionPool : public etl::pool<T, Capacity> {
 
   constexpr explicit ActionPool(AC const& ac) noexcept : ac_{ac} {}
   ~ActionPool() noexcept {
+    for (auto& task : destruction_tasks_) {
+      task.Reset();
+    }
     for (auto i = base_t::begin(); i != base_t::end(); ++i) {
       base_t::destroy(&i.template get<T>());
     }
@@ -59,11 +65,18 @@ class ActionPool : public etl::pool<T, Capacity> {
 
  private:
   void Destroy(T* p) {
-    ts_ = ac_.scheduler().Task([&, p]() { base_t::template destroy<T>(p); });
+    auto slot =
+        std::find_if(destruction_tasks_.begin(), destruction_tasks_.end(),
+                     [](auto const& task) { return !task; });
+    assert(slot != destruction_tasks_.end());
+    *slot =
+        ac_.scheduler().Task([this, p]() { base_t::template destroy<T>(p); });
   }
 
   AC ac_;
-  TaskSubscription ts_;
+  // Each finished action owns its deferred destruction. A single subscription
+  // would cancel the previous cleanup when several actions finish together.
+  std::array<TaskSubscription, Capacity> destruction_tasks_;
 };
 
 template <ActionContext AC, typename... T, std::size_t Capacity>
@@ -76,6 +89,9 @@ class ActionPool<AC, std::variant<T...>, Capacity>
 
   constexpr explicit ActionPool(AC const& ac) noexcept : ac_{ac} {}
   ~ActionPool() noexcept {
+    for (auto& task : destruction_tasks_) {
+      task.Reset();
+    }
     for (auto i = base_t::begin(); i != base_t::end(); ++i) {
       // destroy each element as an Action
       base_t::destroy(&i.template get<Action>());
@@ -96,11 +112,15 @@ class ActionPool<AC, std::variant<T...>, Capacity>
 
  private:
   void Destroy(Action* p) {
-    ts_ = ac_.scheduler().Task([&, p]() { base_t::destroy(p); });
+    auto slot =
+        std::find_if(destruction_tasks_.begin(), destruction_tasks_.end(),
+                     [](auto const& task) { return !task; });
+    assert(slot != destruction_tasks_.end());
+    *slot = ac_.scheduler().Task([this, p]() { base_t::destroy(p); });
   }
 
   AC ac_;
-  TaskSubscription ts_;
+  std::array<TaskSubscription, Capacity> destruction_tasks_;
 };
 }  // namespace ae
 

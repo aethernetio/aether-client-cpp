@@ -8,8 +8,9 @@
 #  include <cstdlib>
 #endif
 namespace ae {
-inline void PresenceApiTrace(char const* event, std::int64_t a = 0,
-                             std::int64_t b = 0, std::int64_t c = 0) {
+template <typename A = std::int64_t, typename B = std::int64_t,
+          typename C = std::int64_t>
+inline void PresenceApiTrace(char const* event, A a = {}, B b = {}, C c = {}) {
 #if AE_BENCH_TCP_PROXY
 #  if defined(_MSC_VER)
   std::size_t trace_length{};

@@ -29,9 +29,12 @@ P2pSafeStream::P2pSafeStream(AeContext const& ae_context,
       safe_stream_{std::make_unique<SafeStreamImpl>(ae_context, config)},
       p2p_stream_{std::move(p2p_stream)},
       out_data_event_{ae_context},
-      out_data_sub_{TiedEventOutData(
-          [this](auto const& data) { out_data_event_.Emit(data); },
-          sized_packet_gate_, *safe_stream_)} {
+      receive_reset_event_{ae_context},
+      out_data_sub_{
+          sized_packet_gate_.out_data_event().Subscribe(
+              [this](auto const& data) { out_data_event_.Emit(data); }),
+          safe_stream_->out_data_event().Subscribe(
+              [this](auto const& data) { OnSafeData(data); })} {
   Tie(*safe_stream_, *p2p_stream_);
 }
 
@@ -62,5 +65,19 @@ P2pSafeStream::OutDataEvent const& P2pSafeStream::out_data_event() {
 }
 
 void P2pSafeStream::Restream() { safe_stream_->Restream(); }
+
+Event<void()> const& P2pSafeStream::receive_reset_event() {
+  return receive_reset_event_;
+}
+
+void P2pSafeStream::OnSafeData(DataBuffer const& data) {
+  auto const offset = safe_stream_->receive_session_offset();
+  if (offset != receive_session_offset_) {
+    receive_session_offset_ = offset;
+    sized_packet_gate_.Reset();
+    receive_reset_event_.Emit();
+  }
+  sized_packet_gate_.WriteOut(data);
+}
 
 }  // namespace ae

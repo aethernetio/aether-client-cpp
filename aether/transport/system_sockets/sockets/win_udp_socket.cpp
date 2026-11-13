@@ -21,6 +21,10 @@
 #  include <ws2def.h>
 #  include <ws2ipdef.h>
 #  include <ws2tcpip.h>
+#  if AE_BENCH_TCP_PROXY
+#    include <cstdlib>
+#    include <cstring>
+#  endif
 
 #  include "aether-miscpp/misc/defer.h"
 #  include "aether/transport/system_sockets/sockets/get_sock_addr.h"
@@ -79,6 +83,26 @@ ISocket& WinUdpSocket::Connect(AddressPort const& destination,
     auto lock = std::scoped_lock{socket_lock_};
 
     auto addr = GetSockAddr(destination);
+#  if AE_BENCH_TCP_PROXY
+    // Private benchmark relay: one loopback control datagram binds this socket
+    // to its real endpoint. Subsequent datagrams retain their original bytes.
+    unsigned char relay_header[6]{};
+    char relay_port[16]{};
+    auto const relay_length = GetEnvironmentVariableA(
+        "AE_BENCH_UDP_PROXY_PORT", relay_port, sizeof(relay_port));
+    bool const relayed = relay_length > 0;
+    if (relayed) {
+      char* end{}; auto port = std::strtoul(relay_port, &end, 10);
+      if (relay_length >= sizeof(relay_port) || !port || port > 65535 ||
+          *end || addr.data.ipv4.sin_family != AF_INET) {
+        connection_state = ConnectionState::kConnectionFailed; return *this;
+      }
+      std::memcpy(relay_header, &addr.data.ipv4.sin_addr.s_addr, 4);
+      std::memcpy(relay_header + 4, &addr.data.ipv4.sin_port, 2);
+      addr.data.ipv4.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+      addr.data.ipv4.sin_port = htons(static_cast<unsigned short>(port));
+    }
+#  endif
     auto res =
         connect(socket_, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
     if (res == SOCKET_ERROR) {
@@ -86,6 +110,13 @@ ISocket& WinUdpSocket::Connect(AddressPort const& destination,
       connection_state = ConnectionState::kConnectionFailed;
       return *this;
     }
+#  if AE_BENCH_TCP_PROXY
+    if (relayed && send(socket_, reinterpret_cast<char const*>(relay_header),
+                        static_cast<int>(sizeof(relay_header)), 0) !=
+                       static_cast<int>(sizeof(relay_header))) {
+      connection_state = ConnectionState::kConnectionFailed; return *this;
+    }
+#  endif
   }
 
   if (!RequestRecv()) {

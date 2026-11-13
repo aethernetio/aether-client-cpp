@@ -61,10 +61,10 @@ std::uint64_t Percentile(std::vector<std::uint64_t> values, unsigned p) {
   return values[index];
 }
 
-void Pump(AetherApp& app) {
+void Pump(AetherApp& app, bool wait = true) {
   auto const wake = app.Update(Now());
   auto const now = Now();
-  if (wake > now) {
+  if (wait && wake > now) {
     app.WaitUntil(std::min(wake, now + std::chrono::milliseconds{1}));
   }
 }
@@ -79,8 +79,8 @@ bool Until(AetherApp& app, auto predicate, unsigned seconds) {
   return predicate();
 }
 
-int Run(char const* output, unsigned seconds,
-        adaptive_datagram::Config config) {
+int Run(char const* output, unsigned seconds, adaptive_datagram::Config config,
+        unsigned requested_payload) {
 #if !AE_SUPPORT_UDP || AE_SUPPORT_TCP || !AE_FILTRATION
   std::cerr << "Use a UDP-only filtration build and TCP-bootstrapped state.\n";
   return 4;
@@ -89,7 +89,7 @@ int Run(char const* output, unsigned seconds,
           std::cerr, std::filesystem::current_path())) {
     return 3;
   }
-  constexpr std::size_t kPayload = 800;
+  std::size_t kPayload = requested_payload;
   std::ofstream csv{output, std::ios::trunc};
   if (!csv || !config.Validate()) {
     return 2;
@@ -154,9 +154,16 @@ int Run(char const* output, unsigned seconds,
             return sender.stream_info().link_state == LinkState::kLinked &&
                    receiver.stream_info().link_state == LinkState::kLinked;
           },
-          60) ||
-      sender.stream_info().max_element_size < kPayload) {
+          60)) {
     std::cerr << "UDP P2P link unavailable or payload exceeds its budget.\n";
+    return 5;
+  }
+  auto const payload_budget = std::min(sender.stream_info().max_element_size,
+                                       receiver.stream_info().max_element_size);
+  if (kPayload == 0) {
+    kPayload = payload_budget;
+  }
+  if (kPayload < 32 || kPayload > payload_budget) {
     return 5;
   }
 
@@ -171,46 +178,49 @@ int Run(char const* output, unsigned seconds,
     std::uint64_t measured_received = 0;
   } rx;
   std::uint64_t measured_offered = 0;
+  auto on_datagram = [&rx, &config, run, kPayload](DataBuffer const& data) {
+    if (data.size() != kPayload || Get(data, 0) != run ||
+        Get(data, 16) > Micros() || !rx.seen.insert(Get(data, 8)).second) {
+      rx.sane = false;
+      return;
+    }
+    auto const sequence = Get(data, 8);
+    for (std::size_t i = 32; i < data.size(); ++i) {
+      if (data[i] != static_cast<std::uint8_t>(sequence + i)) {
+        rx.sane = false;
+        return;
+      }
+    }
+    auto const latency = Micros() - Get(data, 16);
+    // Payload timestamp precedes Write() admission; allow 1 ms for harness
+    // serialization and the receive callback after the protocol's check.
+    rx.sane = rx.sane && latency <= static_cast<std::uint64_t>(
+                                        config.latency_target.count()) +
+                                        1000;
+    rx.latencies.push_back(latency);
+    if (rx.previous_latency) {
+      auto const variation = latency > *rx.previous_latency
+                                 ? latency - *rx.previous_latency
+                                 : *rx.previous_latency - latency;
+      rx.ipdv.push_back(variation);
+      rx.jitter += (static_cast<double>(variation) - rx.jitter) / 16.0;
+    }
+    rx.previous_latency = latency;
+    rx.received_bytes += data.size();
+    if (Get(data, 24) == 1) {
+      rx.measured_received += data.size();
+    }
+  };
   Subscription incoming = receiver.out_data_event().Subscribe(
-      [&rx, &config, run](DataBuffer const& data) {
-        if (data.size() != kPayload || Get(data, 0) != run ||
-            Get(data, 16) > Micros() || !rx.seen.insert(Get(data, 8)).second) {
-          rx.sane = false;
-          return;
-        }
-        auto const sequence = Get(data, 8);
-        for (std::size_t i = 32; i < data.size(); ++i) {
-          if (data[i] != static_cast<std::uint8_t>(sequence + i)) {
-            rx.sane = false;
-            return;
-          }
-        }
-        auto const latency = Micros() - Get(data, 16);
-        // Payload timestamp precedes Write() admission; allow 1 ms for harness
-        // serialization and the receive callback after the protocol's check.
-        rx.sane = rx.sane && latency <= static_cast<std::uint64_t>(
-                                            config.latency_target.count()) +
-                                            1000;
-        rx.latencies.push_back(latency);
-        if (rx.previous_latency) {
-          auto const variation = latency > *rx.previous_latency
-                                     ? latency - *rx.previous_latency
-                                     : *rx.previous_latency - latency;
-          rx.ipdv.push_back(variation);
-          rx.jitter += (static_cast<double>(variation) - rx.jitter) / 16.0;
-        }
-        rx.previous_latency = latency;
-        rx.received_bytes += data.size();
-        if (Get(data, 24) == 1) {
-          rx.measured_received += data.size();
-        }
-      });
+      [&on_datagram](DataBuffer const& data) { on_datagram(data); });
 
   csv << "second,phase,offered_Bps,goodput_Bps,rate_Bps,window_loss_per_mille,"
          "window_valid,latency_p50_us,latency_p95_us,latency_p99_us,"
          "abs_ipdv_p95_us,jitter_ewma_us,accepted,sent,delivered,lost,late,"
          "expired,unconfirmed,local_failures,queued,in_flight,feedback_stale,"
-         "feedback_incomplete,udp_only\n";
+         "feedback_incomplete,udp_only,constraints_unmet,path_latency_us,"
+         "base_latency_us,rate_ceiling_Bps,history_limited,in_flight_capacity,"
+         "payload_bytes,payload_budget,history_capacity\n";
   std::uint64_t sequence = 0;
   std::uint64_t offered = 0;
   std::uint64_t previous_offered = 0;
@@ -250,7 +260,10 @@ int Run(char const* output, unsigned seconds,
         measured_offered += kPayload;
       }
     }
-    Pump(*app);
+    // Continuous offered load must not be capped by a host timer's sleep
+    // granularity. The SDK pacer still owns transmission and the application
+    // queue stays bounded to one datagram. Registration and drain can sleep.
+    Pump(*app, now >= measure_end);
     auto const elapsed =
         std::chrono::duration_cast<std::chrono::seconds>(Steady::now() - start)
             .count();
@@ -272,7 +285,12 @@ int Run(char const* output, unsigned seconds,
           << ',' << stats.lost << ',' << stats.late << ',' << stats.expired
           << ',' << stats.unconfirmed << ',' << stats.local_failures << ','
           << stats.queued << ',' << stats.in_flight << ',' << m.feedback_stale
-          << ',' << m.feedback_incomplete << ',' << udp_only << '\n';
+          << ',' << m.feedback_incomplete << ',' << udp_only << ','
+          << m.constraints_unmet << ',' << m.latest_latency.count() << ','
+          << m.base_latency.count() << ',' << config.max_rate_bytes_per_second
+          << ',' << m.history_limited << ',' << config.max_in_flight_packets
+          << ',' << kPayload << ',' << payload_budget << ','
+          << config.max_history_packets << '\n';
       csv.flush();
       previous_offered = offered;
       previous_received = rx.received_bytes;
@@ -308,8 +326,8 @@ int Run(char const* output, unsigned seconds,
 
 int main(int argc, char* argv[]) {
   // Deliberately small positional interface, with strict validation.
-  unsigned values[]{10, 50, 1000, 100};
-  if (argc > 6) {
+  unsigned values[]{10, 50, 1000, 100, 4000000, 800};
+  if (argc > 8) {
     return 2;
   }
   for (int i = 2; i < argc; ++i) {
@@ -321,15 +339,37 @@ int main(int argc, char* argv[]) {
     }
   }
   if (values[0] == 0 || values[0] > 120 || values[1] > 1000 || values[2] == 0 ||
-      values[2] > 60000 || values[3] == 0 || values[3] > 5000) {
+      values[2] > 60000 || values[3] == 0 || values[3] > 5000 ||
+      values[4] == 0 || values[4] > 1000000000 || values[5] > 65535 ||
+      (values[5] != 0 && values[5] < 32)) {
     std::cerr << "Usage: adaptive-datagram-live [csv] [seconds:1..120] "
-                 "[loss_per_mille] [window_ms:1..60000] [latency_ms:1..5000]\n";
+                 "[loss_per_mille] [window_ms:1..60000] [latency_ms:1..5000] "
+                 "[rate_ceiling_Bps:1..1000000000] [payload_bytes:0=budget]\n";
     return 2;
   }
   ae::adaptive_datagram::Config config;
   config.max_loss_per_mille = values[1];
   config.loss_window = std::chrono::milliseconds{values[2]};
   config.latency_target = std::chrono::milliseconds{values[3]};
+  config.max_rate_bytes_per_second = values[4];
+  config.max_datagram_size =
+      std::max<std::size_t>(config.max_datagram_size, values[5]);
+  if (argc >= 7) {
+    // Provision measurement history for the requested rate. Keep the native
+    // in-flight window: the protocol's receipt bitmap supports 512 packets.
+    // Expose that limit in CSV instead of accepting an invalid wire policy.
+    auto const packets_per_second =
+        (config.max_rate_bytes_per_second + (values[5] ? values[5] : 256) - 1) /
+        (values[5] ? values[5] : 256);
+    config.max_history_packets =
+        static_cast<std::size_t>(std::max<std::uint64_t>(
+            config.max_history_packets,
+            std::min<std::uint64_t>(
+                1U << 20U, (packets_per_second * values[2] * 2 + 999) / 1000)));
+  }
+  if (!config.Validate()) {
+    return 2;
+  }
   return ae::adaptive_datagram_live::Run(
-      argc >= 2 ? argv[1] : "adaptive-live.csv", values[0], config);
+      argc >= 2 ? argv[1] : "adaptive-live.csv", values[0], config, values[5]);
 }

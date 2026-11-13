@@ -1,0 +1,1489 @@
+{
+  "date_utc": "2026-11-13",
+  "platform": "Windows x64",
+  "configuration": "Release /O2",
+  "sdk_runtime": "5d031c37cfb03ae8d63f1d4630de4a4f984e2c48",
+  "cpu_logical_cores": 20,
+  "local_presence": "Client::IsLocallyOnline (OR of usable servers)",
+  "remote_presence": "Client::QueryPeerPresence (AND of authoritative usable servers)",
+  "environment": "Sequential jobs; owned Android emulator stopped; no builds scheduled",
+  "interpretation": [
+    "Unknown and query errors remain distinct from Offline",
+    "Typed omission origin is control ARM; actual omission waits for a later ping/ACK",
+    "Stable recovery requires a subsequent five-second Online interval"
+  ],
+  "transports": {
+    "tcp": {
+      "network_cut_seconds": [
+        3,
+        10,
+        30,
+        60
+      ],
+      "repeats": 2,
+      "fault_sides": [
+        "A",
+        "B"
+      ],
+      "omitted_counts": [
+        1,
+        3
+      ],
+      "omission_types": [
+        "ping",
+        "ack"
+      ],
+      "completed_network_cuts": 16,
+      "summary": [
+        {
+          "detector": "local_api",
+          "trials": 16,
+          "recovery_required": 16,
+          "offline_not_observed": 0,
+          "preexisting_non_online": 0,
+          "online_censored": 0,
+          "stable_censored": 0,
+          "terminal_censored": 0,
+          "offline_ms": {
+            "n": 16,
+            "p50": 1503.8075,
+            "p95": 1904.85225,
+            "p99": 1962.30405,
+            "max": 1976.667
+          },
+          "online_ms": {
+            "n": 16,
+            "p50": 111.35300000000001,
+            "p95": 131.576,
+            "p99": 146.40800000000002,
+            "max": 150.116
+          },
+          "fresh_query_online_ms": {
+            "n": 16,
+            "p50": 111.35300000000001,
+            "p95": 131.576,
+            "p99": 146.40800000000002,
+            "max": 150.116
+          },
+          "stable_online_5s_ms": {
+            "n": 16,
+            "p50": 111.35300000000001,
+            "p95": 131.576,
+            "p99": 146.40800000000002,
+            "max": 150.116
+          },
+          "terminal_online_5s_ms": {
+            "n": 16,
+            "p50": 111.35300000000001,
+            "p95": 131.576,
+            "p99": 146.40800000000002,
+            "max": 150.116
+          }
+        },
+        {
+          "detector": "remote_api",
+          "trials": 16,
+          "recovery_required": 16,
+          "offline_not_observed": 0,
+          "preexisting_non_online": 0,
+          "online_censored": 0,
+          "stable_censored": 0,
+          "terminal_censored": 0,
+          "offline_ms": {
+            "n": 16,
+            "p50": 1772.9065,
+            "p95": 2699.631,
+            "p99": 3586.4141999999993,
+            "max": 3808.11
+          },
+          "online_ms": {
+            "n": 16,
+            "p50": 798.9459999999999,
+            "p95": 1237.5475,
+            "p99": 1261.7503,
+            "max": 1267.801
+          },
+          "fresh_query_online_ms": {
+            "n": 16,
+            "p50": 798.9459999999999,
+            "p95": 1237.5475,
+            "p99": 1261.7503,
+            "max": 1267.801
+          },
+          "stable_online_5s_ms": {
+            "n": 16,
+            "p50": 798.9459999999999,
+            "p95": 1237.5475,
+            "p99": 1261.7503,
+            "max": 1267.801
+          },
+          "terminal_online_5s_ms": {
+            "n": 16,
+            "p50": 798.9459999999999,
+            "p95": 1237.5475,
+            "p99": 1261.7503,
+            "max": 1267.801
+          }
+        }
+      ],
+      "typed_omissions": [
+        {
+          "token": "ping-1-A",
+          "fault_side": "A",
+          "mode": "ping",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "A",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 19.734977
+          }
+        },
+        {
+          "token": "ping-1-A",
+          "fault_side": "A",
+          "mode": "ping",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "A",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 19.734977
+          }
+        },
+        {
+          "token": "ping-1-A",
+          "fault_side": "A",
+          "mode": "ping",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "B",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 19.734977
+          }
+        },
+        {
+          "token": "ping-1-A",
+          "fault_side": "A",
+          "mode": "ping",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "B",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": 2482.229,
+          "first_recovered_from_arm_ms": 13599.599,
+          "offline_episodes": 1,
+          "longest_offline_ms": 11117.37,
+          "state_seconds": {
+            "online": 8.617607,
+            "offline": 11.11737
+          }
+        },
+        {
+          "token": "ping-1-B",
+          "fault_side": "B",
+          "mode": "ping",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "A",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 21.315313
+          }
+        },
+        {
+          "token": "ping-1-B",
+          "fault_side": "B",
+          "mode": "ping",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "A",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": 2576.24,
+          "first_recovered_from_arm_ms": 14684.399,
+          "offline_episodes": 1,
+          "longest_offline_ms": 12108.159,
+          "state_seconds": {
+            "online": 9.207154,
+            "offline": 12.108159
+          }
+        },
+        {
+          "token": "ping-1-B",
+          "fault_side": "B",
+          "mode": "ping",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "B",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 21.315313
+          }
+        },
+        {
+          "token": "ping-1-B",
+          "fault_side": "B",
+          "mode": "ping",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "B",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 21.315313
+          }
+        },
+        {
+          "token": "ping-3-A",
+          "fault_side": "A",
+          "mode": "ping",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "A",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": 1291.404,
+          "first_recovered_from_arm_ms": 10344.357,
+          "offline_episodes": 1,
+          "longest_offline_ms": 9052.953,
+          "state_seconds": {
+            "online": 9.570588,
+            "offline": 9.052953
+          }
+        },
+        {
+          "token": "ping-3-A",
+          "fault_side": "A",
+          "mode": "ping",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "A",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 18.623541
+          }
+        },
+        {
+          "token": "ping-3-A",
+          "fault_side": "A",
+          "mode": "ping",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "B",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 18.623541
+          }
+        },
+        {
+          "token": "ping-3-A",
+          "fault_side": "A",
+          "mode": "ping",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "B",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": 2087.436,
+          "first_recovered_from_arm_ms": 12241.849,
+          "offline_episodes": 1,
+          "longest_offline_ms": 10154.413,
+          "state_seconds": {
+            "online": 7.588682,
+            "unknown": 0.880446,
+            "offline": 10.154413
+          }
+        },
+        {
+          "token": "ping-3-B",
+          "fault_side": "B",
+          "mode": "ping",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "A",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 18.697695
+          }
+        },
+        {
+          "token": "ping-3-B",
+          "fault_side": "B",
+          "mode": "ping",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "A",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": 1210.925,
+          "first_recovered_from_arm_ms": 12349.883,
+          "offline_episodes": 1,
+          "longest_offline_ms": 11138.958,
+          "state_seconds": {
+            "online": 7.558737,
+            "offline": 11.138958
+          }
+        },
+        {
+          "token": "ping-3-B",
+          "fault_side": "B",
+          "mode": "ping",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "B",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": 1257.657,
+          "first_recovered_from_arm_ms": 10308.734,
+          "offline_episodes": 1,
+          "longest_offline_ms": 9051.077,
+          "state_seconds": {
+            "online": 9.646618,
+            "offline": 9.051077
+          }
+        },
+        {
+          "token": "ping-3-B",
+          "fault_side": "B",
+          "mode": "ping",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "B",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 18.697695
+          }
+        },
+        {
+          "token": "ack-1-A",
+          "fault_side": "A",
+          "mode": "ack",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "A",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 17.906062
+          }
+        },
+        {
+          "token": "ack-1-A",
+          "fault_side": "A",
+          "mode": "ack",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "A",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 17.906062
+          }
+        },
+        {
+          "token": "ack-1-A",
+          "fault_side": "A",
+          "mode": "ack",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "B",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 17.906062
+          }
+        },
+        {
+          "token": "ack-1-A",
+          "fault_side": "A",
+          "mode": "ack",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "B",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": 3552.147,
+          "first_recovered_from_arm_ms": 11552.742,
+          "offline_episodes": 1,
+          "longest_offline_ms": 8000.595,
+          "state_seconds": {
+            "online": 9.905467,
+            "offline": 8.000595
+          }
+        },
+        {
+          "token": "ack-1-B",
+          "fault_side": "B",
+          "mode": "ack",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "A",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 17.945517
+          }
+        },
+        {
+          "token": "ack-1-B",
+          "fault_side": "B",
+          "mode": "ack",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "A",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": 3405.763,
+          "first_recovered_from_arm_ms": 11525.675,
+          "offline_episodes": 1,
+          "longest_offline_ms": 8119.912,
+          "state_seconds": {
+            "online": 9.825605,
+            "offline": 8.119912
+          }
+        },
+        {
+          "token": "ack-1-B",
+          "fault_side": "B",
+          "mode": "ack",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "B",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 17.945517
+          }
+        },
+        {
+          "token": "ack-1-B",
+          "fault_side": "B",
+          "mode": "ack",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "B",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 17.945517
+          }
+        },
+        {
+          "token": "ack-3-A",
+          "fault_side": "A",
+          "mode": "ack",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "A",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": 1265.527,
+          "first_recovered_from_arm_ms": 10386.145,
+          "offline_episodes": 1,
+          "longest_offline_ms": 9120.618,
+          "state_seconds": {
+            "online": 8.861968,
+            "offline": 9.120618
+          }
+        },
+        {
+          "token": "ack-3-A",
+          "fault_side": "A",
+          "mode": "ack",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "A",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 17.982586
+          }
+        },
+        {
+          "token": "ack-3-A",
+          "fault_side": "A",
+          "mode": "ack",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "B",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 17.982586
+          }
+        },
+        {
+          "token": "ack-3-A",
+          "fault_side": "A",
+          "mode": "ack",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "B",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": 2428.847,
+          "first_recovered_from_arm_ms": 11537.315,
+          "offline_episodes": 1,
+          "longest_offline_ms": 9108.468,
+          "state_seconds": {
+            "online": 8.874118,
+            "offline": 9.108468
+          }
+        },
+        {
+          "token": "ack-3-B",
+          "fault_side": "B",
+          "mode": "ack",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "A",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 18.925452
+          }
+        },
+        {
+          "token": "ack-3-B",
+          "fault_side": "B",
+          "mode": "ack",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "A",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": 2453.907,
+          "first_recovered_from_arm_ms": 12461.315,
+          "offline_episodes": 1,
+          "longest_offline_ms": 10007.408,
+          "state_seconds": {
+            "online": 8.918044,
+            "offline": 10.007408
+          }
+        },
+        {
+          "token": "ack-3-B",
+          "fault_side": "B",
+          "mode": "ack",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "B",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": 1977.098,
+          "first_recovered_from_arm_ms": 10659.02,
+          "offline_episodes": 1,
+          "longest_offline_ms": 8681.922,
+          "state_seconds": {
+            "online": 10.24353,
+            "offline": 8.681922
+          }
+        },
+        {
+          "token": "ack-3-B",
+          "fault_side": "B",
+          "mode": "ack",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "B",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 18.925452
+          }
+        }
+      ]
+    },
+    "udp": {
+      "network_cut_seconds": [
+        3,
+        10,
+        30,
+        60
+      ],
+      "repeats": 2,
+      "fault_sides": [
+        "A",
+        "B"
+      ],
+      "omitted_counts": [
+        1,
+        3
+      ],
+      "omission_types": [
+        "ping",
+        "ack"
+      ],
+      "completed_network_cuts": 16,
+      "summary": [
+        {
+          "detector": "local_api",
+          "trials": 16,
+          "recovery_required": 16,
+          "offline_not_observed": 0,
+          "preexisting_non_online": 0,
+          "online_censored": 0,
+          "stable_censored": 0,
+          "terminal_censored": 0,
+          "offline_ms": {
+            "n": 16,
+            "p50": 1377.1615000000002,
+            "p95": 1824.9859999999999,
+            "p99": 1924.5908,
+            "max": 1949.492
+          },
+          "online_ms": {
+            "n": 16,
+            "p50": 931.207,
+            "p95": 7503.06775,
+            "p99": 7581.03835,
+            "max": 7600.531
+          },
+          "fresh_query_online_ms": {
+            "n": 16,
+            "p50": 931.207,
+            "p95": 7503.06775,
+            "p99": 7581.03835,
+            "max": 7600.531
+          },
+          "stable_online_5s_ms": {
+            "n": 16,
+            "p50": 931.207,
+            "p95": 7503.06775,
+            "p99": 7581.03835,
+            "max": 7600.531
+          },
+          "terminal_online_5s_ms": {
+            "n": 16,
+            "p50": 931.207,
+            "p95": 7503.06775,
+            "p99": 7581.03835,
+            "max": 7600.531
+          }
+        },
+        {
+          "detector": "remote_api",
+          "trials": 16,
+          "recovery_required": 16,
+          "offline_not_observed": 0,
+          "preexisting_non_online": 0,
+          "online_censored": 0,
+          "stable_censored": 0,
+          "terminal_censored": 0,
+          "offline_ms": {
+            "n": 16,
+            "p50": 1604.0900000000001,
+            "p95": 2112.054,
+            "p99": 2112.9756,
+            "max": 2113.206
+          },
+          "online_ms": {
+            "n": 16,
+            "p50": 4147.726000000001,
+            "p95": 8749.417000000001,
+            "p99": 8974.5754,
+            "max": 9030.865
+          },
+          "fresh_query_online_ms": {
+            "n": 16,
+            "p50": 4147.726000000001,
+            "p95": 8749.417000000001,
+            "p99": 8974.5754,
+            "max": 9030.865
+          },
+          "stable_online_5s_ms": {
+            "n": 16,
+            "p50": 4147.726000000001,
+            "p95": 8749.417000000001,
+            "p99": 8974.5754,
+            "max": 9030.865
+          },
+          "terminal_online_5s_ms": {
+            "n": 16,
+            "p50": 4147.726000000001,
+            "p95": 8749.417000000001,
+            "p99": 8974.5754,
+            "max": 9030.865
+          }
+        }
+      ],
+      "typed_omissions": [
+        {
+          "token": "ping-1-A",
+          "fault_side": "A",
+          "mode": "ping",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "A",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 22.702529
+          }
+        },
+        {
+          "token": "ping-1-A",
+          "fault_side": "A",
+          "mode": "ping",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "A",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 22.702529
+          }
+        },
+        {
+          "token": "ping-1-A",
+          "fault_side": "A",
+          "mode": "ping",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "B",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 22.702529
+          }
+        },
+        {
+          "token": "ping-1-A",
+          "fault_side": "A",
+          "mode": "ping",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "B",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": 2365.046,
+          "first_recovered_from_arm_ms": 16373.742,
+          "offline_episodes": 1,
+          "longest_offline_ms": 14008.696,
+          "state_seconds": {
+            "online": 8.693833,
+            "offline": 14.008696
+          }
+        },
+        {
+          "token": "ping-1-B",
+          "fault_side": "B",
+          "mode": "ping",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "A",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 22.974173
+          }
+        },
+        {
+          "token": "ping-1-B",
+          "fault_side": "B",
+          "mode": "ping",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "A",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": 2607.093,
+          "first_recovered_from_arm_ms": 16640.121,
+          "offline_episodes": 1,
+          "longest_offline_ms": 14033.028,
+          "state_seconds": {
+            "online": 8.941145,
+            "offline": 14.033028
+          }
+        },
+        {
+          "token": "ping-1-B",
+          "fault_side": "B",
+          "mode": "ping",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "B",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 22.974173
+          }
+        },
+        {
+          "token": "ping-1-B",
+          "fault_side": "B",
+          "mode": "ping",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "B",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 22.974173
+          }
+        },
+        {
+          "token": "ping-3-A",
+          "fault_side": "A",
+          "mode": "ping",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "A",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": 2188.123,
+          "first_recovered_from_arm_ms": 5211.855,
+          "offline_episodes": 1,
+          "longest_offline_ms": 3023.732,
+          "state_seconds": {
+            "online": 18.988192,
+            "offline": 3.023732
+          }
+        },
+        {
+          "token": "ping-3-A",
+          "fault_side": "A",
+          "mode": "ping",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "A",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 22.011924
+          }
+        },
+        {
+          "token": "ping-3-A",
+          "fault_side": "A",
+          "mode": "ping",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "B",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 22.011924
+          }
+        },
+        {
+          "token": "ping-3-A",
+          "fault_side": "A",
+          "mode": "ping",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "B",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": 1475.187,
+          "first_recovered_from_arm_ms": 15597.159,
+          "offline_episodes": 1,
+          "longest_offline_ms": 14121.972,
+          "state_seconds": {
+            "online": 7.889952,
+            "offline": 14.121972
+          }
+        },
+        {
+          "token": "ping-3-B",
+          "fault_side": "B",
+          "mode": "ping",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "A",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 17.928531
+          }
+        },
+        {
+          "token": "ping-3-B",
+          "fault_side": "B",
+          "mode": "ping",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "A",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": 1428.441,
+          "first_recovered_from_arm_ms": 11606.56,
+          "offline_episodes": 1,
+          "longest_offline_ms": 10178.119,
+          "state_seconds": {
+            "online": 7.750412,
+            "offline": 10.178119
+          }
+        },
+        {
+          "token": "ping-3-B",
+          "fault_side": "B",
+          "mode": "ping",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "B",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": 1292.429,
+          "first_recovered_from_arm_ms": 1364.791,
+          "offline_episodes": 1,
+          "longest_offline_ms": 72.362,
+          "state_seconds": {
+            "online": 17.856169,
+            "offline": 0.072362
+          }
+        },
+        {
+          "token": "ping-3-B",
+          "fault_side": "B",
+          "mode": "ping",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "B",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 17.928531
+          }
+        },
+        {
+          "token": "ack-1-A",
+          "fault_side": "A",
+          "mode": "ack",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "A",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 17.814847
+          }
+        },
+        {
+          "token": "ack-1-A",
+          "fault_side": "A",
+          "mode": "ack",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "A",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 17.814847
+          }
+        },
+        {
+          "token": "ack-1-A",
+          "fault_side": "A",
+          "mode": "ack",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "B",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 17.814847
+          }
+        },
+        {
+          "token": "ack-1-A",
+          "fault_side": "A",
+          "mode": "ack",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "B",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": 2401.147,
+          "first_recovered_from_arm_ms": 12093.006,
+          "offline_episodes": 1,
+          "longest_offline_ms": 9691.859,
+          "state_seconds": {
+            "online": 8.122988,
+            "offline": 9.691859
+          }
+        },
+        {
+          "token": "ack-1-B",
+          "fault_side": "B",
+          "mode": "ack",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "A",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 17.911583
+          }
+        },
+        {
+          "token": "ack-1-B",
+          "fault_side": "B",
+          "mode": "ack",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "A",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": 2683.096,
+          "first_recovered_from_arm_ms": 11676.597,
+          "offline_episodes": 1,
+          "longest_offline_ms": 8993.501,
+          "state_seconds": {
+            "online": 8.918082,
+            "offline": 8.993501
+          }
+        },
+        {
+          "token": "ack-1-B",
+          "fault_side": "B",
+          "mode": "ack",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "B",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 17.911583
+          }
+        },
+        {
+          "token": "ack-1-B",
+          "fault_side": "B",
+          "mode": "ack",
+          "requested_count": 1,
+          "injected_count": 1,
+          "recovered": true,
+          "observer": "B",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 17.911583
+          }
+        },
+        {
+          "token": "ack-3-A",
+          "fault_side": "A",
+          "mode": "ack",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "A",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": 1729.495,
+          "first_recovered_from_arm_ms": 2119.832,
+          "offline_episodes": 1,
+          "longest_offline_ms": 390.337,
+          "state_seconds": {
+            "online": 17.554162,
+            "offline": 0.390337
+          }
+        },
+        {
+          "token": "ack-3-A",
+          "fault_side": "A",
+          "mode": "ack",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "A",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 17.944499
+          }
+        },
+        {
+          "token": "ack-3-A",
+          "fault_side": "A",
+          "mode": "ack",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "B",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 17.944499
+          }
+        },
+        {
+          "token": "ack-3-A",
+          "fault_side": "A",
+          "mode": "ack",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "B",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": 2600.937,
+          "first_recovered_from_arm_ms": 11721.659,
+          "offline_episodes": 1,
+          "longest_offline_ms": 9120.722,
+          "state_seconds": {
+            "online": 8.823777,
+            "offline": 9.120722
+          }
+        },
+        {
+          "token": "ack-3-B",
+          "fault_side": "B",
+          "mode": "ack",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "A",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 17.907711
+          }
+        },
+        {
+          "token": "ack-3-B",
+          "fault_side": "B",
+          "mode": "ack",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "A",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": 2653.71,
+          "first_recovered_from_arm_ms": 11642.191,
+          "offline_episodes": 1,
+          "longest_offline_ms": 8988.481,
+          "state_seconds": {
+            "online": 8.91923,
+            "offline": 8.988481
+          }
+        },
+        {
+          "token": "ack-3-B",
+          "fault_side": "B",
+          "mode": "ack",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "B",
+          "detector": "local_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 17.907711
+          }
+        },
+        {
+          "token": "ack-3-B",
+          "fault_side": "B",
+          "mode": "ack",
+          "requested_count": 3,
+          "injected_count": 3,
+          "recovered": true,
+          "observer": "B",
+          "detector": "remote_api",
+          "timing_origin": "control armed; actual packet omission occurs on a later SDK ping/ack",
+          "state_before": "online",
+          "first_offline_from_arm_ms": null,
+          "first_recovered_from_arm_ms": null,
+          "offline_episodes": 0,
+          "longest_offline_ms": 0.0,
+          "state_seconds": {
+            "online": 17.907711
+          }
+        }
+      ]
+    }
+  }
+}

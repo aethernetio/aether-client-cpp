@@ -38,8 +38,12 @@
 
 namespace ae {
 namespace ethernet_transport_factory_internal {
+#if AE_SUPPORT_TCP
 static constexpr auto kTcpPacketQueueCapacity = AE_TCP_PACKET_QUEUE_SIZE;
+#endif
+#if AE_SUPPORT_UDP
 static constexpr auto kUdpPacketQueueCapacity = AE_UDP_PACKET_QUEUE_SIZE;
+#endif
 }  // namespace ethernet_transport_factory_internal
 
 std::unique_ptr<ByteIStream> EthernetTransportFactory::Create(

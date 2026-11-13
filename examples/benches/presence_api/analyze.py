@@ -169,6 +169,33 @@ def analyze(root):
                             terminal_censored=sum(r["recovery_required"] and r["terminal_online_5s_ms"] is None for r in rows),
                             **{key: distribution([r[key] for r in rows if r[key] is not None])
                                for key in ("offline_ms", "online_ms", "fresh_query_online_ms", "stable_online_5s_ms", "terminal_online_5s_ms")}))
+    typed_omissions = []
+    for arm in (r for r in controller if r["event"] == "ping_fault_arm"):
+        finish = next((r for r in controller if r["event"] == "ping_fault_end" and
+                       r.get("token") == arm["token"] and r.get("segment") == arm.get("segment")), None)
+        end = finish["mono_us"] if finish else controller[-1]["mono_us"]
+        for side in ("A", "B"):
+            events = files.get((side, arm.get("segment", 1)), [])
+            for detector, remote in (("local_api", False), ("remote_api", True)):
+                timeline = PresenceTimeline(events, remote, freshness_us)
+                spans = timeline.intervals(arm["mono_us"], end)
+                offline = [(a, b) for a, b, state in spans if state == "offline"]
+                occupancy = defaultdict(int)
+                for a, b, state in spans: occupancy[state] += b - a
+                recovery = next((a for a, b, state in spans if state == "online" and
+                                 offline and a >= offline[0][1]), None)
+                typed_omissions.append(dict(token=arm["token"], fault_side=arm["side"],
+                    mode=arm["mode"], requested_count=arm["count"],
+                    injected_count=finish.get("count") if finish else None,
+                    recovered=finish.get("recovered", False) if finish else False,
+                    observer=side, detector=detector,
+                    timing_origin="control armed; actual packet omission occurs on a later SDK ping/ack",
+                    state_before=timeline.at(arm["mono_us"]),
+                    first_offline_from_arm_ms=(offline[0][0] - arm["mono_us"]) / 1000 if offline else None,
+                    first_recovered_from_arm_ms=(recovery - arm["mono_us"]) / 1000 if recovery is not None else None,
+                    offline_episodes=len(offline),
+                    longest_offline_ms=max((b - a for a, b in offline), default=0) / 1000,
+                    state_seconds={state: duration / 1000000 for state, duration in occupancy.items()}))
     baseline = []
     for begin in (r for r in controller if r["event"] == "baseline_start"):
         finish = next((r for r in controller if r["event"] == "baseline_end" and r.get("segment") == begin.get("segment")), None)
@@ -195,10 +222,15 @@ def analyze(root):
                    failure_trials=[r["trial"] for r in controller if r["event"] == "trial_end" and not r["recovered"]],
                    worker_segments=sum(r["event"] == "workers_start" for r in controller),
                    failures=[r for r in controller if r["event"] in ("failed", "startup_failed", "precondition_failed", "memory_limit", "worker_killed")],
-                   baseline=baseline, summary=summary, trials=trials,
+                   baseline=baseline, summary=summary, trials=trials, typed_omissions=typed_omissions,
                    queries=[dict(side=side, segment=segment, **query_diagnostics(rows, 0, 0, max((r["t"] for r in rows), default=0)))
                             for (side, segment), rows in sorted(files.items())])
     (root / "summary.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
+    if typed_omissions:
+        with (root / "typed-omissions.csv").open("w", newline="", encoding="utf-8") as file:
+            writer = csv.DictWriter(file, fieldnames=list(typed_omissions[0]))
+            writer.writeheader()
+            writer.writerows(dict(row, state_seconds=json.dumps(row["state_seconds"])) for row in typed_omissions)
     if trials:
         with (root / "trials.csv").open("w", newline="", encoding="utf-8") as file:
             writer = csv.DictWriter(file, fieldnames=list(trials[0]))

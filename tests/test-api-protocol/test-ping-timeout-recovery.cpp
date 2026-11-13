@@ -173,14 +173,14 @@ struct ChannelPolicy {
   std::map<ServerId, TrackedMockStream*>* streams{nullptr};
 };
 
-class FakeChannel final : public Channel {
-  AE_OBJECT(FakeChannel, Channel, 5)
+class PingTimeoutRecoveryChannel final : public Channel {
+  AE_OBJECT(PingTimeoutRecoveryChannel, Channel, 5)
 
  protected:
-  FakeChannel() = default;
+  PingTimeoutRecoveryChannel() = default;
 
  public:
-  FakeChannel(ObjProp prop, ChannelPolicy policy)
+  PingTimeoutRecoveryChannel(ObjProp prop, ChannelPolicy policy)
       : Channel{prop}, policy_{policy} {
     transport_properties_.max_packet_size = 1024;
     transport_properties_.rec_packet_size = 512;
@@ -315,7 +315,7 @@ std::unique_ptr<Env> MakeEnv(bool start_ping_cloud = true,
     auto server = aether->GetServer(sid).Load();
     ChannelPolicy pol{
         .ctx = &e.ae_ctx, .server_id = sid, .streams = &e.streams};
-    server->channels = {FakeChannel::ptr::Create(CreateWith{*e.domain}, pol)};
+    server->channels = {PingTimeoutRecoveryChannel::ptr::Create(CreateWith{*e.domain}, pol)};
   }
 
   e.factory = std::make_unique<Factory>(e.ae_ctx, e.client, retain_connections);

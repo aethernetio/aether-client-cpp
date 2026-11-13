@@ -28,6 +28,10 @@ namespace ae {
 class NativePoller {
  public:
   virtual ~NativePoller() = default;
+  // Called on the application owner thread before its graph is destroyed.
+  // Idempotently join readiness workers; descriptors remain removable until
+  // their owners are destroyed. No callback may run after this returns.
+  virtual void Stop() = 0;
 };
 
 class IPoller : public Obj {

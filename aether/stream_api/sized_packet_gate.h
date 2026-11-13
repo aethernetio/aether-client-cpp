@@ -28,6 +28,8 @@ class SizedPacketGate {
 
   DataBuffer WriteIn(DataBuffer&& buffer);
   void WriteOut(DataBuffer const& buffer);
+  // Discard a partial frame when the underlying byte-stream session changes.
+  void Reset();
   std::size_t Overhead() const;
   Event<void(DataBuffer const& data)> const& out_data_event();
 

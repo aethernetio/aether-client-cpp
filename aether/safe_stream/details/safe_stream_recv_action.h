@@ -61,6 +61,10 @@ class SafeStreamRecvAction {
 
   AE_CLASS_NO_COPY_MOVE(SafeStreamRecvAction)
 
+  std::optional<std::size_t> receive_session_offset() const {
+    return chunks_ ? std::optional{session_offset} : std::nullopt;
+  }
+
   void PushData(std::uint16_t index, DataMessage data_message) {
     AETHER_TELED_DEBUG(
         "Data received index: {}, delta: {}, repeat {}, reset {}, size "

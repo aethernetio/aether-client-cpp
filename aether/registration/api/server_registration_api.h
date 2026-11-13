@@ -75,9 +75,6 @@ class ServerRegistrationApi : public DeclareApi<ServerRegistrationApi> {
   API_LIST(METHOD(4, RequestProofOfWorkData), METHOD(5, ResolveServers),
            METHOD(6, SetReturnKey), METHOD(7, RegistrationDirect))
 
- private:
-  IEncryptProvider* encrypt_provider_;
-  GlobalRegServerApi global_reg_server_api_;
 };
 #endif  // AE_SUPPORT_REGISTRATION
 }  // namespace ae

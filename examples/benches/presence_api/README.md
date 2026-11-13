@@ -168,3 +168,16 @@ replace the initial five-second RTT sample in the default 100-sample window.
 Set `AE_PRESENCE_API_TRACE=1` in the controller environment for metadata-only
 request IDs, write status, wire method/length, and incoming API command traces.
 It does not print keys or message payloads; normal SDK builds do not enable it.
+
+UDP and precise Ping-omission validation:
+- Build a separate probe with USER_CONFIG=examples/benches/presence_api/user_config_udp.h.
+  It disables TCP. Run the controller with --transport udp. The private relay drops
+  actual datagrams while cut, including incoming responses, without changing host
+  firewall, routes or other applications. A six-byte loopback control datagram
+  binds each SDK socket to a dedicated remote endpoint; cloud payload is unchanged.
+- Add --ping-faults --ping-counts 1 3 to omit individual typed Ping sends and ACK
+  observations while all other traffic remains alive. This is application-level
+  omission, distinct from TCP silence and UDP datagram loss. Each omission is
+  confirmed in stderr; an unobserved injection invalidates the campaign.
+- Fault hooks are compiled only with the existing AE_BENCH_TCP_PROXY benchmark
+  flag, and remain inactive without process-specific environment variables.

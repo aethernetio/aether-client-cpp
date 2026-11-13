@@ -126,14 +126,14 @@ struct ChannelPolicy {
   std::map<ServerId, TrackedMockStream*>* streams{nullptr};
 };
 
-class FakeChannel final : public Channel {
-  AE_OBJECT(FakeChannel, Channel, 5)
+class ServerPingLifecycleChannel final : public Channel {
+  AE_OBJECT(ServerPingLifecycleChannel, Channel, 5)
 
  protected:
-  FakeChannel() = default;
+  ServerPingLifecycleChannel() = default;
 
  public:
-  FakeChannel(ObjProp prop, ChannelPolicy policy)
+  ServerPingLifecycleChannel(ObjProp prop, ChannelPolicy policy)
       : Channel{prop}, policy_{policy} {
     transport_properties_.max_packet_size = 1024;
     transport_properties_.rec_packet_size = 512;
@@ -253,7 +253,7 @@ std::unique_ptr<Env> MakeEnv(
   for (auto sid : {kServerA, kServerB}) {
     auto server = aether->GetServer(sid).Load();
     ChannelPolicy pol{.ctx = &e.ae_ctx, .server_id = sid, .streams = &e.streams};
-    server->channels = {FakeChannel::ptr::Create(CreateWith{*e.domain}, pol)};
+    server->channels = {ServerPingLifecycleChannel::ptr::Create(CreateWith{*e.domain}, pol)};
   }
 
   e.factory = std::make_unique<Factory>(e.ae_ctx, e.client);
