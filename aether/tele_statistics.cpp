@@ -27,7 +27,7 @@
 
 namespace ae {
 namespace tele_statistics_internal {
-bool ValidBlocks(std::span<std::uint8_t const> bytes) {
+bool ValidRecords(std::span<std::uint8_t const> bytes) {
   auto const decoded = tele::raw::Decode(bytes);
   return decoded.status == tele::raw::DecodeStatus::kOk &&
          decoded.valid_bytes == bytes.size();
@@ -48,7 +48,7 @@ bool ValidTeleStatisticsArchive(TeleStatisticsArchive const& archive) {
   for (auto const& [name, space] : archive.spaces) {
     if (name.empty() || !tele::raw::ValidUtf8(name) ||
         !tele::raw::ValidUtf8(space.catalog) ||
-        !tele_statistics_internal::ValidBlocks(space.blocks)) {
+        !tele_statistics_internal::ValidRecords(space.blocks)) {
       return false;
     }
   }
@@ -68,8 +68,7 @@ TeleStatisticsBackend::TeleStatisticsBackend(bool console, std::size_t capacity,
 
 bool TeleStatisticsBackend::Append(std::string_view space,
                                    std::span<std::uint8_t const> bytes) {
-  if (space.empty() || !tele::raw::ValidUtf8(space) ||
-      !tele_statistics_internal::ValidBlocks(bytes)) {
+  if (space.empty() || !tele::raw::ValidUtf8(space)) {
     return false;
   }
   std::shared_ptr<TeleStatisticsBackend> forward;
@@ -81,6 +80,9 @@ bool TeleStatisticsBackend::Append(std::string_view space,
       if (size > capacity_ || bytes.size() > capacity_ - size) {
         return false;
       }
+      tele::raw::DecodeState candidate{writer_times_[std::string{space}]};
+      if (tele::raw::Decode(bytes, candidate).status != tele::raw::DecodeStatus::kOk)
+        return false;
       auto [entry, inserted] = archive_.spaces.try_emplace(std::string{space});
 #if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)
       try {
@@ -93,6 +95,7 @@ bool TeleStatisticsBackend::Append(std::string_view space,
         }
         entry->second.blocks.insert(entry->second.blocks.end(), bytes.begin(),
                                     bytes.end());
+        writer_times_[std::string{space}] = std::move(candidate.time);
 #if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)
       } catch (...) {
         if (inserted) {
@@ -190,6 +193,12 @@ bool TeleStatisticsBackend::RestoreArchive(TeleStatisticsArchive archive) {
     return false;
   }
   archive_.spaces.swap(archive.spaces);
+  writer_times_.clear();
+  for (auto const& [name, value] : archive_.spaces) {
+    tele::raw::DecodeState state;
+    tele::raw::Decode(value.blocks, state);
+    writer_times_[name] = std::move(state.time);
+  }
   return true;
 }
 
@@ -227,6 +236,12 @@ bool TeleStatisticsBackend::MergeEarly(
     target.catalog = source.catalog;
   }
   archive_.spaces.swap(merged.spaces);
+  writer_times_.clear();
+  for (auto const& [name, value] : archive_.spaces) {
+    tele::raw::DecodeState state;
+    tele::raw::Decode(value.blocks, state);
+    writer_times_[name] = std::move(state.time);
+  }
   early->archive_.spaces.clear();
   early->forward_ = std::move(self);
   return true;

@@ -50,13 +50,40 @@ Restart tests must use filtration (`AE_FILTRATION=ON`) or production loading.
 Distillation with filtration disabled intentionally clears persisted state and
 creates a fresh domain on every application construction.
 
+## Flat records and time anchors
+
+Raw log bytes form one continuous record stream. There are no block envelopes,
+block lengths or wire versions. Tag index 0 contains a packed writer ID followed
+by an absolute little-endian uint64 microsecond timestamp. Ordinary tags are
+positive and carry control/fields, writer, sequence and selected field values.
+
+Each writer starts with an absolute-time command when it first records time.
+Later timestamps are exponential deltas from that writer's previous decoded
+value. RAM drain does not reset this base and inserts no marker. Runtime mask
+changes (including pause/resume), clock regression and out-of-range gaps cause
+a new anchor. After process restart a fresh writer inserts a new absolute
+anchor, so no previous log row needs to be loaded for timestamp continuation.
+Metric totals are loaded independently before new deltas are recorded.
+
+The backend maintains transient per-namespace, per-writer decoder time state
+across callback spans. Restore and bootstrap merge rebuild it from the stored
+flat bytes. Only the bytes, catalog identity and environment are serialized as
+part of the TeleStatistics object, not live clocks, callbacks or mutexes.
+
+The native file adapter and client assume normal complete writes. This design
+does not implement interrupted-tail analysis or repair. Drain to the client's
+backend acknowledges RAM acceptance; quiesce workers, drain and save the domain
+on its owner thread to make a checkpoint persistent. A RAM-only domain cannot
+survive process termination. Distillation without filtration intentionally
+creates a fresh domain; use filtration/production loading for restart tests.
+
 ## Drain and durable storage
 
-`IBackend::Append` accepts a complete immutable block or rejects all its bytes.
-`TeleStatisticsBackend` validates and appends that block atomically under its
+`IBackend::Append` accepts a span of complete records or rejects all its bytes.
+`TeleStatisticsBackend` validates and appends that span atomically under its
 mutex. Rejection leaves the stream's exact pending bytes available for retry.
 Metric batches contain newly accepted deltas, independently of the restored
-baseline. A snapshot contains only complete blocks accepted by the backend.
+baseline. A snapshot contains only records accepted by the backend.
 
 For this backend, successful drain means **accepted in RAM**. It does not mean
 written or synced to disk. `DrainAetherTelemetry()` flushes logs and metric
