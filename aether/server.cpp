@@ -16,10 +16,13 @@
 
 #include "aether/server.h"
 
+#include <algorithm>
+#include <cstdlib>
 #include <utility>
 
 #include "aether-miscpp/types/method_ptr.h"
 
+#include "aether/access_points/filter_endpoints.h"
 #include "aether/ae_context.h"
 
 namespace ae {
@@ -36,6 +39,29 @@ Server::Server(ObjProp prop, ServerId server_id,
 
 void Server::Loaded() {
   channels_changed_.emplace(AeContext{*this});
+  // Channels cache platform/configuration-specific factories. Rebuild only
+  // when that cached selection is incompatible, preserving valid statistics.
+  bool rebuild = channels.empty();
+  for (auto const& channel : channels) {
+    auto loaded = channel.Load();
+    if (!loaded) {
+      // An incompatible transport is a cache-selection change. A failed
+      // required object load is not permission to silently repair its graph.
+      assert(false && "Stored channel failed to load");
+      std::abort();
+    }
+    auto const endpoint = loaded->endpoint();
+    if (endpoint &&
+        !FilterProtocol<Protocol::kTcp, Protocol::kUdp, Protocol::kWebSocket,
+                        Protocol::kWebSocketSecure>(*endpoint)) {
+      rebuild = true;
+      break;
+    }
+  }
+  if (rebuild) {
+    Register();
+    return;
+  }
   if (!subscribed_) {
     subscribed_ = true;
     UpdateSubscription();
