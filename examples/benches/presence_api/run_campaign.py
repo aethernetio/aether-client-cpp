@@ -314,11 +314,21 @@ async def campaign(args):
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
     identity_source = getattr(args, "identity_source", None)
+    identity_name = None
     if identity_source:
         identity_source = identity_source.resolve()
+        identity_name = identity_source.name
+        previous_config = identity_source / "config.json"
+        if previous_config.is_file():
+            previous = json.loads(previous_config.read_text(encoding="utf-8"))
+            # A reused seed retains its original SelectClient name, even when
+            # the containing campaign has a different name or transport.
+            identity_name = previous.get("identity_name") or (
+                Path(str(previous["identity_source"]).replace("\\", "/")).name
+                if previous.get("identity_source") else identity_source.name)
         for side in ("A", "B"):
             shutil.copytree(identity_source / side / "state", out / side / "state")
-    config = dict(vars(args), executable_sha256=hashlib.sha256(args.exe.read_bytes()).hexdigest(),
+    config = dict(vars(args), identity_name=identity_name, executable_sha256=hashlib.sha256(args.exe.read_bytes()).hexdigest(),
                   runner_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
                   local_presence_source="Client::IsLocallyOnline",
                   remote_presence_source="Client::QueryPeerPresence",
@@ -330,7 +340,7 @@ async def campaign(args):
     proxies = {}
     workers = Workers(args.exe.resolve(), out, proxies, journal, args.max_worker_mb,
                       require_remote=not getattr(args, "local_only", False),
-                      identity_name=identity_source.name if identity_source else None)
+                      identity_name=identity_name)
     rng = random.Random(args.seed)
     try:
         for side in ("A", "B"):

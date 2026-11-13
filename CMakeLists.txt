@@ -326,6 +326,12 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
                 WIN32_LEAN_AND_MEAN
     )
   target_link_libraries(${TARGET_NAME} PRIVATE ws2_32)
+  if(MINGW AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    # Debug instantiations can exceed the signed COFF section-index range.
+    # Consumers instantiate the same headers, so they need bigobj as well.
+    target_compile_options(${TARGET_NAME} PUBLIC
+      "$<$<COMPILE_LANGUAGE:CXX>:-Wa,-mbig-obj>")
+  endif()
 endif()
 
 if (GIT_VERSION)
