@@ -85,6 +85,7 @@ class TeleStatisticsBackend final
   // A writable object has a unique address even with constant/data folding.
   // This process-local identity is runtime state and is never serialized.
   inline static unsigned char type_token_{};
+  std::map<std::string, std::map<std::uint32_t, std::uint64_t>> writer_times_;
   mutable std::mutex mutex_;
   TeleStatisticsArchive archive_;
   std::shared_ptr<TeleStatisticsBackend> forward_;

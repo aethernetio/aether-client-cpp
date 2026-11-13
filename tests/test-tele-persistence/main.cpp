@@ -256,6 +256,61 @@ void test_ObjDomainSaveLoadContinuesWithoutStop() {
   }
 }
 
+void test_ObjectRestartAndDrainStartIndependentTimeAnchors() {
+  RamDomainStorage storage;
+  constexpr std::array<std::uint64_t, 4> bases{
+      1000000, 2000000, 100, 999999999999};
+  using LogSpace = tele::raw::Space<Identity>;
+  for (std::size_t boot = 0; boot < bases.size(); ++boot) {
+    Domain domain{storage};
+    auto object = boot == 0
+        ? TeleStatistics::ptr::Create(CreateWith{domain}.with_id(124))
+        : TeleStatistics::ptr::Declare(CreateWith{domain}.with_id(124));
+    TEST_ASSERT_TRUE(bool(object.Load()));
+    auto backend = object->backend();
+    LogSpace space;
+    space.SetRuntime({true, false, true, true, tele::raw::kTime});
+    Destination destination{backend};
+    tele::raw::Stream<LogSpace, 128> stream(space, 3, Destination::Save,
+                                          &destination);
+    auto totals = Restore(*backend, "aether", 3);
+    TEST_ASSERT_TRUE(stream.RestoreMetrics(totals));
+    TEST_ASSERT_TRUE(stream.MetricFor(7).count == 3 * boot);
+    TEST_ASSERT_TRUE(stream.MetricFor(7).sum == 15 * boot);
+    tele::raw::Tag<LogSpace> const tag{
+        7, 1, 1, "restart-time", "restart-time", __FILE__, __LINE__};
+    for (std::uint64_t event = 0; event < 3; ++event) {
+      TEST_ASSERT_TRUE(stream.Emit(tag, tele::raw::Kind::kLog,
+          space.Runtime(), {}, 0, bases[boot] + event));
+      stream.Count(7);
+      stream.AddDuration(7, 5);
+      if (event == 1) {
+        destination.fail = true;
+        TEST_ASSERT_FALSE(stream.Drain());
+        TEST_ASSERT_TRUE(stream.Drain());
+        TEST_ASSERT_TRUE(destination.exact);
+      }
+    }
+    TEST_ASSERT_TRUE(stream.DrainMetrics());
+    auto bytes = backend->Snapshot("aether");
+    auto decoded = tele::raw::Decode(bytes);
+    TEST_ASSERT_TRUE(decoded.status == tele::raw::DecodeStatus::kOk);
+    std::size_t logs = 0;
+    for (auto const& record : decoded.records) {
+      if (record.kind != tele::raw::Kind::kLog) continue;
+      TEST_ASSERT_TRUE(record.time.has_value());
+      TEST_ASSERT_TRUE(*record.time == bases[logs / 3] + logs % 3);
+      ++logs;
+    }
+    TEST_ASSERT_TRUE(logs == 3 * (boot + 1));
+    auto restored = Restore(*backend, "aether", 3);
+    TEST_ASSERT_TRUE(restored.size() == 1);
+    AssertMetric({3 * (boot + 1), 3 * (boot + 1), 15 * (boot + 1), 5, 5},
+                 restored.front().metric);
+    object.Save();  // No stop event or live-stream state is persisted.
+  }
+}
+
 void test_NamespacesAndWritersRemainIndependent() {
   auto backend = std::make_shared<TeleStatisticsBackend>(false);
   Space space;
@@ -586,6 +641,14 @@ void test_AetherAppLifecycleBindsBothNamespacesAndContinuesWithoutReplay() {
       }
       TEST_ASSERT_TRUE(started.has_value());
       AssertInitialCheckpoint(*live_storage, boot, *started);
+      auto const live_metric = AetherTeleSink::Instance().MetricFor(*started);
+#  if AE_FILTRATION
+      TEST_ASSERT_TRUE(live_metric.count == boot + 1);
+      TEST_ASSERT_TRUE(live_metric.samples == boot + 1);
+#  else
+      TEST_ASSERT_TRUE(live_metric.count == 1);
+      TEST_ASSERT_TRUE(live_metric.samples == 1);
+#  endif
       TEST_ASSERT_TRUE(backend == AetherTeleSink::Instance().GetBackend());
 #  if AE_OBJECTS_RAW_TELE
       TEST_ASSERT_TRUE(backend ==
@@ -741,6 +804,8 @@ int main() {
       ae::test_tele_persistence::test_ObjDomainSaveLoadContinuesWithoutStop);
   RUN_TEST(
       ae::test_tele_persistence::test_NamespacesAndWritersRemainIndependent);
+  RUN_TEST(ae::test_tele_persistence::
+               test_ObjectRestartAndDrainStartIndependentTimeAnchors);
   RUN_TEST(ae::test_tele_persistence::
                test_ArchiveLargerThanDefaultContainerGuardLoadsInChunks);
   RUN_TEST(ae::test_tele_persistence::
