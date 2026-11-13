@@ -17,6 +17,8 @@
 #ifndef AETHER_CLIENT_MESSAGES_P2P_SAFE_MESSAGE_STREAM_H_
 #define AETHER_CLIENT_MESSAGES_P2P_SAFE_MESSAGE_STREAM_H_
 
+#include <optional>
+
 #include "aether/ae_context.h"
 #include "aether/common.h"
 #include "aether/config.h"
@@ -46,13 +48,19 @@ class P2pSafeStream final : public ByteIStream {
   StreamInfo stream_info() const override;
   StreamUpdateEvent const& stream_update_event() override;
   OutDataEvent const& out_data_event() override;
+  // Emitted before data from a new receive session reaches packet consumers.
+  Event<void()> const& receive_reset_event();
   void Restream() override;
 
  private:
+  void OnSafeData(DataBuffer const& data);
+
   SizedPacketGate sized_packet_gate_;
   std::unique_ptr<SafeStreamImpl> safe_stream_;
   std::shared_ptr<ByteIStream> p2p_stream_;
   OutDataEvent out_data_event_;
+  Event<void()> receive_reset_event_;
+  std::optional<std::size_t> receive_session_offset_;
   std::array<Subscription, 2> out_data_sub_;
 };
 

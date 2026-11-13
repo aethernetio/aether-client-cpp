@@ -25,6 +25,7 @@ list(APPEND test_srcs
   test_safe_stream_send_recv.cpp
   test_safe_stream.cpp
   test_safe_stream_reliability.cpp
+  test_p2p_restart_framing.cpp
 )
 
 if(NOT CM_PLATFORM)

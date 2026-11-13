@@ -145,6 +145,10 @@ class SafeStream final : public ByteStream,  // NOLINT
 
   StreamInfo stream_info() const override { return stream_info_; }
 
+  std::optional<std::size_t> receive_session_offset() const {
+    return receiver_.receive_session_offset();
+  }
+
   void LinkOut(OutStream& out) override {
     out_ = &out;
     update_sub_ = out_->stream_update_event().Subscribe(

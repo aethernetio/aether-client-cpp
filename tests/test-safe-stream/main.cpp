@@ -33,6 +33,7 @@ extern int test_safe_stream_recv();
 extern int test_safe_stream_send_recv();
 extern int test_safe_stream();
 extern int test_safe_stream_reliability();
+extern int test_p2p_restart_framing();
 
 int main() {
   int res = 0;
@@ -44,5 +45,6 @@ int main() {
   res += test_safe_stream_send_recv();
   res += test_safe_stream();
   res += test_safe_stream_reliability();
+  res += test_p2p_restart_framing();
   return res;
 }
