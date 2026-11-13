@@ -41,3 +41,66 @@ Online 1398.942 ms. These are two observations, not production percentiles.
 Full CTest: 57/57 pass. A/B and cloud smoke tests each pass fresh and saved
 state, with seven seconds between fresh/saved runs. Evidence is produced by
 the native API benchmark with a private per-process TCP proxy; no echo channel.
+
+The first 8-cut matrix after the wire fix (before the separate Ping lifecycle
+correction) completed with two failed stable recoveries: B/10s and B/30s.
+All Offline transitions were detected. Maximum successful terminal-stable peer
+recovery was 22355.733 ms, only 6/8 recovered stably. Initial Online alone hid
+the failure: A/30s was Online after 384 ms, then Offline again 11-21 seconds
+after restore because one server's Ping announcement stopped advancing.
+SID20,21,24 each appeared in a stalled case; timing DTOs continued to arrive.
+The 60-second healthy baseline had 120 peer Online results, no Unknown or false
+Offline. These failures therefore concern re-announcement after recovery,
+not the now-correct method-35/41 transport.
+
+The separate lifecycle defect: late-Ping handling queued cloud reconciliation
+before queuing guarded Ping retirement. Reconciliation may replace the client
+connection, so the retirement guard then rejects the old binding and periodic
+Ping never resumes. The fix performs recovery/reconciliation scheduling inside
+the guarded finish callback, before clearing Ping and scheduling the next run.
+Already-recovered nonquarantined connections also retire the late Ping normally.
+No speculative receive-window refresh or extra Ping overlap is included.
+
+A subsequent trace reproduced an independent normal-Ok scheduling failure,
+even before injecting a fault. One server completed 62 Pings successfully,
+then its final Ok cleanup had neither a periodic-task handle nor a deferred
+start flag. Other servers continued; the peer's published deadline expired.
+The old cleanup only rearmed when the deferred flag was set. Moving all arming
+to terminal cleanup was tried and did not solve the underlying disappearance.
+The final code retains the original periodic cadence, resets the executing
+handle on Start, and ensures a start remains after normal retirement.
+
+The underlying scheduler handoff race was reproduced deterministically:
+an IO producer publishes a raw task pointer, the main thread executes/frees it
+and reuses its slot for a Ping timer, then the delayed producer attaches its
+subscription to the stale address. Cancellation then cancels the unrelated
+timer. The broken reproducer observed periodic_calls=0 with overflow=0.
+Owned posting attaches/replaces the subscription under the scheduler lock,
+before a consumer can reclaim the task. Synchronized cancellation and atomic
+active state cover cancellation versus execution. TCP/UDP state and send-result
+posts and packet-queue coalescing use this API. The fixed reproducer observed
+periodic_calls=1; concurrent owned-post and independent-timer tests also pass.
+
+No unconditional second Ping is sent over an outstanding unnumbered Ack.
+Lost replies still follow the bounded soft-quarantine/connection-recreation
+path, covered by the missing-Pong expiry regression. A Ping sequence in the
+server protocol remains future work; no server change is included here.
+
+Final interim-client validation (code commit 7d02e7ea, on main 3ac320a0):
+TCP-only owned-post-matrix, 120-second baseline, 1-second Ping/window/query,
+1-second presence tolerance. A and B each blacked out for 3, 10, and 60 seconds.
+All 6 outages detected locally and remotely, all 6 recovered stably, no censored
+recoveries, no worker restarts. Baseline remained entirely Online on both APIs,
+with zero Unknown and false Offline. Recovery was required to remain healthy
+for 5 seconds; terminal-stable results equal the first Online results here.
+
+Observed maximum / median (milliseconds, six trials each):
+  local Offline: 1893.511 / 1809.673
+  local Online:   150.663 / 114.119
+  peer Offline:  2453.008 / 2025.167
+  peer Online:   1159.913 / 620.854
+
+This is an application-scoped TCP-silence test through private worker proxies,
+not a global firewall or physical-NIC change. The network had other traffic;
+the results are observations from this run, not guaranteed latency bounds.
+Source and raw evidence are retained with the local benchmark artifacts.
