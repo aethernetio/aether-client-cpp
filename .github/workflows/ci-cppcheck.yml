@@ -58,6 +58,11 @@ jobs:
       - name: Generate telemetry catalog
         run: cmake --build build --target aether-tele-catalog
 
+      - name: Prepare cppcheck include paths
+        run: >
+          python3 tools/prepare_cppcheck_project.py
+          build/compile_commands.json build/compile_commands.cppcheck.json
+
       - name: cache cppcheck_build_dir
         id: cache-cppcheck_build_dir
         uses: actions/cache@v4
@@ -74,7 +79,7 @@ jobs:
       - name: cppcheck
         run: >
           cd build &&
-          ../_cppcheck/cppcheck-2.21.0/cppcheck --project=compile_commands.json
+          ../_cppcheck/cppcheck-2.21.0/cppcheck --project=compile_commands.cppcheck.json
           -D__GNUC__=4
           --safety
           --error-exitcode=-1
