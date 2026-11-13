@@ -23,6 +23,7 @@
 #if AE_ENABLE_PING
 
 #  include "aether/channels/channel.h"
+#  include "aether/diagnostics/presence_api_trace.h"
 #  include "aether/executors/executors.h"
 
 #  include "aether/cloud_connections/cloud_connections_tele.h"
@@ -62,6 +63,8 @@ PingCloudServers::ServerPing::ServerPing(
 PingCloudServers::ServerPing::~ServerPing() { Stop(); }
 
 void PingCloudServers::ServerPing::Stop() {
+  PresenceApiTrace("ping_stop", cloud_sc_->server_id(), priority_,
+                   cloud_sc_->priority());
   stop_ = true;
   ++ping_epoch_;
   ping_wait_connection_ = nullptr;
@@ -148,6 +151,9 @@ auto PingCloudServers::ServerPing::MakePing() {
 
       // run ping request and open rx window
       auto const current_time = Now();
+      PresenceApiTrace("ping_announce", cloud_sc_->server_id(),
+                       timing_conf_.interval.count(),
+                       timing_conf_.rx_window.count());
       ping_->Start(current_time);
       OpenRxWindow(current_time);
       next_ping_time_ = current_time + timing_conf_.interval;
@@ -161,14 +167,20 @@ auto PingCloudServers::ServerPing::MakePing() {
 }
 
 void PingCloudServers::ServerPing::Start() {
+  start_sub_.Reset();
+  PresenceApiTrace("ping_start", cloud_sc_->server_id(), stop_,
+                   ping_.has_value());
   if (stop_) {
     return;
   }
   if (ping_ && (ping_->IsPending() || ping_->IsAwaitingLateResponse())) {
+    PresenceApiTrace("ping_defer_start", cloud_sc_->server_id());
     deferred_start_after_ping_ = true;
     return;
   }
   if (!IsCurrentRxTarget()) {
+    PresenceApiTrace("ping_stale_target", cloud_sc_->server_id(), priority_,
+                     cloud_sc_->priority());
     Stop();
     return;
   }
@@ -203,13 +215,11 @@ void PingCloudServers::ServerPing::Start() {
               }),
       [this]<typename R>(std::optional<R>&& res) noexcept {
         if (res && res->IsOk()) {
-          // repeat start on next_ping_time_
           start_sub_ = ae_context_.scheduler().DelayedTask(
-              [&]() noexcept { Start(); },  // ~['_']~
-              next_ping_time_);
+              [this]() noexcept { Start(); }, next_ping_time_);
         } else if (res && res->IsErr()) {
           AETHER_TELED_ERROR("Ping start error {}", std::move(res)->error());
-        } else {
+        } else if (!res) {
           AETHER_TELED_DEBUG("Server ping stopped");
         }
       });
@@ -237,8 +247,24 @@ void PingCloudServers::ServerPing::ScheduleNextPeriodicStart() {
   if (stop_) {
     return;
   }
-  start_sub_ = ae_context_.scheduler().DelayedTask([&]() noexcept { Start(); },
-                                                   next_ping_time_);
+  start_sub_ = ae_context_.scheduler().DelayedTask(
+      [&]() noexcept {
+        PresenceApiTrace("ping_timer_fire", cloud_sc_->server_id());
+        Start();
+      },
+      next_ping_time_);
+  PresenceApiTrace("ping_next_alloc", cloud_sc_->server_id(),
+                   static_cast<bool>(start_sub_),
+                   ae_context_.scheduler().overflow_counter());
+  PresenceApiTrace("ping_next_owner", cloud_sc_->server_id(),
+                   reinterpret_cast<std::uintptr_t>(&start_sub_));
+  PresenceApiTrace("ping_next_due", cloud_sc_->server_id(),
+                   std::chrono::duration_cast<std::chrono::milliseconds>(
+                       next_ping_time_.time_since_epoch())
+                       .count(),
+                   std::chrono::duration_cast<std::chrono::milliseconds>(
+                       Now().time_since_epoch())
+                       .count());
 }
 
 bool PingCloudServers::ServerPing::PingWaitBindingMatches(
@@ -267,8 +293,8 @@ void PingCloudServers::ServerPing::HandleLatePingOnScheduler(
       cloud_server_connections_ == nullptr) {
     return;
   }
-  if (cloud_sc_->quarantine_reason() !=
-      CloudQuarantineReason::kPingTimeoutWait) {
+  if (cloud_sc_->quarantine() && cloud_sc_->quarantine_reason() !=
+                                     CloudQuarantineReason::kPingTimeoutWait) {
     return;
   }
   auto* cc = cloud_sc_->client_connection();
@@ -277,18 +303,25 @@ void PingCloudServers::ServerPing::HandleLatePingOnScheduler(
     return;
   }
   c->channel_statistics().AddResponseTime(late.duration);
-  if (cloud_server_connections_->RecoverFromPingTimeout(*cloud_sc_)) {
-    SchedulePingFinish(epoch, [this]() {
-      ping_.reset();
-      ping_wait_connection_ = nullptr;
-      ping_wait_channel_ = nullptr;
-      ScheduleNextPeriodicStart();
-    });
-  }
+  // Another owner may already have released the soft quarantine. The Ping
+  // nevertheless finished and must retire before periodic starts can resume.
+  SchedulePingFinish(epoch, [this]() {
+    // Recovery queues connection reconciliation. Keep it inside this callback
+    // so re-selection cannot replace the bound connection before Ping cleanup.
+    if (cloud_sc_->quarantine() &&
+        !cloud_server_connections_->RecoverFromPingTimeout(*cloud_sc_)) {
+      return;
+    }
+    ping_.reset();
+    ping_wait_connection_ = nullptr;
+    ping_wait_channel_ = nullptr;
+    ScheduleNextPeriodicStart();
+  });
 }
 
 void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
   std::uint32_t const epoch = ping_epoch_;
+  PresenceApiTrace("ping_result", cloud_sc_->server_id(), res.index());
 
   if (auto const* err = std::get_if<Error<int>>(&res)) {
     if (err->error == 2) {
@@ -321,6 +354,9 @@ void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
   if (auto const* ok = std::get_if<Ok<Duration>>(&res)) {
     Duration const duration = ok->value;
     SchedulePingFinish(epoch, [this, duration]() {
+      PresenceApiTrace("ping_finish_ok", cloud_sc_->server_id(),
+                       deferred_start_after_ping_,
+                       static_cast<bool>(start_sub_));
       auto* cc = cloud_sc_->client_connection();
       if (cc != nullptr) {
         auto c = cc->server_connection().current_channel();
@@ -331,7 +367,9 @@ void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
       ping_.reset();
       ping_wait_connection_ = nullptr;
       ping_wait_channel_ = nullptr;
-      if (std::exchange(deferred_start_after_ping_, false)) {
+      // Keep the periodic cadence; restore its task if it was consumed while
+      // awaiting the Ack or if no scheduled start remains after retirement.
+      if (std::exchange(deferred_start_after_ping_, false) || !start_sub_) {
         ScheduleNextPeriodicStart();
       }
     });
