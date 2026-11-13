@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path
 import random
+import shutil
 import socket
 import struct
 import subprocess
@@ -203,10 +204,12 @@ class TraceReader:
 
 
 class Workers:
-    def __init__(self, exe, out, proxies, journal, max_worker_mb=256, require_remote=True):
+    def __init__(self, exe, out, proxies, journal, max_worker_mb=256, require_remote=True,
+                 identity_name=None):
         self.exe, self.out, self.proxies, self.journal = exe, out, proxies, journal
         self.max_bytes = int(max_worker_mb * 1024 * 1024)
         self.require_remote = require_remote
+        self.identity_name = identity_name or out.name
         self.processes, self.handles = {}, []
         self.segment = 0
 
@@ -224,7 +227,7 @@ class Workers:
             self.handles += [stdout, stderr]
             peer = self.out / ("B" if side == "A" else "A") / "uid.txt"
             command = [str(self.exe), "--side", side,
-                       "--name", f"presence_api_{self.out.name}_{side}",
+                       "--name", f"presence_api_{self.identity_name}_{side}",
                        "--uid-file", str(folder / "uid.txt"),
                        "--peer-file", str(peer), "--stop-file", str(stop),
                        "--trace", str(trace), "--seconds", "43200"]
@@ -310,6 +313,11 @@ class Workers:
 async def campaign(args):
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
+    identity_source = getattr(args, "identity_source", None)
+    if identity_source:
+        identity_source = identity_source.resolve()
+        for side in ("A", "B"):
+            shutil.copytree(identity_source / side / "state", out / side / "state")
     config = dict(vars(args), executable_sha256=hashlib.sha256(args.exe.read_bytes()).hexdigest(),
                   runner_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
                   local_presence_source="Client::IsLocallyOnline",
@@ -321,7 +329,8 @@ async def campaign(args):
     journal = Journal(out / "controller.jsonl")
     proxies = {}
     workers = Workers(args.exe.resolve(), out, proxies, journal, args.max_worker_mb,
-                      require_remote=not getattr(args, "local_only", False))
+                      require_remote=not getattr(args, "local_only", False),
+                      identity_name=identity_source.name if identity_source else None)
     rng = random.Random(args.seed)
     try:
         for side in ("A", "B"):
@@ -406,6 +415,8 @@ def main():
     parser = argparse.ArgumentParser(description="Benchmark real SDK presence APIs; default is a two-cut pilot.")
     parser.add_argument("--exe", required=True, type=Path)
     parser.add_argument("--transport", choices=("tcp", "udp"), default="tcp")
+    parser.add_argument("--identity-source", type=Path,
+                        help="Reuse only a previous campaign's private SDK state and identity names")
     parser.add_argument("--ping-faults", action="store_true")
     parser.add_argument("--ping-counts", type=int, nargs="+", default=[1, 3])
     parser.add_argument("--out", required=True, type=Path)

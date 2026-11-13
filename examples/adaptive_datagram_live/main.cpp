@@ -61,10 +61,10 @@ std::uint64_t Percentile(std::vector<std::uint64_t> values, unsigned p) {
   return values[index];
 }
 
-void Pump(AetherApp& app) {
+void Pump(AetherApp& app, bool wait = true) {
   auto const wake = app.Update(Now());
   auto const now = Now();
-  if (wake > now) {
+  if (wait && wake > now) {
     app.WaitUntil(std::min(wake, now + std::chrono::milliseconds{1}));
   }
 }
@@ -251,7 +251,10 @@ int Run(char const* output, unsigned seconds,
         measured_offered += kPayload;
       }
     }
-    Pump(*app);
+    // Continuous offered load must not be capped by a host timer's sleep
+    // granularity. The SDK pacer still owns transmission and the application
+    // queue stays bounded to one datagram. Registration and drain can sleep.
+    Pump(*app, now >= measure_end);
     auto const elapsed =
         std::chrono::duration_cast<std::chrono::seconds>(Steady::now() - start)
             .count();
