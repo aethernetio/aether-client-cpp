@@ -77,7 +77,7 @@ class SendAction final : public PacketSendAction {
 
   void Stop() noexcept override {
     is_done_ = true;
-    set_status_.Reset();
+    ae_context_.scheduler().Cancel(set_status_);
     WriteAction::SetStatus(WriteAction::Status::kStop);
   }
 
@@ -87,8 +87,8 @@ class SendAction final : public PacketSendAction {
  protected:
   void SetStatus(WriteAction::Status status) noexcept override {
     is_done_ = true;
-    set_status_ = ae_context_.scheduler().Task(
-        [&, status]() { WriteAction::SetStatus(status); });
+    ae_context_.scheduler().Task(
+        set_status_, [&, status]() { WriteAction::SetStatus(status); });
   }
 
  private:
@@ -143,7 +143,8 @@ class UdpTransport final : public upd_internal::UdpBase {
         socket_{poller},
         send_queue_manager_{ae_context} {
     // Make connection
-    AETHER_TELE_INFO(kUdpTransportConnect, "Udp connect to endpoint {}", endpoint_);
+    AETHER_TELE_INFO(kUdpTransportConnect, "Udp connect to endpoint {}",
+                     endpoint_);
 
     socket_.RecvData(MethodPtr<&UdpTransport::OnRecvData>{this})
         .ReadyToWrite(MethodPtr<&UdpTransport::OnReadyToWrite>{this})
@@ -151,7 +152,8 @@ class UdpTransport final : public upd_internal::UdpBase {
         .Connect(endpoint_, MethodPtr<&UdpTransport::OnConnected>{this});
   }
 
-  UdpTransport(AeContext const& ae_context, AddressPort endpoint, Socket&& socket)
+  UdpTransport(AeContext const& ae_context, AddressPort endpoint,
+               Socket&& socket)
       : upd_internal::UdpBase{ae_context, std::move(endpoint)},
         socket_{std::move(socket)},
         send_queue_manager_{ae_context} {
@@ -161,7 +163,8 @@ class UdpTransport final : public upd_internal::UdpBase {
  private:
   void ConnectSocket() {
     // Make connection
-    AETHER_TELE_INFO(kUdpTransportConnect, "Udp connect to endpoint {}", endpoint_);
+    AETHER_TELE_INFO(kUdpTransportConnect, "Udp connect to endpoint {}",
+                     endpoint_);
 
     socket_.RecvData(MethodPtr<&UdpTransport::OnRecvData>{this})
         .ReadyToWrite(MethodPtr<&UdpTransport::OnReadyToWrite>{this})
@@ -177,8 +180,8 @@ class UdpTransport final : public upd_internal::UdpBase {
 
   WriteAction& Write(DataBuffer&& in_data) override {
     assert(in_data.size() != 0);
-    AETHER_TELE_DEBUG(kUdpTransportSend, "Socket {} send data size:{}", endpoint_,
-                  in_data.size());
+    AETHER_TELE_DEBUG(kUdpTransportSend, "Socket {} send data size:{}",
+                      endpoint_, in_data.size());
     auto* send_action =
         send_queue_manager_.AddPacket(ae_context_, socket_, std::move(in_data));
     if (send_action == nullptr) {
@@ -200,7 +203,7 @@ class UdpTransport final : public upd_internal::UdpBase {
   void OnReadyToWrite() { send_queue_manager_.Send(); }
 
   void DeferSendErrorDisconnect() {
-    defer_task_sub_ = ae_context_.scheduler().Task([&]() noexcept {
+    ae_context_.scheduler().Task(defer_task_sub_, [&]() noexcept {
       AETHER_TELED_ERROR("Send error, disconnect!");
       stream_info_.link_state = LinkState::kLinkError;
       Disconnect();

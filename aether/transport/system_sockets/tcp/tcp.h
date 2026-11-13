@@ -82,7 +82,7 @@ class SendAction final : public PacketSendAction {
 
   void Stop() noexcept override {
     is_done_ = true;
-    set_status_.Reset();
+    ae_context_.scheduler().Cancel(set_status_);
     pending_terminal_status_.reset();
     WriteAction::SetStatus(WriteAction::Status::kStop);
   }
@@ -95,11 +95,12 @@ class SendAction final : public PacketSendAction {
       return;
     }
     WriteAction::Status const status = *pending_terminal_status_;
-    set_status_ = ae_context_.scheduler().Task([&, status]() {
-      pending_terminal_status_.reset();
-      WriteAction::SetStatus(status);
-    });
-    if (set_status_) {
+    auto const scheduled =
+        ae_context_.scheduler().Task(set_status_, [&, status]() {
+          pending_terminal_status_.reset();
+          WriteAction::SetStatus(status);
+        });
+    if (scheduled) {
       return;
     }
     pending_terminal_status_.reset();
@@ -109,9 +110,8 @@ class SendAction final : public PacketSendAction {
  protected:
   void SetStatus(WriteAction::Status status) noexcept override {
     is_done_ = true;
-    set_status_ = ae_context_.scheduler().Task(
-        [&, status]() { WriteAction::SetStatus(status); });
-    if (!set_status_) {
+    if (!ae_context_.scheduler().Task(
+            set_status_, [&, status]() { WriteAction::SetStatus(status); })) {
       pending_terminal_status_ = status;
     }
   }
@@ -173,7 +173,8 @@ class TcpTransport final : public tcp_internal::TcpBase {
         queue_manager_{ae_context_}  // read_action_{action_context_, *this}
   {
     AETHER_TELE_INFO(kTcpTransport);
-    AETHER_TELE_INFO(kTcpTransportConnect, "Tcp connect to endpoint {}", endpoint_);
+    AETHER_TELE_INFO(kTcpTransportConnect, "Tcp connect to endpoint {}",
+                     endpoint_);
 
     // Make connection
     socket_.RecvData(MethodPtr<&TcpTransport::OnRecvData>{this})
@@ -191,8 +192,8 @@ class TcpTransport final : public tcp_internal::TcpBase {
   WriteAction& Write(DataBuffer&& in_data) override {
     assert(in_data.size() != 0);
 
-    AETHER_TELE_DEBUG(kTcpTransportSend, "Socket {} send data size {}", endpoint_,
-                  in_data.size());
+    AETHER_TELE_DEBUG(kTcpTransportSend, "Socket {} send data size {}",
+                      endpoint_, in_data.size());
 
     auto packet_data = std::vector<std::uint8_t>{};
     VectorBuffer<PacketSize> vw{packet_data};

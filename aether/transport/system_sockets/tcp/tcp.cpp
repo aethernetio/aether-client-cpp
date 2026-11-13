@@ -58,15 +58,15 @@ void TcpBase::OnConnection(ISocket::ConnectionState connection_state) {
     case ISocket::ConnectionState::kConnectionFailed:
     case ISocket::ConnectionState::kDisconnected: {
       stream_info_.link_state = LinkState::kLinkError;
-      conn_state_sub_ =
-          ae_context_.scheduler().Task([&]() { stream_update_event_.Emit(); });
+      ae_context_.scheduler().Task(conn_state_sub_,
+                                   [&]() { stream_update_event_.Emit(); });
       break;
     }
     case ISocket::ConnectionState::kConnected: {
       stream_info_.is_writable = true;
       stream_info_.link_state = LinkState::kLinked;
-      conn_state_sub_ =
-          ae_context_.scheduler().Task([&]() { stream_update_event_.Emit(); });
+      ae_context_.scheduler().Task(conn_state_sub_,
+                                   [&]() { stream_update_event_.Emit(); });
       break;
     }
   }
@@ -79,14 +79,14 @@ void TcpBase::OnRecvData(Span<std::uint8_t> data) {
 
   // emit new data though scheduler stream
   if (!read_event_.exchange(true)) {
-    read_event_sub_ = ae_context_.scheduler().Task([&]() {
+    ae_context_.scheduler().Task(read_event_sub_, [&]() {
       auto sl = std::scoped_lock{buffer_lock_};
       read_event_ = false;
       for (auto data = data_packet_collector_.PopPacket(); !data.empty();
            data = data_packet_collector_.PopPacket()) {
         AETHER_TELE_DEBUG(kTcpTransportReceive,
-                      "Socket {} received data size {} \ndata{}", endpoint_,
-                      data.size(), data);
+                          "Socket {} received data size {} \ndata{}", endpoint_,
+                          data.size(), data);
         out_data_event_.Emit(data);
       }
     });
@@ -94,7 +94,7 @@ void TcpBase::OnRecvData(Span<std::uint8_t> data) {
 }
 void TcpBase::OnReadyToWrite() {}
 void TcpBase::OnSocketError() {
-  conn_state_sub_ = ae_context_.scheduler().Task([&]() {
+  ae_context_.scheduler().Task(conn_state_sub_, [&]() {
     AETHER_TELED_ERROR("Socket error, disconnect!");
     stream_info_.link_state = LinkState::kLinkError;
     Disconnect();

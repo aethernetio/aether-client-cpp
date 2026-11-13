@@ -17,6 +17,7 @@
 #ifndef AETHER_TASKS_DETAILS_TASK_H_
 #define AETHER_TASKS_DETAILS_TASK_H_
 
+#include <atomic>
 #include <cstdint>
 
 namespace ae {
@@ -33,13 +34,15 @@ class IActive {
   static constexpr std::uintptr_t kMagic = 0xda11;
 
   virtual ~IActive() noexcept {
-    if ((active != kMagic) && (active != 0)) {
-      reinterpret_cast<ITaskSubscription*>(active)  // NOLINT(*no-int-to-ptr)
+    auto const owner = active.load();
+    if ((owner != kMagic) && (owner != 0)) {
+      reinterpret_cast<ITaskSubscription*>(owner)  // NOLINT(*no-int-to-ptr)
           ->Unlink();
     }
   }
 
-  std::uintptr_t active{kMagic};
+  // Cancellation can race with the consumer's pre-invocation check.
+  std::atomic<std::uintptr_t> active{kMagic};
 };
 /**
  * \brief A general task what can only invoke.

@@ -53,8 +53,8 @@ void UdpBase::OnConnected(ISocket::ConnectionState connection_state) {
     case ISocket::ConnectionState::kDisconnected: {
       // Udp must be immediately connected
       AETHER_TELE_ERROR(kUdpTransportConnectFailed,
-                    "Failed to connect udp transport to endpoint {}",
-                    endpoint_);
+                        "Failed to connect udp transport to endpoint {}",
+                        endpoint_);
       stream_info_.link_state = LinkState::kLinkError;
       stream_update_event_.Emit();
       break;
@@ -74,7 +74,7 @@ void UdpBase::OnRecvData(Span<std::uint8_t> data) {
   read_buffers_.emplace_back(std::begin(data), std::end(data));
   // if not scheduled schedule a task to emit the data
   if (!read_event_.exchange(true)) {
-    read_event_sub_ = ae_context_.scheduler().Task([&]() {
+    ae_context_.scheduler().Task(read_event_sub_, [&]() {
       auto buffers = std::invoke([&]() {
         auto lock = std::scoped_lock{buffer_mutex_};
         auto rb = std::vector<DataBuffer>();
@@ -84,8 +84,9 @@ void UdpBase::OnRecvData(Span<std::uint8_t> data) {
       });
 
       for (auto const& d : buffers) {
-        AETHER_TELE_DEBUG(kUdpTransportReceive, "Socket {} received data size {}",
-                      endpoint_, d.size());
+        AETHER_TELE_DEBUG(kUdpTransportReceive,
+                          "Socket {} received data size {}", endpoint_,
+                          d.size());
         out_data_event_.Emit(d);
       }
     });
@@ -93,7 +94,7 @@ void UdpBase::OnRecvData(Span<std::uint8_t> data) {
 }
 
 void UdpBase::OnSocketError() {
-  conn_state_sub_ = ae_context_.scheduler().Task([&]() {
+  ae_context_.scheduler().Task(conn_state_sub_, [&]() {
     AETHER_TELED_ERROR("Socket error, disconnect!");
     stream_info_.link_state = LinkState::kLinkError;
     Disconnect();
