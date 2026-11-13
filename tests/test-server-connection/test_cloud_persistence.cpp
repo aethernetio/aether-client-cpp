@@ -230,7 +230,8 @@ void test_CloudServerConnectionPriorityRoundTripsAndRestoresSelectionOrder() {
   TEST_ASSERT_EQUAL_INT(0, initial_attempts);
   TEST_ASSERT_EQUAL_UINT(0, initial_overflows);
 
-  Domain restarted_domain{storage};
+  TestContext restored_context;
+  Domain restarted_domain{storage, &restored_context};
   auto restored_cloud =
       WorkCloud::ptr::Declare(CreateWith{restarted_domain}.with_id(cloud.id()));
   restored_cloud.Load();
@@ -249,7 +250,6 @@ void test_CloudServerConnectionPriorityRoundTripsAndRestoresSelectionOrder() {
     std::vector<ServerId> server_ids;
   } restored_connection_state;
   {
-    TestContext restored_context;
     AeContext restored_ae_context{restored_context};
     auto factory = std::make_unique<CountingNullFactory>();
     auto* factory_raw = factory.get();
@@ -313,7 +313,7 @@ void test_ServerRebuildsUnsupportedCachedChannelAndPreservesValidIds() {
     Domain domain{storage, &context};
     auto server = Server::ptr::Declare(CreateWith{domain}.with_id(server_id));
     server.Load();
-    TEST_ASSERT_EQUAL(valid_channel_id, server->channels.front().id());
+    TEST_ASSERT_TRUE(valid_channel_id == server->channels.front().id());
     auto channel = static_cast<EthernetChannel*>(&*server->channels.front());
     channel->address.protocol = static_cast<Protocol>(255);
     server.Save();
