@@ -172,7 +172,12 @@ WifiChannel::WifiChannel(ObjProp prop, ObjPtr<Aether> aether,
     }
     case Protocol::kUdp: {
       transport_properties_.connection_type = ConnectionType::kConnectionLess;
+#  if defined(AE_ENABLE_LARGE_UDP_DATAGRAMS) && \
+      AE_ENABLE_LARGE_UDP_DATAGRAMS && defined(_WIN32)
+      transport_properties_.max_packet_size = 65507;
+#  else
       transport_properties_.max_packet_size = 1200;
+#  endif
       transport_properties_.rec_packet_size = 1200;
       transport_properties_.reliability = Reliability::kUnreliable;
       break;
@@ -195,6 +200,17 @@ Duration WifiChannel::TransportBuildTimeout() const {
 }
 
 TransportBuildSender WifiChannel::TransportBuilder() {
+  // Reapply this build's UDP policy to loaded profiles before publishing the
+  // linked budget; saved jumbo limits must not leak into other builds.
+  if (address.protocol == Protocol::kUdp) {
+#  if defined(AE_ENABLE_LARGE_UDP_DATAGRAMS) && \
+      AE_ENABLE_LARGE_UDP_DATAGRAMS && defined(_WIN32)
+    transport_properties_.max_packet_size = 65507;
+#  else
+    transport_properties_.max_packet_size = 1200;
+#  endif
+  }
+
   auto resolver = resolver_.Load();
 #  if AE_SUPPORT_CLOUD_DNS
   assert(resolver && "Resolver is not loaded");

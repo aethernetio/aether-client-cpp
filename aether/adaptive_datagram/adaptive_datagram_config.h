@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <limits>
 
 #include "aether/clock.h"
@@ -40,6 +41,8 @@ struct Config {
   std::size_t max_datagram_size{1200};
   std::size_t max_queue_packets{128};
   std::size_t max_in_flight_packets{512};
+  // Bounds both pending outcome metadata and the controller measurement
+  // history.
   std::size_t max_history_packets{4096};
   std::uint32_t min_samples{20};
   std::uint64_t session_id{1};
@@ -53,6 +56,14 @@ struct Config {
   // An RTT/2 assumption is not clock synchronization and cannot prove that a
   // one-way deadline was met.
   std::int64_t peer_clock_offset_us{0};
+
+  // Optional observation of data writes only. The first duration is admission
+  // to lower Write(), including pacing; the second is lower Write() to its
+  // local status callback, including the synchronous call. This is neither
+  // exact WSASend timing nor peer delivery/ACK time. The final bool is local
+  // success. Rejected/expired-before-submit writes and feedback are excluded.
+  std::function<void(std::uint64_t, Duration, Duration, bool)>
+      on_local_write_complete;
 
   // Explicit bounds keep resource requests and bytes * microseconds arithmetic
   // representable on supported targets. Invalid settings are never clamped.

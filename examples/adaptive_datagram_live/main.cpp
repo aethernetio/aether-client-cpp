@@ -1,3 +1,4 @@
+#include "aether/adaptive_datagram/payload_size_controller.h"
 /*
  * Copyright 2026 Aethernet Inc.
  *
@@ -15,6 +16,7 @@
  */
 
 #include <algorithm>
+#include <array>
 #include <charconv>
 #include <chrono>
 #include <cstdint>
@@ -80,7 +82,8 @@ bool Until(AetherApp& app, auto predicate, unsigned seconds) {
 }
 
 int Run(char const* output, unsigned seconds, adaptive_datagram::Config config,
-        unsigned requested_payload) {
+        unsigned requested_payload, unsigned growth_ceiling,
+        unsigned local_queue_limit) {
 #if !AE_SUPPORT_UDP || AE_SUPPORT_TCP || !AE_FILTRATION
   std::cerr << "Use a UDP-only filtration build and TCP-bootstrapped state.\n";
   return 4;
@@ -138,7 +141,18 @@ int Run(char const* output, unsigned seconds, adaptive_datagram::Config config,
   auto const run = std::max<std::uint64_t>(1, Micros());
   config.session_id = run;
   config.peer_session_id = run + 1;
+  std::vector<std::array<std::uint64_t, 5> > local_write_samples;
+  local_write_samples.reserve(1000000);
+  config.on_local_write_complete =
+      [&](std::uint64_t message_sequence, Duration queue_wait,
+          Duration lower_write_wait, bool success) {
+        local_write_samples.push_back(
+            {message_sequence, static_cast<std::uint64_t>(queue_wait.count()),
+             static_cast<std::uint64_t>(lower_write_wait.count()), Micros(),
+             success ? 1U : 0U});
+      };
   auto peer_config = config;
+  peer_config.on_local_write_complete = {};
   peer_config.session_id = run + 1;
   peer_config.peer_session_id = run;
   P2pAdaptiveDatagramStream sender{
@@ -167,6 +181,8 @@ int Run(char const* output, unsigned seconds, adaptive_datagram::Config config,
     return 5;
   }
 
+  adaptive_datagram::PayloadSizeController size_controller{
+      kPayload, std::min<std::size_t>(payload_budget, growth_ceiling)};
   struct ReceiveState {
     bool sane = true;
     std::unordered_set<std::uint64_t> seen;
@@ -177,16 +193,38 @@ int Run(char const* output, unsigned seconds, adaptive_datagram::Config config,
     std::uint64_t received_bytes = 0;
     std::uint64_t measured_received = 0;
   } rx;
+  std::vector<std::array<std::uint64_t, 5> > samples;
+  samples.reserve(1000000);
+  std::vector<std::array<std::uint64_t, 4> > offered_samples;
+  offered_samples.reserve(1000000);
+  std::uint64_t duplicates = 0, corruptions = 0;
+  std::vector<std::array<std::uint64_t, 10> > controller_trace;
+  std::uint64_t generation_ns = 0, pump_ns = 0, timing_samples = 0;
+  std::uint64_t loop_count = 0;
+  auto next_trace = Steady::now();
+  std::uint64_t callback_deadline_violations = 0;
+  std::uint64_t max_queued = 0, max_flight = 0;
+  auto const observation_start = Micros();
   std::uint64_t measured_offered = 0;
-  auto on_datagram = [&rx, &config, run, kPayload](DataBuffer const& data) {
-    if (data.size() != kPayload || Get(data, 0) != run ||
-        Get(data, 16) > Micros() || !rx.seen.insert(Get(data, 8)).second) {
+  auto on_datagram = [&rx, &config, &samples, &duplicates, &corruptions,
+                      &callback_deadline_violations, observation_start, run,
+                      payload_budget](DataBuffer const& data) {
+    if (data.size() < 32 || data.size() > payload_budget ||
+        (Get(data, 24) >> 1) != data.size() || Get(data, 0) != run ||
+        Get(data, 16) > Micros()) {
+      ++corruptions;
       rx.sane = false;
       return;
     }
     auto const sequence = Get(data, 8);
+    if (!rx.seen.insert(sequence).second) {
+      ++duplicates;
+      rx.sane = false;
+      return;
+    }
     for (std::size_t i = 32; i < data.size(); ++i) {
       if (data[i] != static_cast<std::uint8_t>(sequence + i)) {
+        ++corruptions;
         rx.sane = false;
         return;
       }
@@ -197,6 +235,12 @@ int Run(char const* output, unsigned seconds, adaptive_datagram::Config config,
     rx.sane = rx.sane && latency <= static_cast<std::uint64_t>(
                                         config.latency_target.count()) +
                                         1000;
+    if (latency >
+        static_cast<std::uint64_t>(config.latency_target.count()) + 1000) {
+      ++callback_deadline_violations;
+    }
+    samples.push_back({Get(data, 8), latency, Micros() - observation_start,
+                       (Get(data, 24) & 1), data.size()});
     rx.latencies.push_back(latency);
     if (rx.previous_latency) {
       auto const variation = latency > *rx.previous_latency
@@ -207,7 +251,7 @@ int Run(char const* output, unsigned seconds, adaptive_datagram::Config config,
     }
     rx.previous_latency = latency;
     rx.received_bytes += data.size();
-    if (Get(data, 24) == 1) {
+    if ((Get(data, 24) & 1) == 1) {
       rx.measured_received += data.size();
     }
   };
@@ -220,12 +264,18 @@ int Run(char const* output, unsigned seconds, adaptive_datagram::Config config,
          "expired,unconfirmed,local_failures,queued,in_flight,feedback_stale,"
          "feedback_incomplete,udp_only,constraints_unmet,path_latency_us,"
          "base_latency_us,rate_ceiling_Bps,history_limited,in_flight_capacity,"
-         "payload_bytes,payload_budget,history_capacity\n";
+         "payload_bytes,payload_budget,history_capacity,elapsed_us,interval_us,"
+         "latency_max_us,rtt_us,window_max_latency_us,window_samples,delivery_"
+         "rate_Bps,"
+         "wire_bytes,rejected,peer_duplicates,peer_malformed,max_queued,max_in_"
+         "flight,"
+         "callback_deadline_violations,corruptions\n";
   std::uint64_t sequence = 0;
   std::uint64_t offered = 0;
   std::uint64_t previous_offered = 0;
   std::uint64_t previous_received = 0;
   unsigned row = 0;
+  std::uint64_t previous_row_us = 0;
   auto const start = Steady::now();
   auto const measure_start = start + std::chrono::seconds{3};
   auto const measure_end = measure_start + std::chrono::seconds{seconds};
@@ -233,7 +283,6 @@ int Run(char const* output, unsigned seconds, adaptive_datagram::Config config,
                    config.feedback_timeout + std::chrono::seconds{1};
   while (!app->IsExited() && Steady::now() < end) {
     auto const now = Steady::now();
-    bool const measuring = now >= measure_start && now < measure_end;
     auto const info = sender.stream_info();
     auto const path = sender.InspectSendPathTransport();
     bool const udp_only = path.linked_udp_endpoint && !path.linked_tcp_endpoint;
@@ -241,20 +290,29 @@ int Run(char const* output, unsigned seconds, adaptive_datagram::Config config,
       std::cerr << "UDP route was lost during measurement.\n";
       return 5;
     }
-    // Keep at most one application datagram waiting for the pacer. This offers
-    // continuous demand without hiding congestion in an unbounded producer
-    // queue.
-    if (now < measure_end && info.is_writable &&
-        sender.statistics().queued == 0) {
+    // Fill a bounded producer queue before driving the scheduler. This changes
+    // admission depth, not the single active lower-write policy or ACK credit.
+    bool const time_this_loop = (++loop_count % 64) == 0;
+    auto const generation_start =
+        time_this_loop ? Steady::now() : Steady::time_point{};
+    while (Steady::now() < measure_end && sender.stream_info().is_writable &&
+           sender.statistics().queued < local_queue_limit) {
+      auto const generation_now = Steady::now();
+      if (generation_now >= measure_end) break;
+      bool const measuring = generation_now >= measure_start;
       DataBuffer data(kPayload, 0);
       Put(data, 0, run);
       Put(data, 8, ++sequence);
-      Put(data, 16, Micros());
-      Put(data, 24, measuring ? 1 : 0);
+      auto const prepared_at = Micros();
+      Put(data, 16, prepared_at);
+      Put(data, 24,
+          (static_cast<std::uint64_t>(data.size()) << 1) | (measuring ? 1 : 0));
       for (std::size_t i = 32; i < data.size(); ++i) {
         data[i] = static_cast<std::uint8_t>(sequence + i);
       }
       sender.Write(std::move(data));
+      offered_samples.push_back(
+          {sequence, prepared_at - observation_start, measuring, kPayload});
       offered += kPayload;
       if (measuring) {
         measured_offered += kPayload;
@@ -263,7 +321,35 @@ int Run(char const* output, unsigned seconds, adaptive_datagram::Config config,
     // Continuous offered load must not be capped by a host timer's sleep
     // granularity. The SDK pacer still owns transmission and the application
     // queue stays bounded to one datagram. Registration and drain can sleep.
+    auto const pump_start =
+        time_this_loop ? Steady::now() : Steady::time_point{};
     Pump(*app, now >= measure_end);
+    if (time_this_loop) {
+      auto const pump_end = Steady::now();
+      generation_ns += static_cast<std::uint64_t>(
+          std::chrono::duration_cast<std::chrono::nanoseconds>(pump_start -
+                                                               generation_start)
+              .count());
+      pump_ns += static_cast<std::uint64_t>(
+          std::chrono::duration_cast<std::chrono::nanoseconds>(pump_end -
+                                                               pump_start)
+              .count());
+      ++timing_samples;
+    }
+    if (now >= next_trace) {
+      auto const& metrics = sender.metrics();
+      auto const st = sender.statistics();
+      controller_trace.push_back(
+          {Micros() - observation_start, metrics.latest_latency.count(),
+           metrics.rtt.count(), sender.rate_bytes_per_second(),
+           metrics.window_loss_per_mille, metrics.window_valid,
+           metrics.constraints_unmet, metrics.history_limited, st.in_flight,
+           st.queued});
+      next_trace = now + std::chrono::milliseconds{100};
+    }
+    auto const live_stats = sender.statistics();
+    max_queued = std::max<std::uint64_t>(max_queued, live_stats.queued);
+    max_flight = std::max<std::uint64_t>(max_flight, live_stats.in_flight);
     auto const elapsed =
         std::chrono::duration_cast<std::chrono::seconds>(Steady::now() - start)
             .count();
@@ -290,13 +376,72 @@ int Run(char const* output, unsigned seconds, adaptive_datagram::Config config,
           << m.base_latency.count() << ',' << config.max_rate_bytes_per_second
           << ',' << m.history_limited << ',' << config.max_in_flight_packets
           << ',' << kPayload << ',' << payload_budget << ','
-          << config.max_history_packets << '\n';
+          << config.max_history_packets;
+      auto const elapsed_us = static_cast<std::uint64_t>(
+          std::chrono::duration_cast<std::chrono::microseconds>(Steady::now() -
+                                                                start)
+              .count());
+      auto const peer_stats = receiver.statistics();
+      csv << ',' << elapsed_us << ',' << elapsed_us - previous_row_us << ','
+          << (rx.latencies.empty()
+                  ? 0
+                  : *std::max_element(rx.latencies.begin(), rx.latencies.end()))
+          << ',' << m.rtt.count() << ',' << m.window_max_latency.count() << ','
+          << m.window_samples << ',' << m.delivery_rate << ','
+          << stats.wire_bytes << ',' << stats.rejected << ','
+          << peer_stats.duplicates << ',' << peer_stats.malformed << ','
+          << max_queued << ',' << max_flight << ','
+          << callback_deadline_violations << ',' << corruptions << '\n';
+      previous_row_us = elapsed_us;
       csv.flush();
+      if (growth_ceiling && now >= measure_start && now < measure_end) {
+        bool const overloaded =
+            (m.window_valid &&
+             m.window_loss_per_mille > config.max_loss_per_mille) ||
+            m.window_max_latency > config.latency_target;
+        bool const healthy = m.window_valid && !m.feedback_stale &&
+                             !m.feedback_incomplete && !m.history_limited &&
+                             !m.constraints_unmet && !overloaded;
+        kPayload = size_controller.Observe(
+            healthy, overloaded, rx.received_bytes - previous_received);
+      }
       previous_offered = offered;
       previous_received = rx.received_bytes;
       rx.latencies.clear();
       rx.ipdv.clear();
     }
+  }
+  std::ofstream sample_output{std::string{output} + ".latency.csv"};
+  sample_output << "sequence,latency_us,received_elapsed_us,measurement_packet,"
+                   "payload_bytes\n";
+  for (auto const& sample : samples) {
+    sample_output << sample[0] << ',' << sample[1] << ',' << sample[2] << ','
+                  << sample[3] << ',' << sample[4] << '\n';
+  }
+  std::ofstream offered_output{std::string{output} + ".offered.csv"};
+  offered_output
+      << "sequence,prepared_elapsed_us,measurement_packet,payload_bytes\n";
+  for (auto const& sample : offered_samples) {
+    offered_output << sample[0] << ',' << sample[1] << ',' << sample[2] << ','
+                   << sample[3] << '\n';
+  }
+  std::ofstream local_output{std::string{output} + ".local-write.csv"};
+  local_output << "sequence,queue_wait_us,lower_write_wait_us,completed_epoch_"
+                  "us,success\n";
+  for (auto const& sample : local_write_samples) {
+    local_output << sample[0] << ',' << sample[1] << ',' << sample[2] << ','
+                 << sample[3] << ',' << sample[4] << '\n';
+  }
+  std::ofstream trace_output{std::string{output} + ".controller.csv"};
+  trace_output
+      << "elapsed_us,path_latency_us,rtt_us,rate_Bps,window_loss_per_mille,"
+         "window_valid,constraints_unmet,history_limited,in_flight,queued\n";
+  for (auto const& trace : controller_trace) {
+    for (std::size_t i = 0; i < trace.size(); ++i) {
+      if (i) trace_output << ',';
+      trace_output << trace[i];
+    }
+    trace_output << '\n';
   }
   auto const stats = sender.statistics();
   auto const feedback_stats = receiver.statistics();
@@ -306,7 +451,8 @@ int Run(char const* output, unsigned seconds, adaptive_datagram::Config config,
             stats.accepted == stats.delivered + stats.lost + stats.late +
                                   stats.expired + stats.unconfirmed +
                                   stats.local_failures + stats.cancelled &&
-            stats.queued == 0 && stats.in_flight == 0 && csv.good();
+            stats.queued == 0 && stats.in_flight == 0 && csv.good() &&
+            local_output.good();
   std::cout << "adaptive_live status=" << (rx.sane ? "PASS" : "FAIL")
             << " transport=UDP clock=shared_process"
             << " measured_goodput_Bps=" << rx.measured_received / seconds
@@ -317,6 +463,14 @@ int Run(char const* output, unsigned seconds, adaptive_datagram::Config config,
             << " late=" << stats.late << " expired=" << stats.expired
             << " unconfirmed=" << stats.unconfirmed
             << " local_failures=" << stats.local_failures
+            << " observation_start_epoch_us=" << observation_start
+            << " generation_ns_sampled=" << generation_ns
+            << " pump_ns_sampled=" << pump_ns
+            << " timing_samples=" << timing_samples
+            << " duplicates=" << duplicates << " corruptions=" << corruptions
+            << " peer_duplicates=" << feedback_stats.duplicates
+            << " peer_malformed=" << feedback_stats.malformed
+            << " callback_deadline_violations=" << callback_deadline_violations
             << " peer_feedback_sent=" << feedback_stats.feedback_sent << '\n';
   return rx.sane ? 0 : 1;
 #endif
@@ -326,8 +480,8 @@ int Run(char const* output, unsigned seconds, adaptive_datagram::Config config,
 
 int main(int argc, char* argv[]) {
   // Deliberately small positional interface, with strict validation.
-  unsigned values[]{10, 50, 1000, 100, 4000000, 800};
-  if (argc > 8) {
+  unsigned values[]{10, 50, 1000, 100, 4000000, 800, 256, 0, 1};
+  if (argc > 11) {
     return 2;
   }
   for (int i = 2; i < argc; ++i) {
@@ -338,22 +492,26 @@ int main(int argc, char* argv[]) {
       return 2;
     }
   }
-  if (values[0] == 0 || values[0] > 120 || values[1] > 1000 || values[2] == 0 ||
+  if (values[0] == 0 || values[0] > 600 || values[1] > 1000 || values[2] == 0 ||
       values[2] > 60000 || values[3] == 0 || values[3] > 5000 ||
       values[4] == 0 || values[4] > 1000000000 || values[5] > 65535 ||
-      (values[5] != 0 && values[5] < 32)) {
-    std::cerr << "Usage: adaptive-datagram-live [csv] [seconds:1..120] "
+      (values[5] != 0 && values[5] < 32) || values[6] == 0 || values[6] > 512 ||
+      values[7] > 65000 || values[8] == 0 || values[8] > 128 ||
+      (values[7] && (!values[5] || values[7] < values[5]))) {
+    std::cerr << "Usage: adaptive-datagram-live [csv] [seconds:1..600] "
                  "[loss_per_mille] [window_ms:1..60000] [latency_ms:1..5000] "
-                 "[rate_ceiling_Bps:1..1000000000] [payload_bytes:0=budget]\n";
+                 "[rate_ceiling_Bps:1..1000000000] [payload_bytes:0=budget] "
+                 "[in_flight] [growth_ceiling:0=off] [local_queue:1..128]\n";
     return 2;
   }
   ae::adaptive_datagram::Config config;
+  config.max_in_flight_packets = values[6];
   config.max_loss_per_mille = values[1];
   config.loss_window = std::chrono::milliseconds{values[2]};
   config.latency_target = std::chrono::milliseconds{values[3]};
   config.max_rate_bytes_per_second = values[4];
-  config.max_datagram_size =
-      std::max<std::size_t>(config.max_datagram_size, values[5]);
+  config.max_datagram_size = std::max<std::size_t>(
+      config.max_datagram_size, std::max(values[5], values[7]) + 96);
   if (argc >= 7) {
     // Provision measurement history for the requested rate. Keep the native
     // in-flight window: the protocol's receipt bitmap supports 512 packets.
@@ -371,5 +529,6 @@ int main(int argc, char* argv[]) {
     return 2;
   }
   return ae::adaptive_datagram_live::Run(
-      argc >= 2 ? argv[1] : "adaptive-live.csv", values[0], config, values[5]);
+      argc >= 2 ? argv[1] : "adaptive-live.csv", values[0], config, values[5],
+      values[7], values[8]);
 }

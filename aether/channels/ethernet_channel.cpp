@@ -42,7 +42,8 @@ ResolveSender ResolveAddress([[maybe_unused]] Ptr<DnsResolver> const& resolver,
                              [[maybe_unused]] std::uint16_t port,
                              [[maybe_unused]] Protocol protocol) {
   // Preserve the hostname for browser DNS and TLS SNI/certificate validation.
-  if (protocol == Protocol::kWebSocket || protocol == Protocol::kWebSocketSecure) {
+  if (protocol == Protocol::kWebSocket ||
+      protocol == Protocol::kWebSocketSecure) {
     return ex::just(std::vector<Endpoint>{Endpoint{addr, port, protocol}});
   }
 #if AE_SUPPORT_CLOUD_DNS
@@ -182,7 +183,8 @@ EthernetChannel::EthernetChannel(ObjProp prop, ObjPtr<Aether> aether,
 #if AE_SUPPORT_WEBSOCKET
       if (protocol == Protocol::kWebSocket ||
           protocol == Protocol::kWebSocketSecure) {
-        transport_properties_.max_packet_size = WebSocketTransport::kMaxPacketSize;
+        transport_properties_.max_packet_size =
+            WebSocketTransport::kMaxPacketSize;
       }
 #endif
       transport_properties_.rec_packet_size = 1500;
@@ -191,7 +193,12 @@ EthernetChannel::EthernetChannel(ObjProp prop, ObjPtr<Aether> aether,
     }
     case Protocol::kUdp: {
       transport_properties_.connection_type = ConnectionType::kConnectionLess;
+#if defined(AE_ENABLE_LARGE_UDP_DATAGRAMS) && AE_ENABLE_LARGE_UDP_DATAGRAMS && \
+    defined(_WIN32)
+      transport_properties_.max_packet_size = 65507;
+#else
       transport_properties_.max_packet_size = 1200;
+#endif
       transport_properties_.rec_packet_size = 1200;
       transport_properties_.reliability = Reliability::kUnreliable;
       break;
@@ -205,14 +212,27 @@ EthernetChannel::EthernetChannel(ObjProp prop, ObjPtr<Aether> aether,
 EthernetChannel::~EthernetChannel() = default;
 
 TransportBuildSender EthernetChannel::TransportBuilder() {
+  // Reapply this build's UDP policy to loaded profiles before publishing the
+  // linked budget; saved jumbo limits must not leak into other builds.
+  if (address.protocol == Protocol::kUdp) {
+#if defined(AE_ENABLE_LARGE_UDP_DATAGRAMS) && AE_ENABLE_LARGE_UDP_DATAGRAMS && \
+    defined(_WIN32)
+    transport_properties_.max_packet_size = 65507;
+#else
+    transport_properties_.max_packet_size = 1200;
+#endif
+  }
+
   auto resolver = dns_resolver_.Load();
 #if AE_SUPPORT_CLOUD_DNS
   assert((resolver || address.protocol == Protocol::kWebSocket ||
-          address.protocol == Protocol::kWebSocketSecure) && "Resolver is not loaded");
+          address.protocol == Protocol::kWebSocketSecure) &&
+         "Resolver is not loaded");
 #endif
   auto poller = poller_.Load();
   assert((poller || address.protocol == Protocol::kWebSocket ||
-          address.protocol == Protocol::kWebSocketSecure) && "Poller is not loaded");
+          address.protocol == Protocol::kWebSocketSecure) &&
+         "Poller is not loaded");
 
   AETHER_TELED_DEBUG("Make transport builder for {}", address);
 

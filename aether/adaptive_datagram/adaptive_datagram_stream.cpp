@@ -23,6 +23,7 @@
 #include <limits>
 #include <list>
 #include <optional>
+#include <set>
 #include <type_traits>
 #include <utility>
 
@@ -84,7 +85,10 @@ class ApiSender final : public IAdaptiveDatagramApi {
 class PendingWrite final : public WriteAction {
  public:
   PendingWrite(AeContext const& context, Datagram packet, TimePoint deadline)
-      : WriteAction{context}, packet{std::move(packet)}, deadline{deadline} {}
+      : WriteAction{context},
+        packet{std::move(packet)},
+        message_sequence{this->packet.sequence},
+        deadline{deadline} {}
   void Stop() noexcept override { cancelled = true; }
   void Complete(Status status) {
     if (!is_finished() && !completing) {
@@ -93,6 +97,7 @@ class PendingWrite final : public WriteAction {
     }
   }
   Datagram packet;
+  std::uint64_t const message_sequence;
   TimePoint deadline;
   bool submitted{false};
   bool cancelled{false};
@@ -261,6 +266,7 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
     active = nullptr;
     active_pending = nullptr;
     lower = nullptr;
+    history.clear();
     flights.clear();
     // Keep the deduplication/session history across carrier relinks. Changing
     // the peer session requires a new stream instance with a new local ID.
@@ -379,11 +385,12 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
       if (write != nullptr) {
         auto const seq = write->packet.sequence;
         auto it =
-            std::find_if(flights.begin(), flights.end(),
+            std::find_if(history.begin(), history.end(),
                          [seq](auto const& f) { return f.sequence == seq; });
-        if (it != flights.end()) {
+        if (it != history.end()) {
           auto const f = *it;
-          flights.erase(it);
+          flights.erase(it->sequence);
+          history.erase(it);
           Outcome(f.message_sequence, f.size, Status::kLocalFailure,
                   Duration{0}, now);
           if (epoch != link_epoch) {
@@ -396,17 +403,25 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
       return;
     }
     auto const rate = controller.rate_bytes_per_second();
-    if (write != nullptr && !flights.empty()) {
-      flights.back().wire_bytes = bytes;
+    if (write != nullptr && !history.empty()) {
+      history.back().wire_bytes = bytes;
     }
     auto const spacing = (bytes * std::uint64_t{1000000} + rate - 1) / rate;
     next_send = now + std::chrono::microseconds{static_cast<std::int64_t>(
                           std::max<std::uint64_t>(1, spacing))};
     active_pending = write;
+    auto const observe = write != nullptr && config.on_local_write_complete;
+    auto const observed_message_sequence =
+        observe ? write->message_sequence : 0;
+    auto const queued_at =
+        observe ? write->deadline - config.latency_target : TimePoint{};
+    auto const submitted_at = observe ? clock() : TimePoint{};
     auto& action = lower->Write(std::move(wire));
     active = &action;
-    write_sub =
-        action.status_event().Subscribe([this, bytes](WriteAction::Status s) {
+    write_sub = action.status_event().Subscribe(
+        [this, bytes, observe, observed_message_sequence, queued_at,
+         submitted_at](WriteAction::Status s) {
+          auto const completed_at = observe ? clock() : TimePoint{};
           auto const keep_alive = shared_from_this();
           auto const epoch = link_epoch;
           auto* pending_write = active_pending;
@@ -425,12 +440,13 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
             if (s != WriteAction::Status::kSuccess) {
               auto const seq = pending_write->packet.sequence;
               auto it = std::find_if(
-                  flights.begin(), flights.end(),
+                  history.begin(), history.end(),
                   [seq](auto const& f) { return f.sequence == seq; });
-              if (it != flights.end()) {
+              if (it != history.end()) {
                 auto const size = it->size;
                 auto const message_sequence = it->message_sequence;
-                flights.erase(it);
+                flights.erase(it->sequence);
+                history.erase(it);
                 auto const now = clock();
                 auto const status = pending_write->cancelled
                                         ? Status::kCancelled
@@ -443,8 +459,23 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
                 }
               }
             }
+            if (observe) {
+              config.on_local_write_complete(
+                  observed_message_sequence,
+                  adaptive_datagram_stream_internal::Elapsed(submitted_at,
+                                                             queued_at),
+                  adaptive_datagram_stream_internal::Elapsed(completed_at,
+                                                             submitted_at),
+                  s == WriteAction::Status::kSuccess);
+              if (epoch != link_epoch) {
+                return;
+              }
+            }
             pending_write->Complete(
                 pending_write->cancelled ? WriteAction::Status::kStop : s);
+            if (epoch != link_epoch) {
+              return;
+            }
           }
           Wake(clock());
         });
@@ -484,9 +515,10 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
         return;
       }
     }
-    while (!flights.empty() && flights.front().mature_at <= now) {
-      auto const f = flights.front();
-      flights.pop_front();
+    while (!history.empty() && history.front().mature_at <= now) {
+      auto const f = history.front();
+      history.pop_front();
+      flights.erase(f.sequence);
       Outcome(f.message_sequence, f.size,
               !f.received
                   ? (f.confirmed_missing ? Status::kLost : Status::kUnconfirmed)
@@ -541,19 +573,18 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
         Submit(Pack(feedback), nullptr, now);
       } else if (it != pending.end() &&
                  flights.size() < config.max_in_flight_packets &&
+                 history.size() < config.max_history_packets &&
                  packet_sequence != std::numeric_limits<std::uint64_t>::max() &&
-                 (flights.empty() ||
-                  packet_sequence - flights.front().sequence <
-                      adaptive_datagram::kReceiptBits - 1) &&
                  (!controller.metrics().feedback_stale || now >= next_probe)) {
         auto& w = **it;
         w.submitted = true;
         auto const message_sequence = w.packet.sequence;
         w.packet.sequence = ++packet_sequence;
         w.packet.sent_at_us = adaptive_datagram_stream_internal::Micros(now);
-        flights.push_back(Flight{w.packet.sequence, message_sequence,
+        history.push_back(Flight{w.packet.sequence, message_sequence,
                                  w.packet.payload.size(),
                                  w.deadline + config.feedback_timeout, now});
+        flights.insert(w.packet.sequence);
         next_probe = now + config.feedback_timeout;
         Submit(Pack(w.packet), &w, now);
         if (epoch != link_epoch) {
@@ -639,14 +670,14 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
     }
     last_report = feedback.report;
     auto const sample = std::find_if(
-        flights.begin(), flights.end(),
+        history.begin(), history.end(),
         [&](auto const& f) { return f.sequence == feedback.sampled_sequence; });
     auto const sample_delta =
         feedback.sampled_sequence <= feedback.largest_sequence
             ? feedback.largest_sequence - feedback.sampled_sequence
             : adaptive_datagram::kReceiptBits;
     auto const valid_sample =
-        sample != flights.end() &&
+        sample != history.end() &&
         sample_delta < adaptive_datagram::kReceiptBits &&
         sample->sent_at >= path_started_at_ &&
         (feedback.received[static_cast<std::size_t>(sample_delta / 64)] &
@@ -671,7 +702,7 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
     std::uint64_t new_wire_bytes = 0;
     auto const local_report = adaptive_datagram_stream_internal::LocalPeerTime(
         feedback.reported_at_us, config.peer_clock_offset_us);
-    for (auto& f : flights) {
+    for (auto& f : history) {
       auto const delta = f.sequence <= feedback.largest_sequence
                              ? feedback.largest_sequence - f.sequence
                              : adaptive_datagram::kReceiptBits;
@@ -693,6 +724,7 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
         if (!f.received && f.sent_at >= path_started_at_) {
           new_wire_bytes += f.wire_bytes;
         }
+        flights.erase(f.sequence);
         f.received = true;
         f.on_time = (feedback.on_time[receipt_index] & mask) != 0;
         // Receipt masks carry the verdict for every packet. The echoed sample
@@ -766,7 +798,11 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
   Subscription write_sub;
   std::optional<adaptive_datagram_stream_internal::RejectedWrite> failed;
   std::list<std::unique_ptr<PendingWrite>> pending;
-  std::deque<Flight> flights;
+  // Outcome metadata survives ACK until maturation; only unacknowledged
+  // sequence numbers consume send credit. Receipt-span eviction does not
+  // imply delivery or loss: absent ACKs mature as unconfirmed.
+  std::deque<Flight> history;
+  std::set<std::uint64_t> flights;
   WriteAction* active{};
   PendingWrite* active_pending{};
   std::uint64_t sequence{};

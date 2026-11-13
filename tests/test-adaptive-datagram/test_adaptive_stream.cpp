@@ -1,3 +1,4 @@
+#include "aether/adaptive_datagram/payload_size_controller.h"
 /*
  * Copyright 2026 Aethernet Inc.
  *
@@ -69,6 +70,205 @@ struct Pair {
   MultiSubscription subscriptions;
   std::vector<DataBuffer> received;
 };
+
+void test_LocalWriteTimingUsesApplicationSequenceAndExcludesFeedback() {
+  Config config;
+  config.latency_target = 1s;
+  config.initial_rate_bytes_per_second = 10000;
+  config.min_rate_bytes_per_second = 10000;
+  Pair* current = nullptr;
+  struct TimingSample {
+    std::uint64_t sequence;
+    Duration queued;
+    Duration local;
+    Duration elapsed;
+    bool success;
+  };
+  std::vector<TimingSample> samples;
+  TimePoint admitted{};
+  config.on_local_write_complete = [&](std::uint64_t sequence, Duration queued,
+                                       Duration local, bool success) {
+    // Event callbacks are noexcept; Unity assertions must run afterwards.
+    samples.push_back({sequence, queued, local,
+                       std::chrono::duration_cast<Duration>(
+                           current->network.now() - admitted),
+                       success});
+  };
+  Pair pair{config};
+  current = &pair;
+  admitted = pair.network.now();
+  pair.first.Write(DataBuffer(100, 1)).Stop();
+  pair.first.Write(DataBuffer(100, 2));
+  pair.first.Write(DataBuffer(100, 3));
+  pair.Run(1700);
+  TEST_ASSERT_EQUAL(2, samples.size());
+  TEST_ASSERT_EQUAL(2, samples[0].sequence);
+  TEST_ASSERT_EQUAL(3, samples[1].sequence);
+  for (auto const& sample : samples) {
+    TEST_ASSERT_TRUE(sample.success);
+    TEST_ASSERT_EQUAL_UINT32(sample.elapsed.count(),
+                             (sample.queued + sample.local).count());
+  }
+  TEST_ASSERT_TRUE(samples[1].queued > samples[0].queued);
+  TEST_ASSERT_TRUE(pair.second.statistics().feedback_sent > 0);
+  TEST_ASSERT_EQUAL(2, pair.first.statistics().delivered);
+}
+
+void test_LocalWriteTimingCallbackCanUnlink() {
+  Config config;
+  Pair* current = nullptr;
+  int completions = 0;
+  config.on_local_write_complete = [&](std::uint64_t, Duration, Duration,
+                                       bool) {
+    ++completions;
+    current->first.Unlink();
+  };
+  Pair pair{config};
+  current = &pair;
+  pair.first.Write(DataBuffer(100, 1));
+  pair.Run(500);
+  TEST_ASSERT_EQUAL(1, completions);
+  TEST_ASSERT_FALSE(pair.first.stream_info().is_writable);
+}
+
+void test_PayloadGrowthWaitsForStabilityAndBacksOff() {
+  adaptive_datagram::PayloadSizeController policy{1022, 1600};
+  for (int i = 0; i < 9; ++i) {
+    TEST_ASSERT_EQUAL(1022, policy.Observe(true, false, 100000));
+  }
+  TEST_ASSERT_EQUAL(1277, policy.Observe(true, false, 100000));
+  TEST_ASSERT_EQUAL(1022, policy.Observe(false, true, 100000));
+  for (int i = 0; i < 20; ++i) {
+    TEST_ASSERT_EQUAL(1022, policy.Observe(false, false, 100000));
+  }
+  for (int i = 0; i < 40; ++i) {
+    policy.Observe(true, false, 100000);
+  }
+  TEST_ASSERT_EQUAL(1022, policy.Observe(true, false, 100000));
+}
+void test_PayloadGrowthKeepsUsefulProbeAndHonorsCeiling() {
+  adaptive_datagram::PayloadSizeController policy{1022, 1277};
+  // +/-20% alternation defeated the old consecutive +/-10% condition.
+  // Three isolated unknown samples must not erase the healthy history.
+  for (int i = 0; i < 10; ++i) {
+    auto size = policy.Observe(i != 2 && i != 5 && i != 8, false,
+                               i % 2 ? 120000 : 80000);
+    TEST_ASSERT_EQUAL(i == 9 ? 1277 : 1022, size);
+  }
+  for (int i = 0; i < 30; ++i) {
+    TEST_ASSERT_EQUAL(1277, policy.Observe(true, false, 125000));
+  }
+}
+void test_PayloadGrowthRejectsDeclineAndUnknownProbe() {
+  adaptive_datagram::PayloadSizeController decline{1022, 2000};
+  for (int i = 0; i < 10; ++i) {
+    TEST_ASSERT_EQUAL(1022,
+                      decline.Observe(true, false, i < 5 ? 120000 : 80000));
+  }
+  adaptive_datagram::PayloadSizeController probe{1022, 2000};
+  for (int i = 0; i < 10; ++i) {
+    probe.Observe(true, false, 100000);
+  }
+  for (int i = 0; i < 10; ++i) {
+    TEST_ASSERT_EQUAL(i == 9 ? 1022 : 1277,
+                      probe.Observe(false, false, 125000));
+  }
+}
+
+void test_LargeDatagramPreservesMessageBoundaryAndBytes() {
+  Config config;
+  config.max_datagram_size = 8192;
+  config.latency_target = 1s;
+  Pair pair{config};
+  EmulatedDatagramProfile profile;
+  profile.mtu = 65507;
+  pair.network.SetProfile(0, profile);
+  pair.network.SetProfile(1, profile);
+  pair.first.Write(DataBuffer(4096, 42));
+  pair.Run(1700);
+  TEST_ASSERT_EQUAL(1, pair.received.size());
+  TEST_ASSERT_EQUAL(4096, pair.received.front().size());
+  for (auto byte : pair.received.front()) {
+    TEST_ASSERT_EQUAL(42, byte);
+  }
+  TEST_ASSERT_EQUAL(1, pair.first.statistics().delivered);
+}
+
+void test_AckReleasesCreditBeforeOutcomeMatures() {
+  Config config;
+  config.latency_target = 1s;
+  config.max_in_flight_packets = 1;
+  Pair pair{config};
+  pair.first.Write(DataBuffer(100, 1));
+  pair.Run(100);
+  TEST_ASSERT_EQUAL(1, pair.received.size());
+  TEST_ASSERT_EQUAL(0, pair.first.statistics().in_flight);
+  TEST_ASSERT_EQUAL(0, pair.first.statistics().delivered);
+  pair.first.Write(DataBuffer(100, 2));
+  pair.Run(100);
+  TEST_ASSERT_EQUAL(2, pair.received.size());
+  TEST_ASSERT_EQUAL(0, pair.first.statistics().in_flight);
+  TEST_ASSERT_EQUAL(0, pair.first.statistics().delivered);
+  pair.Run(1600);
+  TEST_ASSERT_EQUAL(2, pair.first.statistics().delivered);
+  TEST_ASSERT_EQUAL(0, pair.first.statistics().unconfirmed);
+  pair.Run(1000);
+  TEST_ASSERT_EQUAL(2, pair.first.statistics().delivered);
+}
+
+void test_OldUnacknowledgedPacketDoesNotBlockReceiptWindowRollover() {
+  Config config;
+  config.latency_target = 10s;
+  config.max_in_flight_packets = 128;
+  config.initial_rate_bytes_per_second = 1000000;
+  config.min_rate_bytes_per_second = 1000000;
+  Pair pair{config};
+  EmulatedDatagramProfile profile;
+  profile.blackhole = true;
+  pair.network.SetProfile(0, profile);
+  pair.first.Write(DataBuffer(100, 1));
+  pair.Run(100);
+  TEST_ASSERT_EQUAL(1, pair.first.statistics().in_flight);
+  profile.blackhole = false;
+  pair.network.SetProfile(0, profile);
+  for (unsigned i = 0; i < 600; ++i) {
+    pair.first.Write(DataBuffer(100, 2));
+    pair.Run(2);
+  }
+  pair.Run(100);
+  TEST_ASSERT_EQUAL(601, pair.first.statistics().sent);
+  TEST_ASSERT_EQUAL(600, pair.received.size());
+  TEST_ASSERT_EQUAL(1, pair.first.statistics().in_flight);
+  TEST_ASSERT_EQUAL(0, pair.first.statistics().delivered);
+  pair.Run(11000);
+  TEST_ASSERT_EQUAL(600, pair.first.statistics().delivered);
+  TEST_ASSERT_EQUAL(1, pair.first.statistics().unconfirmed);
+  TEST_ASSERT_EQUAL(0, pair.first.statistics().lost);
+  TEST_ASSERT_EQUAL(0, pair.first.statistics().in_flight);
+}
+
+void test_PendingOutcomeHistoryRemainsBoundedAfterAck() {
+  Config config;
+  config.latency_target = 1s;
+  config.max_in_flight_packets = 1;
+  config.max_history_packets = 2;
+  config.min_samples = 1;
+  Pair pair{config};
+  for (int i = 0; i < 2; ++i) {
+    pair.first.Write(DataBuffer(100, 1));
+    pair.Run(100);
+  }
+  pair.first.Write(DataBuffer(100, 3));
+  pair.Run(1200);
+  TEST_ASSERT_EQUAL(2, pair.first.statistics().sent);
+  TEST_ASSERT_EQUAL(0, pair.first.statistics().in_flight);
+  TEST_ASSERT_EQUAL(1, pair.first.statistics().expired);
+  pair.Run(300);
+  pair.first.Write(DataBuffer(100, 4));
+  pair.Run(1700);
+  TEST_ASSERT_EQUAL(3, pair.first.statistics().delivered);
+  TEST_ASSERT_EQUAL(3, pair.received.size());
+}
 
 void test_ProductionUdpTransportWithEmulatedSocketDeliversAndAcknowledges() {
   Pair pair;
@@ -437,6 +637,15 @@ void test_P2pAdaptiveRejectsTcpAndMixedRouteFailover() {
 int test_adaptive_stream() {
   using namespace ae::test_adaptive_stream;  // NOLINT: Unity suite entry.
   UNITY_BEGIN();
+  RUN_TEST(test_LocalWriteTimingUsesApplicationSequenceAndExcludesFeedback);
+  RUN_TEST(test_LocalWriteTimingCallbackCanUnlink);
+  RUN_TEST(test_PayloadGrowthWaitsForStabilityAndBacksOff);
+  RUN_TEST(test_PayloadGrowthKeepsUsefulProbeAndHonorsCeiling);
+  RUN_TEST(test_PayloadGrowthRejectsDeclineAndUnknownProbe);
+  RUN_TEST(test_LargeDatagramPreservesMessageBoundaryAndBytes);
+  RUN_TEST(test_AckReleasesCreditBeforeOutcomeMatures);
+  RUN_TEST(test_OldUnacknowledgedPacketDoesNotBlockReceiptWindowRollover);
+  RUN_TEST(test_PendingOutcomeHistoryRemainsBoundedAfterAck);
   RUN_TEST(
       test_ProductionUdpTransportWithEmulatedSocketDeliversAndAcknowledges);
   RUN_TEST(test_P2pAdaptiveRequiresAnActualLinkedUdpEndpoint);
