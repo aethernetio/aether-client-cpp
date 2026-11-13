@@ -24,6 +24,7 @@
 
 #include "aether/work_cloud_api/ae_message.h"
 #include "aether/work_cloud_api/cloud_configs.h"
+#include "aether/work_cloud_api/client_timing.h"
 #include "aether/work_cloud_api/server_descriptor.h"
 
 namespace ae {
@@ -79,6 +80,7 @@ class ClientApiSafe : public DeclareApi<ClientApiSafe> {
   ReturnResultApi return_result;
 
   void PingAck();
+  void SendClientTiming(Uid const& uid, ClientTiming const& timing);
 
   Event<void()> ping_ack_event;
 
@@ -96,7 +98,8 @@ class ClientApiSafe : public DeclareApi<ClientApiSafe> {
            METHOD(18, SendAllAccessedClients),
            METHOD(19, SendAccessCheckResults), METHOD(20, SendMessage),
 
-           METHOD(21, SendCLoudConfig), METHOD(24, PingAck));
+           METHOD(21, SendCLoudConfig), METHOD(24, PingAck),
+           METHOD(41, SendClientTiming));
 
 
   auto const& send_message_event() { return send_message_event_; }
@@ -106,6 +109,7 @@ class ClientApiSafe : public DeclareApi<ClientApiSafe> {
   }
   auto const& request_telemetry_event() { return request_telemetry_event_; }
   auto const& send_cloud_configs() { return send_cloud_configs_; }
+  auto const& client_timing_event() const { return client_timing_event_; }
 
  private:
   Event<void(AeMessage const& message)> send_message_event_;
@@ -114,6 +118,7 @@ class ClientApiSafe : public DeclareApi<ClientApiSafe> {
   Event<void(Uid const& uid, CloudDescriptor const& cloud)> send_cloud_event_;
   Event<void()> request_telemetry_event_;
   Event<void(std::vector<CloudConfig> const& configs)> send_cloud_configs_;
+  Event<void(Uid const&, ClientTiming const&)> client_timing_event_;
 };
 }  // namespace ae
 

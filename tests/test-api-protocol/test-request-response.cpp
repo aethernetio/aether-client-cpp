@@ -22,6 +22,7 @@
 #include "aether/events/events.h"
 #include "aether/tasks/manual_task_scheduler.h"
 
+#include "aether/work_cloud_api/client_api/client_api_safe.h"
 #include "aether/work_cloud_api/work_server_api/authorized_api.h"
 #include "assert_packet.h"
 
@@ -177,7 +178,7 @@ void test_TruncatedErrorDoesNotCompletePromise() {
   TEST_ASSERT_EQUAL(0, completion_count);
 }
 
-void test_PushPingAndTimingRpcShareProtocol() {
+void test_PushPingAndPublishedTimingWire() {
   RequestResponseFixture fxtr;
   AuthorizedApi api;
   auto push = ApiContext{api, fxtr.protocol_context};
@@ -186,26 +187,34 @@ void test_PushPingAndTimingRpcShareProtocol() {
   AssertPacket(ping_packet, MessageId{4}, std::uint64_t{1000},
                std::uint64_t{1000});
 
-  auto rpc = ApiContext{api, fxtr.protocol_context};
-  auto uid = Uid{};
-  auto promise = rpc->GetClientTiming(uid);
-  TEST_ASSERT_EQUAL(0, promise.request_id().id);
+  auto timing_call = ApiContext{api, fxtr.protocol_context};
+  auto const uid = Uid::FromString("00112233-4455-6677-8899-aabbccddeeff");
+  timing_call->GetClientTiming(uid);
+  DataBuffer request = std::move(timing_call);
+  // Independent byte fixtures from the published ClientServerApi ADSL:
+  // command 35 + UUID, without an RPC request ID.
+  DataBuffer const expected_request{0x23, 0x00, 0x11, 0x22, 0x33, 0x44,
+                                    0x55, 0x66, 0x77, 0x88, 0x99, 0xaa,
+                                    0xbb, 0xcc, 0xdd, 0xee, 0xff};
+  TEST_ASSERT_EQUAL(expected_request.size(), request.size());
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(expected_request.data(), request.data(),
+                                expected_request.size());
+
+  ClientApiSafe receiver{fxtr.event_system};
   auto count = 0;
-  Subscription sub = promise.Subscribe([&](auto const& result) {
-    TEST_ASSERT_TRUE(result.IsOk());
-    TEST_ASSERT_EQUAL(-1500, result.value().next_ping_delta_ms);
-    TEST_ASSERT_EQUAL(42, result.value().last_connect_delta_ms);
-    ++count;
-  });
-  DataBuffer request = std::move(rpc);
-  AssertPacket(request, MessageId{35}, promise.request_id(), uid);
-  auto reply = ApiContext{api};
-  reply->SendResult(promise.request_id(), ClientTiming{-1500, 42});
-  DataBuffer response = std::move(reply);
-  AssertPacket(response, MessageId{0}, promise.request_id(), std::int64_t{42},
-               std::int64_t{-1500});
+  Subscription sub = receiver.client_timing_event().Subscribe(
+      [&](Uid const& received_uid, ClientTiming const& timing) {
+        TEST_ASSERT_TRUE(uid == received_uid);
+        TEST_ASSERT_EQUAL(-1500, timing.next_ping_delta_ms);
+        TEST_ASSERT_EQUAL(42, timing.last_connect_delta_ms);
+        ++count;
+      });
+  // command 41 + UUID + lastActivityDeltaMs(42) + nextPingDeltaMs(-1500).
+  DataBuffer const response{
+      0x29, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99,
+      0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x2a, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x24, 0xfa, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
   auto parser = ApiParser{fxtr.protocol_context, response};
-  ClientResponseApi receiver;
   TEST_ASSERT_TRUE(parser.Parse(receiver));
   TEST_ASSERT_EQUAL(1, count);
 }
@@ -216,7 +225,7 @@ int test_api_protocol_request_response() {
   UNITY_BEGIN();
   using namespace ae::test_api_protocol_request_response;  // NOLINT
 
-  RUN_TEST(test_PushPingAndTimingRpcShareProtocol);
+  RUN_TEST(test_PushPingAndPublishedTimingWire);
   RUN_TEST(test_SendErrorWireFormat);
   RUN_TEST(test_ErrorResponseCompletesPromiseOnce);
   RUN_TEST(test_TruncatedResultCompletesPromiseWithDecodeError);

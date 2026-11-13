@@ -424,19 +424,18 @@ void StartPing(PingHarness& h, Ping& ping, ResultCapture& cap) {
 
 }  // namespace
 
-void DeliverPresenceTiming(PingHarness& h, RequestId request,
-                           std::int64_t next) {
+void DeliverPresenceTiming(PingHarness& h, Uid const& uid, std::int64_t next) {
   DataBuffer payload;
   ApiPacker packer{payload};
-  packer.Pack(MessageId{0},
-              GenericMessage<RequestId, ClientTiming>{
-                  request, ClientTiming{.next_ping_delta_ms = next,
-                                        .last_connect_delta_ms = 0}});
+  packer.Pack(MessageId{41},
+              GenericMessage<Uid, ClientTiming>{
+                  uid, ClientTiming{.next_ping_delta_ms = next,
+                                    .last_connect_delta_ms = 0}});
   h.Stream(kServerId)->SimulateInbound(
       PackSendSafeApiEncrypted(h.client, kServerId, payload));
 }
 
-void test_PresenceQueryUsesCorrelatedServerTiming() {
+void test_PresenceQueryFiltersPushedTimingByPeerUid() {
   PingHarness h;
   TEST_ASSERT_TRUE(h.ready);
   QueryPeerPresence query{h.ae_ctx, h.CloudConn(), Uid{{9}},
@@ -449,15 +448,15 @@ void test_PresenceQueryUsesCorrelatedServerTiming() {
     sample = value;
   });
   h.ctx.Advance(std::chrono::milliseconds{20});
-  DeliverPresenceTiming(h, RequestId{999}, 1000);
+  DeliverPresenceTiming(h, Uid{{10}}, 1000);
   TEST_ASSERT_EQUAL(0, calls);
-  DeliverPresenceTiming(h, RequestId{0}, 1000);
+  DeliverPresenceTiming(h, Uid{{9}}, 1000);
   TEST_ASSERT_EQUAL(1, calls);
   TEST_ASSERT_TRUE(query.is_finished());
   TEST_ASSERT_TRUE(sample.has_timing);
   TEST_ASSERT_EQUAL(static_cast<int>(RemoteServerPresence::kOnline),
                     static_cast<int>(sample.status));
-  DeliverPresenceTiming(h, RequestId{0}, 1000);
+  DeliverPresenceTiming(h, Uid{{9}}, 1000);
   TEST_ASSERT_EQUAL(1, calls);
 }
 
@@ -471,11 +470,40 @@ void test_PresenceQueryWithoutAnnouncementIsUnknown() {
   Subscription sub = query.result_event().Subscribe(
       [&](auto const& value) { sample = value; });
   h.ctx.Advance(std::chrono::milliseconds{20});
-  DeliverPresenceTiming(h, RequestId{0}, 0);
+  DeliverPresenceTiming(h, Uid{{9}}, 0);
   TEST_ASSERT_TRUE(query.is_finished());
   TEST_ASSERT_TRUE(sample.has_timing);
   TEST_ASSERT_EQUAL(static_cast<int>(RemoteServerPresence::kUnknown),
                     static_cast<int>(sample.status));
+}
+
+void test_PresenceQueryReceivesSynchronousPushDuringWrite() {
+  PingHarness h;
+  TEST_ASSERT_TRUE(h.ready);
+  int writes = 0;
+  h.Stream(kServerId)->SetWriteHook([&]() {
+    ++writes;
+    DeliverPresenceTiming(h, Uid{{9}}, 1000);
+  });
+  QueryPeerPresence query{h.ae_ctx, h.CloudConn(), Uid{{9}},
+                          std::chrono::seconds{1},
+                          CloudRequestExecutionPolicy::Default()};
+  int calls = 0;
+  RemoteServerPresenceSample sample;
+  Subscription sub = query.result_event().Subscribe([&](auto const& value) {
+    ++calls;
+    sample = value;
+  });
+  h.ctx.Advance(std::chrono::milliseconds{20});
+  TEST_ASSERT_EQUAL(1, writes);
+  TEST_ASSERT_EQUAL(1, calls);
+  TEST_ASSERT_TRUE(query.is_finished());
+  TEST_ASSERT_TRUE(sample.has_timing);
+  TEST_ASSERT_EQUAL(static_cast<int>(RemoteServerPresence::kOnline),
+                    static_cast<int>(sample.status));
+  h.ctx.Advance(std::chrono::milliseconds{7000});
+  TEST_ASSERT_EQUAL(1, calls);
+  TEST_ASSERT_EQUAL(1, writes);
 }
 
 void test_PresenceTimeoutDoesNotRestreamOrQuarantine() {
@@ -518,7 +546,7 @@ void test_DestroyPresenceQueryRemovesReplySubscription() {
     sub = query.result_event().Subscribe([&](auto const&) { ++calls; });
     h.ctx.Advance(std::chrono::milliseconds{20});
   }
-  DeliverPresenceTiming(h, RequestId{0}, 1000);
+  DeliverPresenceTiming(h, Uid{{9}}, 1000);
   h.ctx.Advance(std::chrono::milliseconds{7000});
   TEST_ASSERT_EQUAL(0, calls);
 }
@@ -724,8 +752,9 @@ namespace {
 int RunPingPushAckTestsOnce() {
   UNITY_BEGIN();
 
-  RUN_TEST(test_PresenceQueryUsesCorrelatedServerTiming);
+  RUN_TEST(test_PresenceQueryFiltersPushedTimingByPeerUid);
   RUN_TEST(test_PresenceQueryWithoutAnnouncementIsUnknown);
+  RUN_TEST(test_PresenceQueryReceivesSynchronousPushDuringWrite);
   RUN_TEST(test_PresenceTimeoutDoesNotRestreamOrQuarantine);
   RUN_TEST(test_DestroyPresenceQueryRemovesReplySubscription);
   RUN_TEST(test_SchedulerDelayedTaskFiresOnceThroughAeContext);

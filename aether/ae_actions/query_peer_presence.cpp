@@ -34,7 +34,19 @@ void QueryPeerPresence::StartAttempt() {
     return;
   }
   auto const generation = ++generation_;
-  send_times_[generation] = Now();
+  if (response_connection_ != connection) {
+    response_connection_ = connection;
+    first_send_time_ = Now();
+  }
+  // Rebind on every attempt: a replacement connection can reuse the old
+  // allocation's address. Subscribe before Write, including synchronous pushes.
+  response_sub_.Reset();
+  response_sub_ = connection->client_safe_api().client_timing_event().Subscribe(
+      [this](Uid const& uid, ClientTiming const& timing) {
+        if (uid == peer_uid_) {
+          OnTiming(timing);
+        }
+      });
   auto rtt = FallbackCloudRequestRtt();
   if (auto channel = connection->server_connection().current_channel()) {
     rtt = channel->channel_statistics()
@@ -56,48 +68,37 @@ void QueryPeerPresence::StartAttempt() {
                ComputeCloudRequestSoftTimeout(rtt, policy_)));
   auto& write = connection->AuthorizedApiCall(
       SubApi{[this, generation](ApiContext<AuthorizedApi>& api) {
-        auto promise = api->GetClientTiming(peer_uid_);
-        PresenceApiTrace("timing_sent", server_->server_id(),
-                         promise.request_id().id, generation);
-        response_subs_ +=
-            promise.Subscribe([this, generation](auto const& result) {
-              OnTiming(generation, result);
-            });
+        api->GetClientTiming(peer_uid_);
+        PresenceApiTrace("timing_sent", server_->server_id(), generation);
       }});
-  write_subs_ += write.status_event().Subscribe([this, generation](auto status) {
-    PresenceApiTrace("timing_write", server_->server_id(), generation,
-                     static_cast<int>(status));
-    if (!completed_ && status == WriteAction::Status::kFail) {
-      Complete({server_->server_id(), RemoteServerPresence::kUnknown});
-    }
-  });
-}
-void QueryPeerPresence::OnTiming(
-    std::uint16_t generation,
-    Result<ClientTiming, std::int32_t> const& result) {
   if (completed_) {
     return;
   }
-  auto it = send_times_.find(generation);
-  if (it == send_times_.end()) {
+  write_subs_ +=
+      write.status_event().Subscribe([this, generation](auto status) {
+        PresenceApiTrace("timing_write", server_->server_id(), generation,
+                         static_cast<int>(status));
+        if (!completed_ && status == WriteAction::Status::kFail) {
+          Complete({server_->server_id(), RemoteServerPresence::kUnknown});
+        }
+      });
+}
+void QueryPeerPresence::OnTiming(ClientTiming const& timing) {
+  if (completed_) {
     return;
   }
   RemoteServerPresenceSample sample{};
   sample.server_id = server_->server_id();
-  if (result) {
-    PresenceApiTrace("timing_received", server_->server_id(),
-                     result.value().next_ping_delta_ms,
-                     result.value().last_connect_delta_ms);
-    auto const now = Now();
-    sample.status = ClassifyRemoteServerPresence(
-        now, it->second, now, result.value(), offline_timeout_,
-        &sample.expected_open, &sample.offline_deadline);
-    sample.next_ping_delta_ms = result.value().next_ping_delta_ms;
-    sample.has_timing = true;
-  } else {
-    PresenceApiTrace("timing_error", server_->server_id(), generation,
-                     result.error());
-  }
+  PresenceApiTrace("timing_received", server_->server_id(),
+                   timing.next_ping_delta_ms, timing.last_connect_delta_ms);
+  auto const now = Now();
+  // Push replies echo only UID, not attempt identity. Never assign an old
+  // response to a newer retry's send time; retain the first outstanding anchor.
+  sample.status = ClassifyRemoteServerPresence(
+      now, first_send_time_, now, timing, offline_timeout_,
+      &sample.expected_open, &sample.offline_deadline);
+  sample.next_ping_delta_ms = timing.next_ping_delta_ms;
+  sample.has_timing = true;
   Complete(sample);
 }
 void QueryPeerPresence::Complete(RemoteServerPresenceSample sample) {
@@ -107,7 +108,7 @@ void QueryPeerPresence::Complete(RemoteServerPresenceSample sample) {
   completed_ = true;
   task_.Reset();
   timeout_.Reset();
-  response_subs_.Reset();
+  response_sub_.Reset();
   write_subs_.Reset();
   result_event_.Emit(sample);
   Finish();

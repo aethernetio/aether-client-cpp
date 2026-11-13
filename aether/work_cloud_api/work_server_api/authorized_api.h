@@ -42,7 +42,8 @@ class AuthorizedApi : public DeclareApi<AuthorizedApi> {
   void ResolveServer(std::vector<ServerId> const& sids);
   void ResolveClouds(std::vector<Uid> const& uids);
 
-  ApiPromise<ClientTiming> GetClientTiming(Uid const& uid);
+  // Push protocol: response is ClientApiSafe::SendClientTiming (41), keyed by UID.
+  void GetClientTiming(Uid const& uid);
 
   void SendTelemetry(Telemetric const& telemetric);
 

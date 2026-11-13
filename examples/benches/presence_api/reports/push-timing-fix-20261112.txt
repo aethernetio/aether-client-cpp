@@ -1,0 +1,43 @@
+Root cause: historical RPC binding used against the deployed push protocol.
+
+Cursor f6559e87 used method 35 + uint32 request ID + UID, and awaited result 0.
+The client streaming main had migrated registration and Ping to the deployed
+push protocol, but the presence port retained this historical RPC declaration.
+
+The published io.aether:client-server-work-api:0.0.100 and 0.0.101 artifacts
+define method 35 as void getClientTiming(UUID uid). Its 17-byte request has no
+request ID. ClientApiSafe.sendClientTiming is method 41, carrying UID followed
+by lastActivityDeltaMs and nextPingDeltaMs (33 bytes, signed 64-bit timings).
+Generated Java and ADSL agree. The source jars are byte-identical with SHA256
+007ad6b2a855f1720ae3cb95146dec2077792484a9d4d17dd2da2b7ef084ccff.
+See published-timing-contract-provenance.json for URLs and hashes.
+
+The four extra RPC bytes became the beginning of the target UID. The receiver
+also lacked push method 41. Missing next-Ping announcements cannot explain
+this failure: the client was sending the wrong UID and waiting on another
+response mechanism. Earlier reports of no method-35 RPC replies are historical
+observations of this broken port, not evidence that the server lacks presence.
+
+Fix: void method-35 binding; typed method-41 dispatch; subscribe before writing;
+match UID on the resolved server connection; unsubscribe on completion/destruction.
+Retries retain the first send-time anchor on a connection. No server changes,
+dependency changes, global network/firewall operations, or remote commits.
+
+Protocol limitation: the push includes UID but no request sequence. It cannot
+prove per-attempt freshness across a timed-out query and a replacement query.
+This limitation is separate from the fixed wire-format and dispatch bugs.
+
+Regression tests use literal published-wire byte fixtures, not an SDK-generated
+round trip. Additional cases cover foreign UID, duplicate, missing announcement,
+synchronous reply during Write, destruction, and timeout without Restream.
+
+Live pilot: both clients confirm 1-second Ping interval/window on servers
+20/21/24, then successfully query own UID and peer through the actual API.
+20-second healthy baseline: no Unknown or false Offline. Two 3-second scoped
+TCP blackouts: both local and peer Offline/Online observed, both recovered.
+Maximum local Offline 1951.674 ms, Online 60.923 ms; peer Offline 2051.111 ms,
+Online 1398.942 ms. These are two observations, not production percentiles.
+
+Full CTest: 57/57 pass. A/B and cloud smoke tests each pass fresh and saved
+state, with seven seconds between fresh/saved runs. Evidence is produced by
+the native API benchmark with a private per-process TCP proxy; no echo channel.

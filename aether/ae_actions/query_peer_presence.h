@@ -1,6 +1,5 @@
 #ifndef AETHER_AE_ACTIONS_QUERY_PEER_PRESENCE_H_
 #define AETHER_AE_ACTIONS_QUERY_PEER_PRESENCE_H_
-#include <map>
 #include "aether/actions/action.h"
 #include "aether/ae_context.h"
 #include "aether/cloud_connections/cloud_request_execution_policy.h"
@@ -18,7 +17,7 @@ class QueryPeerPresence final : public Action {
 
  private:
   void StartAttempt();
-  void OnTiming(std::uint16_t, Result<ClientTiming, std::int32_t> const&);
+  void OnTiming(ClientTiming const&);
   void Complete(RemoteServerPresenceSample);
   AeContext context_;
   CloudServerConnection* server_;
@@ -27,9 +26,11 @@ class QueryPeerPresence final : public Action {
   CloudRequestExecutionPolicy policy_;
   CloudRequestServerExecState execution_;
   ResultEvent result_event_;
-  MultiSubscription response_subs_, write_subs_;
+  Subscription response_sub_;
+  MultiSubscription write_subs_;
   TaskSubscription task_, timeout_;
-  std::map<std::uint16_t, TimePoint> send_times_;
+  TimePoint first_send_time_{};
+  ClientServerConnection* response_connection_{};
   std::uint16_t generation_{};
   bool completed_{};
 };

@@ -10,8 +10,13 @@ binary and must not be attributed to this integration.
 Native presence classification and DTOs originate in `6beb3150` (the Cursor
 experiment is `f6559e87`) and PR #550 (`fc61d36c`). `QueryPeerPresence` now
 queries one resolved server; the higher-level `PeerPresenceQuery` resolves the
-peer cloud and coordinates the results. Existing registration and Ping calls remain void/push on the
-wire. Only method 35 `GetClientTiming` uses request IDs and return-result RPC.
+peer cloud and coordinates the results. The wire follows the published
+`io.aether:client-server-work-api:0.0.100` / `0.0.101` contract, rather than the
+older server GitHub main. Method 35 `GetClientTiming` is void, with UID only
+(17 bytes including method ID); its response is safe method 41
+`SendClientTiming(uid, timing)` (33 bytes). There is no request ID. The old
+Cursor RPC declaration prepended four bytes to UID and expected a nonexistent
+result-0 reply. Both request binding and response dispatch are now corrected.
 The legacy push Ack has no request ID, so the existing single-flight Ping and
 late-Ack ownership are retained; the historical overlapping prefix scheduler
 is not used. Local schedules use the actual send time plus the pre-send RTT
@@ -28,10 +33,15 @@ with `has_timing=false`. An expired announced deadline yields OFFLINE.
 The query uses native CloudRequest execution-state/timeout helpers with parallel
 selected servers, two retries and RTT percentile/factor soft deadlines (at least
 one second), bounded by a 20-second deadline including cloud lookup. Soft misses
-retain older reply subscribers and do not restream or quarantine shared streaming
+retain the UID-filtered push subscription and do not restream or quarantine shared streaming
 connections. Parallel selected-server queries do not need delayed hedging.
 Errors, missing replies and empty peer clouds return UNKNOWN. Constructor work
 is deferred so subscribers can observe immediate failures.
+
+The server echoes UID but no request sequence. Pushes are matched to the server
+connection and UID; retries retain the first outstanding send-time anchor.
+This protocol cannot prove per-attempt freshness across a timed-out query and
+its replacement. Large-delay results must be interpreted with that limitation.
 
 The executable uses native Ping timings of one second, a one-second offline
 classification timeout and an intended query start period of one second.

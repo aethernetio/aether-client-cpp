@@ -1,5 +1,9 @@
 Presence window audit (client-only; server sources read, never changed)
 
+Historical pre-fix observations below. The missing reply cause was subsequently
+established and fixed; see push-timing-fix-20261112.txt. The deployed published
+contract uses void request 35 and push response 41, unlike the RPC reference.
+
 Client integration base: main 3ac320a0.
 Server reference inspected: aether-server-ref defaae3 (not a claim about the
 deployed server revision).

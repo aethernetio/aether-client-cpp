@@ -41,8 +41,8 @@ void AuthorizedApi::ResolveClouds(std::vector<Uid> const& uids) {
   ClientMethod<&AuthorizedApi::ResolveClouds>(uids);
 }
 
-ApiPromise<ClientTiming> AuthorizedApi::GetClientTiming(Uid const& uid) {
-  return ClientMethod<&AuthorizedApi::GetClientTiming>(uid);
+void AuthorizedApi::GetClientTiming(Uid const& uid) {
+  ClientMethod<&AuthorizedApi::GetClientTiming>(uid);
 }
 
 void AuthorizedApi::SendTelemetry(Telemetric const& telemetric) {

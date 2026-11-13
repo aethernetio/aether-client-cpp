@@ -31,9 +31,14 @@ ClientApiSafe::ClientApiSafe(EventSystem& event_system)
       send_server_descriptor_event_{event_system},
       send_cloud_event_{event_system},
       request_telemetry_event_{event_system},
-      send_cloud_configs_{event_system} {}
+      send_cloud_configs_{event_system},
+      client_timing_event_{event_system} {}
 
 void ClientApiSafe::PingAck() { ping_ack_event.Emit(); }
+
+void ClientApiSafe::SendClientTiming(Uid const& uid, ClientTiming const& timing) {
+  client_timing_event_.Emit(uid, timing);
+}
 
 
 void ClientApiSafe::ChangeParent([[maybe_unused]] Uid const& uid) {
