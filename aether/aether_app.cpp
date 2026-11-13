@@ -241,10 +241,11 @@ static Crypto::ptr CryptoFactory(AetherAppContext const& context) {
 }
 
 static IPoller::ptr PollerFactory(AetherAppContext const& context) {
-  auto poller = IPoller::ptr{context.aether()->poller};
-  if (poller.is_valid()) {
-    return poller;
-  }
+  // This default service has no persistent configuration or native handles in
+  // its archive. Recreate its current-platform implementation under the stable
+  // service ID before restored channels resolve their poller reference. Loading
+  // the stored concrete class would bind a moved profile to its previous OS.
+  // Applications supplying PollerFactory explicitly keep their own policy.
 
 #  if defined EPOLL_POLLER_ENABLED
   return EpollPoller::ptr::Create(
