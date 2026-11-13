@@ -322,10 +322,11 @@ target_compile_definitions(${TARGET_NAME} PUBLIC "$<$<CONFIG:Debug>:AE_TELE_RAW_
 message(STATUS "Aether build for CMAKE_SYSTEM_NAME: ${CMAKE_SYSTEM_NAME}")
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux"
   OR CMAKE_SYSTEM_NAME STREQUAL "Darwin"
+  OR CMAKE_SYSTEM_NAME STREQUAL "iOS"
   OR CMAKE_SYSTEM_NAME MATCHES ".*BSD.*"
   OR CMAKE_SYSTEM_NAME STREQUAL "Windows"
   OR CMAKE_SYSTEM_NAME STREQUAL "Android" )
-  # for desktop and Android projects add c-ares
+  # Match the native resolver platform guard, including Apple mobile builds.
   CPMAddPackage(
     NAME c-ares
     GIT_REPOSITORY "https://github.com/c-ares/c-ares.git"
