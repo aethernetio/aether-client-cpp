@@ -43,12 +43,13 @@ if(NOT CM_PLATFORM)
   target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 
 
-  if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES ".*Clang.*")
+  if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" OR
+      CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+    target_compile_options(${PROJECT_NAME} PRIVATE /W4 /WX)
+  elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES ".*Clang.*")
     target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Werror)
     # gcc has a bug related to maybe-unitialized related to use std::optional
     target_compile_options(${PROJECT_NAME} PRIVATE $<$<CXX_COMPILER_ID:GNU>:-Wno-maybe-uninitialized>)
-  elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-    target_compile_options(${PROJECT_NAME} PRIVATE /W4 /WX)
   endif()
 else()
   idf_build_get_property(CM_PLATFORM CM_PLATFORM)

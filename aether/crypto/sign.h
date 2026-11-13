@@ -19,25 +19,22 @@
 
 #include "aether/config.h"
 
-#if AE_SIGNATURE != AE_NONE
+#include <array>
+#include <cassert>
+#include <cstdint>
+#include <span>
 
-#  include <array>
-#  include <cassert>
-#  include <cstdint>
-#  include <span>
+#if AE_SIGNATURE == AE_ED25519
+#  include <sodium/crypto_sign.h>
+#elif AE_SIGNATURE == AE_HYDRO_SIGNATURE
+#  include <hydrogen.h>
+#endif
 
-#  if AE_SIGNATURE == AE_ED25519
-#    include <sodium/crypto_sign.h>
-#  elif AE_SIGNATURE == AE_HYDRO_SIGNATURE
-#    include <hydrogen.h>
-#  endif
-
-#  include "aether-miscpp/format/format.h"
-#  include "aether-miscpp/reflect/reflect.h"
-#  include "aether/types/variant_type.h"
+#include "aether-miscpp/format/format.h"
+#include "aether-miscpp/reflect/reflect.h"
+#include "aether/types/variant_type.h"
 
 namespace ae {
-
 
 enum class SignatureMethod : std::uint8_t {
   kEd25519 = 1,
@@ -45,29 +42,27 @@ enum class SignatureMethod : std::uint8_t {
   kP256AesGcm = 3,
 };
 
-
-#  if AE_SIGNATURE == AE_ED25519
+#if AE_SIGNATURE == AE_ED25519
 inline constexpr auto kDefaultSignatureMethod = SignatureMethod::kEd25519;
-#  elif AE_SIGNATURE == AE_HYDRO_SIGNATURE
+#elif AE_SIGNATURE == AE_HYDRO_SIGNATURE
 inline constexpr auto kDefaultSignatureMethod =
     SignatureMethod::kHydroSignature;
-#  endif
+#endif
 
-#  if AE_SIGNATURE == AE_ED25519
+#if AE_SIGNATURE == AE_ED25519
 struct SignSodium {
   AE_REFLECT_MEMBERS(signature)
 
   std::array<uint8_t, crypto_sign_BYTES> signature;
 };
 
-#  elif AE_SIGNATURE == AE_HYDRO_SIGNATURE
+#elif AE_SIGNATURE == AE_HYDRO_SIGNATURE
 struct SignHydrogen {
   AE_REFLECT_MEMBERS(signature)
 
   std::array<uint8_t, hydro_sign_BYTES> signature;
 };
-#  endif
-
+#endif
 
 // Parse-only signature containers for methods not enabled locally.
 struct SignHydrogenView {
@@ -80,24 +75,21 @@ struct SignP256AesGcm {
   std::array<uint8_t, 64> signature;
 };
 
-// Signature type
-struct Sign : public VariantType<SignatureMethod,
-#  if AE_SIGNATURE == AE_ED25519
-                                 VPair<SignatureMethod::kEd25519, SignSodium>,
-#  else
-                                 VPair<SignatureMethod::kEd25519,
-                                       SignHydrogenView>,
-#  endif
-#  if AE_SIGNATURE == AE_HYDRO_SIGNATURE
-                                 VPair<SignatureMethod::kHydroSignature,
-                                       SignHydrogen>,
-#  else
-                                 VPair<SignatureMethod::kHydroSignature,
-                                       SignHydrogenView>,
-#  endif
-                                 VPair<SignatureMethod::kP256AesGcm,
-                                       SignP256AesGcm>
-                                 > {
+// Signature payloads also appear in work-cloud messages without registration.
+struct Sign
+    : public VariantType<SignatureMethod,
+#if AE_SIGNATURE == AE_ED25519
+                         VPair<SignatureMethod::kEd25519, SignSodium>,
+#else
+                         VPair<SignatureMethod::kEd25519, SignHydrogenView>,
+#endif
+#if AE_SIGNATURE == AE_HYDRO_SIGNATURE
+                         VPair<SignatureMethod::kHydroSignature, SignHydrogen>,
+#else
+                         VPair<SignatureMethod::kHydroSignature,
+                               SignHydrogenView>,
+#endif
+                         VPair<SignatureMethod::kP256AesGcm, SignP256AesGcm> > {
 
   using VariantType::VariantType;
 
@@ -123,7 +115,5 @@ struct Formatter<Sign> {
   }
 };
 }  // namespace ae
-
-#endif
 
 #endif  // AETHER_CRYPTO_SIGN_H_

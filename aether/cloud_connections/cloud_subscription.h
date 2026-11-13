@@ -39,6 +39,8 @@ class CloudEventListener {
   void Reset();
 
  private:
+  friend struct P2pMessageStreamManagerTestAccess;
+
   void ServersUpdate();
 
   CloudServerConnections* cloud_connection_{};

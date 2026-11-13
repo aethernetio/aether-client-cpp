@@ -50,19 +50,31 @@ class Ping {
        CloudServerConnection& cloud_server_connection, Duration next_ping_hint,
        Duration rx_window, Duration timeout);
 
+  ~Ping();
+
   AE_CLASS_NO_COPY_MOVE(Ping);
 
   ResultEvent const& result_event() const;
 
   void Start(TimePoint current_time);
 
+  bool IsPending() const noexcept {
+    return state_ == RequestState::kPending;
+  }
+
+  bool IsAwaitingLateResponse() const noexcept {
+    return state_ == RequestState::kTimedOut;
+  }
+
  private:
   friend struct PingTestAccess;
   void ArmResponse(ClientApiSafe& api, TimePoint current_time);
   void PingResponse(RequestId request_id);
+  void PingResponseImpl(RequestId request_id);
   void PingResponseError(RequestId request_id, std::int32_t error_code);
   void PingResponseTimeout(RequestId request_id);
   void ResetRequestSubscriptions();
+  void EmitWriteFailureFromWriteCallback();
 
   enum class RequestState : char {
     kCreated,
@@ -82,6 +94,8 @@ class Ping {
   Subscription wait_result_sub_;
   TaskSubscription timeout_sub_;
   Subscription write_sub_;
+  TaskSubscription ack_dispatch_sub_;
+  TaskSubscription write_fail_dispatch_sub_;
 
   ResultEvent result_event_;
   RequestState state_{RequestState::kCreated};

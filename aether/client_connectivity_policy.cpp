@@ -82,13 +82,11 @@ void ClientConnectivityPolicy::SuspendBlocker::Reset() {
 ClientConnectivityPolicy::ClientConnectivityPolicy()
     : rx_targets_{RequestPolicy::All{}}, rx_timings_{MakeDefaultRxTimings()} {}
 
-#ifdef AE_DISTILLATION
 ClientConnectivityPolicy::ClientConnectivityPolicy(ObjProp prop)
     : Base{prop},
       rx_targets_{RequestPolicy::All{}},
       rx_timings_{MakeDefaultRxTimings()},
       suspend_allowed_event_{std::in_place, AeContext{*this}} {}
-#endif
 
 void ClientConnectivityPolicy::Loaded() {
   suspend_allowed_event_.emplace(AeContext{*this});

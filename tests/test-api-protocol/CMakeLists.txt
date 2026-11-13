@@ -21,6 +21,7 @@ set(test_api_protocol_suites
   pending-responses
   sender-lifecycle
   registration
+  ping-push-ack
 )
 
 set(test_srcs
@@ -31,6 +32,10 @@ set(test_srcs
   test-pending-responses.cpp
   test-sender-lifecycle.cpp
   test-registration.cpp
+  test-ping-push-ack.cpp
+  test-ping-server-defer.cpp
+  test-ping-timeout-recovery.cpp
+  test-ping-serverping-lifecycle.cpp
 )
 
 if(NOT CM_PLATFORM)
@@ -48,7 +53,14 @@ if(NOT CM_PLATFORM)
     string(REPLACE "-" "_" suite_entry ${suite})
     set(suite_target "${PROJECT_NAME}-${suite}")
 
-    add_executable(${suite_target} suite-main.cpp "test-${suite}.cpp")
+    if(suite STREQUAL "ping-push-ack")
+      add_executable(${suite_target} suite-main.cpp "test-${suite}.cpp"
+                                         test-ping-server-defer.cpp
+                                         test-ping-timeout-recovery.cpp
+                                         test-ping-serverping-lifecycle.cpp)
+    else()
+      add_executable(${suite_target} suite-main.cpp "test-${suite}.cpp")
+    endif()
     target_compile_definitions(
       ${suite_target}
       PRIVATE API_PROTOCOL_SUITE=test_api_protocol_${suite_entry}

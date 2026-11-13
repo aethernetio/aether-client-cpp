@@ -166,16 +166,27 @@ bool CloudServerConnections::SubscribeToServerState(
 
   auto& entry = ServerEntryFor(server_connection);
   entry.state_sub = conn->stream_update_event().Subscribe(
-      [this, sc{&server_connection}, conn]() {
-        if (conn->stream_info().link_state == LinkState::kLinkError) {
+      [this, sc{&server_connection}, conn,
+       prev_link = LinkState::kUnlinked]() mutable {
+        auto const link = conn->stream_info().link_state;
+        if (link == LinkState::kLinkError) {
           QuarantineAndReconcile(*sc);
-        } else if (conn->stream_info().link_state == LinkState::kLinked) {
+        } else if (link == LinkState::kLinked) {
           AETHER_TELED_DEBUG("CLOUD_SERVER_LINKED server_id={} priority={}",
                          sc->server_id(), sc->priority());
+          if (prev_link != LinkState::kLinked) {
+            servers_update_event_.Emit();
+          }
+        } else if (prev_link == LinkState::kLinked) {
+          servers_update_event_.Emit();
         }
+        prev_link = link;
       });
   entry.error_sub = conn->server_connection().server_error_event().Subscribe(
       [this, sc{&server_connection}]() { QuarantineAndReconcile(*sc); });
+  if (conn->stream_info().link_state == LinkState::kLinked) {
+    servers_update_event_.Emit();
+  }
   return true;
 }
 void CloudServerConnections::UnsubscribeFromServerState(
@@ -188,6 +199,10 @@ void CloudServerConnections::UnsubscribeFromServerState(
 bool CloudServerConnections::QuarantineServer(
     CloudServerConnection& server_connection) {
   if (server_connection.quarantine()) {
+    if (server_connection.quarantine_reason() ==
+        CloudQuarantineReason::kPingTimeoutWait) {
+      return UpgradePingTimeoutToTransportQuarantine(server_connection);
+    }
     return false;
   }
   AETHER_TELED_DEBUG("CLOUD_SERVER_QUARANTINED server_id={} priority={}",
@@ -205,6 +220,7 @@ bool CloudServerConnections::QuarantineServer(
          "quarantined server must belong to all servers");
   std::rotate(server_it, server_it + 1, all_servers_.end());
   server_connection.SetQuarantine(true);
+  server_connection.SetQuarantineReason(CloudQuarantineReason::kTransport);
   NormalizeServerPriorities();
   if (was_selected) {
     servers_update_event_.Emit();
@@ -223,6 +239,101 @@ bool CloudServerConnections::QuarantineServer(
     assert(false && "failed to schedule quarantine release");
   }
 
+  return true;
+}
+
+bool CloudServerConnections::QuarantineForPingTimeout(
+    CloudServerConnection& server_connection) {
+  if (server_connection.quarantine()) {
+    return false;
+  }
+  auto const was_selected =
+      std::erase(selected_servers_, &server_connection) != 0;
+  auto const server_it =
+      std::find(all_servers_.begin(), all_servers_.end(), &server_connection);
+  assert(server_it != all_servers_.end());
+  std::rotate(server_it, server_it + 1, all_servers_.end());
+  server_connection.SetQuarantine(true);
+  server_connection.SetQuarantineReason(CloudQuarantineReason::kPingTimeoutWait);
+  NormalizeServerPriorities();
+  if (was_selected) {
+    servers_update_event_.Emit();
+  }
+  server_quarantined_event_.Emit(&server_connection);
+
+  auto& quarantine_sub = ServerEntryFor(server_connection).quarantine_sub;
+  quarantine_sub = ae_context_.scheduler().DelayedTask(
+      [this, sc{&server_connection}]() { CompletePingTimeoutWait(*sc); },
+      kCloudServerQuarantineTime);
+  if (!quarantine_sub) {
+    assert(false && "failed to schedule ping timeout wait release");
+  }
+  return true;
+}
+
+bool CloudServerConnections::RecoverFromPingTimeout(
+    CloudServerConnection& server_connection) {
+  if (!server_connection.quarantine() ||
+      server_connection.quarantine_reason() !=
+          CloudQuarantineReason::kPingTimeoutWait) {
+    return false;
+  }
+  ServerEntryFor(server_connection).quarantine_sub.Reset();
+  auto const first_quarantined =
+      std::find_if(all_servers_.begin(), all_servers_.end(),
+                   [](auto const* server) { return server->quarantine(); });
+  auto const server_it =
+      std::find(all_servers_.begin(), all_servers_.end(), &server_connection);
+  assert(first_quarantined != all_servers_.end() &&
+         server_it != all_servers_.end());
+  std::rotate(first_quarantined, server_it, server_it + 1);
+  server_connection.SetQuarantine(false);
+  NormalizeServerPriorities();
+  ScheduleReconcileServers();
+  return true;
+}
+
+void CloudServerConnections::CompletePingTimeoutWait(
+    CloudServerConnection& server_connection) {
+  if (!server_connection.quarantine() ||
+      server_connection.quarantine_reason() !=
+          CloudQuarantineReason::kPingTimeoutWait) {
+    return;
+  }
+  UnsubscribeFromServerState(server_connection);
+  server_connection.Disconnect();
+  auto const first_quarantined =
+      std::find_if(all_servers_.begin(), all_servers_.end(),
+                   [](auto const* server) { return server->quarantine(); });
+  auto const server_it =
+      std::find(all_servers_.begin(), all_servers_.end(), &server_connection);
+  assert(first_quarantined != all_servers_.end() &&
+         server_it != all_servers_.end());
+  std::rotate(first_quarantined, server_it, server_it + 1);
+  server_connection.SetQuarantine(false);
+  NormalizeServerPriorities();
+  server_quarantine_release_event_.Emit(&server_connection);
+  ServerEntryFor(server_connection).quarantine_sub.Reset();
+  ScheduleReconcileServers();
+}
+
+bool CloudServerConnections::UpgradePingTimeoutToTransportQuarantine(
+    CloudServerConnection& server_connection) {
+  if (!server_connection.quarantine() ||
+      server_connection.quarantine_reason() !=
+          CloudQuarantineReason::kPingTimeoutWait) {
+    return false;
+  }
+  server_connection.SetQuarantineReason(CloudQuarantineReason::kTransport);
+  UnsubscribeFromServerState(server_connection);
+  ServerEntryFor(server_connection).quarantine_sub.Reset();
+  auto& quarantine_sub = ServerEntryFor(server_connection).quarantine_sub;
+  quarantine_sub = ae_context_.scheduler().DelayedTask(
+      [this, sc{&server_connection}]() { ReleaseQuarantinedServer(*sc); },
+      kCloudServerQuarantineTime);
+  if (!quarantine_sub) {
+    assert(false && "failed to schedule transport quarantine release");
+  }
   return true;
 }
 

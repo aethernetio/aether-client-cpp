@@ -22,6 +22,7 @@
 #include <limits>
 #include <map>
 #include <random>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -91,8 +92,8 @@ std::vector<Telemetric> MakeTelemetryPayloads(
     std::size_t selected{};
     while (low <= high) {
       auto const size = low + (high - low) / 2;
-      fragment.bytes.assign(bytes.begin() + offset,
-                            bytes.begin() + offset + size);
+      auto const part = std::span{bytes}.subspan(offset, size);
+      fragment.bytes.assign(part.begin(), part.end());
       auto candidate = telemetry_internal::Encode(fragment);
       if (telemetry_internal::Fits(candidate, max_packet_bytes, packet_size)) {
         selected = size;

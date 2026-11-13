@@ -17,13 +17,13 @@
 #ifndef AETHER_WARNING_DISABLE_H_
 #define AETHER_WARNING_DISABLE_H_
 
-#if defined _MSC_VER
-#  define DO_PRAGMA(x) __pragma(x)
-#elif defined __GNUC__ || defined __clang__
+#if defined __clang__ || defined __GNUC__
 #  define DO_PRAGMA(x) _Pragma(#x)
+#elif defined _MSC_VER
+#  define DO_PRAGMA(x) __pragma(x)
 #endif
 
-#if defined _MSC_VER
+#if defined _MSC_VER && !defined __clang__
 #  define DISABLE_WARNING_PUSH() DO_PRAGMA(warning(push))
 #  define DISABLE_WARNING_POP() DO_PRAGMA(warning(pop))
 #  define IGNORE_WARNING(x) DO_PRAGMA(warning(disable : x))
@@ -32,9 +32,7 @@
 #  define IGNORE_WNAN_INFINITY_DISABLED()
 
 #  define IGNORE_DEPRECATED() IGNORE_WARNING(4996)
-#endif
-
-#if defined __GNUC__ || defined __clang__
+#elif defined __GNUC__ || defined __clang__
 #  define DISABLE_WARNING_PUSH() DO_PRAGMA(GCC diagnostic push)
 #  define DISABLE_WARNING_POP() DO_PRAGMA(GCC diagnostic pop)
 #  define IGNORE_WARNING(name) DO_PRAGMA(GCC diagnostic ignored name)
@@ -61,11 +59,7 @@
 #  define IGNORE_DEPRECATED() IGNORE_WARNING("-Wdeprecated")
 #endif
 
-#if defined _MSC_VER
-#  define AE_MAY_UNUSED_MEMBER [[maybe_unused]]
-#endif
-
-#if defined __clang__
+#if defined __clang__ || defined _MSC_VER
 #  define AE_MAY_UNUSED_MEMBER [[maybe_unused]]
 #elif defined __GNUC__
 // GCC does not check for unused private members.

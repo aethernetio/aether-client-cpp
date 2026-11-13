@@ -51,6 +51,8 @@ class P2pMessageStreamManager {
   NewPortEvent const& new_port_event();
 
  private:
+  friend struct P2pMessageStreamManagerTestAccess;
+
   void NewMessageReceived(AeMessage const& message);
   void CleanUpPorts();
 

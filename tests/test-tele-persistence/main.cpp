@@ -676,6 +676,8 @@ void test_PingAckCompletesOnlyMatchingPendingConnectionAndCancelsTimeout() {
     unrelated.PingAck();
     TEST_ASSERT_EQUAL_UINT(0, calls);
     matching.PingAck();
+    TEST_ASSERT_EQUAL_UINT(0, calls);
+    environment.scheduler().Update(start);
     TEST_ASSERT_EQUAL_UINT(1, calls);
     TEST_ASSERT_TRUE(succeeded);
     TEST_ASSERT_FALSE(PingTestAccess::Waiting(ping));
@@ -684,6 +686,7 @@ void test_PingAckCompletesOnlyMatchingPendingConnectionAndCancelsTimeout() {
     TEST_ASSERT_EQUAL_UINT(1, calls);
   }
   unsigned timeouts{};
+  unsigned late_responses{};
   {
     Ping ping{context, connection, std::chrono::seconds{5},
               std::chrono::seconds{5}, std::chrono::seconds{1}};
@@ -691,14 +694,24 @@ void test_PingAckCompletesOnlyMatchingPendingConnectionAndCancelsTimeout() {
         ping.result_event().Subscribe([&](Ping::PingResult const& value) {
           if (std::holds_alternative<Error<int>>(value)) {
             ++timeouts;
+          } else if (std::holds_alternative<Ping::LateDuration>(value)) {
+            ++late_responses;
           }
         })};
     PingTestAccess::Arm(ping, matching, start);
     environment.scheduler().Update(start + std::chrono::seconds{2});
     TEST_ASSERT_EQUAL_UINT(1, timeouts);
-    TEST_ASSERT_FALSE(PingTestAccess::Waiting(ping));
+    TEST_ASSERT_TRUE(PingTestAccess::Waiting(ping));
+    TEST_ASSERT_EQUAL_UINT(0, late_responses);
     matching.PingAck();
+    TEST_ASSERT_EQUAL_UINT(0, late_responses);
+    environment.scheduler().Update(start + std::chrono::seconds{2});
+    TEST_ASSERT_FALSE(PingTestAccess::Waiting(ping));
+    TEST_ASSERT_EQUAL_UINT(1, late_responses);
+    matching.PingAck();
+    environment.scheduler().Update(start + std::chrono::seconds{3});
     TEST_ASSERT_EQUAL_UINT(1, timeouts);
+    TEST_ASSERT_EQUAL_UINT(1, late_responses);
   }
   {
     Ping ping{context, connection, std::chrono::seconds{5},
@@ -706,8 +719,10 @@ void test_PingAckCompletesOnlyMatchingPendingConnectionAndCancelsTimeout() {
     PingTestAccess::Arm(ping, matching, start);
   }
   matching.PingAck();
-  environment.scheduler().Update(start + std::chrono::seconds{2});
+  environment.scheduler().Update(start + std::chrono::seconds{4});
   TEST_ASSERT_EQUAL_UINT(1, timeouts);
+  TEST_ASSERT_EQUAL_UINT(1, late_responses);
+  TEST_ASSERT_EQUAL_UINT(1, calls);
 }
 #endif
 }  // namespace ae::test_tele_persistence
