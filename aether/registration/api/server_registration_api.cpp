@@ -19,8 +19,7 @@
 #if AE_SUPPORT_REGISTRATION
 
 namespace ae {
-ServerRegistrationApi::ServerRegistrationApi(IEncryptProvider& encrypt_provider)
-    : encrypt_provider_{&encrypt_provider}, global_reg_server_api_{} {}
+ServerRegistrationApi::ServerRegistrationApi(IEncryptProvider&) {}
 
 
 void ServerRegistrationApi::RegistrationDirect(

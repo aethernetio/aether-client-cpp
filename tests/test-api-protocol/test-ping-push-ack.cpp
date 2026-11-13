@@ -18,6 +18,7 @@
 #include <chrono>
 #include <cstdint>
 #include <functional>
+#include <list>
 #include <map>
 #include <memory>
 #include <optional>
@@ -115,12 +116,12 @@ class FailWriteAction : public WriteAction {
 };
 
 inline WriteAction& SelectWriteAction(AeContext const& context, bool fail_write,
-                                      std::optional<ImmediateWriteAction>& ok,
-                                      std::optional<FailWriteAction>& fail) {
+                                      std::list<ImmediateWriteAction>& ok,
+                                      std::list<FailWriteAction>& fail) {
   if (fail_write) {
-    return fail.emplace(context);
+    return fail.emplace_back(context);
   }
-  return ok.emplace(context);
+  return ok.emplace_back(context);
 }
 
 class LinkedMockStream final : public ByteIStream {
@@ -159,8 +160,10 @@ class LinkedMockStream final : public ByteIStream {
   StreamInfo stream_info_;
   OutDataEvent out_data_event_;
   StreamUpdateEvent stream_update_event_;
-  std::optional<ImmediateWriteAction> ok_action_;
-  std::optional<FailWriteAction> fail_action_;
+  // A Debug ping may also issue GetMyIp before either write completes. Retain
+  // every action so that the second write cannot cancel the first callback.
+  std::list<ImmediateWriteAction> ok_action_;
+  std::list<FailWriteAction> fail_action_;
   std::function<void()> on_write_hook_;
 };
 

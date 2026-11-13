@@ -28,6 +28,7 @@
 #  include "aether/write_action/write_action.h"
 
 #  include "aether/ae_actions/ae_actions_tele.h"
+#  include "aether/diagnostics/ping_fault.h"
 
 namespace ae {
 namespace {
@@ -91,6 +92,7 @@ void Ping::Start(TimePoint current_time) {
     return;
   }
   ArmResponse(cc->client_safe_api(), current_time);
+  if (BenchDropPing(false)) { return; }
 
   auto& write_action =
       cc->AuthorizedApiCall([this](ApiContext<AuthorizedApi>& auth_api) {
@@ -150,6 +152,7 @@ void Ping::EmitWriteFailureFromWriteCallback() {
 }
 
 void Ping::PingResponse(RequestId request_id) {
+  if (BenchDropPing(true)) { return; }
   write_fail_dispatch_sub_.Reset();
   ack_dispatch_sub_ = ae_context_.scheduler().Task(
       [this, request_id]() { PingResponseImpl(request_id); });

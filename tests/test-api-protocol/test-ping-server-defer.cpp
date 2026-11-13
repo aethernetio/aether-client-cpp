@@ -94,14 +94,14 @@ struct ChannelPolicy {
   AeContext const* ctx{nullptr};
 };
 
-class FakeChannel final : public Channel {
-  AE_OBJECT(FakeChannel, Channel, 3)
+class PingServerDeferChannel final : public Channel {
+  AE_OBJECT(PingServerDeferChannel, Channel, 3)
 
  protected:
-  FakeChannel() = default;
+  PingServerDeferChannel() = default;
 
  public:
-  FakeChannel(ObjProp prop, ChannelPolicy policy) : Channel{prop}, policy_{policy} {
+  PingServerDeferChannel(ObjProp prop, ChannelPolicy policy) : Channel{prop}, policy_{policy} {
     transport_properties_.max_packet_size = 1024;
     transport_properties_.rec_packet_size = 512;
     transport_properties_.connection_type = ConnectionType::kConnectionFull;
@@ -167,7 +167,7 @@ void test_ServerPingPeriodicStartDefersWhileClientPingPending() {
   ChannelPolicy pol{.ctx = &ae_ctx};
   for (auto sid : {kServerId, kServerIdB}) {
     auto server = aether->GetServer(sid).Load();
-    server->channels = {FakeChannel::ptr::Create(CreateWith{domain}, pol)};
+    server->channels = {PingServerDeferChannel::ptr::Create(CreateWith{domain}, pol)};
   }
 
   auto factory =

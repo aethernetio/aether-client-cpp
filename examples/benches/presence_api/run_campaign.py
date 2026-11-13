@@ -17,6 +17,7 @@ import socket
 import struct
 import subprocess
 import time
+from udp_fault_proxy import UdpFaultProxy
 
 
 def us():
@@ -227,7 +228,9 @@ class Workers:
                        "--uid-file", str(folder / "uid.txt"),
                        "--peer-file", str(peer), "--stop-file", str(stop),
                        "--trace", str(trace), "--seconds", "43200"]
-            env = dict(os.environ, AE_BENCH_TCP_PROXY_PORT=str(self.proxies[side].port))
+            env = dict(os.environ, AE_BENCH_TCP_PROXY_PORT=str(self.proxies[side].port),
+                       AE_BENCH_UDP_PROXY_PORT=str(self.proxies[side].port),
+                       AE_BENCH_PING_CONTROL=str(folder / "ping-control.txt"))
             self.processes[side] = subprocess.Popen(
                 command, cwd=folder, env=env, stdout=stdout, stderr=stderr,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
@@ -312,7 +315,7 @@ async def campaign(args):
                   local_presence_source="Client::IsLocallyOnline",
                   remote_presence_source="Client::QueryPeerPresence",
                   query_period_ms=1000, healthy_result_max_age_ms=3000,
-                  fault_model="per_process_tcp_silence",
+                  fault_model="per_process_udp_drop" if getattr(args, "transport", "tcp") == "udp" else "per_process_tcp_silence",
                   baseline_requirement="local_only" if getattr(args, "local_only", False) else "local_and_remote")
     (out / "config.json").write_text(json.dumps(config, default=str, indent=2))
     journal = Journal(out / "controller.jsonl")
@@ -322,7 +325,8 @@ async def campaign(args):
     rng = random.Random(args.seed)
     try:
         for side in ("A", "B"):
-            proxies[side] = await FaultProxy(side, journal).start()
+            proxy_type = UdpFaultProxy if getattr(args, "transport", "tcp") == "udp" else FaultProxy
+            proxies[side] = await proxy_type(side, journal).start()
         await workers.start()
         if not await workers.wait_healthy(args.startup_budget, args.stable_recovery):
             journal.log("startup_failed", segment=workers.segment)
@@ -331,6 +335,29 @@ async def campaign(args):
         journal.log("baseline_start", segment=workers.segment)
         await workers.sleep_checked(args.baseline)
         journal.log("baseline_end", segment=workers.segment)
+        if getattr(args, "ping_faults", False):
+            for mode in ("ping", "ack"):
+                for count in args.ping_counts:
+                    for side in ("A", "B"):
+                        if not await workers.wait_healthy(30, args.stable_recovery):
+                            raise RuntimeError("No healthy API baseline before typed Ping omission")
+                        token = f"{mode}-{count}-{side}"
+                        control = out / side / "ping-control.txt"
+                        control.write_text(f"{token} {mode} {count}\n")
+                        journal.log("ping_fault_arm", side=side, token=token,
+                                    mode=mode, count=count, segment=workers.segment)
+                        await workers.sleep_checked(max(12, count * 4))
+                        stderr = (out / side / f"stderr-{workers.segment}.log").read_text(errors="replace")
+                        injected = stderr.count(f"PING_FAULT,{token},{mode},")
+                        control.write_text(f"{token}-clear none 0\n")
+                        if injected != count:
+                            raise RuntimeError(f"Requested {count} {mode} omissions; observed {injected}")
+                        recovered = await workers.wait_healthy(args.recovery_budget, args.stable_recovery)
+                        journal.log("ping_fault_end", side=side, token=token,
+                                    count=injected, recovered=recovered, segment=workers.segment)
+                        print("typed omission", token, "recovered", recovered, flush=True)
+                        if not recovered:
+                            raise RuntimeError("API did not recover after typed Ping omission")
         trial = 0
         for repeat in range(args.repeats):
             for duration in args.off:
@@ -378,6 +405,9 @@ async def campaign(args):
 def main():
     parser = argparse.ArgumentParser(description="Benchmark real SDK presence APIs; default is a two-cut pilot.")
     parser.add_argument("--exe", required=True, type=Path)
+    parser.add_argument("--transport", choices=("tcp", "udp"), default="tcp")
+    parser.add_argument("--ping-faults", action="store_true")
+    parser.add_argument("--ping-counts", type=int, nargs="+", default=[1, 3])
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--local-only", action="store_true",
                         help="Measure local API when remote API replies are unavailable; remote results remain recorded, never synthesized")

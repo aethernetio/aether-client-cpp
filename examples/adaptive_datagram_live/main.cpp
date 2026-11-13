@@ -210,7 +210,8 @@ int Run(char const* output, unsigned seconds,
          "window_valid,latency_p50_us,latency_p95_us,latency_p99_us,"
          "abs_ipdv_p95_us,jitter_ewma_us,accepted,sent,delivered,lost,late,"
          "expired,unconfirmed,local_failures,queued,in_flight,feedback_stale,"
-         "feedback_incomplete,udp_only\n";
+         "feedback_incomplete,udp_only,constraints_unmet,path_latency_us,"
+         "base_latency_us,rate_ceiling_Bps,history_limited\n";
   std::uint64_t sequence = 0;
   std::uint64_t offered = 0;
   std::uint64_t previous_offered = 0;
@@ -272,7 +273,10 @@ int Run(char const* output, unsigned seconds,
           << ',' << stats.lost << ',' << stats.late << ',' << stats.expired
           << ',' << stats.unconfirmed << ',' << stats.local_failures << ','
           << stats.queued << ',' << stats.in_flight << ',' << m.feedback_stale
-          << ',' << m.feedback_incomplete << ',' << udp_only << '\n';
+          << ',' << m.feedback_incomplete << ',' << udp_only << ','
+          << m.constraints_unmet << ',' << m.latest_latency.count() << ','
+          << m.base_latency.count() << ',' << config.max_rate_bytes_per_second
+          << ',' << m.history_limited << '\n';
       csv.flush();
       previous_offered = offered;
       previous_received = rx.received_bytes;
@@ -308,8 +312,8 @@ int Run(char const* output, unsigned seconds,
 
 int main(int argc, char* argv[]) {
   // Deliberately small positional interface, with strict validation.
-  unsigned values[]{10, 50, 1000, 100};
-  if (argc > 6) {
+  unsigned values[]{10, 50, 1000, 100, 4000000};
+  if (argc > 7) {
     return 2;
   }
   for (int i = 2; i < argc; ++i) {
@@ -321,15 +325,32 @@ int main(int argc, char* argv[]) {
     }
   }
   if (values[0] == 0 || values[0] > 120 || values[1] > 1000 || values[2] == 0 ||
-      values[2] > 60000 || values[3] == 0 || values[3] > 5000) {
+      values[2] > 60000 || values[3] == 0 || values[3] > 5000 ||
+      values[4] == 0 || values[4] > 1000000000) {
     std::cerr << "Usage: adaptive-datagram-live [csv] [seconds:1..120] "
-                 "[loss_per_mille] [window_ms:1..60000] [latency_ms:1..5000]\n";
+                 "[loss_per_mille] [window_ms:1..60000] [latency_ms:1..5000] "
+                 "[rate_ceiling_Bps:1..1000000000]\n";
     return 2;
   }
   ae::adaptive_datagram::Config config;
   config.max_loss_per_mille = values[1];
   config.loss_window = std::chrono::milliseconds{values[2]};
   config.latency_target = std::chrono::milliseconds{values[3]};
+  config.max_rate_bytes_per_second = values[4];
+  if (argc == 7) {
+    // Provision the measurement history and in-flight budget for the requested
+    // ceiling, rather than measuring the default fixed-memory cap. Validate()
+    // still rejects resource requests exceeding the stream's supported bounds.
+    auto const packets_per_second =
+        (config.max_rate_bytes_per_second + 799) / 800;
+    config.max_history_packets = static_cast<std::size_t>(std::max<std::uint64_t>(
+        config.max_history_packets,
+        (packets_per_second * values[2] * 2 + 999) / 1000));
+    config.max_in_flight_packets = static_cast<std::size_t>(std::max<std::uint64_t>(
+        config.max_in_flight_packets,
+        (packets_per_second * (values[3] + 500) + 999) / 1000));
+  }
+  if (!config.Validate()) { return 2; }
   return ae::adaptive_datagram_live::Run(
       argc >= 2 ? argv[1] : "adaptive-live.csv", values[0], config);
 }
