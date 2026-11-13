@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cassert>
 #include <chrono>
+#include <cstdint>
 #include <utility>
 
 namespace ae {
@@ -42,9 +43,11 @@ bool EmulatedDatagramNetwork::Later::operator()(Packet const& left,
 void EmulatedDatagramNetwork::SetProfile(std::size_t direction,
                                          EmulatedDatagramProfile profile) {
   assert(direction < directions_.size() && "Invalid emulated direction");
-  profile.loss_per_mille = std::min(profile.loss_per_mille, 1000U);
-  profile.duplicate_per_mille = std::min(profile.duplicate_per_mille, 1000U);
-  profile.reorder_per_mille = std::min(profile.reorder_per_mille, 1000U);
+  profile.loss_per_mille = std::min(profile.loss_per_mille, std::uint32_t{1000});
+  profile.duplicate_per_mille =
+      std::min(profile.duplicate_per_mille, std::uint32_t{1000});
+  profile.reorder_per_mille =
+      std::min(profile.reorder_per_mille, std::uint32_t{1000});
   directions_[direction].profile = profile;
 }
 
