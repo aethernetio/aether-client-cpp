@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Aether WebSocket SDK probe</title>
+<style>body{font:16px system-ui;margin:32px;background:#101820;color:#ecf0f3}pre{white-space:pre-wrap}</style>
+<h1>Aether WebSocket SDK probe</h1><pre id="output">Connecting to Aether…</pre>
+<script>
+var Module = {
+  print: function(line) {
+    // Publish public probe results; SDK diagnostic payloads/identity secrets are
+    // not part of the screenshot or browser acceptance artifact.
+    if (/^(PASS |FAIL |registered_uid=|registration_response_bytes=|server=|websocket_endpoint=)/.test(line)) {
+      document.getElementById('output').textContent += '\n' + line;
+      console.log(line);
+    }
+  },
+  printErr: function(line) { console.error(line); }
+};
+</script>
+{{{ SCRIPT }}}
+</html>

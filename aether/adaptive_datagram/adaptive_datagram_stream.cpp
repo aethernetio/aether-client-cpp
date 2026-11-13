@@ -600,7 +600,8 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
       largest_received = packet.sequence;
     }
     auto const delta = largest_received - packet.sequence;
-    if (delta >= adaptive_datagram::kReceiptBits || received[delta]) {
+    if (delta >= adaptive_datagram::kReceiptBits ||
+        received[static_cast<std::size_t>(delta)]) {
       ++stats.duplicates;
       return;
     }
@@ -612,8 +613,8 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
         local_sent);
     auto const timely =
         age >= 0 && static_cast<std::uint64_t>(age) <= packet.lifetime_us;
-    received[delta] = true;
-    on_time[delta] = timely;
+    received[static_cast<std::size_t>(delta)] = true;
+    on_time[static_cast<std::size_t>(delta)] = timely;
     echo_sent = packet.sent_at_us;
     received_at = adaptive_datagram_stream_internal::Micros(now);
     sampled_sequence = packet.sequence;
@@ -648,7 +649,7 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
         sample != flights.end() &&
         sample_delta < adaptive_datagram::kReceiptBits &&
         sample->sent_at >= path_started_at_ &&
-        (feedback.received[sample_delta / 64] &
+        (feedback.received[static_cast<std::size_t>(sample_delta / 64)] &
          (std::uint64_t{1} << (sample_delta % 64))) != 0 &&
         feedback.echo_sent_at_us ==
             adaptive_datagram_stream_internal::Micros(sample->sent_at) &&
@@ -687,12 +688,13 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
         continue;
       }
       auto const mask = std::uint64_t{1} << (delta % 64);
-      if ((feedback.received[delta / 64] & mask) != 0) {
+      auto const receipt_index = static_cast<std::size_t>(delta / 64);
+      if ((feedback.received[receipt_index] & mask) != 0) {
         if (!f.received && f.sent_at >= path_started_at_) {
           new_wire_bytes += f.wire_bytes;
         }
         f.received = true;
-        f.on_time = (feedback.on_time[delta / 64] & mask) != 0;
+        f.on_time = (feedback.on_time[receipt_index] & mask) != 0;
         // Receipt masks carry the verdict for every packet. The echoed sample
         // additionally measures path delay without ACK scheduling/reverse
         // delay.

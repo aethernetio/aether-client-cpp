@@ -34,6 +34,7 @@
 #include "aether/crypto/key.h"
 #include "aether/global_ids.h"
 #include "aether/poller/epoll_poller.h"
+#include "aether/poller/browser_poller.h"
 #include "aether/poller/freertos_poller.h"
 #include "aether/poller/kqueue_poller.h"
 #include "aether/poller/win_poller.h"
@@ -204,6 +205,10 @@ static Cloud::ptr RegistrationCloudFactory(AetherAppContext const& context) {
           .with_id(GlobalId::kRegistrationCloud)
           .with_flags(ObjFlags::kUnloadedByDefault),
       context.aether());
+#    if defined(__EMSCRIPTEN__)
+  reg_c->AddServerSettings(Endpoint{
+      {NamedAddr{"dbservice.aethernet.io"}, 9013}, Protocol::kWebSocketSecure});
+#    else
 #    if defined _AE_REG_CLOUD_IP
   reg_c->AddServerSettings(
       Endpoint{{AddressParser::StringToAddress(_AE_REG_CLOUD_IP), 9010},
@@ -215,6 +220,7 @@ static Cloud::ptr RegistrationCloudFactory(AetherAppContext const& context) {
   // hardcoded ip address in case named address is not supported
   reg_c->AddServerSettings(Endpoint{
       {AddressParser::StringToAddress("34.60.244.148"), 9010}, Protocol::kTcp});
+#    endif
   return reg_c;
 }
 #  endif  // AE_SUPPORT_REGISTRATION
@@ -240,13 +246,18 @@ static Crypto::ptr CryptoFactory(AetherAppContext const& context) {
   return crypto;
 }
 
-static IPoller::ptr PollerFactory(AetherAppContext const& context) {
-  auto poller = IPoller::ptr{context.aether()->poller};
-  if (poller.is_valid()) {
-    return poller;
-  }
+static IPoller::ptr PollerFactory([[maybe_unused]] AetherAppContext const& context) {
+  // This default service has no persistent configuration or native handles in
+  // its archive. Recreate its current-platform implementation under the stable
+  // service ID before restored channels resolve their poller reference. Loading
+  // the stored concrete class would bind a moved profile to its previous OS.
+  // Applications supplying PollerFactory explicitly keep their own policy.
 
-#  if defined EPOLL_POLLER_ENABLED
+#  if defined(__EMSCRIPTEN__)
+  return BrowserPoller::ptr::Create(CreateWith{context.domain()}
+                                      .with_id(GlobalId::kPoller)
+                                      .with_flags(ObjFlags::kUnloadedByDefault));
+#  elif defined EPOLL_POLLER_ENABLED
   return EpollPoller::ptr::Create(
       CreateWith{context.domain()}
           .with_id(GlobalId::kPoller)
