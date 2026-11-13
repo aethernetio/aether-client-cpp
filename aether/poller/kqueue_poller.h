@@ -38,6 +38,7 @@ class KqueuePollerImpl : public UnixPollerImpl {
  public:
   KqueuePollerImpl();
   ~KqueuePollerImpl() override;
+  void Stop() override;
 
  private:
   void lock() override;

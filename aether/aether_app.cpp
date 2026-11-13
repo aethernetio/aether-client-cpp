@@ -424,6 +424,14 @@ std::unique_ptr<AetherApp> AetherApp::Construct(AetherAppContext context) {
 }
 
 AetherApp::~AetherApp() {
+  // Runtime transports may survive individual persistent objects during graph
+  // reclamation. Join I/O callbacks while their Aether/Domain context is alive.
+  if (aether_ && aether_->poller) {
+    auto native = aether_->poller.Load()->Native();
+    if (native) {
+      native->Stop();
+    }
+  }
 #if AE_TELE_ENABLED && (AE_TELE_LOG_TO_STATISTICS || AE_TELE_LOG_CONSOLE)
   // The lifecycle boundary is an ordinary timestamped record.
   if (aether_) {

@@ -143,16 +143,21 @@ FreeRtosLwipPollerImpl::FreeRtosLwipPollerImpl()
 }
 
 FreeRtosLwipPollerImpl::~FreeRtosLwipPollerImpl() {
-  stop_requested_.store(true, std::memory_order::release);
+  Stop();
+  freertos_poller_internal::ClosePipe(wake_up_pipe_);
+  AETHER_TELE_DEBUG(kFreertosWorkerDestroyed, "Poll worker has been destroyed");
+}
+
+void FreeRtosLwipPollerImpl::Stop() {
+  if (stop_requested_.exchange(true, std::memory_order_acq_rel)) {
+    return;
+  }
   freertos_poller_internal::WritePipe(wake_up_pipe_);
   // if task was created
   if (worker_task_handle_ != nullptr) {
     // wait for the task to stop (join)
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
   }
-  freertos_poller_internal::ClosePipe(wake_up_pipe_);
-
-  AETHER_TELE_DEBUG(kFreertosWorkerDestroyed, "Poll worker has been destroyed");
 }
 
 void FreeRtosLwipPollerImpl::lock() { ctl_mutex_.lock(); }

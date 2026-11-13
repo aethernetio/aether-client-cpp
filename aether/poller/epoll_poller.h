@@ -38,6 +38,7 @@ class EpollImpl final : public UnixPollerImpl {
  public:
   EpollImpl();
   ~EpollImpl() override;
+  void Stop() override;
 
  private:
   void lock() override;

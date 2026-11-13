@@ -48,6 +48,7 @@ class FreeRtosLwipPollerImpl : public NativePoller {
 
   FreeRtosLwipPollerImpl();
   ~FreeRtosLwipPollerImpl() override;
+  void Stop() override;
 
   // implementation for BasicLockable
   void lock();

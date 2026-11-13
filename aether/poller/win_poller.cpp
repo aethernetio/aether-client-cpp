@@ -38,7 +38,17 @@ IoCpPoller::IoCpPoller() {
 }
 
 IoCpPoller::~IoCpPoller() {
-  stop_requested_ = true;
+  Stop();
+  if (iocp_ != INVALID_HANDLE_VALUE) {
+    CloseHandle(iocp_);
+  }
+  AETHER_TELE_INFO(kWinpollWorkerDestroyed);
+}
+
+void IoCpPoller::Stop() {
+  if (stop_requested_.exchange(true)) {
+    return;
+  }
   if (iocp_ != INVALID_HANDLE_VALUE) {
     // wake up loop
     PostQueuedCompletionStatus(iocp_, 0, 0, nullptr);
@@ -46,9 +56,7 @@ IoCpPoller::~IoCpPoller() {
     if (loop_thread_.joinable()) {
       loop_thread_.join();
     }
-    CloseHandle(iocp_);
   }
-  AETHER_TELE_INFO(kWinpollWorkerDestroyed);
 }
 
 void IoCpPoller::Add(DescriptorType descriptor, EventCb cb) {

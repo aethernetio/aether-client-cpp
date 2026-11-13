@@ -76,10 +76,23 @@ EpollImpl::EpollImpl()
 }
 
 EpollImpl::~EpollImpl() {
+  Stop();
+  if (epoll_fd_ != -1) {
+    close(epoll_fd_);
+  }
+  if (event_fd_ != -1) {
+    close(event_fd_);
+  }
+  AETHER_TELE_INFO(kEpollWorkerDestroyed);
+}
+
+void EpollImpl::Stop() {
+  if (stop_requested_.exchange(true)) {
+    return;
+  }
   AETHER_TELED_DEBUG("Destroy EpollImpl event fd {}, thread is joinable {}",
                  event_fd_, thread_.joinable());
 
-  stop_requested_ = true;
   if (event_fd_ != -1) {
     // write something
     std::uint64_t b{1};
@@ -93,14 +106,6 @@ EpollImpl::~EpollImpl() {
   if (thread_.joinable()) {
     thread_.join();
   }
-
-  if (epoll_fd_ != -1) {
-    close(epoll_fd_);
-  }
-  if (event_fd_ != -1) {
-    close(event_fd_);
-  }
-  AETHER_TELE_INFO(kEpollWorkerDestroyed);
 }
 
 void EpollImpl::lock() { poller_mutex_.lock(); }

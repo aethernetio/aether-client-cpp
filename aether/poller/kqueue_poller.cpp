@@ -97,10 +97,20 @@ KqueuePollerImpl::KqueuePollerImpl()
 }
 
 KqueuePollerImpl::~KqueuePollerImpl() {
+  Stop();
+  if (kqueue_fd_ != -1) {
+    close(kqueue_fd_);
+  }
+  AETHER_TELE_DEBUG(kKqueueWorkerDestroyed);
+}
+
+void KqueuePollerImpl::Stop() {
+  if (stop_requested_.exchange(true)) {
+    return;
+  }
   if (kqueue_fd_ == -1) {
     return;
   }
-  stop_requested_ = true;
   // emit user event to wake up thread
   struct kevent ev;
   EV_SET(&ev, exit_kqueue_event_, EVFILT_USER, 0, NOTE_TRIGGER, 0, nullptr);
@@ -114,9 +124,6 @@ KqueuePollerImpl::~KqueuePollerImpl() {
   if (thread_.joinable()) {
     thread_.join();
   }
-
-  close(kqueue_fd_);
-  AETHER_TELE_DEBUG(kKqueueWorkerDestroyed);
 }
 
 void KqueuePollerImpl::lock() { poller_mutex_.lock(); }

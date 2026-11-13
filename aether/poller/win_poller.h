@@ -44,6 +44,7 @@ class IoCpPoller final : public NativePoller {
 
   IoCpPoller();
   ~IoCpPoller();
+  void Stop() override;
 
   void Add(DescriptorType descriptor, EventCb cb);
   void Remove(DescriptorType descriptor);
