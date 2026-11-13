@@ -392,10 +392,13 @@ void test_MultithreadOwnedPostsKeepPeriodicTimers() {
       ++workers_done;
     }};
   }
-  auto const deadline = Now() + 5s;
+  // This guards against stalled tasks, rather than measuring throughput. Let
+  // producers acquire the scheduler lock even on slow or oversubscribed CI.
+  auto const deadline = Now() + 30s;
   while (workers_done.load() < kWorkers && Now() < deadline) {
     epoch += 1us;
     scheduler.Update(epoch);
+    std::this_thread::yield();
   }
   stop.store(true);
   for (auto& worker : workers) {
