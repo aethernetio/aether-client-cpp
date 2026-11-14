@@ -36,6 +36,9 @@ class AuthorizedApi : public DeclareApi<AuthorizedApi> {
 
   void Ping(std::uint64_t next_connect_ms_duration, std::uint64_t rx_window_ms);
 
+  void SetSessionId(std::uint64_t session_id);
+
+
   void SendMessage(AeMessage const& message);
   void SendMessages(std::vector<AeMessage> const& messages);
   void CheckAccessForSendMessage(Uid const& uid);
@@ -52,7 +55,10 @@ class AuthorizedApi : public DeclareApi<AuthorizedApi> {
   API_LIST(METHOD(4, Ping), METHOD(6, SendMessage), METHOD(7, SendMessages),
            METHOD(11, CheckAccessForSendMessage), METHOD(12, ResolveServer),
            METHOD(13, ResolveClouds), METHOD(18, SendTelemetry),
-           METHOD(35, GetClientTiming), METHOD(38, ReportAppliedConfigs))
+
+           METHOD(35, GetClientTiming), METHOD(38, ReportAppliedConfigs),
+           METHOD(51, SetSessionId))
+
 };
 }  // namespace ae
 

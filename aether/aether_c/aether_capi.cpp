@@ -32,6 +32,7 @@
 
 #include "aether/aether_app.h"
 #include "aether/client.h"
+#include "aether/cloud_connections/cloud_callbacks.h"
 
 // IWYU pragma: begin_keeps
 #include "aether/wifi/wifi_driver_types.h"
@@ -418,4 +419,16 @@ void ClientSendMessageStr(AetherClient* client, CUid destination,
 
   WriteMessage(client, dest, std::move(send_data), status_cb, user_data);
 }
+
+void aether_client_set_session_id(AetherClient* client, uint64_t session_id) {
+  if (client == nullptr || !client->client) {
+    return;
+  }
+  client->client->cloud_connection().CallApi(
+      ae::ApiCall{[session_id](ae::ApiContext<ae::AuthorizedApi>& auth_api,
+                               auto*) { auth_api->SetSessionId(session_id); }},
+      ae::RequestPolicy::All{});
+}
+
+
 AE_EXTERN_C_END

@@ -99,6 +99,17 @@ void FreeClient(AetherClient* client);
  */
 int GetClientUid(AetherClient* client, CUid* uid);
 
+
+/**
+ * \brief Set the session identifier for the selected client.
+ * The session id is propagated to the server asynchronously.
+ * Safe to call when the client is not ready - the call is ignored.
+ * \param client The client to set the session id for.
+ * \param session_id The session identifier.
+ */
+void aether_client_set_session_id(AetherClient* client, uint64_t session_id);
+
+
 /**
  * \brief Send a message from selected client to destination client.
  * \param client The client to send the message from.

@@ -31,8 +31,12 @@ ClientApiSafe::ClientApiSafe(EventSystem& event_system)
       send_server_descriptor_event_{event_system},
       send_cloud_event_{event_system},
       request_telemetry_event_{event_system},
+
       send_cloud_configs_{event_system},
-      client_timing_event_{event_system} {}
+      client_timing_event_{event_system},
+      session_id_event_{event_system},
+      response_for_event_{event_system} {}
+
 
 void ClientApiSafe::PingAck() { ping_ack_event.Emit(); }
 
@@ -130,6 +134,18 @@ void ClientApiSafe::SendMessage(AeMessage const& msg) {
 void ClientApiSafe::SendCLoudConfig(std::vector<CloudConfig> const& configs) {
   AETHER_TELED_DEBUG("Received cloud configs count {}", configs.size());
   send_cloud_configs_.Emit(configs);
+}
+
+
+void ClientApiSafe::OnSessionId(std::uint64_t session_id) {
+  session_id_ = session_id;
+  AE_TELED_DEBUG("Session id assigned {}", session_id);
+  session_id_event_.Emit(session_id);
+}
+
+void ClientApiSafe::OnResponseFor(std::uint64_t session_id) {
+  response_session_id_ = session_id;
+  response_for_event_.Emit(session_id);
 }
 
 }  // namespace ae

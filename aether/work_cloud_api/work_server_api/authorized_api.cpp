@@ -53,4 +53,10 @@ void AuthorizedApi::ReportAppliedConfigs(
     std::vector<AppliedConfig> const& configs) {
   ClientMethod<&AuthorizedApi::ReportAppliedConfigs>(configs);
 }
+
+
+void AuthorizedApi::SetSessionId(std::uint64_t session_id) {
+  ClientMethod<&AuthorizedApi::SetSessionId>(session_id);
+}
+
 }  // namespace ae

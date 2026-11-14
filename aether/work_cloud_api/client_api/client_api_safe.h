@@ -76,6 +76,10 @@ class ClientApiSafe : public DeclareApi<ClientApiSafe> {
 
   void SendCLoudConfig(std::vector<CloudConfig> const& configs);
 
+  void OnSessionId(std::uint64_t session_id);
+  void OnResponseFor(std::uint64_t session_id);
+
+
 
   ReturnResultApi return_result;
 
@@ -98,8 +102,11 @@ class ClientApiSafe : public DeclareApi<ClientApiSafe> {
            METHOD(18, SendAllAccessedClients),
            METHOD(19, SendAccessCheckResults), METHOD(20, SendMessage),
 
+
            METHOD(21, SendCLoudConfig), METHOD(24, PingAck),
-           METHOD(41, SendClientTiming));
+           METHOD(41, SendClientTiming),
+           METHOD(72, OnSessionId), METHOD(73, OnResponseFor));
+
 
 
   auto const& send_message_event() { return send_message_event_; }
@@ -111,6 +118,15 @@ class ClientApiSafe : public DeclareApi<ClientApiSafe> {
   auto const& send_cloud_configs() { return send_cloud_configs_; }
   auto const& client_timing_event() const { return client_timing_event_; }
 
+
+  std::uint64_t session_id() const { return session_id_; }
+  std::uint64_t response_session_id() const { return response_session_id_; }
+
+
+  auto const& session_id_event() { return session_id_event_; }
+  auto const& response_for_event() { return response_for_event_; }
+
+
  private:
   Event<void(AeMessage const& message)> send_message_event_;
   Event<void(ServerDescriptor const& server_descriptor)>
@@ -118,7 +134,13 @@ class ClientApiSafe : public DeclareApi<ClientApiSafe> {
   Event<void(Uid const& uid, CloudDescriptor const& cloud)> send_cloud_event_;
   Event<void()> request_telemetry_event_;
   Event<void(std::vector<CloudConfig> const& configs)> send_cloud_configs_;
+
   Event<void(Uid const&, ClientTiming const&)> client_timing_event_;
+  Event<void(std::uint64_t)> session_id_event_;
+  Event<void(std::uint64_t)> response_for_event_;
+  std::uint64_t session_id_{0};
+  std::uint64_t response_session_id_{0};
+
 };
 }  // namespace ae
 
