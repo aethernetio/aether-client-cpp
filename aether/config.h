@@ -31,6 +31,11 @@
 #  include USER_CONFIG
 #endif
 // IWYU pragma: end_exports
+#if defined(AE_MINIMAL_HYDROGEN) && AE_MINIMAL_HYDROGEN
+#  if AE_CRYPTO_ASYNC != AE_HYDRO_CRYPTO_PK || AE_CRYPTO_SYNC != AE_HYDRO_CRYPTO_SK || AE_SIGNATURE != AE_HYDRO_SIGNATURE || AE_KDF != AE_HYDRO_KDF
+#    error "AE_MINIMAL_HYDROGEN requires an explicit Hydrogen USER_CONFIG"
+#  endif
+#endif
 
 // task queue buffer size \see aether/tasks
 #ifndef AE_TASK_MAX_COUNT

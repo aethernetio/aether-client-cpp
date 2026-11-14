@@ -56,6 +56,7 @@ else()
 endif()
 
 option(AE_DISTILLATION "Build aether in distillation mode" On)
+option(AE_MINIMAL_HYDROGEN "Only link the configured Hydrogen crypto backend" OFF)
 option(AE_FILTRATION "Build aether in filtration mode" Off)
 option(AE_INSTALL "Install aether" ${AE_ROOT_PORJECT})
 option(AE_BUILD_TOOLS "Build tools" ${AE_ROOT_PORJECT})
@@ -140,6 +141,7 @@ CPMAddPackage(
   OPTIONS "ENABLE_INSTALL ${AE_INSTALL}"
   EXCLUDE_FROM_ALL FALSE
 )
+if(NOT AE_MINIMAL_HYDROGEN)
 CPMAddPackage(
   NAME libsodium
   GIT_REPOSITORY "https://github.com/jedisct1/libsodium.git"
@@ -151,6 +153,7 @@ CPMAddPackage(
   OPTIONS "ENABLE_INSTALL ${AE_INSTALL}"
   EXCLUDE_FROM_ALL FALSE
 )
+endif()
 CPMAddPackage(
   NAME gcem
   GIT_REPOSITORY "https://github.com/aethernetio/gcem.git"
@@ -282,10 +285,13 @@ target_include_directories(${TARGET_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
+if(AE_MINIMAL_HYDROGEN)
+  target_compile_definitions(${TARGET_NAME} PUBLIC AE_MINIMAL_HYDROGEN=1)
+endif()
 target_link_libraries(${TARGET_NAME} PUBLIC
                                       aether-tele
                                       bcrypt
-                                      sodium
+                                      $<$<NOT:$<BOOL:${AE_MINIMAL_HYDROGEN}>>:sodium>
                                       hydrogen
                                       gcem
                                       etl
