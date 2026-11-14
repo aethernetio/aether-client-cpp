@@ -234,6 +234,14 @@ add_subdirectory(aether)
 
 if(EMSCRIPTEN)
   target_link_options(aether PUBLIC -lwebsocket.js)
+elseif(AE_NATIVE_WEBSOCKET AND APPLE)
+  # Network.framework supplies WebSocket, DNS and system TLS trust on Apple.
+  set_source_files_properties(aether/transport/websocket/apple_websocket_backend.cpp
+    PROPERTIES COMPILE_OPTIONS "-fblocks")
+  find_library(AE_NETWORK_FRAMEWORK Network REQUIRED)
+  target_link_libraries(aether PRIVATE "${AE_NETWORK_FRAMEWORK}")
+  target_compile_definitions(aether PUBLIC AE_NATIVE_WEBSOCKET=1)
+  target_compile_definitions(aether PRIVATE AE_APPLE_WEBSOCKET=1)
 elseif(AE_NATIVE_WEBSOCKET)
   # Pin TLS and RFC 6455 implementations. Certificate and hostname validation
   # stay enabled. Native transport remains an explicit build feature.

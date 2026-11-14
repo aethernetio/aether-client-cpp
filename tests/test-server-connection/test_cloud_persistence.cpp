@@ -291,7 +291,14 @@ void test_CloudServerConnectionPriorityRoundTripsAndRestoresSelectionOrder() {
 }
 
 void test_ServerRebuildsUnsupportedCachedChannelAndPreservesValidIds() {
-  constexpr auto supported_protocol = AE_SUPPORT_TCP ? Protocol::kTcp : Protocol::kUdp;
+  // Exercise a transport enabled by the selected configuration, including WS.
+#if AE_SUPPORT_TCP
+  constexpr auto supported_protocol = Protocol::kTcp;
+#elif AE_SUPPORT_UDP
+  constexpr auto supported_protocol = Protocol::kUdp;
+#else
+  constexpr auto supported_protocol = Protocol::kWebSocketSecure;
+#endif
   TestContext context;
   RamDomainStorage storage;
   ObjId server_id;

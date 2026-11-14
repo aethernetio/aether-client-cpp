@@ -28,5 +28,5 @@ int main() {
   res += test_data_packet_collector();
   res += test_packet_queue_manager();
   res += test_websocket();
-  return 0;
+  return res;
 }

@@ -33,6 +33,16 @@ if(NOT CM_PLATFORM)
    target_link_libraries(${PROJECT_NAME} PRIVATE aether unity gcem)
 
    add_test(NAME ${PROJECT_NAME} COMMAND $<TARGET_FILE:${PROJECT_NAME}>)
+   if(APPLE AND AE_NATIVE_WEBSOCKET)
+     add_executable(test-apple-websocket test-apple-websocket.cpp)
+     target_link_libraries(test-apple-websocket PRIVATE aether unity)
+     add_test(NAME test-apple-websocket
+       COMMAND ${Python3_EXECUTABLE}
+         ${CMAKE_CURRENT_SOURCE_DIR}/websocket_test_server.py
+         $<TARGET_FILE:test-apple-websocket>)
+     set_tests_properties(test-apple-websocket PROPERTIES
+       TIMEOUT 90 SKIP_RETURN_CODE 77)
+   endif()
 else()
     message(WARNING "Not implemented for ${CM_PLATFORM}")
 endif()

@@ -44,6 +44,10 @@ list(APPEND aether_srcs
             "transport/websocket/browser_websocket_backend.cpp"
             "transport/websocket/disabled_websocket_backend.cpp")
 
+if(APPLE AND AE_NATIVE_WEBSOCKET)
+  list(APPEND aether_srcs "transport/websocket/apple_websocket_backend.cpp")
+endif()
+
 list(APPEND aether_srcs
             "poller/epoll_poller.cpp"
             "poller/kqueue_poller.cpp"

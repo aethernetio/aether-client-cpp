@@ -205,7 +205,10 @@ static Cloud::ptr RegistrationCloudFactory(AetherAppContext const& context) {
           .with_id(GlobalId::kRegistrationCloud)
           .with_flags(ObjFlags::kUnloadedByDefault),
       context.aether());
-#    if defined(__EMSCRIPTEN__)
+#    if defined(__EMSCRIPTEN__) || \
+        (defined(AE_NATIVE_WEBSOCKET) && AE_SUPPORT_WEBSOCKET && \
+         !AE_SUPPORT_TCP && !AE_SUPPORT_UDP)
+  // A deliberately WebSocket-only native build needs WSS registration too.
   reg_c->AddServerSettings(Endpoint{
       {NamedAddr{"dbservice.aethernet.io"}, 9013}, Protocol::kWebSocketSecure});
 #    else

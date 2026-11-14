@@ -24,9 +24,10 @@
 #include "aether/types/data_buffer.h"
 
 namespace ae {
-// Platform I/O owns its callbacks and joins/removes them before destruction.
-// Only Poll/Send are called by the Aether model thread. No domain/event objects
-// are accessed by the platform's receive thread.
+// Platform I/O owns its callbacks. Destruction either joins/removes them or
+// detaches callback-owned runtime state until asynchronous cancellation ends.
+// Poll/Send/BufferedAmount run on the Aether model thread. Platform callbacks
+// never access the backend after destruction, or any model/domain/event object.
 class IWebSocketBackend {
  public:
   enum class State { kConnecting, kOpen, kClosed, kError };

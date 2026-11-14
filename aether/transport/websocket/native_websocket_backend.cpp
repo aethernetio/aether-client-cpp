@@ -15,7 +15,8 @@
  */
 
 #include "aether/config.h"
-#if AE_SUPPORT_WEBSOCKET && defined(AE_NATIVE_WEBSOCKET)
+#if AE_SUPPORT_WEBSOCKET && defined(AE_NATIVE_WEBSOCKET) && \
+    !defined(AE_APPLE_WEBSOCKET)
 #  include "aether/transport/websocket/websocket_backend.h"
 
 #  include <filesystem>
