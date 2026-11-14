@@ -104,8 +104,13 @@ class Backend final : public IWebSocketBackend {
     return {state_, std::exchange(received_, {})};
   }
   bool Send(DataBuffer const& data) override {
+    // The browser API takes a 32-bit length even when size_t is 64-bit.
+    // Reject oversize frames before narrowing; never send a truncated payload.
+    static_assert(WebSocketTransport::kMaxBufferedBytes <= UINT32_MAX);
+    if (data.size() > WebSocketTransport::kMaxBufferedBytes) return false;
     return emscripten_websocket_send_binary(
-               socket_, const_cast<std::uint8_t*>(data.data()), data.size()) ==
+               socket_, const_cast<std::uint8_t*>(data.data()),
+               static_cast<std::uint32_t>(data.size())) ==
            EMSCRIPTEN_RESULT_SUCCESS;
   }
   std::size_t BufferedAmount() const override {
