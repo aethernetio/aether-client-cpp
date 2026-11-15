@@ -1,0 +1,1523 @@
+{
+  "date": "2026-11-15",
+  "code_commit": "414b0140fd4474a9ebf0991ea55f99e190239bf6",
+  "parent": "04b13e0b",
+  "branch": "fix/ping-context-presence-20261115",
+  "server_modified": false,
+  "pushed": false,
+  "mechanism": "During soft Ping timeout quarantine, retire the lost Ping outside its callback and probe on the same transport with a fresh context ID. Interval is configured Ping interval clamped to 50ms..1s; matching Ack recovers soft quarantine. Wrong/old Ack cannot confirm it. Ten-second expiry and transport-error fallback remain.",
+  "scheduling": "Probe deadlines advance from max(previous probe deadline, Now), keeping successive retries apart. Probes do not report service deadlines for another selected server priority.",
+  "validation": {
+    "focused_ctest": "3/3 passed: request-response, ping-push-ack, presence-api",
+    "regression_tests": [
+      "Automatic probe before expiry without disconnect",
+      "Old Ack rejected and replacement Ack recovers same connection",
+      "Existing late-Ack recovery, hard transport failure, expiry and P2P receive regression cases"
+    ],
+    "known_base_failure": "As previously reproduced: test-server-connection persistence priority roundtrip segfaults on base too; full suite is not claimed green."
+  },
+  "previous_summary": {
+    "tcp": [
+      {
+        "detector": "local_api",
+        "trials": 6,
+        "recovery_required": 6,
+        "offline_not_observed": 0,
+        "preexisting_non_online": 0,
+        "online_censored": 0,
+        "stable_censored": 0,
+        "terminal_censored": 0,
+        "offline_ms": {
+          "n": 6,
+          "p50": 1832.7565,
+          "p95": 2047.1575,
+          "p99": 2052.1195000000002,
+          "max": 2053.36
+        },
+        "online_ms": {
+          "n": 6,
+          "p50": 110.3275,
+          "p95": 195.22224999999997,
+          "p99": 216.51885000000001,
+          "max": 221.843
+        },
+        "fresh_query_online_ms": {
+          "n": 6,
+          "p50": 110.3275,
+          "p95": 195.22224999999997,
+          "p99": 216.51885000000001,
+          "max": 221.843
+        },
+        "stable_online_5s_ms": {
+          "n": 6,
+          "p50": 110.3275,
+          "p95": 195.22224999999997,
+          "p99": 216.51885000000001,
+          "max": 221.843
+        },
+        "terminal_online_5s_ms": {
+          "n": 6,
+          "p50": 110.3275,
+          "p95": 195.22224999999997,
+          "p99": 216.51885000000001,
+          "max": 221.843
+        }
+      },
+      {
+        "detector": "remote_api",
+        "trials": 6,
+        "recovery_required": 6,
+        "offline_not_observed": 0,
+        "preexisting_non_online": 0,
+        "online_censored": 0,
+        "stable_censored": 0,
+        "terminal_censored": 0,
+        "offline_ms": {
+          "n": 6,
+          "p50": 2098.3935,
+          "p95": 2438.03925,
+          "p99": 2443.95825,
+          "max": 2445.438
+        },
+        "online_ms": {
+          "n": 6,
+          "p50": 634.1569999999999,
+          "p95": 965.636,
+          "p99": 1012.968,
+          "max": 1024.801
+        },
+        "fresh_query_online_ms": {
+          "n": 6,
+          "p50": 634.1569999999999,
+          "p95": 965.636,
+          "p99": 1012.968,
+          "max": 1024.801
+        },
+        "stable_online_5s_ms": {
+          "n": 6,
+          "p50": 634.1569999999999,
+          "p95": 965.636,
+          "p99": 1012.968,
+          "max": 1024.801
+        },
+        "terminal_online_5s_ms": {
+          "n": 6,
+          "p50": 634.1569999999999,
+          "p95": 965.636,
+          "p99": 1012.968,
+          "max": 1024.801
+        }
+      }
+    ],
+    "udp": [
+      {
+        "detector": "local_api",
+        "trials": 6,
+        "recovery_required": 6,
+        "offline_not_observed": 0,
+        "preexisting_non_online": 0,
+        "online_censored": 0,
+        "stable_censored": 0,
+        "terminal_censored": 0,
+        "offline_ms": {
+          "n": 6,
+          "p50": 1924.7625,
+          "p95": 2075.3627500000002,
+          "p99": 2078.26375,
+          "max": 2078.989
+        },
+        "online_ms": {
+          "n": 6,
+          "p50": 1033.777,
+          "p95": 7594.142,
+          "p99": 7718.5892,
+          "max": 7749.701
+        },
+        "fresh_query_online_ms": {
+          "n": 6,
+          "p50": 1033.777,
+          "p95": 7594.142,
+          "p99": 7718.5892,
+          "max": 7749.701
+        },
+        "stable_online_5s_ms": {
+          "n": 6,
+          "p50": 1033.777,
+          "p95": 7594.142,
+          "p99": 7718.5892,
+          "max": 7749.701
+        },
+        "terminal_online_5s_ms": {
+          "n": 6,
+          "p50": 1033.777,
+          "p95": 7594.142,
+          "p99": 7718.5892,
+          "max": 7749.701
+        }
+      },
+      {
+        "detector": "remote_api",
+        "trials": 6,
+        "recovery_required": 6,
+        "offline_not_observed": 0,
+        "preexisting_non_online": 0,
+        "online_censored": 0,
+        "stable_censored": 0,
+        "terminal_censored": 0,
+        "offline_ms": {
+          "n": 6,
+          "p50": 2234.031,
+          "p95": 2771.2000000000003,
+          "p99": 2817.1960000000004,
+          "max": 2828.695
+        },
+        "online_ms": {
+          "n": 6,
+          "p50": 1408.563,
+          "p95": 8142.188499999999,
+          "p99": 8408.9921,
+          "max": 8475.693
+        },
+        "fresh_query_online_ms": {
+          "n": 6,
+          "p50": 1408.563,
+          "p95": 8142.188499999999,
+          "p99": 8408.9921,
+          "max": 8475.693
+        },
+        "stable_online_5s_ms": {
+          "n": 6,
+          "p50": 1408.563,
+          "p95": 8142.188499999999,
+          "p99": 8408.9921,
+          "max": 8475.693
+        },
+        "terminal_online_5s_ms": {
+          "n": 6,
+          "p50": 1408.563,
+          "p95": 8142.188499999999,
+          "p99": 8408.9921,
+          "max": 8475.693
+        }
+      }
+    ]
+  },
+  "campaigns": {
+    "tcp": {
+      "artifact_directory": "presence-probe-tcp-20261115",
+      "config": {
+        "exe": "C:\\Users\\nickc\\Documents\\Codex\\2026-11-11\\new-chat\\work\\presence-main-integration-20261112\\build-bench\\Release\\native_presence_api_bench.exe",
+        "transport": "tcp",
+        "identity_source": null,
+        "ping_faults": false,
+        "ping_counts": [
+          1,
+          3
+        ],
+        "out": "C:\\Users\\nickc\\Documents\\Codex\\2026-11-11\\new-chat\\work\\presence-probe-tcp-20261115",
+        "local_only": false,
+        "baseline": 600.0,
+        "startup_budget": 90.0,
+        "repeats": 1,
+        "off": [
+          3.0,
+          10.0,
+          60.0
+        ],
+        "recovery": 20.0,
+        "recovery_budget": 90.0,
+        "stable_recovery": 5.0,
+        "max_worker_mb": 256,
+        "seed": 20261112,
+        "identity_name": null,
+        "executable_sha256": "fd1041c3eee1194db25bcedd506d5cd7c7c665cdc0abb40e1b1f2fcf6897b564",
+        "runner_sha256": "69027ad762a243c9e0f3b9b9dd9cde6ac500def8e5ff9cadec4888bf3c4e5ab4",
+        "local_presence_source": "Client::IsLocallyOnline",
+        "remote_presence_source": "Client::QueryPeerPresence",
+        "query_period_ms": 1000,
+        "healthy_result_max_age_ms": 3000,
+        "fault_model": "per_process_tcp_silence",
+        "baseline_requirement": "local_and_remote"
+      },
+      "baseline": [
+        {
+          "side": "A",
+          "detector": "local_api",
+          "seconds": 599.995426,
+          "state_seconds": {
+            "online": 599.995426
+          },
+          "offline_episodes": 0
+        },
+        {
+          "side": "A",
+          "detector": "remote_api",
+          "seconds": 599.995426,
+          "state_seconds": {
+            "online": 599.995426
+          },
+          "offline_episodes": 0
+        },
+        {
+          "side": "B",
+          "detector": "local_api",
+          "seconds": 599.995426,
+          "state_seconds": {
+            "online": 599.995426
+          },
+          "offline_episodes": 0
+        },
+        {
+          "side": "B",
+          "detector": "remote_api",
+          "seconds": 599.995426,
+          "state_seconds": {
+            "online": 599.995426
+          },
+          "offline_episodes": 0
+        }
+      ],
+      "summary": [
+        {
+          "detector": "local_api",
+          "trials": 6,
+          "recovery_required": 6,
+          "offline_not_observed": 0,
+          "preexisting_non_online": 0,
+          "online_censored": 0,
+          "stable_censored": 0,
+          "terminal_censored": 0,
+          "offline_ms": {
+            "n": 6,
+            "p50": 1918.588,
+            "p95": 2018.81625,
+            "p99": 2018.8448500000002,
+            "max": 2018.852
+          },
+          "online_ms": {
+            "n": 6,
+            "p50": 88.22749999999999,
+            "p95": 176.43175,
+            "p99": 180.08555,
+            "max": 180.999
+          },
+          "fresh_query_online_ms": {
+            "n": 6,
+            "p50": 88.22749999999999,
+            "p95": 176.43175,
+            "p99": 180.08555,
+            "max": 180.999
+          },
+          "stable_online_5s_ms": {
+            "n": 6,
+            "p50": 88.22749999999999,
+            "p95": 176.43175,
+            "p99": 180.08555,
+            "max": 180.999
+          },
+          "terminal_online_5s_ms": {
+            "n": 6,
+            "p50": 88.22749999999999,
+            "p95": 176.43175,
+            "p99": 180.08555,
+            "max": 180.999
+          }
+        },
+        {
+          "detector": "remote_api",
+          "trials": 6,
+          "recovery_required": 6,
+          "offline_not_observed": 0,
+          "preexisting_non_online": 0,
+          "online_censored": 0,
+          "stable_censored": 0,
+          "terminal_censored": 0,
+          "offline_ms": {
+            "n": 6,
+            "p50": 2225.137,
+            "p95": 2884.65725,
+            "p99": 2894.1642500000003,
+            "max": 2896.541
+          },
+          "online_ms": {
+            "n": 6,
+            "p50": 554.607,
+            "p95": 754.29925,
+            "p99": 760.61425,
+            "max": 762.193
+          },
+          "fresh_query_online_ms": {
+            "n": 6,
+            "p50": 554.607,
+            "p95": 754.29925,
+            "p99": 760.61425,
+            "max": 762.193
+          },
+          "stable_online_5s_ms": {
+            "n": 6,
+            "p50": 554.607,
+            "p95": 754.29925,
+            "p99": 760.61425,
+            "max": 762.193
+          },
+          "terminal_online_5s_ms": {
+            "n": 6,
+            "p50": 554.607,
+            "p95": 754.29925,
+            "p99": 760.61425,
+            "max": 762.193
+          }
+        }
+      ],
+      "trials": [
+        {
+          "trial": 1,
+          "fault_side": "A",
+          "observer": "A",
+          "detector": "local_api",
+          "segment": 1,
+          "off_seconds": 3.0,
+          "pair_recovered": true,
+          "source": "Client::IsLocallyOnline",
+          "query_diagnostics": {},
+          "state_before_cut": "online",
+          "state_at_restore": "offline",
+          "state_at_end": "online",
+          "offline_observed": true,
+          "offline_ms": 1544.036,
+          "recovery_required": true,
+          "online_ms": 52.677,
+          "first_online_after_restore_ms": 52.677,
+          "fresh_query_online_ms": 52.677,
+          "stable_online_5s_ms": 52.677,
+          "stable_confirmation_ms": 5052.677,
+          "terminal_online_5s_ms": 52.677,
+          "offline_query_started_before_cut": null,
+          "online_query_started_before_restore": null,
+          "observation_ms": 25029.887
+        },
+        {
+          "trial": 1,
+          "fault_side": "A",
+          "observer": "B",
+          "detector": "remote_api",
+          "segment": 1,
+          "off_seconds": 3.0,
+          "pair_recovered": true,
+          "source": "Client::QueryPeerPresence",
+          "query_diagnostics": {
+            "unknown_results": 0,
+            "error_results": 0,
+            "error_codes": {},
+            "unobserved_results": 0,
+            "overdue_queries": 0,
+            "busy_ticks": 0,
+            "pending_at_restore": [],
+            "pending_at_end": [],
+            "result_duration_ms": {
+              "n": 28,
+              "p50": 62.007000000000005,
+              "p95": 272.3239999999998,
+              "p99": 338.99365,
+              "max": 342.316
+            },
+            "results_started_before_cut": 0,
+            "post_restore_results_started_before_restore": 0
+          },
+          "state_before_cut": "online",
+          "state_at_restore": "offline",
+          "state_at_end": "online",
+          "offline_observed": true,
+          "offline_ms": 1681.899,
+          "recovery_required": true,
+          "online_ms": 478.498,
+          "first_online_after_restore_ms": 478.498,
+          "fresh_query_online_ms": 478.498,
+          "stable_online_5s_ms": 478.498,
+          "stable_confirmation_ms": 5478.498,
+          "terminal_online_5s_ms": 478.498,
+          "offline_query_started_before_cut": false,
+          "online_query_started_before_restore": false,
+          "observation_ms": 25029.887
+        },
+        {
+          "trial": 2,
+          "fault_side": "B",
+          "observer": "B",
+          "detector": "local_api",
+          "segment": 1,
+          "off_seconds": 3.0,
+          "pair_recovered": true,
+          "source": "Client::IsLocallyOnline",
+          "query_diagnostics": {},
+          "state_before_cut": "online",
+          "state_at_restore": "offline",
+          "state_at_end": "online",
+          "offline_observed": true,
+          "offline_ms": 2018.852,
+          "recovery_required": true,
+          "online_ms": 55.697,
+          "first_online_after_restore_ms": 55.697,
+          "fresh_query_online_ms": 55.697,
+          "stable_online_5s_ms": 55.697,
+          "stable_confirmation_ms": 5055.697,
+          "terminal_online_5s_ms": 55.697,
+          "offline_query_started_before_cut": null,
+          "online_query_started_before_restore": null,
+          "observation_ms": 25126.718
+        },
+        {
+          "trial": 2,
+          "fault_side": "B",
+          "observer": "A",
+          "detector": "remote_api",
+          "segment": 1,
+          "off_seconds": 3.0,
+          "pair_recovered": true,
+          "source": "Client::QueryPeerPresence",
+          "query_diagnostics": {
+            "unknown_results": 0,
+            "error_results": 0,
+            "error_codes": {},
+            "unobserved_results": 0,
+            "overdue_queries": 0,
+            "busy_ticks": 0,
+            "pending_at_restore": [],
+            "pending_at_end": [],
+            "result_duration_ms": {
+              "n": 28,
+              "p50": 57.8635,
+              "p95": 124.09769999999999,
+              "p99": 160.6934,
+              "max": 172.73
+            },
+            "results_started_before_cut": 0,
+            "post_restore_results_started_before_restore": 0
+          },
+          "state_before_cut": "online",
+          "state_at_restore": "offline",
+          "state_at_end": "online",
+          "offline_observed": true,
+          "offline_ms": 2849.006,
+          "recovery_required": true,
+          "online_ms": 730.618,
+          "first_online_after_restore_ms": 730.618,
+          "fresh_query_online_ms": 730.618,
+          "stable_online_5s_ms": 730.618,
+          "stable_confirmation_ms": 5730.618,
+          "terminal_online_5s_ms": 730.618,
+          "offline_query_started_before_cut": false,
+          "online_query_started_before_restore": false,
+          "observation_ms": 25126.718
+        },
+        {
+          "trial": 3,
+          "fault_side": "A",
+          "observer": "A",
+          "detector": "local_api",
+          "segment": 1,
+          "off_seconds": 10.0,
+          "pair_recovered": true,
+          "source": "Client::IsLocallyOnline",
+          "query_diagnostics": {},
+          "state_before_cut": "online",
+          "state_at_restore": "offline",
+          "state_at_end": "online",
+          "offline_observed": true,
+          "offline_ms": 1818.98,
+          "recovery_required": true,
+          "online_ms": 55.755,
+          "first_online_after_restore_ms": 55.755,
+          "fresh_query_online_ms": 55.755,
+          "stable_online_5s_ms": 55.755,
+          "stable_confirmation_ms": 5055.755,
+          "terminal_online_5s_ms": 55.755,
+          "offline_query_started_before_cut": null,
+          "online_query_started_before_restore": null,
+          "observation_ms": 25250.459
+        },
+        {
+          "trial": 3,
+          "fault_side": "A",
+          "observer": "B",
+          "detector": "remote_api",
+          "segment": 1,
+          "off_seconds": 10.0,
+          "pair_recovered": true,
+          "source": "Client::QueryPeerPresence",
+          "query_diagnostics": {
+            "unknown_results": 0,
+            "error_results": 0,
+            "error_codes": {},
+            "unobserved_results": 0,
+            "overdue_queries": 0,
+            "busy_ticks": 0,
+            "pending_at_restore": [],
+            "pending_at_end": [],
+            "result_duration_ms": {
+              "n": 36,
+              "p50": 63.3255,
+              "p95": 173.3635,
+              "p99": 176.4608,
+              "max": 177.858
+            },
+            "results_started_before_cut": 0,
+            "post_restore_results_started_before_restore": 0
+          },
+          "state_before_cut": "online",
+          "state_at_restore": "offline",
+          "state_at_end": "online",
+          "offline_observed": true,
+          "offline_ms": 2241.376,
+          "recovery_required": true,
+          "online_ms": 101.196,
+          "first_online_after_restore_ms": 101.196,
+          "fresh_query_online_ms": 101.196,
+          "stable_online_5s_ms": 101.196,
+          "stable_confirmation_ms": 5101.196,
+          "terminal_online_5s_ms": 101.196,
+          "offline_query_started_before_cut": false,
+          "online_query_started_before_restore": false,
+          "observation_ms": 25250.459
+        },
+        {
+          "trial": 4,
+          "fault_side": "B",
+          "observer": "B",
+          "detector": "local_api",
+          "segment": 1,
+          "off_seconds": 10.0,
+          "pair_recovered": true,
+          "source": "Client::IsLocallyOnline",
+          "query_diagnostics": {},
+          "state_before_cut": "online",
+          "state_at_restore": "offline",
+          "state_at_end": "online",
+          "offline_observed": true,
+          "offline_ms": 2018.196,
+          "recovery_required": true,
+          "online_ms": 162.73,
+          "first_online_after_restore_ms": 162.73,
+          "fresh_query_online_ms": 162.73,
+          "stable_online_5s_ms": 162.73,
+          "stable_confirmation_ms": 5162.73,
+          "terminal_online_5s_ms": 162.73,
+          "offline_query_started_before_cut": null,
+          "online_query_started_before_restore": null,
+          "observation_ms": 25073.276
+        },
+        {
+          "trial": 4,
+          "fault_side": "B",
+          "observer": "A",
+          "detector": "remote_api",
+          "segment": 1,
+          "off_seconds": 10.0,
+          "pair_recovered": true,
+          "source": "Client::QueryPeerPresence",
+          "query_diagnostics": {
+            "unknown_results": 0,
+            "error_results": 0,
+            "error_codes": {},
+            "unobserved_results": 0,
+            "overdue_queries": 0,
+            "busy_ticks": 0,
+            "pending_at_restore": [],
+            "pending_at_end": [
+              747
+            ],
+            "result_duration_ms": {
+              "n": 35,
+              "p50": 57.282,
+              "p95": 175.649,
+              "p99": 176.79767999999999,
+              "max": 177.375
+            },
+            "results_started_before_cut": 0,
+            "post_restore_results_started_before_restore": 0
+          },
+          "state_before_cut": "online",
+          "state_at_restore": "offline",
+          "state_at_end": "online",
+          "offline_observed": true,
+          "offline_ms": 2208.898,
+          "recovery_required": true,
+          "online_ms": 72.656,
+          "first_online_after_restore_ms": 72.656,
+          "fresh_query_online_ms": 72.656,
+          "stable_online_5s_ms": 72.656,
+          "stable_confirmation_ms": 5072.656,
+          "terminal_online_5s_ms": 72.656,
+          "offline_query_started_before_cut": false,
+          "online_query_started_before_restore": false,
+          "observation_ms": 25073.276
+        },
+        {
+          "trial": 5,
+          "fault_side": "A",
+          "observer": "A",
+          "detector": "local_api",
+          "segment": 1,
+          "off_seconds": 60.0,
+          "pair_recovered": true,
+          "source": "Client::IsLocallyOnline",
+          "query_diagnostics": {},
+          "state_before_cut": "online",
+          "state_at_restore": "offline",
+          "state_at_end": "online",
+          "offline_observed": true,
+          "offline_ms": 1681.835,
+          "recovery_required": true,
+          "online_ms": 120.7,
+          "first_online_after_restore_ms": 120.7,
+          "fresh_query_online_ms": 120.7,
+          "stable_online_5s_ms": 120.7,
+          "stable_confirmation_ms": 5120.7,
+          "terminal_online_5s_ms": 120.7,
+          "offline_query_started_before_cut": null,
+          "online_query_started_before_restore": null,
+          "observation_ms": 25056.864
+        },
+        {
+          "trial": 5,
+          "fault_side": "A",
+          "observer": "B",
+          "detector": "remote_api",
+          "segment": 1,
+          "off_seconds": 60.0,
+          "pair_recovered": true,
+          "source": "Client::QueryPeerPresence",
+          "query_diagnostics": {
+            "unknown_results": 0,
+            "error_results": 0,
+            "error_codes": {},
+            "unobserved_results": 0,
+            "overdue_queries": 0,
+            "busy_ticks": 0,
+            "pending_at_restore": [],
+            "pending_at_end": [],
+            "result_duration_ms": {
+              "n": 85,
+              "p50": 177.104,
+              "p95": 358.9282,
+              "p99": 386.84708,
+              "max": 390.05
+            },
+            "results_started_before_cut": 0,
+            "post_restore_results_started_before_restore": 0
+          },
+          "state_before_cut": "online",
+          "state_at_restore": "offline",
+          "state_at_end": "online",
+          "offline_observed": true,
+          "offline_ms": 1775.444,
+          "recovery_required": true,
+          "online_ms": 630.716,
+          "first_online_after_restore_ms": 630.716,
+          "fresh_query_online_ms": 630.716,
+          "stable_online_5s_ms": 630.716,
+          "stable_confirmation_ms": 5630.716,
+          "terminal_online_5s_ms": 630.716,
+          "offline_query_started_before_cut": false,
+          "online_query_started_before_restore": false,
+          "observation_ms": 25056.864
+        },
+        {
+          "trial": 6,
+          "fault_side": "B",
+          "observer": "B",
+          "detector": "local_api",
+          "segment": 1,
+          "off_seconds": 60.0,
+          "pair_recovered": true,
+          "source": "Client::IsLocallyOnline",
+          "query_diagnostics": {},
+          "state_before_cut": "online",
+          "state_at_restore": "offline",
+          "state_at_end": "online",
+          "offline_observed": true,
+          "offline_ms": 2018.709,
+          "recovery_required": true,
+          "online_ms": 180.999,
+          "first_online_after_restore_ms": 180.999,
+          "fresh_query_online_ms": 180.999,
+          "stable_online_5s_ms": 180.999,
+          "stable_confirmation_ms": 5180.999,
+          "terminal_online_5s_ms": 180.999,
+          "offline_query_started_before_cut": null,
+          "online_query_started_before_restore": null,
+          "observation_ms": 25075.8
+        },
+        {
+          "trial": 6,
+          "fault_side": "B",
+          "observer": "A",
+          "detector": "remote_api",
+          "segment": 1,
+          "off_seconds": 60.0,
+          "pair_recovered": true,
+          "source": "Client::QueryPeerPresence",
+          "query_diagnostics": {
+            "unknown_results": 0,
+            "error_results": 0,
+            "error_codes": {},
+            "unobserved_results": 0,
+            "overdue_queries": 0,
+            "busy_ticks": 0,
+            "pending_at_restore": [],
+            "pending_at_end": [],
+            "result_duration_ms": {
+              "n": 85,
+              "p50": 173.274,
+              "p95": 198.00019999999998,
+              "p99": 371.56271999999996,
+              "max": 371.913
+            },
+            "results_started_before_cut": 0,
+            "post_restore_results_started_before_restore": 0
+          },
+          "state_before_cut": "online",
+          "state_at_restore": "offline",
+          "state_at_end": "online",
+          "offline_observed": true,
+          "offline_ms": 2896.541,
+          "recovery_required": true,
+          "online_ms": 762.193,
+          "first_online_after_restore_ms": 762.193,
+          "fresh_query_online_ms": 762.193,
+          "stable_online_5s_ms": 762.193,
+          "stable_confirmation_ms": 5762.193,
+          "terminal_online_5s_ms": 762.193,
+          "offline_query_started_before_cut": false,
+          "online_query_started_before_restore": false,
+          "observation_ms": 25075.8
+        }
+      ],
+      "queries": [
+        {
+          "side": "A",
+          "segment": 1,
+          "unknown_results": 12,
+          "error_results": 0,
+          "error_codes": {},
+          "unobserved_results": 0,
+          "overdue_queries": 0,
+          "busy_ticks": 59,
+          "pending_at_restore": [],
+          "pending_at_end": [],
+          "result_duration_ms": {
+            "n": 878,
+            "p50": 55.749,
+            "p95": 174.8705,
+            "p99": 5369.8584,
+            "max": 5388.439
+          },
+          "results_started_before_cut": 0,
+          "post_restore_results_started_before_restore": 0
+        },
+        {
+          "side": "B",
+          "segment": 1,
+          "unknown_results": 17,
+          "error_results": 0,
+          "error_codes": {},
+          "unobserved_results": 0,
+          "overdue_queries": 0,
+          "busy_ticks": 55,
+          "pending_at_restore": [],
+          "pending_at_end": [],
+          "result_duration_ms": {
+            "n": 882,
+            "p50": 56.1105,
+            "p95": 185.8639499999999,
+            "p99": 3027.79717,
+            "max": 3786.619
+          },
+          "results_started_before_cut": 0,
+          "post_restore_results_started_before_restore": 0
+        }
+      ],
+      "failures": [],
+      "failure_trials": [],
+      "status": "complete",
+      "worker_segments": 1,
+      "traces": {
+        "A": {
+          "context_sends": 2697,
+          "duplicate_ids": 0,
+          "ack_observations": 2691,
+          "rejected_context_observations": 114,
+          "probe_schedules": 130
+        },
+        "B": {
+          "context_sends": 2750,
+          "duplicate_ids": 0,
+          "ack_observations": 2745,
+          "rejected_context_observations": 168,
+          "probe_schedules": 192
+        }
+      }
+    },
+    "udp": {
+      "artifact_directory": "presence-probe-udp-20261115",
+      "config": {
+        "exe": "C:\\Users\\nickc\\Documents\\Codex\\2026-11-11\\new-chat\\work\\ping-context-udp-build-20261115\\Release\\native_presence_api_bench.exe",
+        "transport": "udp",
+        "identity_source": "C:\\Users\\nickc\\Documents\\Codex\\2026-11-11\\new-chat\\work\\presence-context-final-udp-20261115",
+        "ping_faults": false,
+        "ping_counts": [
+          1,
+          3
+        ],
+        "out": "C:\\Users\\nickc\\Documents\\Codex\\2026-11-11\\new-chat\\work\\presence-probe-udp-20261115",
+        "local_only": false,
+        "baseline": 600.0,
+        "startup_budget": 90.0,
+        "repeats": 1,
+        "off": [
+          3.0,
+          10.0,
+          60.0
+        ],
+        "recovery": 20.0,
+        "recovery_budget": 90.0,
+        "stable_recovery": 5.0,
+        "max_worker_mb": 256,
+        "seed": 20261112,
+        "identity_name": "presence-udp-seed-20261115",
+        "executable_sha256": "f651ef45c11e28bc1e193d712e5fac2646c59aecb2f0e0bc8ec57de210b46578",
+        "runner_sha256": "69027ad762a243c9e0f3b9b9dd9cde6ac500def8e5ff9cadec4888bf3c4e5ab4",
+        "local_presence_source": "Client::IsLocallyOnline",
+        "remote_presence_source": "Client::QueryPeerPresence",
+        "query_period_ms": 1000,
+        "healthy_result_max_age_ms": 3000,
+        "fault_model": "per_process_udp_drop",
+        "baseline_requirement": "local_and_remote"
+      },
+      "baseline": [
+        {
+          "side": "A",
+          "detector": "local_api",
+          "seconds": 600.015433,
+          "state_seconds": {
+            "online": 600.015433
+          },
+          "offline_episodes": 0
+        },
+        {
+          "side": "A",
+          "detector": "remote_api",
+          "seconds": 600.015433,
+          "state_seconds": {
+            "online": 600.015433
+          },
+          "offline_episodes": 0
+        },
+        {
+          "side": "B",
+          "detector": "local_api",
+          "seconds": 600.015433,
+          "state_seconds": {
+            "online": 600.015433
+          },
+          "offline_episodes": 0
+        },
+        {
+          "side": "B",
+          "detector": "remote_api",
+          "seconds": 600.015433,
+          "state_seconds": {
+            "online": 600.015433
+          },
+          "offline_episodes": 0
+        }
+      ],
+      "summary": [
+        {
+          "detector": "local_api",
+          "trials": 6,
+          "recovery_required": 6,
+          "offline_not_observed": 0,
+          "preexisting_non_online": 0,
+          "online_censored": 0,
+          "stable_censored": 0,
+          "terminal_censored": 0,
+          "offline_ms": {
+            "n": 6,
+            "p50": 1555.769,
+            "p95": 1877.9185,
+            "p99": 1940.8181,
+            "max": 1956.543
+          },
+          "online_ms": {
+            "n": 6,
+            "p50": 248.738,
+            "p95": 521.9255,
+            "p99": 580.2803000000001,
+            "max": 594.869
+          },
+          "fresh_query_online_ms": {
+            "n": 6,
+            "p50": 248.738,
+            "p95": 521.9255,
+            "p99": 580.2803000000001,
+            "max": 594.869
+          },
+          "stable_online_5s_ms": {
+            "n": 6,
+            "p50": 248.738,
+            "p95": 521.9255,
+            "p99": 580.2803000000001,
+            "max": 594.869
+          },
+          "terminal_online_5s_ms": {
+            "n": 6,
+            "p50": 248.738,
+            "p95": 521.9255,
+            "p99": 580.2803000000001,
+            "max": 594.869
+          }
+        },
+        {
+          "detector": "remote_api",
+          "trials": 6,
+          "recovery_required": 6,
+          "offline_not_observed": 0,
+          "preexisting_non_online": 0,
+          "online_censored": 0,
+          "stable_censored": 0,
+          "terminal_censored": 0,
+          "offline_ms": {
+            "n": 6,
+            "p50": 2289.2214999999997,
+            "p95": 2719.56275,
+            "p99": 2796.49655,
+            "max": 2815.73
+          },
+          "online_ms": {
+            "n": 6,
+            "p50": 710.823,
+            "p95": 1263.0135,
+            "p99": 1298.8339,
+            "max": 1307.789
+          },
+          "fresh_query_online_ms": {
+            "n": 6,
+            "p50": 710.823,
+            "p95": 1263.0135,
+            "p99": 1298.8339,
+            "max": 1307.789
+          },
+          "stable_online_5s_ms": {
+            "n": 6,
+            "p50": 710.823,
+            "p95": 1263.0135,
+            "p99": 1298.8339,
+            "max": 1307.789
+          },
+          "terminal_online_5s_ms": {
+            "n": 6,
+            "p50": 710.823,
+            "p95": 1263.0135,
+            "p99": 1298.8339,
+            "max": 1307.789
+          }
+        }
+      ],
+      "trials": [
+        {
+          "trial": 1,
+          "fault_side": "A",
+          "observer": "A",
+          "detector": "local_api",
+          "segment": 1,
+          "off_seconds": 3.0,
+          "pair_recovered": true,
+          "source": "Client::IsLocallyOnline",
+          "query_diagnostics": {},
+          "state_before_cut": "online",
+          "state_at_restore": "offline",
+          "state_at_end": "online",
+          "offline_observed": true,
+          "offline_ms": 1642.045,
+          "recovery_required": true,
+          "online_ms": 594.869,
+          "first_online_after_restore_ms": 594.869,
+          "fresh_query_online_ms": 594.869,
+          "stable_online_5s_ms": 594.869,
+          "stable_confirmation_ms": 5594.869,
+          "terminal_online_5s_ms": 594.869,
+          "offline_query_started_before_cut": null,
+          "online_query_started_before_restore": null,
+          "observation_ms": 25045.046
+        },
+        {
+          "trial": 1,
+          "fault_side": "A",
+          "observer": "B",
+          "detector": "remote_api",
+          "segment": 1,
+          "off_seconds": 3.0,
+          "pair_recovered": true,
+          "source": "Client::QueryPeerPresence",
+          "query_diagnostics": {
+            "unknown_results": 0,
+            "error_results": 0,
+            "error_codes": {},
+            "unobserved_results": 0,
+            "overdue_queries": 0,
+            "busy_ticks": 0,
+            "pending_at_restore": [],
+            "pending_at_end": [],
+            "result_duration_ms": {
+              "n": 28,
+              "p50": 57.6225,
+              "p95": 136.68364999999983,
+              "p99": 192.70389000000003,
+              "max": 198.912
+            },
+            "results_started_before_cut": 0,
+            "post_restore_results_started_before_restore": 0
+          },
+          "state_before_cut": "online",
+          "state_at_restore": "offline",
+          "state_at_end": "online",
+          "offline_observed": true,
+          "offline_ms": 2431.061,
+          "recovery_required": true,
+          "online_ms": 1307.789,
+          "first_online_after_restore_ms": 1307.789,
+          "fresh_query_online_ms": 1307.789,
+          "stable_online_5s_ms": 1307.789,
+          "stable_confirmation_ms": 6307.789,
+          "terminal_online_5s_ms": 1307.789,
+          "offline_query_started_before_cut": false,
+          "online_query_started_before_restore": false,
+          "observation_ms": 25045.046
+        },
+        {
+          "trial": 2,
+          "fault_side": "B",
+          "observer": "B",
+          "detector": "local_api",
+          "segment": 1,
+          "off_seconds": 3.0,
+          "pair_recovered": true,
+          "source": "Client::IsLocallyOnline",
+          "query_diagnostics": {},
+          "state_before_cut": "online",
+          "state_at_restore": "offline",
+          "state_at_end": "online",
+          "offline_observed": true,
+          "offline_ms": 1408.985,
+          "recovery_required": true,
+          "online_ms": 303.095,
+          "first_online_after_restore_ms": 303.095,
+          "fresh_query_online_ms": 303.095,
+          "stable_online_5s_ms": 303.095,
+          "stable_confirmation_ms": 5303.095,
+          "terminal_online_5s_ms": 303.095,
+          "offline_query_started_before_cut": null,
+          "online_query_started_before_restore": null,
+          "observation_ms": 25075.605
+        },
+        {
+          "trial": 2,
+          "fault_side": "B",
+          "observer": "A",
+          "detector": "remote_api",
+          "segment": 1,
+          "off_seconds": 3.0,
+          "pair_recovered": true,
+          "source": "Client::QueryPeerPresence",
+          "query_diagnostics": {
+            "unknown_results": 0,
+            "error_results": 0,
+            "error_codes": {},
+            "unobserved_results": 0,
+            "overdue_queries": 0,
+            "busy_ticks": 0,
+            "pending_at_restore": [],
+            "pending_at_end": [],
+            "result_duration_ms": {
+              "n": 28,
+              "p50": 56.4895,
+              "p95": 137.51594999999986,
+              "p99": 176.63801,
+              "max": 177.08
+            },
+            "results_started_before_cut": 0,
+            "post_restore_results_started_before_restore": 0
+          },
+          "state_before_cut": "online",
+          "state_at_restore": "offline",
+          "state_at_end": "online",
+          "offline_observed": true,
+          "offline_ms": 1802.344,
+          "recovery_required": true,
+          "online_ms": 677.583,
+          "first_online_after_restore_ms": 677.583,
+          "fresh_query_online_ms": 677.583,
+          "stable_online_5s_ms": 677.583,
+          "stable_confirmation_ms": 5677.583,
+          "terminal_online_5s_ms": 677.583,
+          "offline_query_started_before_cut": false,
+          "online_query_started_before_restore": false,
+          "observation_ms": 25075.605
+        },
+        {
+          "trial": 3,
+          "fault_side": "A",
+          "observer": "A",
+          "detector": "local_api",
+          "segment": 1,
+          "off_seconds": 10.0,
+          "pair_recovered": true,
+          "source": "Client::IsLocallyOnline",
+          "query_diagnostics": {},
+          "state_before_cut": "online",
+          "state_at_restore": "offline",
+          "state_at_end": "online",
+          "offline_observed": true,
+          "offline_ms": 1373.106,
+          "recovery_required": true,
+          "online_ms": 237.126,
+          "first_online_after_restore_ms": 237.126,
+          "fresh_query_online_ms": 237.126,
+          "stable_online_5s_ms": 237.126,
+          "stable_confirmation_ms": 5237.126,
+          "terminal_online_5s_ms": 237.126,
+          "offline_query_started_before_cut": null,
+          "online_query_started_before_restore": null,
+          "observation_ms": 25204.946
+        },
+        {
+          "trial": 3,
+          "fault_side": "A",
+          "observer": "B",
+          "detector": "remote_api",
+          "segment": 1,
+          "off_seconds": 10.0,
+          "pair_recovered": true,
+          "source": "Client::QueryPeerPresence",
+          "query_diagnostics": {
+            "unknown_results": 0,
+            "error_results": 0,
+            "error_codes": {},
+            "unobserved_results": 0,
+            "overdue_queries": 0,
+            "busy_ticks": 0,
+            "pending_at_restore": [],
+            "pending_at_end": [],
+            "result_duration_ms": {
+              "n": 36,
+              "p50": 59.612,
+              "p95": 176.89225000000002,
+              "p99": 184.80319999999998,
+              "max": 188.481
+            },
+            "results_started_before_cut": 0,
+            "post_restore_results_started_before_restore": 0
+          },
+          "state_before_cut": "online",
+          "state_at_restore": "offline",
+          "state_at_end": "online",
+          "offline_observed": true,
+          "offline_ms": 2267.716,
+          "recovery_required": true,
+          "online_ms": 1128.687,
+          "first_online_after_restore_ms": 1128.687,
+          "fresh_query_online_ms": 1128.687,
+          "stable_online_5s_ms": 1128.687,
+          "stable_confirmation_ms": 6128.687,
+          "terminal_online_5s_ms": 1128.687,
+          "offline_query_started_before_cut": false,
+          "online_query_started_before_restore": false,
+          "observation_ms": 25204.946
+        },
+        {
+          "trial": 4,
+          "fault_side": "B",
+          "observer": "B",
+          "detector": "local_api",
+          "segment": 1,
+          "off_seconds": 10.0,
+          "pair_recovered": true,
+          "source": "Client::IsLocallyOnline",
+          "query_diagnostics": {},
+          "state_before_cut": "online",
+          "state_at_restore": "offline",
+          "state_at_end": "online",
+          "offline_observed": true,
+          "offline_ms": 1608.094,
+          "recovery_required": true,
+          "online_ms": 260.35,
+          "first_online_after_restore_ms": 260.35,
+          "fresh_query_online_ms": 260.35,
+          "stable_online_5s_ms": 260.35,
+          "stable_confirmation_ms": 5260.35,
+          "terminal_online_5s_ms": 260.35,
+          "offline_query_started_before_cut": null,
+          "online_query_started_before_restore": null,
+          "observation_ms": 25101.681
+        },
+        {
+          "trial": 4,
+          "fault_side": "B",
+          "observer": "A",
+          "detector": "remote_api",
+          "segment": 1,
+          "off_seconds": 10.0,
+          "pair_recovered": true,
+          "source": "Client::QueryPeerPresence",
+          "query_diagnostics": {
+            "unknown_results": 0,
+            "error_results": 0,
+            "error_codes": {},
+            "unobserved_results": 0,
+            "overdue_queries": 0,
+            "busy_ticks": 0,
+            "pending_at_restore": [],
+            "pending_at_end": [],
+            "result_duration_ms": {
+              "n": 35,
+              "p50": 62.688,
+              "p95": 179.03539999999998,
+              "p99": 186.49656,
+              "max": 189.443
+            },
+            "results_started_before_cut": 0,
+            "post_restore_results_started_before_restore": 0
+          },
+          "state_before_cut": "online",
+          "state_at_restore": "offline",
+          "state_at_end": "online",
+          "offline_observed": true,
+          "offline_ms": 2310.727,
+          "recovery_required": true,
+          "online_ms": 313.297,
+          "first_online_after_restore_ms": 313.297,
+          "fresh_query_online_ms": 313.297,
+          "stable_online_5s_ms": 313.297,
+          "stable_confirmation_ms": 5313.2970000000005,
+          "terminal_online_5s_ms": 313.297,
+          "offline_query_started_before_cut": false,
+          "online_query_started_before_restore": false,
+          "observation_ms": 25101.681
+        },
+        {
+          "trial": 5,
+          "fault_side": "A",
+          "observer": "A",
+          "detector": "local_api",
+          "segment": 1,
+          "off_seconds": 60.0,
+          "pair_recovered": true,
+          "source": "Client::IsLocallyOnline",
+          "query_diagnostics": {},
+          "state_before_cut": "online",
+          "state_at_restore": "offline",
+          "state_at_end": "online",
+          "offline_observed": true,
+          "offline_ms": 1503.444,
+          "recovery_required": true,
+          "online_ms": 227.993,
+          "first_online_after_restore_ms": 227.993,
+          "fresh_query_online_ms": 227.993,
+          "stable_online_5s_ms": 227.993,
+          "stable_confirmation_ms": 5227.993,
+          "terminal_online_5s_ms": 227.993,
+          "offline_query_started_before_cut": null,
+          "online_query_started_before_restore": null,
+          "observation_ms": 25187.39
+        },
+        {
+          "trial": 5,
+          "fault_side": "A",
+          "observer": "B",
+          "detector": "remote_api",
+          "segment": 1,
+          "off_seconds": 60.0,
+          "pair_recovered": true,
+          "source": "Client::QueryPeerPresence",
+          "query_diagnostics": {
+            "unknown_results": 0,
+            "error_results": 0,
+            "error_codes": {},
+            "unobserved_results": 0,
+            "overdue_queries": 0,
+            "busy_ticks": 0,
+            "pending_at_restore": [],
+            "pending_at_end": [],
+            "result_duration_ms": {
+              "n": 85,
+              "p50": 173.45,
+              "p95": 187.4964,
+              "p99": 212.39371999999983,
+              "max": 251.216
+            },
+            "results_started_before_cut": 0,
+            "post_restore_results_started_before_restore": 0
+          },
+          "state_before_cut": "online",
+          "state_at_restore": "offline",
+          "state_at_end": "online",
+          "offline_observed": true,
+          "offline_ms": 1883.915,
+          "recovery_required": true,
+          "online_ms": 742.342,
+          "first_online_after_restore_ms": 742.342,
+          "fresh_query_online_ms": 742.342,
+          "stable_online_5s_ms": 742.342,
+          "stable_confirmation_ms": 5742.342,
+          "terminal_online_5s_ms": 742.342,
+          "offline_query_started_before_cut": false,
+          "online_query_started_before_restore": false,
+          "observation_ms": 25187.39
+        },
+        {
+          "trial": 6,
+          "fault_side": "B",
+          "observer": "B",
+          "detector": "local_api",
+          "segment": 1,
+          "off_seconds": 60.0,
+          "pair_recovered": true,
+          "source": "Client::IsLocallyOnline",
+          "query_diagnostics": {},
+          "state_before_cut": "online",
+          "state_at_restore": "offline",
+          "state_at_end": "online",
+          "offline_observed": true,
+          "offline_ms": 1956.543,
+          "recovery_required": true,
+          "online_ms": 133.927,
+          "first_online_after_restore_ms": 133.927,
+          "fresh_query_online_ms": 133.927,
+          "stable_online_5s_ms": 133.927,
+          "stable_confirmation_ms": 5133.927,
+          "terminal_online_5s_ms": 133.927,
+          "offline_query_started_before_cut": null,
+          "online_query_started_before_restore": null,
+          "observation_ms": 25119.841
+        },
+        {
+          "trial": 6,
+          "fault_side": "B",
+          "observer": "A",
+          "detector": "remote_api",
+          "segment": 1,
+          "off_seconds": 60.0,
+          "pair_recovered": true,
+          "source": "Client::QueryPeerPresence",
+          "query_diagnostics": {
+            "unknown_results": 0,
+            "error_results": 0,
+            "error_codes": {},
+            "unobserved_results": 0,
+            "overdue_queries": 0,
+            "busy_ticks": 0,
+            "pending_at_restore": [],
+            "pending_at_end": [],
+            "result_duration_ms": {
+              "n": 85,
+              "p50": 174.408,
+              "p95": 183.7734,
+              "p99": 210.53331999999995,
+              "max": 226.579
+            },
+            "results_started_before_cut": 0,
+            "post_restore_results_started_before_restore": 0
+          },
+          "state_before_cut": "online",
+          "state_at_restore": "offline",
+          "state_at_end": "online",
+          "offline_observed": true,
+          "offline_ms": 2815.73,
+          "recovery_required": true,
+          "online_ms": 679.304,
+          "first_online_after_restore_ms": 679.304,
+          "fresh_query_online_ms": 679.304,
+          "stable_online_5s_ms": 679.304,
+          "stable_confirmation_ms": 5679.304,
+          "terminal_online_5s_ms": 679.304,
+          "offline_query_started_before_cut": false,
+          "online_query_started_before_restore": false,
+          "observation_ms": 25119.841
+        }
+      ],
+      "queries": [
+        {
+          "side": "A",
+          "segment": 1,
+          "unknown_results": 18,
+          "error_results": 0,
+          "error_codes": {},
+          "unobserved_results": 0,
+          "overdue_queries": 0,
+          "busy_ticks": 56,
+          "pending_at_restore": [],
+          "pending_at_end": [],
+          "result_duration_ms": {
+            "n": 881,
+            "p50": 56.233,
+            "p95": 177.243,
+            "p99": 3029.5476000000003,
+            "max": 3046.656
+          },
+          "results_started_before_cut": 0,
+          "post_restore_results_started_before_restore": 0
+        },
+        {
+          "side": "B",
+          "segment": 1,
+          "unknown_results": 18,
+          "error_results": 0,
+          "error_codes": {},
+          "unobserved_results": 0,
+          "overdue_queries": 0,
+          "busy_ticks": 56,
+          "pending_at_restore": [],
+          "pending_at_end": [],
+          "result_duration_ms": {
+            "n": 881,
+            "p50": 56.207,
+            "p95": 175.304,
+            "p99": 3025.7594,
+            "max": 3051.39
+          },
+          "results_started_before_cut": 0,
+          "post_restore_results_started_before_restore": 0
+        }
+      ],
+      "failures": [],
+      "failure_trials": [],
+      "status": "complete",
+      "worker_segments": 1,
+      "traces": {
+        "A": {
+          "context_sends": 2769,
+          "duplicate_ids": 0,
+          "ack_observations": 2574,
+          "rejected_context_observations": 1,
+          "probe_schedules": 213
+        },
+        "B": {
+          "context_sends": 2777,
+          "duplicate_ids": 0,
+          "ack_observations": 2572,
+          "rejected_context_observations": 0,
+          "probe_schedules": 206
+        }
+      }
+    }
+  },
+  "limitations": [
+    "Observed timing under shared network load, not a guaranteed bound.",
+    "Per-process TCP silence / UDP datagram loss relays; host network and other applications untouched.",
+    "Peer query sampling once per second. Stable latency is interval start, confirmed by another five seconds.",
+    "Zero Unknown/errors claims refer only to healthy baselines; actual outages retain their query diagnostics.",
+    "UDP registration state reused sequentially from the previous naturally stopped UDP run; no concurrent identity reuse.",
+    "Presence API measurement only; no claim about P2P streaming recovery."
+  ]
+}

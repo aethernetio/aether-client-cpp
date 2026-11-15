@@ -1,0 +1,76 @@
+Correlated Ping recovery probes — live validation, 2026-11-15
+
+Client fix: 414b0140fd4474a9ebf0991ea55f99e190239bf6
+Branch: fix/ping-context-presence-20261115
+Server untouched; local commits only, no push.
+
+Cause and change
+----------------
+Previously a timed-out Ping retained the only Ack listener and blocked the next
+Ping until a late Ack or ten-second soft quarantine expiry. A lost UDP datagram
+cannot deliver that late Ack. The previous three-second cuts consequently had
+local recovery delays of 7.127 and 7.750 seconds.
+
+Now soft-quarantined servers receive probes on the same connection. Each probe
+retires the old listener outside its callback, then uses a fresh context ID.
+Only a matching Ack confirms the new receive window and releases quarantine.
+Old responses cannot complete the replacement. Probe delay follows the configured
+Ping interval clamped to 50 ms..1 s, after timeout. Success resumes ordinary
+periodic Ping. Hard transport quarantine stops probes; the existing ten-second
+expiry still reconnects if none succeeds. Request failover remains active.
+Probes do not overwrite service deadlines for another server's priority.
+
+Benchmark
+---------
+Same methodology as session-context-validation-20261115: two clients per
+transport, Ping interval/window/offline tolerance 1000 ms; peer query once per
+second. TCP and UDP each ran a 600-second healthy baseline followed by six cuts:
+3, 10, 60 seconds for each client. Private process-specific TCP silence / UDP
+datagram-drop relays affected only benchmark workers, not host networking.
+Telemetry disabled. UDP reused saved registration state sequentially from the
+previous normally stopped run. No concurrent reuse of an identity.
+
+Both baselines: zero false local/peer Offline, Unknown or query errors.
+All 12 cuts observed real Offline and recovered to stable Online. No failed or
+censored trial and no worker restart. Stable means at least five continuous
+seconds Online; latency below is the start of that interval. Each restored
+trial retained roughly 25 seconds of observation. No claim about P2P streaming.
+
+Observed maxima, seconds; previous -> current:
+
+Transport  API    Offline after cut   Stable Online after restore
+TCP        local  2.053 -> 2.019      0.222 -> 0.181
+TCP        peer   2.445 -> 2.897      1.025 -> 0.762
+UDP        local  2.079 -> 1.957      7.750 -> 0.595
+UDP        peer   2.829 -> 2.816      8.476 -> 1.308
+
+UDP three-second cuts specifically:
+Client A: local 0.595 s, peer 1.308 s (previously 7.127 / 7.142 s).
+Client B: local 0.303 s, peer 0.678 s (previously 7.750 / 8.476 s).
+
+The previously delayed cases now recover through fresh probes. Maxima remain
+observations under uncontrolled shared-network load, not guaranteed bounds.
+Peer Offline timing includes a one-second polling phase, so differences of
+hundreds of milliseconds alone do not establish a performance regression.
+
+Validation
+----------
+Focused CTest: 3/3 passed in 1.78 s (request-response, ping-push-ack, presence-api).
+New integration cases verify automatic retry before expiry without disconnect,
+rejection of an old context Ack, and recovery on the same connection with the
+replacement context. Existing late-Ack, quarantine expiry, transport error,
+periodic cadence and P2P inbound-delivery regression cases pass.
+No duplicate Ping IDs in either live campaign. Rejected context observations:
+TCP A114/B168, UDP A1/B0; these are observations, not packet loss estimates.
+They cannot confirm replacement Ping or keep a stale receive promise alive.
+
+Known earlier base failure remains outside this fix: server-connection persisted
+priority roundtrip segfault reproduces on unmodified base too. Full test suite
+is not claimed green; relevant focused suites passed.
+
+Adjacent udp-probe-validation-20261115.json contains per-trial measurements,
+query diagnostics, executable hashes/config and previous summary. Raw artifacts
+are presence-probe-tcp-20261115 and presence-probe-udp-20261115 in the local work
+directory. Do not export their credential/state directories. Queries made from
+a disconnected worker may return Unknown; healthy-baseline claims exclude
+actual injected outages and the JSON retains those outage diagnostics.
