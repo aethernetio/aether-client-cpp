@@ -1,0 +1,103 @@
+Presence API / Ping context validation — 2026-11-15
+
+Result
+------
+Ping now sends SetSessionId and Ping in the same authorized packet and accepts
+only the matching OnResponseFor/PingAck. The new session/context wire arguments
+use intpack (PackedSize), matching the deployed protocol. Server code was not
+changed. Work is committed locally on fix/ping-context-presence-20261115; no push.
+
+Two clients per transport, TCP and UDP, each had a 600-second healthy baseline:
+zero false local Offline, zero false peer Offline, zero Unknown and query errors.
+There were 600 successful peer results per client per transport (2400 total).
+Local presence was sampled continuously, peer presence queried once per second.
+
+Six cuts per transport: A and B each disconnected for 3, 10 and 60 seconds.
+All 12 cuts produced actual API Offline and recovered to stable Online, with
+no worker restart, failed trial or censored recovery. Stable Online was checked
+for another five seconds, with roughly 25 seconds of post-restore observation.
+
+Observed maxima, seconds (not guaranteed upper bounds):
+
+Transport  API       Offline after cut   Stable Online after restore
+TCP        local    2.053               0.222
+TCP        peer     2.445               1.025
+UDP        local    2.079               7.750
+UDP        peer     2.829               8.476
+
+Online numbers denote the beginning of the stable interval; confirming that
+interval takes five additional seconds. Peer results come from
+Client::QueryPeerPresence; local values from Client::IsLocallyOnline. No echo
+protocol or fabricated presence responses were used.
+
+UDP's two long recoveries followed the three-second cuts: local 7.127/7.750 s,
+peer 7.142/8.476 s. The ten- and sixty-second cuts recovered locally in
+0.394–1.349 s. This timing is consistent with the existing ten-second soft Ping
+quarantine: a dropped datagram cannot deliver a late Ack to release it early.
+That explanation is inferred from code and timing, not a separate quarantine
+timer measurement. The quarantine duration remains unchanged.
+
+Faults affect only each benchmark worker through a private relay. TCP silences
+its connections while preserving byte order; UDP drops real datagrams. No NIC,
+host firewall, routes, server or other application's network settings changed.
+UDP-only workers reused naturally saved TCP registrations sequentially to avoid
+the separate fresh UDP bootstrap failure. Baselines start after readiness.
+Unknown during actual loss of the querying client's transport is retained in
+the JSON diagnostics; the zero-Unknown result above concerns healthy baselines.
+
+Why additional client fixes were needed
+--------------------------------------
+The original aggregation produced eight false peer Offline results in a
+510.59-second healthy control: one server's fresh Online was overridden by
+another server's Offline. Aggregation now uses any fresh usable Online; Offline
+requires all usable contributions Offline, otherwise the result stays Unknown.
+
+After that fix, TCP exposed a 12.569 ms local renewal gap. Local classification
+now allows one timely observed RTT plus a 30 ms scheduling guard, capped at one
+configured offline tolerance. A late buffered Ack gets no extra freshness.
+
+UDP then exposed a 25.897 ms false local Offline when soft Ping quarantine
+removed all selected servers despite unexpired confirmed receive promises.
+For All targets those promises remain eligible until their ordinary deadlines.
+Expiry, hard quarantine and explicit selection changes still apply. A regression
+fixture was demonstrated failing without this preservation and passing with it.
+
+Final traces contain no duplicate Ping context IDs. TCP ignored 39 mismatching
+context observations across both workers; UDP had none. These are observations
+of rejected contexts, not a packet-loss estimate. IDs crossed intpack's 1515
+boundary in both campaigns. Actual acceptance requires the expected context.
+
+Validation and provenance
+-------------------------
+Focused CTest: 3/3 passed (request-response, ping-push-ack, presence-api).
+Benchmark Python fixtures: 15/15 passed.
+Native AB and cloud smokes: 4/4 passed (fresh and saved state).
+Known unrelated failure: test-server-connection segfaults in
+CloudServerConnectionPriorityRoundTripsAndRestoresSelectionOrder. Independently
+reproduced on base 3880b97e without the presence changes; full suite is not green.
+
+Upstream base: 0c2b8936b4418af55ed4cdb00405d99fc329422a
+Local code commits:
+3880b97ebb1435ad41ab4765d202667c194b1144 — Release warning-only build fix
+33278311eacb3b10171f0eec0b294b66519c1ee7 — packed contexts, correlation, aggregation, RTT
+f865ea8c8205b6134b364c66ac17890acf8731fd — soft quarantine promise preservation
+
+Build: Windows VS 2026 Release, telemetry disabled, Hydrogen, Ping interval /
+receive window / configured offline tolerance each 1000 ms. Dependency sources
+were not modified. Tested runtime source and executable SHA256 hashes are in
+session-context-validation-20261115.json. The binary's Git version macro names
+33278311 because f865ea8c was committed after testing its source contents.
+
+Campaign commands (use separately configured TCP/UDP executables):
+python examples/benches/presence_api/run_campaign.py --transport tcp --exe <tcp-exe> --out <tcp-out> --baseline 600 --off 3 10 60 --repeats 1 --recovery 20 --recovery-budget 90 --stable-recovery 5 --startup-budget 90
+python examples/benches/presence_api/run_campaign.py --transport udp --exe <udp-exe> --out <udp-out> --identity-source <naturally-saved-client-state> --baseline 600 --off 3 10 60 --repeats 1 --recovery 20 --recovery-budget 90 --stable-recovery 5 --startup-budget 90
+Both controller processes had AE_PRESENCE_API_TRACE=1.
+
+Raw local artifact directories (credentials/state must not be exported):
+presence-context-final-tcp-20261115
+presence-context-final-udp-20261115
+Their summary.json and trials.csv retain per-cut measurements. The adjacent
+report JSON contains compact evidence without keys/state. These measurements
+cover presence, not P2P streaming recovery. Concurrent shared-network load was
+not independently controlled; the finite sample is not a guarantee against all
+future jitter or false transitions.

@@ -1,0 +1,887 @@
+{
+  "date": "2026-11-15",
+  "branch": "fix/ping-context-presence-20261115",
+  "upstream_base": "0c2b8936b4418af55ed4cdb00405d99fc329422a",
+  "local_code_commits": [
+    "3880b97ebb1435ad41ab4765d202667c194b1144",
+    "33278311eacb3b10171f0eec0b294b66519c1ee7",
+    "f865ea8c8205b6134b364c66ac17890acf8731fd"
+  ],
+  "server_modified": false,
+  "pushed": false,
+  "runtime_source_sha256": "71ac6f5ff7fa2d9ac8c326353501357169eec61911aab7dc3e6c00d2b985570b",
+  "binary_sha256": {
+    "tcp": "461d6b3c7ac708776f84c2001e8b93649ecff8085c891b7ad5ff0d50436381f8",
+    "udp": "2f1358a2cb81d286b825bc4c89b14a8d49fa5ae28111f6ba0bf56c673ca63831"
+  },
+  "build_note": "Release/telemetry=0. Version macro names 33278311; tested source includes the subsequently committed f865ea8c change. Runtime source and binary hashes identify the actual tested contents.",
+  "configuration": {
+    "ping_interval_ms": 1000,
+    "receive_window_ms": 1000,
+    "configured_offline_tolerance_ms": 1000,
+    "peer_query_interval_ms": 1000,
+    "baseline_seconds": 600,
+    "cut_seconds": [
+      3,
+      10,
+      60
+    ],
+    "cut_sides": [
+      "A",
+      "B"
+    ],
+    "stable_recovery_seconds": 5,
+    "recovery_observation_seconds": 20,
+    "recovery_budget_seconds": 90,
+    "api": [
+      "Client::IsLocallyOnline",
+      "Client::QueryPeerPresence"
+    ],
+    "fault": "Private per-worker TCP silence relay / UDP datagram-drop relay. No host network/firewall changes.",
+    "udp_bootstrap": "Naturally saved TCP registrations reused sequentially; UDP campaign itself uses UDP-only transport."
+  },
+  "fixes": [
+    "SetSessionId is packed intpack on the wire, as are OnSessionId and OnResponseFor. Ping and SetSessionId share one authorized packet.",
+    "Only a PingAck whose packet response context matches this Ping completes it; unmarked, stale and mismatching acknowledgements cannot confirm a replacement Ping.",
+    "Peer aggregation: any fresh authoritative Online wins; Offline requires all usable contributions Offline; otherwise Unknown.",
+    "Local classification permits one timely observed RTT plus 30 ms scheduling guard, capped at one configured tolerance. Late buffered acknowledgements receive no extra allowance.",
+    "For All targets, soft Ping quarantine retains already confirmed presence promises until their ordinary deadline; hard quarantine and expiry still exclude them."
+  ],
+  "controls": {
+    "original_aggregation": {
+      "healthy_seconds": 510.59,
+      "false_peer_offline_results": 8
+    },
+    "after_aggregation_before_local_fixes": {
+      "tcp_false_local_offline_ms": 12.569
+    },
+    "after_rtt_guard_before_soft_quarantine_fix": {
+      "udp_false_local_offline_ms": 25.897
+    }
+  },
+  "validation": {
+    "focused_ctest": "3/3 passed: request-response, ping-push-ack, presence-api",
+    "benchmark_python": "15/15 passed",
+    "smokes": [
+      {
+        "example": "ab",
+        "phase": "fresh",
+        "exit_code": 0,
+        "seconds": 2.4839999999967404
+      },
+      {
+        "example": "ab",
+        "phase": "saved",
+        "exit_code": 0,
+        "seconds": 0.9379999999946449
+      },
+      {
+        "example": "cloud",
+        "phase": "fresh",
+        "exit_code": 0,
+        "seconds": 2.6089999999967404
+      },
+      {
+        "example": "cloud",
+        "phase": "saved",
+        "exit_code": 0,
+        "seconds": 1.6719999999913853
+      }
+    ],
+    "regression_red_green": "Soft-quarantine fixture fails with unconditional selection clearing and passes with preservation.",
+    "known_unrelated_failure": "test-server-connection segfaults in CloudServerConnectionPriorityRoundTripsAndRestoresSelectionOrder; independently reproduced on base 3880b97e without presence changes. Full suite is not claimed green."
+  },
+  "campaigns": {
+    "tcp": {
+      "artifact_directory": "presence-context-final-tcp-20261115",
+      "status": "complete",
+      "baseline": [
+        {
+          "side": "A",
+          "detector": "local_api",
+          "seconds": 600.011851,
+          "state_seconds": {
+            "online": 600.011851
+          },
+          "offline_episodes": 0
+        },
+        {
+          "side": "A",
+          "detector": "remote_api",
+          "seconds": 600.011851,
+          "state_seconds": {
+            "online": 600.011851
+          },
+          "offline_episodes": 0
+        },
+        {
+          "side": "B",
+          "detector": "local_api",
+          "seconds": 600.011851,
+          "state_seconds": {
+            "online": 600.011851
+          },
+          "offline_episodes": 0
+        },
+        {
+          "side": "B",
+          "detector": "remote_api",
+          "seconds": 600.011851,
+          "state_seconds": {
+            "online": 600.011851
+          },
+          "offline_episodes": 0
+        }
+      ],
+      "summary": [
+        {
+          "detector": "local_api",
+          "trials": 6,
+          "recovery_required": 6,
+          "offline_not_observed": 0,
+          "preexisting_non_online": 0,
+          "online_censored": 0,
+          "stable_censored": 0,
+          "terminal_censored": 0,
+          "offline_ms": {
+            "n": 6,
+            "p50": 1832.7565,
+            "p95": 2047.1575,
+            "p99": 2052.1195000000002,
+            "max": 2053.36
+          },
+          "online_ms": {
+            "n": 6,
+            "p50": 110.3275,
+            "p95": 195.22224999999997,
+            "p99": 216.51885000000001,
+            "max": 221.843
+          },
+          "fresh_query_online_ms": {
+            "n": 6,
+            "p50": 110.3275,
+            "p95": 195.22224999999997,
+            "p99": 216.51885000000001,
+            "max": 221.843
+          },
+          "stable_online_5s_ms": {
+            "n": 6,
+            "p50": 110.3275,
+            "p95": 195.22224999999997,
+            "p99": 216.51885000000001,
+            "max": 221.843
+          },
+          "terminal_online_5s_ms": {
+            "n": 6,
+            "p50": 110.3275,
+            "p95": 195.22224999999997,
+            "p99": 216.51885000000001,
+            "max": 221.843
+          }
+        },
+        {
+          "detector": "remote_api",
+          "trials": 6,
+          "recovery_required": 6,
+          "offline_not_observed": 0,
+          "preexisting_non_online": 0,
+          "online_censored": 0,
+          "stable_censored": 0,
+          "terminal_censored": 0,
+          "offline_ms": {
+            "n": 6,
+            "p50": 2098.3935,
+            "p95": 2438.03925,
+            "p99": 2443.95825,
+            "max": 2445.438
+          },
+          "online_ms": {
+            "n": 6,
+            "p50": 634.1569999999999,
+            "p95": 965.636,
+            "p99": 1012.968,
+            "max": 1024.801
+          },
+          "fresh_query_online_ms": {
+            "n": 6,
+            "p50": 634.1569999999999,
+            "p95": 965.636,
+            "p99": 1012.968,
+            "max": 1024.801
+          },
+          "stable_online_5s_ms": {
+            "n": 6,
+            "p50": 634.1569999999999,
+            "p95": 965.636,
+            "p99": 1012.968,
+            "max": 1024.801
+          },
+          "terminal_online_5s_ms": {
+            "n": 6,
+            "p50": 634.1569999999999,
+            "p95": 965.636,
+            "p99": 1012.968,
+            "max": 1024.801
+          }
+        }
+      ],
+      "failure_trials": [],
+      "failures": [],
+      "worker_segments": 1,
+      "contexts": {
+        "A": {
+          "baseline_seconds": 600.011851,
+          "local_offline_transitions": 0,
+          "remote_results": {
+            "1": 600
+          },
+          "remote_errors": 0,
+          "context_sends": 2618,
+          "duplicate_context_ids": 0,
+          "context_acks": 2609,
+          "mismatching_contexts": 18
+        },
+        "B": {
+          "baseline_seconds": 600.011851,
+          "local_offline_transitions": 0,
+          "remote_results": {
+            "1": 600
+          },
+          "remote_errors": 0,
+          "context_sends": 2600,
+          "duplicate_context_ids": 0,
+          "context_acks": 2594,
+          "mismatching_contexts": 21
+        }
+      },
+      "all_run_queries": [
+        {
+          "side": "A",
+          "segment": 1,
+          "unknown_results": 3,
+          "error_results": 0,
+          "error_codes": {},
+          "unobserved_results": 0,
+          "overdue_queries": 0,
+          "busy_ticks": 69,
+          "pending_at_restore": [],
+          "pending_at_end": [],
+          "result_duration_ms": {
+            "n": 868,
+            "p50": 56.3615,
+            "p95": 189.81514999999996,
+            "p99": 372.2023500000001,
+            "max": 20014.644
+          },
+          "results_started_before_cut": 0,
+          "post_restore_results_started_before_restore": 0
+        },
+        {
+          "side": "B",
+          "segment": 1,
+          "unknown_results": 16,
+          "error_results": 0,
+          "error_codes": {},
+          "unobserved_results": 0,
+          "overdue_queries": 0,
+          "busy_ticks": 56,
+          "pending_at_restore": [],
+          "pending_at_end": [],
+          "result_duration_ms": {
+            "n": 885,
+            "p50": 56.428,
+            "p95": 179.24859999999998,
+            "p99": 3021.76164,
+            "max": 9911.937
+          },
+          "results_started_before_cut": 0,
+          "post_restore_results_started_before_restore": 0
+        }
+      ],
+      "trials": [
+        {
+          "trial": 1,
+          "fault_side": "A",
+          "observer": "A",
+          "detector": "local_api",
+          "off_seconds": 3.0,
+          "pair_recovered": true,
+          "state_before_cut": "online",
+          "offline_observed": true,
+          "offline_ms": 2053.36,
+          "online_ms": 57.882,
+          "fresh_query_online_ms": 57.882,
+          "stable_online_5s_ms": 57.882,
+          "terminal_online_5s_ms": 57.882
+        },
+        {
+          "trial": 1,
+          "fault_side": "A",
+          "observer": "B",
+          "detector": "remote_api",
+          "off_seconds": 3.0,
+          "pair_recovered": true,
+          "state_before_cut": "online",
+          "offline_observed": true,
+          "offline_ms": 2445.438,
+          "online_ms": 319.386,
+          "fresh_query_online_ms": 319.386,
+          "stable_online_5s_ms": 319.386,
+          "terminal_online_5s_ms": 319.386
+        },
+        {
+          "trial": 2,
+          "fault_side": "B",
+          "observer": "B",
+          "detector": "local_api",
+          "off_seconds": 3.0,
+          "pair_recovered": true,
+          "state_before_cut": "online",
+          "offline_observed": true,
+          "offline_ms": 1782.897,
+          "online_ms": 106.433,
+          "fresh_query_online_ms": 106.433,
+          "stable_online_5s_ms": 106.433,
+          "terminal_online_5s_ms": 106.433
+        },
+        {
+          "trial": 2,
+          "fault_side": "B",
+          "observer": "A",
+          "detector": "remote_api",
+          "off_seconds": 3.0,
+          "pair_recovered": true,
+          "state_before_cut": "online",
+          "offline_observed": true,
+          "offline_ms": 1875.222,
+          "online_ms": 558.723,
+          "fresh_query_online_ms": 558.723,
+          "stable_online_5s_ms": 558.723,
+          "terminal_online_5s_ms": 558.723
+        },
+        {
+          "trial": 3,
+          "fault_side": "A",
+          "observer": "A",
+          "detector": "local_api",
+          "off_seconds": 10.0,
+          "pair_recovered": true,
+          "state_before_cut": "online",
+          "offline_observed": true,
+          "offline_ms": 1631.549,
+          "online_ms": 115.36,
+          "fresh_query_online_ms": 115.36,
+          "stable_online_5s_ms": 115.36,
+          "terminal_online_5s_ms": 115.36
+        },
+        {
+          "trial": 3,
+          "fault_side": "A",
+          "observer": "B",
+          "detector": "remote_api",
+          "off_seconds": 10.0,
+          "pair_recovered": true,
+          "state_before_cut": "online",
+          "offline_observed": true,
+          "offline_ms": 2272.589,
+          "online_ms": 1024.801,
+          "fresh_query_online_ms": 1024.801,
+          "stable_online_5s_ms": 1024.801,
+          "terminal_online_5s_ms": 1024.801
+        },
+        {
+          "trial": 4,
+          "fault_side": "B",
+          "observer": "B",
+          "detector": "local_api",
+          "off_seconds": 10.0,
+          "pair_recovered": true,
+          "state_before_cut": "online",
+          "offline_observed": true,
+          "offline_ms": 1882.616,
+          "online_ms": 105.254,
+          "fresh_query_online_ms": 105.254,
+          "stable_online_5s_ms": 105.254,
+          "terminal_online_5s_ms": 105.254
+        },
+        {
+          "trial": 4,
+          "fault_side": "B",
+          "observer": "A",
+          "detector": "remote_api",
+          "off_seconds": 10.0,
+          "pair_recovered": true,
+          "state_before_cut": "online",
+          "offline_observed": true,
+          "offline_ms": 2415.843,
+          "online_ms": 297.033,
+          "fresh_query_online_ms": 297.033,
+          "stable_online_5s_ms": 297.033,
+          "terminal_online_5s_ms": 297.033
+        },
+        {
+          "trial": 5,
+          "fault_side": "A",
+          "observer": "A",
+          "detector": "local_api",
+          "off_seconds": 60.0,
+          "pair_recovered": true,
+          "state_before_cut": "online",
+          "offline_observed": true,
+          "offline_ms": 1729.702,
+          "online_ms": 114.222,
+          "fresh_query_online_ms": 114.222,
+          "stable_online_5s_ms": 114.222,
+          "terminal_online_5s_ms": 114.222
+        },
+        {
+          "trial": 5,
+          "fault_side": "A",
+          "observer": "B",
+          "detector": "remote_api",
+          "off_seconds": 60.0,
+          "pair_recovered": true,
+          "state_before_cut": "online",
+          "offline_observed": true,
+          "offline_ms": 1822.124,
+          "online_ms": 709.591,
+          "fresh_query_online_ms": 709.591,
+          "stable_online_5s_ms": 709.591,
+          "terminal_online_5s_ms": 709.591
+        },
+        {
+          "trial": 6,
+          "fault_side": "B",
+          "observer": "B",
+          "detector": "local_api",
+          "off_seconds": 60.0,
+          "pair_recovered": true,
+          "state_before_cut": "online",
+          "offline_observed": true,
+          "offline_ms": 2028.55,
+          "online_ms": 221.843,
+          "fresh_query_online_ms": 221.843,
+          "stable_online_5s_ms": 221.843,
+          "terminal_online_5s_ms": 221.843
+        },
+        {
+          "trial": 6,
+          "fault_side": "B",
+          "observer": "A",
+          "detector": "remote_api",
+          "off_seconds": 60.0,
+          "pair_recovered": true,
+          "state_before_cut": "online",
+          "offline_observed": true,
+          "offline_ms": 1924.198,
+          "online_ms": 788.141,
+          "fresh_query_online_ms": 788.141,
+          "stable_online_5s_ms": 788.141,
+          "terminal_online_5s_ms": 788.141
+        }
+      ]
+    },
+    "udp": {
+      "artifact_directory": "presence-context-final-udp-20261115",
+      "status": "complete",
+      "baseline": [
+        {
+          "side": "A",
+          "detector": "local_api",
+          "seconds": 600.0178,
+          "state_seconds": {
+            "online": 600.0178
+          },
+          "offline_episodes": 0
+        },
+        {
+          "side": "A",
+          "detector": "remote_api",
+          "seconds": 600.0178,
+          "state_seconds": {
+            "online": 600.0178
+          },
+          "offline_episodes": 0
+        },
+        {
+          "side": "B",
+          "detector": "local_api",
+          "seconds": 600.0178,
+          "state_seconds": {
+            "online": 600.0178
+          },
+          "offline_episodes": 0
+        },
+        {
+          "side": "B",
+          "detector": "remote_api",
+          "seconds": 600.0178,
+          "state_seconds": {
+            "online": 600.0178
+          },
+          "offline_episodes": 0
+        }
+      ],
+      "summary": [
+        {
+          "detector": "local_api",
+          "trials": 6,
+          "recovery_required": 6,
+          "offline_not_observed": 0,
+          "preexisting_non_online": 0,
+          "online_censored": 0,
+          "stable_censored": 0,
+          "terminal_censored": 0,
+          "offline_ms": {
+            "n": 6,
+            "p50": 1924.7625,
+            "p95": 2075.3627500000002,
+            "p99": 2078.26375,
+            "max": 2078.989
+          },
+          "online_ms": {
+            "n": 6,
+            "p50": 1033.777,
+            "p95": 7594.142,
+            "p99": 7718.5892,
+            "max": 7749.701
+          },
+          "fresh_query_online_ms": {
+            "n": 6,
+            "p50": 1033.777,
+            "p95": 7594.142,
+            "p99": 7718.5892,
+            "max": 7749.701
+          },
+          "stable_online_5s_ms": {
+            "n": 6,
+            "p50": 1033.777,
+            "p95": 7594.142,
+            "p99": 7718.5892,
+            "max": 7749.701
+          },
+          "terminal_online_5s_ms": {
+            "n": 6,
+            "p50": 1033.777,
+            "p95": 7594.142,
+            "p99": 7718.5892,
+            "max": 7749.701
+          }
+        },
+        {
+          "detector": "remote_api",
+          "trials": 6,
+          "recovery_required": 6,
+          "offline_not_observed": 0,
+          "preexisting_non_online": 0,
+          "online_censored": 0,
+          "stable_censored": 0,
+          "terminal_censored": 0,
+          "offline_ms": {
+            "n": 6,
+            "p50": 2234.031,
+            "p95": 2771.2000000000003,
+            "p99": 2817.1960000000004,
+            "max": 2828.695
+          },
+          "online_ms": {
+            "n": 6,
+            "p50": 1408.563,
+            "p95": 8142.188499999999,
+            "p99": 8408.9921,
+            "max": 8475.693
+          },
+          "fresh_query_online_ms": {
+            "n": 6,
+            "p50": 1408.563,
+            "p95": 8142.188499999999,
+            "p99": 8408.9921,
+            "max": 8475.693
+          },
+          "stable_online_5s_ms": {
+            "n": 6,
+            "p50": 1408.563,
+            "p95": 8142.188499999999,
+            "p99": 8408.9921,
+            "max": 8475.693
+          },
+          "terminal_online_5s_ms": {
+            "n": 6,
+            "p50": 1408.563,
+            "p95": 8142.188499999999,
+            "p99": 8408.9921,
+            "max": 8475.693
+          }
+        }
+      ],
+      "failure_trials": [],
+      "failures": [],
+      "worker_segments": 1,
+      "contexts": {
+        "A": {
+          "baseline_seconds": 600.0178,
+          "local_offline_transitions": 0,
+          "remote_results": {
+            "1": 600
+          },
+          "remote_errors": 0,
+          "context_sends": 2562,
+          "duplicate_context_ids": 0,
+          "context_acks": 2523,
+          "mismatching_contexts": 0
+        },
+        "B": {
+          "baseline_seconds": 600.0178,
+          "local_offline_transitions": 0,
+          "remote_results": {
+            "1": 600
+          },
+          "remote_errors": 0,
+          "context_sends": 2571,
+          "duplicate_context_ids": 0,
+          "context_acks": 2536,
+          "mismatching_contexts": 0
+        }
+      },
+      "all_run_queries": [
+        {
+          "side": "A",
+          "segment": 1,
+          "unknown_results": 18,
+          "error_results": 0,
+          "error_codes": {},
+          "unobserved_results": 0,
+          "overdue_queries": 0,
+          "busy_ticks": 56,
+          "pending_at_restore": [],
+          "pending_at_end": [
+            881
+          ],
+          "result_duration_ms": {
+            "n": 880,
+            "p50": 54.64,
+            "p95": 177.82434999999998,
+            "p99": 3023.74236,
+            "max": 3034.609
+          },
+          "results_started_before_cut": 0,
+          "post_restore_results_started_before_restore": 0
+        },
+        {
+          "side": "B",
+          "segment": 1,
+          "unknown_results": 18,
+          "error_results": 0,
+          "error_codes": {},
+          "unobserved_results": 0,
+          "overdue_queries": 0,
+          "busy_ticks": 56,
+          "pending_at_restore": [],
+          "pending_at_end": [
+            881
+          ],
+          "result_duration_ms": {
+            "n": 880,
+            "p50": 55.0295,
+            "p95": 175.25820000000002,
+            "p99": 3022.4115699999998,
+            "max": 3043.39
+          },
+          "results_started_before_cut": 0,
+          "post_restore_results_started_before_restore": 0
+        }
+      ],
+      "trials": [
+        {
+          "trial": 1,
+          "fault_side": "A",
+          "observer": "A",
+          "detector": "local_api",
+          "off_seconds": 3.0,
+          "pair_recovered": true,
+          "state_before_cut": "online",
+          "offline_observed": true,
+          "offline_ms": 1310.502,
+          "online_ms": 7127.465,
+          "fresh_query_online_ms": 7127.465,
+          "stable_online_5s_ms": 7127.465,
+          "terminal_online_5s_ms": 7127.465
+        },
+        {
+          "trial": 1,
+          "fault_side": "A",
+          "observer": "B",
+          "detector": "remote_api",
+          "off_seconds": 3.0,
+          "pair_recovered": true,
+          "state_before_cut": "online",
+          "offline_observed": true,
+          "offline_ms": 2253.038,
+          "online_ms": 7141.675,
+          "fresh_query_online_ms": 7141.675,
+          "stable_online_5s_ms": 7141.675,
+          "terminal_online_5s_ms": 7141.675
+        },
+        {
+          "trial": 2,
+          "fault_side": "B",
+          "observer": "B",
+          "detector": "local_api",
+          "off_seconds": 3.0,
+          "pair_recovered": true,
+          "state_before_cut": "online",
+          "offline_observed": true,
+          "offline_ms": 1918.144,
+          "online_ms": 7749.701,
+          "fresh_query_online_ms": 7749.701,
+          "stable_online_5s_ms": 7749.701,
+          "terminal_online_5s_ms": 7749.701
+        },
+        {
+          "trial": 2,
+          "fault_side": "B",
+          "observer": "A",
+          "detector": "remote_api",
+          "off_seconds": 3.0,
+          "pair_recovered": true,
+          "state_before_cut": "online",
+          "offline_observed": true,
+          "offline_ms": 2598.715,
+          "online_ms": 8475.693,
+          "fresh_query_online_ms": 8475.693,
+          "stable_online_5s_ms": 8475.693,
+          "terminal_online_5s_ms": 8475.693
+        },
+        {
+          "trial": 3,
+          "fault_side": "A",
+          "observer": "A",
+          "detector": "local_api",
+          "off_seconds": 10.0,
+          "pair_recovered": true,
+          "state_before_cut": "online",
+          "offline_observed": true,
+          "offline_ms": 1599.476,
+          "online_ms": 597.15,
+          "fresh_query_online_ms": 597.15,
+          "stable_online_5s_ms": 597.15,
+          "terminal_online_5s_ms": 597.15
+        },
+        {
+          "trial": 3,
+          "fault_side": "A",
+          "observer": "B",
+          "detector": "remote_api",
+          "off_seconds": 10.0,
+          "pair_recovered": true,
+          "state_before_cut": "online",
+          "offline_observed": true,
+          "offline_ms": 2044.358,
+          "online_ms": 1030.795,
+          "fresh_query_online_ms": 1030.795,
+          "stable_online_5s_ms": 1030.795,
+          "terminal_online_5s_ms": 1030.795
+        },
+        {
+          "trial": 4,
+          "fault_side": "B",
+          "observer": "B",
+          "detector": "local_api",
+          "off_seconds": 10.0,
+          "pair_recovered": true,
+          "state_before_cut": "online",
+          "offline_observed": true,
+          "offline_ms": 1931.381,
+          "online_ms": 394.305,
+          "fresh_query_online_ms": 394.305,
+          "stable_online_5s_ms": 394.305,
+          "terminal_online_5s_ms": 394.305
+        },
+        {
+          "trial": 4,
+          "fault_side": "B",
+          "observer": "A",
+          "detector": "remote_api",
+          "off_seconds": 10.0,
+          "pair_recovered": true,
+          "state_before_cut": "online",
+          "offline_observed": true,
+          "offline_ms": 2215.024,
+          "online_ms": 1110.669,
+          "fresh_query_online_ms": 1110.669,
+          "stable_online_5s_ms": 1110.669,
+          "terminal_online_5s_ms": 1110.669
+        },
+        {
+          "trial": 5,
+          "fault_side": "A",
+          "observer": "A",
+          "detector": "local_api",
+          "off_seconds": 60.0,
+          "pair_recovered": true,
+          "state_before_cut": "online",
+          "offline_observed": true,
+          "offline_ms": 2078.989,
+          "online_ms": 1348.782,
+          "fresh_query_online_ms": 1348.782,
+          "stable_online_5s_ms": 1348.782,
+          "terminal_online_5s_ms": 1348.782
+        },
+        {
+          "trial": 5,
+          "fault_side": "A",
+          "observer": "B",
+          "detector": "remote_api",
+          "off_seconds": 60.0,
+          "pair_recovered": true,
+          "state_before_cut": "online",
+          "offline_observed": true,
+          "offline_ms": 2828.695,
+          "online_ms": 1706.457,
+          "fresh_query_online_ms": 1706.457,
+          "stable_online_5s_ms": 1706.457,
+          "terminal_online_5s_ms": 1706.457
+        },
+        {
+          "trial": 6,
+          "fault_side": "B",
+          "observer": "B",
+          "detector": "local_api",
+          "off_seconds": 60.0,
+          "pair_recovered": true,
+          "state_before_cut": "online",
+          "offline_observed": true,
+          "offline_ms": 2064.484,
+          "online_ms": 718.772,
+          "fresh_query_online_ms": 718.772,
+          "stable_online_5s_ms": 718.772,
+          "terminal_online_5s_ms": 718.772
+        },
+        {
+          "trial": 6,
+          "fault_side": "B",
+          "observer": "A",
+          "detector": "remote_api",
+          "off_seconds": 60.0,
+          "pair_recovered": true,
+          "state_before_cut": "online",
+          "offline_observed": true,
+          "offline_ms": 2176.724,
+          "online_ms": 1056.444,
+          "fresh_query_online_ms": 1056.444,
+          "stable_online_5s_ms": 1056.444,
+          "terminal_online_5s_ms": 1056.444
+        }
+      ]
+    }
+  },
+  "udp_recovery_note": "The 7.13/7.75 second local recoveries occurred after the three-second datagram cuts. This is consistent with the existing ten-second soft Ping quarantine: a dropped Ping/Ack cannot arrive late to release it early. Ten- and sixty-second cuts recovered locally in 0.39-1.35 seconds. Quarantine duration was not changed; the cause is an inference from code and timing, not a separately instrumented quarantine timer.",
+  "limitations": [
+    "Finite sample under current shared-network load; observed maxima are not guaranteed bounds.",
+    "Zero Unknown/errors refers to the healthy baseline. All-run query diagnostics retain Unknown during actual loss of the querying client transport.",
+    "TCP relay silence may buffer bytes; UDP actually drops datagrams. Neither changes host firewall or another application.",
+    "Stable Online latency denotes the beginning of the final Online interval, confirmed by a further five seconds.",
+    "Remote query sampling is once per second; query/result timing is retained in raw trials.csv.",
+    "No P2P streaming recovery measurement is claimed by this presence-only campaign."
+  ]
+}
