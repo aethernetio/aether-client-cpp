@@ -191,6 +191,13 @@ request IDs, write status, wire method/length, and incoming API command traces.
 It does not print keys or message payloads; normal SDK builds do not enable it.
 
 UDP and precise Ping-omission validation:
+- With correlated Ping contexts, a soft-timeout server is probed on its existing
+  transport every configured interval, clamped to 50 ms through 1 s. Each probe
+  retires the old Ping outside its callback and uses a fresh ID. A matching Ack
+  releases soft quarantine; an old Ack cannot confirm the new receive promise.
+  Probes do not update a different server's priority service deadline. The
+  original quarantine expiry still reconnects if no probe succeeds; transport
+  errors still stop probing and follow transport quarantine.
 - Build a separate probe with USER_CONFIG=examples/benches/presence_api/user_config_udp.h.
   It disables TCP. Run the controller with --transport udp. The private relay drops
   actual datagrams while cut, including incoming responses, without changing host

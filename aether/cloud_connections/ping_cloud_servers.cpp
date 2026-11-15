@@ -17,6 +17,7 @@
 #include "aether/cloud_connections/ping_cloud_servers.h"
 
 #include <cassert>
+#include <algorithm>
 #include <type_traits>
 #include <variant>
 
@@ -157,7 +158,9 @@ auto PingCloudServers::ServerPing::MakePing() {
       ping_->Start(current_time);
       OpenRxWindow(current_time);
       next_ping_time_ = current_time + timing_conf_.interval;
-      policy_->ReportNextServiceTime(priority_, next_ping_time_);
+      if (!cloud_sc_->quarantine()) {
+        policy_->ReportNextServiceTime(priority_, next_ping_time_);
+      }
       AETHER_TELED_DEBUG("Next ping time for priority {} at {} after {}",
                          priority_, next_ping_time_, timing_conf_.interval);
 
@@ -172,6 +175,14 @@ void PingCloudServers::ServerPing::Start() {
                    ping_.has_value());
   if (stop_) {
     return;
+  }
+  if (ping_ && ping_->IsAwaitingLateResponse() && cloud_sc_->quarantine() &&
+      cloud_sc_->quarantine_reason() == CloudQuarantineReason::kPingTimeoutWait) {
+    // The next probe owns a fresh context. Retire the old listener outside its
+    // result callback; a delayed Ack can no longer complete the replacement.
+    ping_.reset();
+    ping_wait_connection_ = nullptr;
+    ping_wait_channel_ = nullptr;
   }
   if (ping_ && (ping_->IsPending() || ping_->IsAwaitingLateResponse())) {
     PresenceApiTrace("ping_defer_start", cloud_sc_->server_id());
@@ -226,6 +237,12 @@ void PingCloudServers::ServerPing::Start() {
 }
 
 bool PingCloudServers::ServerPing::IsCurrentRxTarget() const {
+  // Keep probing the existing transport while ordinary request selection
+  // fails over. Hard transport quarantine still stops this owner.
+  if (cloud_sc_->quarantine() && cloud_sc_->quarantine_reason() ==
+                                    CloudQuarantineReason::kPingTimeoutWait) {
+    return true;
+  }
   auto const priority = cloud_sc_->priority();
   if (priority != priority_ || priority >= policy_->rx_timings().size()) {
     return false;
@@ -284,6 +301,18 @@ void PingCloudServers::ServerPing::HandlePingTimeoutOnScheduler(
   }
   if (cloud_server_connections_->QuarantineForPingTimeout(*cloud_sc_)) {
     cloud_server_connections_->ScheduleReconcileServers();
+  }
+  if (cloud_sc_->quarantine() && cloud_sc_->quarantine_reason() ==
+                                    CloudQuarantineReason::kPingTimeoutWait) {
+    auto const retry_delay = std::clamp(
+        timing_conf_.interval,
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{50}),
+        std::chrono::duration_cast<Duration>(std::chrono::seconds{1}));
+    PresenceApiTrace("ping_probe_due", cloud_sc_->server_id(),
+                     ping_->context_id(), retry_delay.count());
+    next_probe_time_ = std::max(Now(), next_probe_time_) + retry_delay;
+    start_sub_ = ae_context_.scheduler().DelayedTask([this]() { Start(); },
+                                                    next_probe_time_);
   }
 }
 
@@ -369,6 +398,11 @@ void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
       ping_wait_channel_ = nullptr;
       // Keep the periodic cadence; restore its task if it was consumed while
       // awaiting the Ack or if no scheduled start remains after retirement.
+      if (cloud_sc_->quarantine() && cloud_sc_->quarantine_reason() ==
+                                        CloudQuarantineReason::kPingTimeoutWait) {
+        cloud_server_connections_->RecoverFromPingTimeout(*cloud_sc_);
+        start_sub_.Reset();
+      }
       if (std::exchange(deferred_start_after_ping_, false) || !start_sub_) {
         ScheduleNextPeriodicStart();
       }

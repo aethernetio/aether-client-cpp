@@ -92,6 +92,7 @@ class PingCloudServers {
     ClientConnectivityPolicy::SuspendBlocker rx_window_blocker_;
     ClientConnectivityPolicy::SuspendBlocker restream_blocker_;
     TimePoint next_ping_time_;
+    TimePoint next_probe_time_{};
     bool deferred_start_after_ping_{false};
 
     void ScheduleNextPeriodicStart();

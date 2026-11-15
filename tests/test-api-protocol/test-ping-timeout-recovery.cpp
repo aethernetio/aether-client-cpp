@@ -664,20 +664,55 @@ void test_ExpiryWithoutPongDisconnectsOnce() {
   TEST_ASSERT_NULL(a->client_connection());
 }
 
-void test_PeriodicStartDoesNotReplaceAwaitingLatePing() {
+void test_PeriodicProbeReplacesLostPingAndRejectsOldAck() {
   auto env = MakeEnv();
   TEST_ASSERT_NOT_NULL(env);
   auto& h = *env;
   Ping const* before =
       PingCloudServersTestAccess::ClientPingPtr(*h.ping_cloud, kServerA);
   TEST_ASSERT_NOT_NULL(before);
+  auto const old_context = before->context_id();
+  auto* server = FindServer(*h.connections, kServerA);
+  auto* connection = server->client_connection();
   h.ctx.Advance(std::chrono::milliseconds{500});
   TEST_ASSERT_TRUE(PingCloudServersTestAccess::HasAwaitingLateClientPing(
       *h.ping_cloud, kServerA));
   PingCloudServersTestAccess::TriggerPeriodicStart(*h.ping_cloud, kServerA);
   h.ctx.Advance(std::chrono::milliseconds{50});
-  TEST_ASSERT_EQUAL_PTR(before, PingCloudServersTestAccess::ClientPingPtr(
-                                    *h.ping_cloud, kServerA));
+  auto* replacement = PingCloudServersTestAccess::ClientPingPtr(
+      *h.ping_cloud, kServerA);
+  TEST_ASSERT_NOT_NULL(replacement);
+  TEST_ASSERT_TRUE(old_context != replacement->context_id());
+  DataBuffer stale;
+  ApiPacker{stale}.Pack(MessageId{73}, GenericMessage<PackedSize>{old_context});
+  auto ack = PingAckPlaintext();
+  stale.insert(stale.end(), ack.begin(), ack.end());
+  h.streams[kServerA]->Deliver(PackEncryptedSafeApi(h.client, kServerA, stale));
+  h.ctx.Advance(std::chrono::milliseconds{1});
+  TEST_ASSERT_TRUE(server->quarantine());
+  TEST_ASSERT_EQUAL(replacement->context_id(),
+      PingCloudServersTestAccess::ClientPingPtr(*h.ping_cloud, kServerA)->context_id());
+  DeliverPingAck(h, kServerA);
+  h.ctx.Advance(std::chrono::milliseconds{20});
+  TEST_ASSERT_FALSE(server->quarantine());
+  TEST_ASSERT_EQUAL_PTR(connection, server->client_connection());
+}
+
+void test_LostAckAutomaticallyProbesBeforeQuarantineExpiry() {
+  auto env = MakeEnv();
+  TEST_ASSERT_NOT_NULL(env);
+  auto& h = *env;
+  auto* server = FindServer(*h.connections, kServerA);
+  auto* connection = server->client_connection();
+  auto const context = PingCloudServersTestAccess::ClientPingPtr(
+      *h.ping_cloud, kServerA)->context_id();
+  auto const writes = h.streams[kServerA]->write_count();
+  h.ctx.Advance(std::chrono::milliseconds{1100});
+  TEST_ASSERT_TRUE(server->quarantine());
+  TEST_ASSERT_EQUAL_PTR(connection, server->client_connection());
+  TEST_ASSERT_GREATER_THAN(writes, h.streams[kServerA]->write_count());
+  TEST_ASSERT_TRUE(context != PingCloudServersTestAccess::ClientPingPtr(
+      *h.ping_cloud, kServerA)->context_id());
 }
 
 void test_TransportErrorAfterSoftQuarantineBlocksLateRecovery() {
@@ -893,7 +928,9 @@ int test_ping_timeout_recovery_run() {
   RUN_TEST(
       ae::test_ping_timeout_recovery::test_ExpiryWithoutPongDisconnectsOnce);
   RUN_TEST(ae::test_ping_timeout_recovery::
-               test_PeriodicStartDoesNotReplaceAwaitingLatePing);
+               test_PeriodicProbeReplacesLostPingAndRejectsOldAck);
+  RUN_TEST(ae::test_ping_timeout_recovery::
+               test_LostAckAutomaticallyProbesBeforeQuarantineExpiry);
   RUN_TEST(ae::test_ping_timeout_recovery::
                test_TransportErrorAfterSoftQuarantineBlocksLateRecovery);
   RUN_TEST(ae::test_ping_timeout_recovery::
