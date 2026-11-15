@@ -105,7 +105,8 @@ void PeerPresenceQuery::MaybeComplete() {
     }
     terminal = terminal && terminal_[sample.server_id];
   }
-  if (RemotePresenceCanEarlyCompleteOffline(samples_) || terminal) {
+  if (RemotePresenceReadyForOnline(samples_) ||
+      RemotePresenceCanEarlyCompleteOffline(samples_) || terminal) {
     Complete(AggregateRemotePresence(samples_));
   }
 }

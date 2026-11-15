@@ -17,9 +17,14 @@ older server GitHub main. Method 35 `GetClientTiming` is void, with UID only
 `SendClientTiming(uid, timing)` (33 bytes). There is no request ID. The old
 Cursor RPC declaration prepended four bytes to UID and expected a nonexistent
 result-0 reply. Both request binding and response dispatch are now corrected.
-The legacy push Ack has no request ID, so the existing single-flight Ping and
-late-Ack ownership are retained; the historical overlapping prefix scheduler
-is not used. Local schedules use the actual send time plus the pre-send RTT
+Ping and its Ack remain void methods 4/24. Each Ping now prefixes its command
+with method 51 SetSessionId(intpack), and accepts only an Ack tagged with the
+matching method 73 OnResponseFor(intpack) in the same decrypted packet. Method
+72 OnSessionId confirms tag assignment, not Ping completion. All three tag
+methods use the server packed-number encoding, never a fixed-width uint64.
+The decoded Ack snapshots its context before callback dispatch; unmarked and
+wrong-context Acks cannot complete a Ping. Single-flight scheduling and late-Ack
+ownership remain in place; the historical overlapping scheduler is not used. Local schedules use the actual send time plus the pre-send RTT
 percentile divided by two, capped at the observed Ack receipt time.
 
 Before publishing its UID, each worker waits for confirming Pongs for the
@@ -111,8 +116,17 @@ fallback events preserve which peer cloud was queried. A query API error is
 not OFFLINE. Neither is a successful UNKNOWN result or an overdue/missed
 callback. In this SDK, peer-cloud resolution failure may return successful
 UNKNOWN rather than an error. Local presence uses OR aggregation over its
-selected confirmed server schedules; remote presence uses AND over usable
-authoritative peer servers, excluding quarantined servers.
+selected confirmed server schedules; remote presence uses reachability OR over
+usable authoritative peer servers, excluding quarantined servers. One fresh
+Online response proves reachability; Offline requires all usable contributions
+to be Offline. Missing responses remain Unknown when no positive proof exists.
+
+Local classification adds observed timely RTT plus the existing 30ms scheduler
+guard to the configured offline tolerance, capped at one configured tolerance.
+An already late Ack supplies no extra freshness. The projected receive window,
+wire Ping interval and receive-window duration are unchanged. This prevents a
+short Offline pulse while a normal renewal Ack is still in flight, without
+allowing a buffered long-delay Ack to extend an old promise by its entire RTT.
 
 Analysis writes `summary.json` and `trials.csv`. Primary OFFLINE latency uses
 only an actual API OFFLINE observation after the cut. ONLINE latency is

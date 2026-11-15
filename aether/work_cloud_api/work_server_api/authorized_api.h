@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "aether/api_protocol/api_protocol.h"
+#include "aether/types/packed_size.h"
 #include "aether/types/server_id.h"
 #include "aether/types/uid.h"
 
@@ -36,8 +37,8 @@ class AuthorizedApi : public DeclareApi<AuthorizedApi> {
 
   void Ping(std::uint64_t next_connect_ms_duration, std::uint64_t rx_window_ms);
 
-  void SetSessionId(std::uint64_t session_id);
-
+  // ADSL intpack, shared with methods 72/73; never fixed-width uint64.
+  void SetSessionId(PackedSize session_id);
 
   void SendMessage(AeMessage const& message);
   void SendMessages(std::vector<AeMessage> const& messages);

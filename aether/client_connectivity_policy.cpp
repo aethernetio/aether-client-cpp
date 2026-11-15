@@ -16,6 +16,7 @@
 
 #include "aether/client_connectivity_policy.h"
 
+#include <algorithm>
 #include <chrono>
 #include <utility>
 #include "aether/ae_context.h"
@@ -23,6 +24,25 @@
 namespace ae {
 
 namespace {
+Duration PresenceClassificationTimeout(ServerPresenceState const& state,
+                                       Duration configured) {
+  // The projected server receipt precedes the observed Ack. Allow one
+  // observed round trip plus scheduler guard when waiting for a renewal.
+  // Cap the allowance: a late buffered Ack must not buy an unbounded Online.
+  Duration observed{};
+  if (state.confirmed_pong_receive_time > state.confirmed_ping_send_time) {
+    auto const elapsed =
+        state.confirmed_pong_receive_time - state.confirmed_ping_send_time;
+    if (elapsed > std::chrono::duration_cast<TimePoint::duration>(configured)) {
+      return configured;  // An already late Ack supplies no extra freshness.
+    }
+    observed = std::chrono::duration_cast<Duration>(elapsed);
+  }
+  return SaturatingAdd(
+      configured,
+      std::min(configured, SaturatingAdd(observed, kLocalPresenceGuard)));
+}
+
 constexpr auto kDefaultTiming = RxTiming{
     .conf = RxTimingConf::Every(std::chrono::milliseconds{AE_PING_INTERVAL_MS}),
     .next_rx_point = {},
@@ -255,10 +275,10 @@ bool ClientConnectivityPolicy::IsLocallyOnline(TimePoint now) const noexcept {
     if (!state.selected_for_aggregate) {
       continue;
     }
-    if (IsLocalPresenceOnline(state.has_confirmed_schedule,
-                              state.confirmed_interval,
-                              state.confirmed_window_open_local, now,
-                              offline_detection_timeout_)) {
+    if (IsLocalPresenceOnline(
+            state.has_confirmed_schedule, state.confirmed_interval,
+            state.confirmed_window_open_local, now,
+            PresenceClassificationTimeout(state, offline_detection_timeout_))) {
       return true;
     }
   }
@@ -273,7 +293,8 @@ bool ClientConnectivityPolicy::IsServerLocallyOnline(
   }
   return IsLocalPresenceOnline(
       state->has_confirmed_schedule, state->confirmed_interval,
-      state->confirmed_window_open_local, now, offline_detection_timeout_);
+      state->confirmed_window_open_local, now,
+      PresenceClassificationTimeout(*state, offline_detection_timeout_));
 }
 
 ClientConnectivityPolicy::LocalPresenceDiag
@@ -285,10 +306,12 @@ ClientConnectivityPolicy::DiagnoseLocalPresence(TimePoint now) const noexcept {
       continue;
     }
     auto const deadline = LocalOfflineDeadline(
-        state.confirmed_window_open_local, offline_detection_timeout_);
+        state.confirmed_window_open_local,
+        PresenceClassificationTimeout(state, offline_detection_timeout_));
     auto const online = IsLocalPresenceOnline(
         state.has_confirmed_schedule, state.confirmed_interval,
-        state.confirmed_window_open_local, now, offline_detection_timeout_);
+        state.confirmed_window_open_local, now,
+        PresenceClassificationTimeout(state, offline_detection_timeout_));
     if (!best.has_schedule || deadline > best.offline_deadline) {
       best.has_schedule = true;
       best.server_id = id;

@@ -349,7 +349,13 @@ CloudServerConnection* FindServer(CloudServerConnections& connections,
 void DeliverPingAck(Env& e, ServerId id) {
   auto* stream = e.streams[id];
   TEST_ASSERT_NOT_NULL(stream);
-  stream->Deliver(PackEncryptedSafeApi(e.client, id, PingAckPlaintext()));
+  auto* ping = PingCloudServersTestAccess::ClientPingPtr(*e.ping_cloud, id);
+  DataBuffer tagged;
+  ApiPacker{tagged}.Pack(
+      MessageId{73}, GenericMessage<PackedSize>{ping ? ping->context_id() : 0});
+  auto ack = PingAckPlaintext();
+  tagged.insert(tagged.end(), ack.begin(), ack.end());
+  stream->Deliver(PackEncryptedSafeApi(e.client, id, tagged));
 }
 
 std::vector<DataBuffer> AuthorizedWrites(Env& e, ServerId id) {
@@ -374,7 +380,13 @@ std::vector<DataBuffer> AuthorizedWrites(Env& e, ServerId id) {
 int CountAuthorizedWrites(Env& e, ServerId id, MessageId command) {
   int count = 0;
   for (auto const& packet : AuthorizedWrites(e, id)) {
-    count += !packet.empty() && packet.front() == command;
+    PacketReader reader{packet};
+    auto first = reader.TryExtract<MessageId>();
+    if (first && *first == MessageId{51}) {
+      TEST_ASSERT_TRUE(reader.TryExtract<PackedSize>().has_value());
+      first = reader.TryExtract<MessageId>();
+    }
+    count += first && *first == command;
   }
   return count;
 }

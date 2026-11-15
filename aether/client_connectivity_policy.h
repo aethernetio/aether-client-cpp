@@ -200,8 +200,9 @@ class ClientConnectivityPolicy : public Obj {
   }
 
   // Read-only. No side effects. Aggregate OR: ONLINE iff any selected server
-  // has confirmed interval>0 and now <= expected_open +
-  // offline_detection_timeout.
+  // has a confirmed interval>0 and its deadline has not expired. The deadline
+  // includes the configured timeout plus observed RTT/scheduler uncertainty,
+  // with the extra allowance capped at one configured timeout.
   bool IsLocallyOnline() const noexcept;
   bool IsLocallyOnline(TimePoint now) const noexcept;
   bool IsServerLocallyOnline(ServerId server_id, TimePoint now) const noexcept;

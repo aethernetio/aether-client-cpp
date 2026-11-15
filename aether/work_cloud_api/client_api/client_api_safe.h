@@ -76,10 +76,9 @@ class ClientApiSafe : public DeclareApi<ClientApiSafe> {
 
   void SendCLoudConfig(std::vector<CloudConfig> const& configs);
 
-  void OnSessionId(std::uint64_t session_id);
-  void OnResponseFor(std::uint64_t session_id);
-
-
+  // Session tags use the server's intpack wire encoding.
+  void OnSessionId(PackedSize session_id);
+  void OnResponseFor(PackedSize session_id);
 
   ReturnResultApi return_result;
 
@@ -121,11 +120,11 @@ class ClientApiSafe : public DeclareApi<ClientApiSafe> {
 
   std::uint64_t session_id() const { return session_id_; }
   std::uint64_t response_session_id() const { return response_session_id_; }
-
+  void ResetResponseContext() { response_session_id_ = 0; }
 
   auto const& session_id_event() { return session_id_event_; }
   auto const& response_for_event() { return response_for_event_; }
-
+  auto const& ping_ack_context_event() { return ping_ack_context_event_; }
 
  private:
   Event<void(AeMessage const& message)> send_message_event_;
@@ -138,6 +137,7 @@ class ClientApiSafe : public DeclareApi<ClientApiSafe> {
   Event<void(Uid const&, ClientTiming const&)> client_timing_event_;
   Event<void(std::uint64_t)> session_id_event_;
   Event<void(std::uint64_t)> response_for_event_;
+  Event<void(std::uint64_t)> ping_ack_context_event_;
   std::uint64_t session_id_{0};
   std::uint64_t response_session_id_{0};
 

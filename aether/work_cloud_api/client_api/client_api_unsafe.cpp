@@ -42,6 +42,8 @@ void ClientApiUnsafe::SendSafeApiData(SubApi<ClientApiSafe> sub_api) {
   AETHER_TELED_DEBUG("Client api unsafe data {}", unsafe_data);
 
   auto parser = ApiParser{server_context().protocol_context(), unsafe_data};
+  // A response marker applies only to this decrypted packet.
+  client_safe_api_.ResetResponseContext();
   // not fully parsed
   if (!parser.Parse(client_safe_api_)) {
     server_context().reader().Cancel();
@@ -69,7 +71,5 @@ void ClientApiUnsafe::SendRegistrationDirect(RegistrationDirectResult result) {
 void ClientApiUnsafe::SendMyIpInfo(InfoIp info) {
   my_ip_event.Emit(std::move(info));
 }
-
-
 
 }  // namespace ae

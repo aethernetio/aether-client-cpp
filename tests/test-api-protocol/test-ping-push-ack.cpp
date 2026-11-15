@@ -53,6 +53,7 @@
 #include "aether/tasks/manual_task_scheduler.h"
 #include "aether/types/address.h"
 #include "aether/types/server_id.h"
+#include "aether/work_cloud_api/work_server_api/authorized_api.h"
 #include "aether/write_action/write_action.h"
 
 #if AE_ENABLE_PING
@@ -308,6 +309,7 @@ struct PingHarness {
   }
 
   bool ready{false};
+  std::uint64_t current_context{0};
 
   ClientServerConnection* Connection() {
     return cloud_conn->client_connection();
@@ -386,9 +388,10 @@ struct ResultCapture {
   }
 };
 
-DataBuffer MakeSerializedPingAckPacket() {
+DataBuffer MakeSerializedPingAckPacket(std::uint64_t context) {
   DataBuffer packet;
   ApiPacker packer{packet};
+  packer.Pack(MessageId{73}, GenericMessage<PackedSize>{context});
   packer.Pack(kPingAckMessageId, GenericMessage<>{});
   return packet;
 }
@@ -409,13 +412,15 @@ void DeliverPingAckViaStream(PingHarness& h, ServerId server_id) {
   auto* stream = h.Stream(server_id);
   TEST_ASSERT_NOT_NULL(stream);
   stream->SimulateInbound(PackSendSafeApiEncrypted(
-      h.client, server_id, MakeSerializedPingAckPacket()));
+      h.client, server_id, MakeSerializedPingAckPacket(h.current_context)));
 }
 
 std::unique_ptr<Ping> MakePing(PingHarness& h) {
-  return std::unique_ptr<Ping>(
+  auto ping = std::unique_ptr<Ping>(
       new Ping(h.ae_ctx, h.CloudConn(), PingHarness::kHint,
                PingHarness::kRxWindow, PingHarness::kPingTimeout));
+  h.current_context = ping->context_id();
+  return ping;
 }
 
 void StartPing(PingHarness& h, Ping& ping, ResultCapture& cap) {
@@ -752,8 +757,89 @@ void test_DestroyPingAfterWriteFailDeferredBeforeSchedulerTick() {
 
 namespace {
 
+void test_SessionIdsUseServerIntpackGoldenBytes() {
+  PingHarness h;
+  TEST_ASSERT_TRUE(h.ready);
+  AuthorizedApi api;
+  ProtocolContext protocol{h.ae_ctx};
+  auto call = ApiContext{api, protocol};
+  call->SetSessionId(PackedSize{251});
+  DataBuffer wire = std::move(call);
+  std::uint8_t const expected[]{51, 251, 0};
+  TEST_ASSERT_EQUAL(sizeof(expected), wire.size());
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(expected, wire.data(), sizeof(expected));
+  // Independent bytes from the Java SerializerPackNumber boundary, not a
+  // round-trip through the C++ encoder under test.
+  DataBuffer response{72, 251, 0, 73, 251, 0, 24};
+  auto& safe = h.Connection()->client_safe_api();
+  int acks = 0;
+  Subscription sub = safe.ping_ack_event.Subscribe([&]() { ++acks; });
+  ApiParser parser{protocol, response};
+  TEST_ASSERT_TRUE(parser.Parse(safe));
+  TEST_ASSERT_EQUAL_UINT64(251, safe.session_id());
+  TEST_ASSERT_EQUAL_UINT64(251, safe.response_session_id());
+  TEST_ASSERT_EQUAL(1, acks);
+}
+
+void test_PingContextRejectsWrongAndUnmarkedPackets() {
+  PingHarness h;
+  TEST_ASSERT_TRUE(h.ready);
+  auto ping = MakePing(h);
+  ResultCapture cap;
+  StartPing(h, *ping, cap);
+  auto expected = h.current_context;
+  h.current_context = expected + 1;
+  DeliverPingAckViaStream(h, kServerId);
+  h.ctx.Advance(std::chrono::milliseconds{1});
+  TEST_ASSERT_EQUAL(0, cap.count);
+  // Even a matching marker without an Ack must not leak to the next packet.
+  DataBuffer marker;
+  ApiPacker{marker}.Pack(MessageId{73}, GenericMessage<PackedSize>{expected});
+  h.Stream(kServerId)->SimulateInbound(
+      PackSendSafeApiEncrypted(h.client, kServerId, marker));
+  DataBuffer unmarked;
+  ApiPacker{unmarked}.Pack(kPingAckMessageId, GenericMessage<>{});
+  h.Stream(kServerId)->SimulateInbound(
+      PackSendSafeApiEncrypted(h.client, kServerId, unmarked));
+  h.ctx.Advance(std::chrono::milliseconds{1});
+  TEST_ASSERT_EQUAL(0, cap.count);
+  h.current_context = expected;
+  DeliverPingAckViaStream(h, kServerId);
+  h.ctx.Advance(std::chrono::milliseconds{1});
+  TEST_ASSERT_TRUE(cap.HasOk());
+  TEST_ASSERT_EQUAL(1, cap.count);
+}
+
+void test_LateOldContextCannotCompleteReplacementPing() {
+  PingHarness h;
+  TEST_ASSERT_TRUE(h.ready);
+  auto old = MakePing(h);
+  auto old_id = old->context_id();
+  ResultCapture old_cap;
+  StartPing(h, *old, old_cap);
+  h.ctx.Advance(PingHarness::kPingTimeout + std::chrono::milliseconds{1});
+  TEST_ASSERT_TRUE(old_cap.HasTimeout());
+  old.reset();
+  auto replacement = MakePing(h);
+  TEST_ASSERT_TRUE(old_id != replacement->context_id());
+  ResultCapture cap;
+  StartPing(h, *replacement, cap);
+  h.current_context = old_id;
+  DeliverPingAckViaStream(h, kServerId);
+  h.ctx.Advance(std::chrono::milliseconds{1});
+  TEST_ASSERT_EQUAL(0, cap.count);
+  TEST_ASSERT_TRUE(replacement->IsPending());
+  h.current_context = replacement->context_id();
+  DeliverPingAckViaStream(h, kServerId);
+  h.ctx.Advance(std::chrono::milliseconds{1});
+  TEST_ASSERT_TRUE(cap.HasOk());
+}
+
 int RunPingPushAckTestsOnce() {
   UNITY_BEGIN();
+  RUN_TEST(test_SessionIdsUseServerIntpackGoldenBytes);
+  RUN_TEST(test_PingContextRejectsWrongAndUnmarkedPackets);
+  RUN_TEST(test_LateOldContextCannotCompleteReplacementPing);
 
   RUN_TEST(test_PresenceQueryFiltersPushedTimingByPeerUid);
   RUN_TEST(test_PresenceQueryWithoutAnnouncementIsUnknown);

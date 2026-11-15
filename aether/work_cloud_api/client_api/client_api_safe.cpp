@@ -24,7 +24,6 @@
 
 namespace ae {
 
-
 ClientApiSafe::ClientApiSafe(EventSystem& event_system)
     : ping_ack_event{event_system},
       send_message_event_{event_system},
@@ -35,10 +34,15 @@ ClientApiSafe::ClientApiSafe(EventSystem& event_system)
       send_cloud_configs_{event_system},
       client_timing_event_{event_system},
       session_id_event_{event_system},
-      response_for_event_{event_system} {}
+      response_for_event_{event_system},
+      ping_ack_context_event_{event_system} {}
 
-
-void ClientApiSafe::PingAck() { ping_ack_event.Emit(); }
+void ClientApiSafe::PingAck() {
+  // Snapshot the marker at decode time, before queued or reentrant callbacks
+  // can parse another packet and change the current response context.
+  ping_ack_context_event_.Emit(response_session_id_);
+  ping_ack_event.Emit();
+}
 
 void ClientApiSafe::SendClientTiming(Uid const& uid, ClientTiming const& timing) {
   client_timing_event_.Emit(uid, timing);
@@ -136,14 +140,14 @@ void ClientApiSafe::SendCLoudConfig(std::vector<CloudConfig> const& configs) {
   send_cloud_configs_.Emit(configs);
 }
 
-
-void ClientApiSafe::OnSessionId(std::uint64_t session_id) {
+void ClientApiSafe::OnSessionId(PackedSize session_id) {
   session_id_ = session_id;
-  AE_TELED_DEBUG("Session id assigned {}", session_id);
+  AE_TELED_DEBUG("Session id assigned {}",
+                 static_cast<std::uint64_t>(session_id));
   session_id_event_.Emit(session_id);
 }
 
-void ClientApiSafe::OnResponseFor(std::uint64_t session_id) {
+void ClientApiSafe::OnResponseFor(PackedSize session_id) {
   response_session_id_ = session_id;
   response_for_event_.Emit(session_id);
 }

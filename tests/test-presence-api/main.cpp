@@ -72,7 +72,8 @@ void test_ConfirmOnlyAfterPong() {
   TEST_ASSERT_EQUAL(3050, ToMs(deadline));
   TEST_ASSERT_TRUE(policy.IsServerLocallyOnline(sid, Tp(2050)));
   TEST_ASSERT_TRUE(policy.IsServerLocallyOnline(sid, deadline));
-  TEST_ASSERT_FALSE(policy.IsServerLocallyOnline(sid, deadline + Dur(1)));
+  TEST_ASSERT_TRUE(policy.IsServerLocallyOnline(sid, deadline + Dur(130)));
+  TEST_ASSERT_FALSE(policy.IsServerLocallyOnline(sid, deadline + Dur(131)));
 }
 
 void test_LatePongDoesNotAdvanceSelectedRttProjection() {
@@ -109,14 +110,38 @@ void test_OfflineOnlyAfterOfflineDetectionTimeout() {
   ServerId const sid{3};
   policy.SetOfflineDetectionTimeout(Dur(1000));
   policy.ConfirmServerPong(sid, Tp(0), Tp(40), Dur(1000), Dur(10000), Dur(40));
-  // open = 0 + 20 + 1000 = 1020; deadline = 2020 even with rx_window=10s.
+  // open=1020; base deadline=2020, plus measured RTT 40ms and guard 30ms.
+  // The 10-second receive window does not affect presence classification.
   TEST_ASSERT_EQUAL(
       1020, ToMs(policy.FindServerPresence(sid)->confirmed_window_open_local));
   TEST_ASSERT_EQUAL(
       11020,
       ToMs(policy.FindServerPresence(sid)->confirmed_window_close_local));
   TEST_ASSERT_TRUE(policy.IsLocallyOnline(Tp(2020)));
-  TEST_ASSERT_FALSE(policy.IsLocallyOnline(Tp(2021)));
+  TEST_ASSERT_TRUE(policy.IsLocallyOnline(Tp(2090)));
+  TEST_ASSERT_FALSE(policy.IsLocallyOnline(Tp(2091)));
+}
+
+void test_RenewalRttDoesNotCauseBriefLocalOffline() {
+  ClientConnectivityPolicy policy;
+  policy.SetOfflineDetectionTimeout(Dur(1000));
+  policy.ConfirmServerPong(7, Tp(0), Tp(95), Dur(1000), Dur(1000), Dur(24));
+  // The old projection expires at2012, but a timely renewal Ack at2087
+  // must fit within the observed round-trip uncertainty instead of flapping.
+  TEST_ASSERT_TRUE(policy.IsLocallyOnline(Tp(2087)));
+  TEST_ASSERT_EQUAL(
+      2137, ToMs(policy.DiagnoseLocalPresence(Tp(2087)).offline_deadline));
+  TEST_ASSERT_FALSE(policy.IsLocallyOnline(Tp(2138)));
+  policy.ConfirmServerPong(7, Tp(2000), Tp(2087), Dur(1000), Dur(1000),
+                           Dur(24));
+  TEST_ASSERT_TRUE(policy.IsLocallyOnline(Tp(2087)));
+  // Buffered old acknowledgements cannot extend a missed promise by their RTT.
+  ClientConnectivityPolicy late;
+  late.SetOfflineDetectionTimeout(Dur(1000));
+  late.ConfirmServerPong(7, Tp(0), Tp(60000), Dur(1000), Dur(1000), Dur(24));
+  TEST_ASSERT_EQUAL(
+      2012, ToMs(late.DiagnoseLocalPresence(Tp(60000)).offline_deadline));
+  TEST_ASSERT_FALSE(late.IsLocallyOnline(Tp(60000)));
 }
 
 void test_RuntimeIntervalChangeKeepsOldConfirmed() {
@@ -252,10 +277,10 @@ void test_RemoteTimingProjectionAndAggregation() {
   TEST_ASSERT_EQUAL(static_cast<int>(PeerPresenceState::kOnline),
                     static_cast<int>(AggregateRemotePresence(samples).state));
   samples[1].status = RemoteServerPresence::kOffline;
-  TEST_ASSERT_EQUAL(static_cast<int>(PeerPresenceState::kOffline),
+  TEST_ASSERT_EQUAL(static_cast<int>(PeerPresenceState::kOnline),
                     static_cast<int>(AggregateRemotePresence(samples).state));
   samples[1].status = RemoteServerPresence::kUnknown;
-  TEST_ASSERT_EQUAL(static_cast<int>(PeerPresenceState::kUnknown),
+  TEST_ASSERT_EQUAL(static_cast<int>(PeerPresenceState::kOnline),
                     static_cast<int>(AggregateRemotePresence(samples).state));
   samples[1].status = RemoteServerPresence::kExcluded;
   TEST_ASSERT_EQUAL(static_cast<int>(PeerPresenceState::kOnline),
@@ -267,6 +292,22 @@ void test_RemoteTimingProjectionAndAggregation() {
                     static_cast<int>(AggregateRemotePresence(samples).state));
   TEST_ASSERT_TRUE(RemotePresenceCanEarlyCompleteOffline(
       {{ServerId{1}, RemoteServerPresence::kOffline, {}, {}, 0, true}}));
+}
+
+void test_OfflineRequiresAllAuthoritativeEvidence() {
+  std::vector<RemoteServerPresenceSample> samples{
+      {1, RemoteServerPresence::kOffline}, {2, RemoteServerPresence::kUnknown}};
+  TEST_ASSERT_EQUAL(static_cast<int>(PeerPresenceState::kUnknown),
+                    static_cast<int>(AggregateRemotePresence(samples).state));
+  TEST_ASSERT_FALSE(RemotePresenceCanEarlyCompleteOffline(samples));
+  samples[1].status = RemoteServerPresence::kOnline;
+  TEST_ASSERT_EQUAL(static_cast<int>(PeerPresenceState::kOnline),
+                    static_cast<int>(AggregateRemotePresence(samples).state));
+  TEST_ASSERT_TRUE(RemotePresenceReadyForOnline(samples));
+  samples[1].status = RemoteServerPresence::kOffline;
+  TEST_ASSERT_EQUAL(static_cast<int>(PeerPresenceState::kOffline),
+                    static_cast<int>(AggregateRemotePresence(samples).state));
+  TEST_ASSERT_TRUE(RemotePresenceCanEarlyCompleteOffline(samples));
 }
 
 void test_NoObserverCloudFallbackAndAuthoritativeSet() {
@@ -283,7 +324,7 @@ void test_NoObserverCloudFallbackAndAuthoritativeSet() {
   TEST_ASSERT_EQUAL(11, contract[1]);
   TEST_ASSERT_EQUAL(12, contract[2]);
   // Server 13 is in peer cloud but outside the Local Presence contract when
-  // N > AE_CLOUD_MAX_SERVER_CONNECTIONS — Remote AND must not require it.
+  // N > AE_CLOUD_MAX_SERVER_CONNECTIONS — Remote must not require it.
   TEST_ASSERT_TRUE(std::find(contract.begin(), contract.end(),
                              static_cast<ServerId>(13)) == contract.end());
 
@@ -348,7 +389,7 @@ void test_RecoveredServerRequiresFreshOnline() {
   // Recovered server re-enters as UNKNOWN — cannot keep stale ONLINE.
   samples[1].status = RemoteServerPresence::kUnknown;
   samples[1].has_timing = false;
-  TEST_ASSERT_EQUAL(static_cast<int>(PeerPresenceState::kUnknown),
+  TEST_ASSERT_EQUAL(static_cast<int>(PeerPresenceState::kOnline),
                     static_cast<int>(AggregateRemotePresence(samples).state));
   samples[1].status = RemoteServerPresence::kOnline;
   samples[1].has_timing = true;
@@ -357,13 +398,12 @@ void test_RecoveredServerRequiresFreshOnline() {
 }
 
 void test_QueryFailureIsUnknownNotOffline() {
-  // Usable server with failed timing (UNKNOWN after retries) must not force
-  // peer Offline; zero Offline contributions + incomplete ONLINE => UNKNOWN.
+  // A missing response must not negate a fresh Online from another server.
   std::vector<RemoteServerPresenceSample> samples{
       {1, RemoteServerPresence::kOnline, {}, {}, 1, true},
       {2, RemoteServerPresence::kUnknown, {}, {}, 0, true},
   };
-  TEST_ASSERT_EQUAL(static_cast<int>(PeerPresenceState::kUnknown),
+  TEST_ASSERT_EQUAL(static_cast<int>(PeerPresenceState::kOnline),
                     static_cast<int>(AggregateRemotePresence(samples).state));
   // After quarantine/unselect, remaining ONLINE servers may aggregate ONLINE.
   samples[1].status = RemoteServerPresence::kExcluded;
@@ -381,7 +421,8 @@ void test_StaleRttCannotProjectServerReceiptAfterAck() {
   TEST_ASSERT_NOT_NULL(state);
   TEST_ASSERT_EQUAL(2100, ToMs(state->confirmed_window_open_local));
   TEST_ASSERT_TRUE(policy.IsLocallyOnline(Tp(3100)));
-  TEST_ASSERT_FALSE(policy.IsLocallyOnline(Tp(3101)));
+  TEST_ASSERT_TRUE(policy.IsLocallyOnline(Tp(3230)));
+  TEST_ASSERT_FALSE(policy.IsLocallyOnline(Tp(3231)));
 }
 
 }  // namespace ae::test_local_presence
@@ -397,6 +438,7 @@ int main() {
   RUN_TEST(ae::test_local_presence::test_PerServerIndependence);
   RUN_TEST(
       ae::test_local_presence::test_OfflineOnlyAfterOfflineDetectionTimeout);
+  RUN_TEST(ae::test_local_presence::test_RenewalRttDoesNotCauseBriefLocalOffline);
   RUN_TEST(
       ae::test_local_presence::test_RuntimeIntervalChangeKeepsOldConfirmed);
   RUN_TEST(ae::test_local_presence::test_RuntimePercentile);
@@ -405,6 +447,8 @@ int main() {
   RUN_TEST(ae::test_local_presence::test_MakeConfirmedScheduleDeterministic);
   RUN_TEST(ae::test_local_presence::test_ConfigScopeOverrideAndPriority);
   RUN_TEST(ae::test_local_presence::test_RemoteTimingProjectionAndAggregation);
+  RUN_TEST(
+      ae::test_local_presence::test_OfflineRequiresAllAuthoritativeEvidence);
   RUN_TEST(
       ae::test_local_presence::test_NoObserverCloudFallbackAndAuthoritativeSet);
   RUN_TEST(

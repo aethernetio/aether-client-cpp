@@ -21,6 +21,7 @@
 
 #if AE_ENABLE_PING
 
+#  include <cstdint>
 #  include <variant>
 
 #  include "aether-miscpp/types/result.h"
@@ -68,14 +69,15 @@ class Ping {
   TimePoint pong_time() const noexcept { return pong_receive_time_; }
   Duration interval() const noexcept { return next_ping_hint_; }
   Duration rx_window() const noexcept { return rx_window_; }
+  std::uint64_t context_id() const noexcept { return context_id_; }
 
  private:
   friend struct PingTestAccess;
   void ArmResponse(ClientApiSafe& api, TimePoint current_time);
-  void PingResponse(RequestId request_id);
-  void PingResponseImpl(RequestId request_id);
-  void PingResponseError(RequestId request_id, std::int32_t error_code);
-  void PingResponseTimeout(RequestId request_id);
+  void PingResponse(std::uint64_t request_id);
+  void PingResponseImpl(std::uint64_t request_id);
+  void PingResponseError(std::uint64_t request_id, std::int32_t error_code);
+  void PingResponseTimeout(std::uint64_t request_id);
   void ResetRequestSubscriptions();
   void EmitWriteFailureFromWriteCallback();
 
@@ -92,6 +94,7 @@ class Ping {
   Duration rx_window_;
   Duration timeout_;
   ServerId server_id_;
+  std::uint64_t context_id_;
 
   TimePoint request_start_;
   TimePoint pong_receive_time_;

@@ -421,7 +421,8 @@ void ClientSendMessageStr(AetherClient* client, CUid destination,
 }
 
 void aether_client_set_session_id(AetherClient* client, uint64_t session_id) {
-  if (client == nullptr || !client->client) {
+  if (client == nullptr || !client->client ||
+      session_id > ae::PackedSize::kUpper) {
     return;
   }
   client->client->cloud_connection().CallApi(
@@ -429,6 +430,5 @@ void aether_client_set_session_id(AetherClient* client, uint64_t session_id) {
                                auto*) { auth_api->SetSessionId(session_id); }},
       ae::RequestPolicy::All{});
 }
-
 
 AE_EXTERN_C_END

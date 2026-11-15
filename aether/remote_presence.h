@@ -41,7 +41,7 @@ struct PeerPresence {
   PeerPresenceState state{PeerPresenceState::kUnknown};
 };
 
-// Per authoritative usable server contribution for Remote AND aggregation.
+// Per authoritative usable server contribution for reachability aggregation.
 enum class RemoteServerPresence : std::uint8_t {
   kOnline = 0,
   kOffline,
@@ -142,16 +142,15 @@ inline RemoteServerPresence ClassifyRemoteServerPresence(
   return RemoteServerPresence::kOffline;
 }
 
-// Remote aggregation AND over usable authoritative servers.
-// Offline: any usable Offline.
-// Online: usable_count > 0 and every usable sample Online.
-// Unknown: usable_count == 0, or no Offline but not every usable Online.
+// Match local reachability: a fresh Online from any authoritative server wins.
+// Offline requires every usable authoritative contribution to be Offline.
+// Missing/unknown evidence never overrides an Online or proves Offline.
 inline PeerPresence AggregateRemotePresence(
     std::vector<RemoteServerPresenceSample> const& samples) noexcept {
   PeerPresence out{};
   std::size_t usable = 0;
   std::size_t online = 0;
-  bool any_offline = false;
+  std::size_t offline = 0;
   bool any_unknown = false;
   for (auto const& sample : samples) {
     if (sample.status == RemoteServerPresence::kExcluded) {
@@ -159,7 +158,7 @@ inline PeerPresence AggregateRemotePresence(
     }
     ++usable;
     if (sample.status == RemoteServerPresence::kOffline) {
-      any_offline = true;
+      ++offline;
     } else if (sample.status == RemoteServerPresence::kOnline) {
       ++online;
     } else {
@@ -170,12 +169,12 @@ inline PeerPresence AggregateRemotePresence(
     out.state = PeerPresenceState::kUnknown;
     return out;
   }
-  if (any_offline) {
-    out.state = PeerPresenceState::kOffline;
+  if (online > 0) {
+    out.state = PeerPresenceState::kOnline;
     return out;
   }
-  if (online == usable && !any_unknown) {
-    out.state = PeerPresenceState::kOnline;
+  if (offline == usable && !any_unknown) {
+    out.state = PeerPresenceState::kOffline;
     return out;
   }
   out.state = PeerPresenceState::kUnknown;
@@ -184,12 +183,7 @@ inline PeerPresence AggregateRemotePresence(
 
 inline bool RemotePresenceCanEarlyCompleteOffline(
     std::vector<RemoteServerPresenceSample> const& samples) noexcept {
-  for (auto const& sample : samples) {
-    if (sample.status == RemoteServerPresence::kOffline) {
-      return true;
-    }
-  }
-  return false;
+  return AggregateRemotePresence(samples).state == PeerPresenceState::kOffline;
 }
 
 inline bool RemotePresenceReadyForOnline(
@@ -204,7 +198,7 @@ inline Duration DefaultOfflineDetectionTimeout() noexcept {
 
 // Local Presence (PingCloudServers + RequestPolicy::All) only maintains
 // schedules on selected_servers(), which is bounded by
-// AE_CLOUD_MAX_SERVER_CONNECTIONS. Remote Presence must AND over that same
+// AE_CLOUD_MAX_SERVER_CONNECTIONS. Remote Presence must query that same
 // contract set — not an observer's own cloud, and not a silent subset smaller
 // than the peer Presence obligation when peer cloud size <= max_connections.
 inline std::vector<ServerId> AuthoritativePresenceServerIds(

@@ -17,6 +17,7 @@
 #include "aether/ae_actions/ping.h"
 #if AE_ENABLE_PING
 
+#  include <atomic>
 #  include <cassert>
 #  include <cstdint>
 #  include <limits>
@@ -29,9 +30,18 @@
 
 #  include "aether/ae_actions/ae_actions_tele.h"
 #  include "aether/diagnostics/ping_fault.h"
+#  include "aether/diagnostics/presence_api_trace.h"
 
 namespace ae {
 namespace {
+std::uint64_t NextPingContextId() {
+  static std::atomic<std::uint64_t> next{1};
+  auto id = next.load(std::memory_order_relaxed);
+  while (!next.compare_exchange_weak(id, id == PackedSize::kUpper ? 1 : id + 1,
+                                     std::memory_order_relaxed)) {
+  }
+  return id;
+}
 
 constexpr int kPingPromiseEvictedError{-1};
 
@@ -69,6 +79,7 @@ Ping::Ping(AeContext const& ae_context,
       rx_window_{rx_window},
       timeout_{timeout},
       server_id_{cloud_server_connection_->server_id()},
+      context_id_{NextPingContextId()},
       result_event_{ae_context_} {
   AETHER_TELE_INFO(
       kPing,
@@ -93,6 +104,7 @@ void Ping::Start(TimePoint current_time) {
   }
   ArmResponse(cc->client_safe_api(), current_time);
   if (BenchDropPing(false)) { return; }
+  PresenceApiTrace("ping_context_send", server_id_, context_id_);
 
   auto& write_action =
       cc->AuthorizedApiCall([this](ApiContext<AuthorizedApi>& auth_api) {
@@ -104,6 +116,7 @@ void Ping::Start(TimePoint current_time) {
             std::chrono::duration_cast<std::chrono::milliseconds>(rx_window_)
                 .count());
 
+        auth_api->SetSessionId(context_id_);
         auth_api->Ping(next_ping_hint_ms, rx_window_ms);
 
         AETHER_TELE_DEBUG(kPingSend, "Ping server id {}, expected time {}",
@@ -136,9 +149,15 @@ void Ping::ArmResponse(ClientApiSafe& api, TimePoint current_time) {
   request_start_ = current_time;
   // Arm both completion paths before sending, including a synchronous ack.
   wait_result_sub_ =
-      api.ping_ack_event.Subscribe([this]() { PingResponse(RequestId{}); });
+      api.ping_ack_context_event().Subscribe([this](std::uint64_t response_id) {
+        PresenceApiTrace("ping_context_ack", server_id_, response_id,
+                         context_id_);
+        if (response_id == context_id_) {
+          PingResponse(response_id);
+        }
+      });
   timeout_sub_ = ae_context_.scheduler().DelayedTask(
-      [this]() { PingResponseTimeout(RequestId{}); }, current_time + timeout_);
+      [this]() { PingResponseTimeout(context_id_); }, current_time + timeout_);
 }
 
 void Ping::EmitWriteFailureFromWriteCallback() {
@@ -151,14 +170,14 @@ void Ping::EmitWriteFailureFromWriteCallback() {
   result_event_.Emit(PingResult{Error{1}});
 }
 
-void Ping::PingResponse(RequestId request_id) {
+void Ping::PingResponse(std::uint64_t request_id) {
   if (BenchDropPing(true)) { return; }
   write_fail_dispatch_sub_.Reset();
   ack_dispatch_sub_ = ae_context_.scheduler().Task(
       [this, request_id]() { PingResponseImpl(request_id); });
 }
 
-void Ping::PingResponseImpl(RequestId request_id) {
+void Ping::PingResponseImpl(std::uint64_t request_id) {
   pong_receive_time_ = Now();
   auto current_time = Now();
   auto ping_duration =
@@ -177,7 +196,8 @@ void Ping::PingResponseImpl(RequestId request_id) {
   }
 }
 
-void Ping::PingResponseError(RequestId request_id, std::int32_t error_code) {
+void Ping::PingResponseError(std::uint64_t request_id,
+                             std::int32_t error_code) {
   AETHER_TELE_ERROR(kPingResponseError,
                     "Ping error server id {} request {} code {}", server_id_,
                     request_id, error_code);
@@ -195,7 +215,7 @@ void Ping::PingResponseError(RequestId request_id, std::int32_t error_code) {
   }
 }
 
-void Ping::PingResponseTimeout(RequestId request_id) {
+void Ping::PingResponseTimeout(std::uint64_t request_id) {
   if (state_ != RequestState::kPending) {
     return;
   }

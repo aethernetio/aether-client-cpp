@@ -309,7 +309,13 @@ CloudServerConnection* FindServer(CloudServerConnections& connections,
 void DeliverPingAck(Env& e, ServerId id) {
   auto* stream = e.streams[id];
   TEST_ASSERT_NOT_NULL(stream);
-  stream->Deliver(PackEncryptedSafeApi(e.client, id, PingAckPlaintext()));
+  auto* ping = PingCloudServersTestAccess::ClientPingPtr(*e.ping_cloud, id);
+  DataBuffer tagged;
+  ApiPacker{tagged}.Pack(
+      MessageId{73}, GenericMessage<PackedSize>{ping ? ping->context_id() : 0});
+  auto ack = PingAckPlaintext();
+  tagged.insert(tagged.end(), ack.begin(), ack.end());
+  stream->Deliver(PackEncryptedSafeApi(e.client, id, tagged));
 }
 
 ServerId TimedOutServer(Env& h) {

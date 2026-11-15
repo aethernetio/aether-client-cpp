@@ -54,8 +54,7 @@ void AuthorizedApi::ReportAppliedConfigs(
   ClientMethod<&AuthorizedApi::ReportAppliedConfigs>(configs);
 }
 
-
-void AuthorizedApi::SetSessionId(std::uint64_t session_id) {
+void AuthorizedApi::SetSessionId(PackedSize session_id) {
   ClientMethod<&AuthorizedApi::SetSessionId>(session_id);
 }
 
