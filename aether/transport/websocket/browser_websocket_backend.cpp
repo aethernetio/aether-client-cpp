@@ -89,12 +89,10 @@ class Backend final : public IWebSocketBackend {
   }
   ~Backend() override {
     if (socket_ <= 0) return;
-    // Removing handlers and deleting are synchronous proxies to the socket's
-    // owning browser thread; no queued callback retains the C++ context.
-    emscripten_websocket_set_onopen_callback(socket_, nullptr, nullptr);
-    emscripten_websocket_set_onerror_callback(socket_, nullptr, nullptr);
-    emscripten_websocket_set_onclose_callback(socket_, nullptr, nullptr);
-    emscripten_websocket_set_onmessage_callback(socket_, nullptr, nullptr);
+    // delete() synchronously clears all JS handlers on the owning browser
+    // thread. The callback setters do not unregister a null callback: they
+    // install a wrapper that would invoke function-table entry zero.
+    // Keep this mailbox alive until close/delete have both returned.
     emscripten_websocket_close(socket_, 1000, "");
     emscripten_websocket_delete(socket_);
   }
