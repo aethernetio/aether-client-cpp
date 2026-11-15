@@ -134,6 +134,7 @@ class PingCloudServers {
   Subscription server_quarantined_sub_;
   Subscription server_quarantine_released_sub_;
   TaskSubscription task_sub_;
+  ClientConnectivityPolicy::SuspendBlocker servers_update_blocker_;
 
   friend struct PingCloudServersTestAccess;
 

@@ -274,6 +274,22 @@ std::unique_ptr<Env> MakeEnv(
   return env;
 }
 
+void test_DestroyQueuedPingCloudReleasesSuspendBlockBeforeScheduler() {
+  auto env = MakeEnv(std::chrono::seconds{30}, false);
+  TEST_ASSERT_NOT_NULL(env);
+  auto& h = *env;
+  auto& policy = *h.client->connectivity_policy().Load();
+  auto const before = policy.GetStatus().suspend_block_count;
+  h.ping_cloud = std::make_unique<PingCloudServers>(h.ae_ctx, *h.connections,
+                                                  policy);
+  TEST_ASSERT_EQUAL(before + 1, policy.GetStatus().suspend_block_count);
+  // Do not run the scheduler: its cancelled closure is still allocated.
+  h.ping_cloud.reset();
+  TEST_ASSERT_EQUAL(before, policy.GetStatus().suspend_block_count);
+  h.ctx.Advance(std::chrono::milliseconds{1});
+  TEST_ASSERT_EQUAL(before, policy.GetStatus().suspend_block_count);
+}
+
 void StartPingCloud(Env& e) {
   auto& policy = *e.client->connectivity_policy().Load();
   e.ping_cloud = std::make_unique<PingCloudServers>(e.ae_ctx, *e.connections,
@@ -472,6 +488,8 @@ void test_StaleAckAfterSecondPingStartedViaWireDecode() {
 
 int test_ping_serverping_lifecycle_run() {
   UNITY_BEGIN();
+  RUN_TEST(ae::test_ping_serverping_lifecycle::
+               test_DestroyQueuedPingCloudReleasesSuspendBlockBeforeScheduler);
   RUN_TEST(ae::test_ping_serverping_lifecycle::
                test_SyncAckDuringWriteViaServerPingCompletes);
   RUN_TEST(ae::test_ping_serverping_lifecycle::

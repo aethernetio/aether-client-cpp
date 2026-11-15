@@ -34,12 +34,14 @@
 
 #  include "aether/executors/executors.h"
 
+#  include "aether/dns/cares_query_completion.h"
 #  include "aether/dns/dns_tele.h"
 
 namespace ae {
 class AresImpl {
   struct QueryContext {
     AresImpl* ares_impl;
+    TaskScheduler* scheduler;
     NamedAddr name_address;
     std::uint16_t port_hint;
     Protocol protocol_hint;
@@ -47,31 +49,40 @@ class AresImpl {
 
   template <typename R>
   struct Operation {
+    using Completion = cares_query_completion_internal::QueryCompletion<R>;
+    struct CallbackContext {
+      typename Completion::StatePtr completion;
+      std::uint16_t port_hint;
+      Protocol protocol_hint;
+    };
+    Operation(R receiver, QueryContext context)
+        : completion{std::move(receiver), *context.scheduler},
+          ctx{std::move(context)} {}
+
     static void Callback(void* arg, int status, int timeouts,
                          struct ares_addrinfo* result) {
-      auto* op = static_cast<Operation<R>*>(arg);
-      auto r = AresImpl::ProcessResult(
-          status, timeouts, result, op->ctx.port_hint, op->ctx.protocol_hint);
-      // set either value or error
-      if (r.IsOk()) {
-        ex::set_value(std::move(op->recv), std::move(r.value()));
-      } else {
-        ex::set_error(std::move(op->recv), r.error());
-      }
+      std::unique_ptr<CallbackContext> context{
+          static_cast<CallbackContext*>(arg)};
+      auto resolved = AresImpl::ProcessResult(
+          status, timeouts, result, context->port_hint, context->protocol_hint);
+      Completion::Deliver(std::move(context->completion), std::move(resolved));
     }
 
     void start() & noexcept {
-      AETHER_TELE_DEBUG(kAresDnsQueryHost, "Querying host: {}", ctx.name_address);
+      AETHER_TELE_DEBUG(kAresDnsQueryHost, "Querying host: {}",
+                        ctx.name_address);
 
       ares_addrinfo_hints hints{};
       // BOTH ipv4 and ipv6
       hints.ai_family = AF_UNSPEC;
       hints.ai_flags = ARES_AI_CANONNAME;
       ares_getaddrinfo(ctx.ares_impl->channel_, ctx.name_address.name.c_str(),
-                       nullptr, &hints, Callback, this);
+                       nullptr, &hints, Callback,
+                       new CallbackContext{completion.state(), ctx.port_hint,
+                                           ctx.protocol_hint});
     }
 
-    R recv;
+    Completion completion;
     QueryContext ctx;
   };
 
@@ -83,7 +94,7 @@ class AresImpl {
 
     template <typename R>
     auto connect(R&& r) && noexcept {
-      return Operation<R>{.recv = std::forward<R>(r), .ctx = std::move(ctx)};
+      return Operation<R>{std::forward<R>(r), std::move(ctx)};
     }
 
     QueryContext ctx;
@@ -114,8 +125,9 @@ class AresImpl {
   }
 
   Sender Query(NamedAddr const& name_address, std::uint16_t port_hint,
-               Protocol protocol_hint) {
+               Protocol protocol_hint, TaskScheduler& scheduler) {
     return Sender{.ctx{.ares_impl = this,
+                       .scheduler = &scheduler,
                        .name_address = name_address,
                        .port_hint = port_hint,
                        .protocol_hint = protocol_hint}};
@@ -213,8 +225,8 @@ ResolveSender DnsResolverCares::Resolve(NamedAddr const& name_address,
     ares_impl_ = std::make_unique<AresImpl>();
   }
 
-  return ares_impl_->Query(name_address, port_hint, protocol_hint) |
-         ex::continues_on(ex::SchedulerOnTasks{AeContext{*aether_.Load()}});
+  return ares_impl_->Query(name_address, port_hint, protocol_hint,
+                           AeContext{*aether_.Load()}.scheduler());
 }
 
 }  // namespace ae

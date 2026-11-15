@@ -434,12 +434,14 @@ PingCloudServers::~PingCloudServers() { task_sub_.Reset(); }
 void PingCloudServers::ServersUpdate() {
   AETHER_TELED_DEBUG("Servers update");
   if (!task_sub_) {
-    auto blocker = policy_->AcquireSuspendBlock();
-    task_sub_ = ae_context_.scheduler().Task(
-        [this, blocker = std::move(blocker)]() mutable {
-          task_sub_.Reset();
-          DispatchToServers();
-        });
+    // Cancelled task storage may outlive the policy. Keep its blocker in the
+    // owner, then move it onto the stack only while dispatch is executing.
+    servers_update_blocker_ = policy_->AcquireSuspendBlock();
+    task_sub_ = ae_context_.scheduler().Task([this]() {
+      auto blocker = std::move(servers_update_blocker_);
+      task_sub_.Reset();
+      DispatchToServers();
+    });
   }
 }
 
