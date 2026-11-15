@@ -31,7 +31,7 @@ namespace websocket_internal {
 Completion::Completion(AeContext const& context)
     : WriteAction{context}, context_{context} {}
 void Completion::Start(bool success) {
-  auto posted = context_.scheduler().Task(task_, [this, success]() {
+  [[maybe_unused]] auto posted = context_.scheduler().Task(task_, [this, success]() {
     SetStatus(success ? Status::kSuccess : Status::kFail);
   });
   assert(posted && "WebSocket completion task allocation failed");
@@ -89,7 +89,7 @@ WebSocketTransport::WebSocketTransport(
   info_.rec_element_size = 1500;
   info_.is_reliable = true;
   info_.link_state = LinkState::kUnlinked;
-  auto posted = context_.scheduler().Task(pump_, [this] { Pump(); });
+  [[maybe_unused]] auto posted = context_.scheduler().Task(pump_, [this] { Pump(); });
   assert(posted && "WebSocket pump task allocation failed");
 }
 WebSocketTransport::~WebSocketTransport() {
@@ -199,7 +199,7 @@ void WebSocketTransport::Pump() {
       return;
     }
   }
-  auto posted = context_.scheduler().DelayedTask(
+  [[maybe_unused]] auto posted = context_.scheduler().DelayedTask(
       pump_, [this] { Pump(); }, Now() + std::chrono::milliseconds{5});
   assert(posted && "WebSocket pump task allocation failed");
 }
