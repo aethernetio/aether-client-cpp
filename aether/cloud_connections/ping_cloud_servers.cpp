@@ -447,7 +447,21 @@ void PingCloudServers::ServersUpdate() {
 
 void PingCloudServers::DispatchToServers() {
   for (auto* sc : cloud_server_connections_->servers()) {
-    policy_->SetServerSelectedForAggregate(sc->server_id(), false);
+    auto const* previous = policy_->FindServerPresence(sc->server_id());
+    // Soft Ping quarantine is not evidence that an already confirmed receive
+    // promise disappeared. With All targets, keep that promise eligible until
+    // its ordinary presence deadline, even if all transports are momentarily
+    // excluded from new request selection while waiting for late Acks.
+    bool const keep_soft_promise =
+        std::holds_alternative<RequestPolicy::All>(policy_->rx_targets()) &&
+        previous && previous->selected_for_aggregate &&
+        previous->has_confirmed_schedule && sc->quarantine() &&
+        sc->quarantine_reason() == CloudQuarantineReason::kPingTimeoutWait;
+    if (keep_soft_promise) {
+      PresenceApiTrace("presence_soft_selection", sc->server_id(), 1,
+                       policy_->IsServerLocallyOnline(sc->server_id(), Now()));
+    }
+    policy_->SetServerSelectedForAggregate(sc->server_id(), keep_soft_promise);
     policy_->SetServerQuarantined(sc->server_id(), sc->quarantine());
   }
   cloud_server_connections_->ForServers(

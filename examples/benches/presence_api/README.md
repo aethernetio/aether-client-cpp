@@ -128,6 +128,13 @@ wire Ping interval and receive-window duration are unchanged. This prevents a
 short Offline pulse while a normal renewal Ack is still in flight, without
 allowing a buffered long-delay Ack to extend an old promise by its entire RTT.
 
+With All receive targets, a soft Ping-timeout quarantine excludes a transport
+from new request selection but does not revoke its already confirmed receive
+promise. Such a promise remains eligible for local presence only until its
+normal deadline. Hard quarantine and explicit target changes keep their prior
+selection behavior. The regression fixture verifies both continued availability
+through soft quarantine and expiry without another Ack.
+
 Analysis writes `summary.json` and `trials.csv`. Primary OFFLINE latency uses
 only an actual API OFFLINE observation after the cut. ONLINE latency is
 reported after an observed outage; the first positive observation after

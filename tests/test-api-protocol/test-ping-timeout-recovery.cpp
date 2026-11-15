@@ -846,8 +846,38 @@ void test_LatePongOnOtherServerDoesNotRecoverMain() {
 }  // namespace
 }  // namespace ae::test_ping_timeout_recovery
 
+void test_SoftQuarantinePreservesConfirmedPresenceUntilDeadline() {
+  using namespace ae;
+  using namespace ae::test_ping_timeout_recovery;
+  auto env = MakeEnv(false, 2, true);
+  TEST_ASSERT_NOT_NULL(env);
+  auto& h = *env;
+  auto& policy = *h.client->connectivity_policy().Load();
+  h.ping_cloud =
+      std::make_unique<PingCloudServers>(h.ae_ctx, *h.connections, policy);
+  h.ctx.Advance(std::chrono::milliseconds{250});
+  DeliverPingAck(h, kServerA);
+  DeliverPingAck(h, kServerB);
+  h.ctx.Advance(std::chrono::milliseconds{20});
+  TEST_ASSERT_TRUE(policy.IsLocallyOnline(Now()));
+  for (auto sid : {kServerA, kServerB}) {
+    auto* server = FindServer(*h.connections, sid);
+    TEST_ASSERT_NOT_NULL(server);
+    TEST_ASSERT_TRUE(CloudServerConnectionsTestAccess::QuarantinePingTimeout(
+        *h.connections, *server));
+  }
+  CloudServerConnectionsTestAccess::ScheduleReconcile(*h.connections);
+  h.ctx.Advance(std::chrono::milliseconds{30});
+  TEST_ASSERT_EQUAL(0, h.connections->selected_servers().size());
+  TEST_ASSERT_TRUE(policy.IsLocallyOnline(Now()));
+  auto const deadline = policy.DiagnoseLocalPresence(Now()).offline_deadline;
+  TEST_ASSERT_FALSE(
+      policy.IsLocallyOnline(deadline + std::chrono::milliseconds{1}));
+}
+
 int test_ping_timeout_recovery_run() {
   UNITY_BEGIN();
+  RUN_TEST(test_SoftQuarantinePreservesConfirmedPresenceUntilDeadline);
   RUN_TEST(ae::test_ping_timeout_recovery::
                test_LatePongReselectionCannotCancelPeriodicResume);
   RUN_TEST(ae::test_ping_timeout_recovery::
