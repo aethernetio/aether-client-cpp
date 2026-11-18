@@ -231,6 +231,9 @@ CPMAddPackage(
 add_library(${TARGET_NAME} STATIC )
 # collect sources
 add_subdirectory(aether)
+if(WIN32)
+  target_link_libraries(aether PRIVATE iphlpapi ws2_32)
+endif()
 
 if(EMSCRIPTEN)
   target_link_options(aether PUBLIC -lwebsocket.js)
@@ -487,6 +490,7 @@ if(AE_BUILD_EXAMPLES)
   add_subdirectory(examples/common)
   add_subdirectory(examples/cloud)
   add_subdirectory(examples/a_b_message_exchange)
+  add_subdirectory(examples/peer_lan)
   add_subdirectory(examples/message_server)
   add_subdirectory(examples/capi/oddity)
   add_subdirectory(examples/benches/send_message_delays)

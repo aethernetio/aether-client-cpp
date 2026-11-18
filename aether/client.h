@@ -35,11 +35,16 @@
 #include "aether/connection_manager/server_connection_manager.h"
 
 #include "aether/client_messages/p2p_message_stream_manager.h"
+#include "aether/peer/peer_types.h"
+#include "aether/streams/stream_definition.h"
 
 namespace ae {
 class Aether;
 class Telemetry;
 class PeerPresenceQuery;
+class PeerTransport;
+class CloudRequest;
+class StreamHierarchy;
 
 class Client : public Obj {
   AE_OBJECT(Client, Obj, 0)
@@ -68,16 +73,44 @@ class Client : public Obj {
 
   bool IsLocallyOnline() const noexcept;
   ae::PeerPresenceQuery& QueryPeerPresence(Uid peer_uid);
+  void ConfigureStreams(std::vector<StreamDefinition> definitions);
+  StreamHierarchy& streams();
+#if AE_SUPPORT_P2P
+  void ConfigurePeer(PeerSettings settings);
+  PeerSettings const& peer_settings() const { return peer_settings_; }
+  PeerIdentity const& peer_identity() const { return peer_identity_; }
+  PeerTransport* peer_transport();
+  void RenewPeerIdentity();
+#endif
 
   void SetConfig(std::string client_id, Uid parent_uid, Uid uid,
-                 Uid ephemeral_uid, Key master_key, Cloud::ptr c);
+                 Uid ephemeral_uid, Key master_key, Cloud::ptr c,
+                 PeerIdentity peer_identity = {});
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, client_id_, parent_uid_, uid_,
                              ephemeral_uid_, master_key_, cloud_, server_keys_,
                              connectivity_policy_, client_cloud_manager_))
+  template <typename Dnv>
+  void Save(CurrentVersion, Dnv& dnv) const {
+    dnv(base_);
+    dnv(aether_, client_id_, parent_uid_, uid_, ephemeral_uid_, master_key_,
+        cloud_, server_keys_, connectivity_policy_, client_cloud_manager_);
+    dnv(peer_identity_, peer_settings_, stream_definitions_);
+  }
+  template <typename Dnv>
+  void Load(CurrentVersion, Dnv& dnv) {
+    dnv(base_);
+    dnv(aether_, client_id_, parent_uid_, uid_, ephemeral_uid_, master_key_,
+        cloud_, server_keys_, connectivity_policy_, client_cloud_manager_);
+    dnv(peer_identity_, peer_settings_, stream_definitions_);
+  }
   void SendTelemetry();
 
  private:
+  void Loaded();
+#if AE_SUPPORT_P2P
+  void EnsurePeerIdentity();
+#endif
   ObjPtr<Aether> aether_;
   // configuration
   std::string client_id_;  // User-defined client id
@@ -85,6 +118,9 @@ class Client : public Obj {
   Uid uid_{};              // Aethernet client uid
   Uid ephemeral_uid_{};    // Used for server aethentication
   Key master_key_;
+  PeerIdentity peer_identity_;
+  PeerSettings peer_settings_;
+  std::vector<StreamDefinition> stream_definitions_;
   Cloud::ptr cloud_;
 
   // states
@@ -96,6 +132,13 @@ class Client : public Obj {
   std::unique_ptr<CloudServerConnections> cloud_connection_;
   std::unique_ptr<P2pMessageStreamManager> message_stream_manager_;
   std::map<Uid, std::unique_ptr<ae::PeerPresenceQuery>> peer_presence_queries_;
+  std::unique_ptr<StreamHierarchy> stream_hierarchy_;
+#if AE_SUPPORT_P2P
+  std::unique_ptr<PeerTransport> peer_transport_;
+  std::unique_ptr<CloudRequest> peer_identity_request_;
+  TaskSubscription peer_start_task_;
+  TaskSubscription peer_identity_task_;
+#endif
 
 #if AE_ENABLE_PING
   std::unique_ptr<PingCloudServers> ping_cloud_servers_;

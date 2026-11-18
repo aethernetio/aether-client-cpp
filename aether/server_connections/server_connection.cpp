@@ -50,6 +50,14 @@ WriteAction& ServerConnection::Write(DataBuffer&& in_data) {
 
   assert(!!stream_ && "channel stream is not available");
 
+  if (auto channel = current_channel(); channel) {
+    if (auto endpoint = channel->endpoint()) {
+      auto& stat = transport_statistics_[*endpoint];
+      ++stat.sent_messages;
+      stat.sent_bytes += in_data.size();
+      stat.wire_sent_bytes += in_data.size();
+    }
+  }
   return stream_->Write(std::move(in_data));
 }
 
@@ -270,13 +278,27 @@ void ServerConnection::DeferServerError() {
   stream_info_.is_writable = false;
   defer_sub_ = ae_context_.scheduler().Task([&]() { ServerError(); });
   if (!defer_sub_) {
-    AETHER_TELED_ERROR("DeferServerError schedule failed; invoking ServerError");
+    AETHER_TELED_ERROR(
+        "DeferServerError schedule failed; invoking ServerError");
     ServerError();
   }
 }
 
 void ServerConnection::OnRead(DataBuffer const& data) {
   full_connected_ = true;
+  if (auto channel = current_channel(); channel) {
+    if (auto endpoint = channel->endpoint()) {
+      auto& stat = transport_statistics_[*endpoint];
+      ++stat.received_messages;
+      stat.received_bytes += data.size();
+      stat.wire_received_bytes += data.size();
+      auto const& samples =
+          channel->channel_statistics().response_time_statistics();
+      if (!samples.empty()) {
+        stat.rtt_us = samples.template percentile<50>().count();
+      }
+    }
+  }
   out_data_event_.Emit(data);
 }
 

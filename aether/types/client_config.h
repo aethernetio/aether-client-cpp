@@ -19,33 +19,40 @@
 
 #include <vector>
 
-#include "aether/types/uid.h"
-#include "aether/crypto/key.h"
 #include "aether-miscpp/format/format.h"
 #include "aether-miscpp/reflect/reflect.h"
+#include "aether/crypto/key.h"
+#include "aether/peer/peer_types.h"
+#include "aether/streams/stream_definition.h"
 #include "aether/types/server_config.h"
+#include "aether/types/uid.h"
 
 namespace ae {
 struct ClientConfig {
-  AE_REFLECT_MEMBERS(parent_uid, uid, ephemeral_uid, master_key, cloud)
+  AE_REFLECT_MEMBERS(parent_uid, uid, ephemeral_uid, master_key, cloud,
+                     peer_identity, peer_settings, streams)
 
   Uid parent_uid;
   Uid uid;
   Uid ephemeral_uid;
   Key master_key;
   std::vector<ServerConfig> cloud;
+  PeerIdentity peer_identity{};
+  PeerSettings peer_settings{};
+  std::vector<StreamDefinition> streams{};
 };
 
 template <>
 struct Formatter<ClientConfig> {
   template <typename TStream>
   void Format(ClientConfig const& value, FormatContext<TStream>& ctx) const {
-    FormatTo(ctx.out(),
-             FormatScheme{
-                 "parent_uid={},\nuid={},\nephemeral_uid={}\nmaster_key={}:{},"
-                 "\ncloud=[\n{}\n]"},
-             value.parent_uid, value.uid, value.ephemeral_uid,
-             value.master_key.Index(), value.master_key, value.cloud);
+    FormatTo(
+        ctx.out(),
+        FormatScheme{
+            "parent_uid={},\nuid={},\nephemeral_uid={}\nmaster_key_type={},"
+            "\ncloud=[\n{}\n]"},
+        value.parent_uid, value.uid, value.ephemeral_uid,
+        value.master_key.Index(), value.cloud);
   }
 };
 }  // namespace ae

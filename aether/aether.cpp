@@ -52,11 +52,13 @@ Client::ptr Aether::CreateClient(ClientConfig const& config,
   std::vector<Server::ptr> servers;
   for (auto const& server_config : config.cloud) {
     if (auto cached = GetServer(server_config.id); cached) {
+      cached->signing_keys = server_config.signing_keys;
       servers.emplace_back(std::move(cached));
     } else {
       auto new_server = Server::ptr::Create(
           domain, server_config.id, server_config.endpoints, adapter_registry);
       StoreServer(new_server);
+      new_server->signing_keys = server_config.signing_keys;
       servers.emplace_back(std::move(new_server));
     }
   }
@@ -68,7 +70,15 @@ Client::ptr Aether::CreateClient(ClientConfig const& config,
       client.WithLoaded([&](auto const& client) {
         client->SetConfig(client_id, config.parent_uid, config.uid,
                           config.ephemeral_uid, config.master_key,
-                          std::move(client_cloud));
+                          std::move(client_cloud), config.peer_identity);
+#if AE_SUPPORT_P2P
+        if (!config.peer_settings.app_id.empty()) {
+          client->ConfigurePeer(config.peer_settings);
+        }
+#endif
+        if (!config.streams.empty()) {
+          client->ConfigureStreams(config.streams);
+        }
       });
   assert(res && "Failed to set client config");
 
@@ -78,7 +88,8 @@ Client::ptr Aether::CreateClient(ClientConfig const& config,
 
 SelectClientAction& Aether::SelectClient([[maybe_unused]] Uid parent_uid,
                                          std::string const& client_id) {
-  AETHER_TELED_DEBUG("Select client {} with parent uid {}", client_id, parent_uid);
+  AETHER_TELED_DEBUG("Select client {} with parent uid {}", client_id,
+                     parent_uid);
 
   auto* select_action = FindSelectClientAction(client_id);
   if (select_action != nullptr) {

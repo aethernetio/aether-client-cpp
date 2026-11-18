@@ -22,6 +22,7 @@
 
 #include "aether/adapter_registry.h"
 #include "aether/channels/channel.h"
+#include "aether/crypto/signed_key.h"
 #include "aether/events/events.h"
 #include "aether/types/address.h"
 #include "aether/types/server_id.h"
@@ -39,13 +40,15 @@ class Server : public Obj {
                   std::vector<Endpoint> endpoints,
                   AdapterRegistry::ptr adapter_registry);
 
-  AE_OBJECT_REFLECT(AE_MMBRS(server_id, endpoints, adapter_registry_, channels))
+  AE_OBJECT_REFLECT(AE_MMBRS(server_id, endpoints, adapter_registry_, channels,
+                             signing_keys))
 
   ChannelsChanged const& channels_changed();
   void Register();
 
   ServerId server_id{};
   std::vector<Endpoint> endpoints;
+  std::vector<SignedKey> signing_keys;
   std::vector<Channel::ptr> channels;
 
  private:

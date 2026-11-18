@@ -29,6 +29,8 @@
 #include "aether/cloud_connections/cloud_subscription.h"
 
 #include "aether/client_messages/client_messages_tele.h"
+#include "aether/peer/peer_serialization.h"
+#include "aether/peer/peer_transport.h"
 
 namespace ae {
 namespace p2p_stream_internal {
@@ -154,31 +156,73 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
 
 P2pStream::P2pStream(AeContext const& ae_context, Ptr<Client> const& client,
                      Uid destination, P2pPortHandle handle,
-                     RequestPolicy::Variant send_request_policy)
+                     RequestPolicy::Variant send_request_policy,
+                     StreamRoutePolicy route_policy)
     : ae_context_{ae_context},
       client_{client},
       destination_{std::move(destination)},
       handle_{std::move(handle)},
       send_request_policy_{std::move(send_request_policy)},
+      route_policy_{route_policy},
       buffer_write_{ae_context_, MethodPtr<&P2pStream::OnWrite>{this}},
       out_data_event_{ae_context_},
-      stream_update_event_{ae_context_} {
+      stream_update_event_{ae_context_},
+      peer_writes_{ae_context_} {
   AETHER_TELE_DEBUG(kP2pMessageStreamNew, "P2pStream created for {}",
                     destination_);
   assert(!destination_.empty());
+  client->message_stream_manager().RetainPeerRoute(
+      destination_, route_policy_.keep_backup_channels);
 
   if (handle_) {
     ConnectReceive();
   }
   ConnectSend();
+#if AE_SUPPORT_P2P
+  {
+    peer_changed_sub_ =
+        client->message_stream_manager().route_changed_event().Subscribe(
+            [this] {
+              auto client = client_.Lock();
+              auto* peer = client ? client->peer_transport() : nullptr;
+              if (peer && peer->BestPath(destination_, route_policy_.lan,
+                                         route_policy_.direct_ip)) {
+                buffer_write_.buffer_off();
+                if (!route_policy_.keep_backup_channels) {
+                  get_client_cloud_sub_.Reset();
+                  message_send_stream_.reset();
+                  dest_cloud_conn_.reset();
+                  connecting_cloud_ = false;
+                }
+              } else if (!message_send_stream_ && !connecting_cloud_) {
+                ConnectSend();
+              }
+              stream_update_event_.Emit();
+            });
+    auto* peer = client->peer_transport();
+    if (peer && peer->BestPath(destination_, route_policy_.lan,
+                               route_policy_.direct_ip)) {
+      buffer_write_.buffer_off();
+    }
+  }
+#endif
 }
 
-P2pStream::~P2pStream() = default;
+P2pStream::~P2pStream() {
+  if (auto client = client_.Lock()) {
+    client->message_stream_manager().ReleasePeerRoute(
+        destination_, route_policy_.keep_backup_channels);
+  }
+}
 
 WriteAction& P2pStream::Write(DataBuffer&& data) {
   AETHER_TELED_DEBUG("Write message for uid {} size:{} data:{}", destination_,
                      data.size(), data);
-  AeMessage message_data{destination_, std::move(data)};
+  auto client = client_.Lock();
+  AeMessage message_data{destination_,
+                         client->message_stream_manager().Frame(
+                             handle_ ? handle_.stream_id() : 0, std::move(data),
+                             handle_ ? handle_.service() : PeerService{})};
   return buffer_write_.Write(std::move(message_data));
 }
 
@@ -187,6 +231,16 @@ P2pStream::StreamUpdateEvent const& P2pStream::stream_update_event() {
 }
 
 StreamInfo P2pStream::stream_info() const {
+#if AE_SUPPORT_P2P
+  auto client = client_.Lock();
+  if (client) {
+    if (auto* peer = client->peer_transport();
+        peer && peer->BestPath(destination_, route_policy_.lan,
+                               route_policy_.direct_ip)) {
+      return {1000, 56000, false, LinkState::kLinked, true};
+    }
+  }
+#endif
   if (message_send_stream_) {
     return message_send_stream_->stream_info();
   }
@@ -220,6 +274,20 @@ void P2pStream::ConnectReceive() {
 }
 
 void P2pStream::ConnectSend() {
+  if (!route_policy_.cloud || connecting_cloud_) {
+    return;
+  }
+#if AE_SUPPORT_P2P
+  auto owner = client_.Lock();
+  auto* peer = owner ? owner->peer_transport() : nullptr;
+  if (!route_policy_.keep_backup_channels && peer &&
+      peer->BestPath(destination_, route_policy_.lan,
+                     route_policy_.direct_ip)) {
+    buffer_write_.buffer_off();
+    return;
+  }
+#endif
+  connecting_cloud_ = true;
   auto client_ptr = client_.Lock();
   assert(client_ptr);
 
@@ -227,6 +295,7 @@ void P2pStream::ConnectSend() {
 
   get_client_cloud_sub_ = get_client_cloud.result_event().Subscribe(
       [this, client_ptr](Result<Cloud::ptr, int>&& result) {
+        connecting_cloud_ = false;
         if (result) {
           auto cloud = std::move(result).value();
           dest_cloud_conn_ = MakeDestinationCloudConn(
@@ -242,6 +311,14 @@ void P2pStream::ConnectSend() {
           stream_update_event_.Emit();
         } else {
           AETHER_TELED_ERROR("Send connection failed ");
+#if AE_SUPPORT_P2P
+          auto* peer = client_ptr->peer_transport();
+          if (peer && peer->BestPath(destination_, route_policy_.lan,
+                                     route_policy_.direct_ip)) {
+            buffer_write_.buffer_off();
+            return;
+          }
+#endif
           buffer_write_.Drop();
           buffer_write_.buffer_on();
         }
@@ -256,15 +333,114 @@ std::unique_ptr<CloudServerConnections> P2pStream::MakeDestinationCloudConn(
 }
 
 WriteAction* P2pStream::OnWrite(AeMessage&& message) {
+  auto record_sent = [&](PeerRoute route) {
+    auto client = client_.Lock();
+    PeerDelivery delivery;
+    if (PeerDecode(message.data, delivery)) {
+      client->message_stream_manager().RecordSent(destination_, delivery.stream,
+                                                  route, delivery.data.size());
+    }
+  };
+#if AE_SUPPORT_P2P
+  auto client = client_.Lock();
+  if (auto* peer = client->peer_transport()) {
+    if (auto path = peer->BestPath(destination_, route_policy_.lan,
+                                   route_policy_.direct_ip);
+        path && message.data.size() < 57000) {
+      // Reserve the completion action before doing any observable send.
+      auto* action = peer_writes_.Create(ae_context_, true);
+      if (!action) {
+        return nullptr;
+      }
+      auto selected_route = path->route;
+      if (peer->Send(destination_, message.data, route_policy_.lan,
+                     route_policy_.direct_ip, &selected_route)) {
+        record_sent(selected_route);
+        return action;
+      }
+      // UDP enqueue failed. The cloud path below is still available.
+    }
+  }
+#endif
   if (!message_send_stream_) {
     return {};
   }
+  record_sent(PeerRoute::kCloud);
   return &message_send_stream_->Write(std::move(message));
+}
+
+std::array<TransportStatistics, 3> P2pStream::statistics() const {
+  auto owner = client_.Lock();
+  auto result = owner->message_stream_manager().Statistics(
+      destination_, handle_ ? handle_.stream_id() : 0);
+  if (dest_cloud_conn_) {
+    dest_cloud_conn_->ForServers(
+        [&](auto* server) {
+          auto* connection = server->client_connection();
+          if (!connection) {
+            return;
+          }
+          auto channel = connection->server_connection().current_channel();
+          if (!channel) {
+            return;
+          }
+          auto const& samples =
+              channel->channel_statistics().response_time_statistics();
+          if (!samples.empty()) {
+            auto sample = samples.template percentile<50>().count();
+            if (!result[0].rtt_us || sample < *result[0].rtt_us) {
+              result[0].rtt_us = sample;
+            }
+          }
+        },
+        send_request_policy_);
+  }
+#if AE_SUPPORT_P2P
+  auto client = client_.Lock();
+  if (client) {
+    if (auto* peer = client->peer_transport()) {
+      for (auto const& info : peer->registry().clients()) {
+        if (info.uid != destination_) {
+          continue;
+        }
+        for (auto const& path : info.paths) {
+          auto& stat = result[static_cast<std::size_t>(path.route)];
+          stat.wire_sent_bytes += path.statistics.wire_sent_bytes;
+          stat.wire_received_bytes += path.statistics.wire_received_bytes;
+          stat.probes_sent += path.statistics.probes_sent;
+          stat.probes_received += path.statistics.probes_received;
+          stat.probes_lost += path.statistics.probes_lost;
+          if (path.connected) {
+            stat.recent_loss_per_mille = path.statistics.recent_loss_per_mille;
+            stat.loss_samples = path.statistics.loss_samples;
+          }
+          if (path.connected && path.statistics.rtt_us &&
+              (!stat.rtt_us || *path.statistics.rtt_us < *stat.rtt_us)) {
+            stat.rtt_us = path.statistics.rtt_us;
+            stat.jitter_us = path.statistics.jitter_us;
+          }
+        }
+      }
+    }
+  }
+#endif
+  return result;
 }
 
 P2pStream::SendPathTransportView P2pStream::InspectSendPathTransport() const {
   SendPathTransportView view;
   view.aggregated = stream_info();
+#if AE_SUPPORT_P2P
+  auto client = client_.Lock();
+  if (client) {
+    if (auto* peer = client->peer_transport();
+        peer && peer->BestPath(destination_, route_policy_.lan,
+                               route_policy_.direct_ip)) {
+      view.linked_udp_endpoint = true;
+      return view;
+    }
+  }
+#endif
   if (dest_cloud_conn_) {
     dest_cloud_conn_->ForServers(
         [&](auto* sc) {

@@ -21,6 +21,7 @@
 #include "aether/types/uid.h"
 #include "aether/types/variant_type.h"
 
+#include "aether/peer/peer_delivery.h"
 #include "aether/prepared_packet/prepared_block.h"
 
 namespace ae {
@@ -45,7 +46,8 @@ struct PreparedEndpoint {
 
 struct PreparedSendMessage {
   AE_REFLECT_MEMBERS(sender_ephemeral, destination_uid, endpoint, server_id,
-                     client_to_server_key, next_nonce, message_left)
+                     client_to_server_key, next_nonce, message_left,
+                     delivery_epoch, delivery_number)
   // Client ephemeral UID sent to login_by_alias.
   Uid sender_ephemeral;
   Uid destination_uid;
@@ -58,6 +60,8 @@ struct PreparedSendMessage {
   CryptoNonce next_nonce;
 
   std::uint32_t message_left;
+  Uid delivery_epoch{NewPeerDeliveryEpoch()};
+  std::uint64_t delivery_number{};
 };
 
 using PreparedSendMessageBlock = PreparedBlock<PreparedSendMessage>;

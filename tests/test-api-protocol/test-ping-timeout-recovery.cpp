@@ -315,7 +315,8 @@ std::unique_ptr<Env> MakeEnv(bool start_ping_cloud = true,
     auto server = aether->GetServer(sid).Load();
     ChannelPolicy pol{
         .ctx = &e.ae_ctx, .server_id = sid, .streams = &e.streams};
-    server->channels = {PingTimeoutRecoveryChannel::ptr::Create(CreateWith{*e.domain}, pol)};
+    server->channels = {
+        PingTimeoutRecoveryChannel::ptr::Create(CreateWith{*e.domain}, pol)};
   }
 
   e.factory = std::make_unique<Factory>(e.ae_ctx, e.client, retain_connections);
@@ -679,8 +680,8 @@ void test_PeriodicProbeReplacesLostPingAndRejectsOldAck() {
       *h.ping_cloud, kServerA));
   PingCloudServersTestAccess::TriggerPeriodicStart(*h.ping_cloud, kServerA);
   h.ctx.Advance(std::chrono::milliseconds{50});
-  auto* replacement = PingCloudServersTestAccess::ClientPingPtr(
-      *h.ping_cloud, kServerA);
+  auto* replacement =
+      PingCloudServersTestAccess::ClientPingPtr(*h.ping_cloud, kServerA);
   TEST_ASSERT_NOT_NULL(replacement);
   TEST_ASSERT_TRUE(old_context != replacement->context_id());
   DataBuffer stale;
@@ -690,8 +691,10 @@ void test_PeriodicProbeReplacesLostPingAndRejectsOldAck() {
   h.streams[kServerA]->Deliver(PackEncryptedSafeApi(h.client, kServerA, stale));
   h.ctx.Advance(std::chrono::milliseconds{1});
   TEST_ASSERT_TRUE(server->quarantine());
-  TEST_ASSERT_EQUAL(replacement->context_id(),
-      PingCloudServersTestAccess::ClientPingPtr(*h.ping_cloud, kServerA)->context_id());
+  TEST_ASSERT_EQUAL(
+      replacement->context_id(),
+      PingCloudServersTestAccess::ClientPingPtr(*h.ping_cloud, kServerA)
+          ->context_id());
   DeliverPingAck(h, kServerA);
   h.ctx.Advance(std::chrono::milliseconds{20});
   TEST_ASSERT_FALSE(server->quarantine());
@@ -704,15 +707,17 @@ void test_LostAckAutomaticallyProbesBeforeQuarantineExpiry() {
   auto& h = *env;
   auto* server = FindServer(*h.connections, kServerA);
   auto* connection = server->client_connection();
-  auto const context = PingCloudServersTestAccess::ClientPingPtr(
-      *h.ping_cloud, kServerA)->context_id();
+  auto const context =
+      PingCloudServersTestAccess::ClientPingPtr(*h.ping_cloud, kServerA)
+          ->context_id();
   auto const writes = h.streams[kServerA]->write_count();
   h.ctx.Advance(std::chrono::milliseconds{1100});
   TEST_ASSERT_TRUE(server->quarantine());
   TEST_ASSERT_EQUAL_PTR(connection, server->client_connection());
   TEST_ASSERT_GREATER_THAN(writes, h.streams[kServerA]->write_count());
   TEST_ASSERT_TRUE(context != PingCloudServersTestAccess::ClientPingPtr(
-      *h.ping_cloud, kServerA)->context_id());
+                                  *h.ping_cloud, kServerA)
+                                  ->context_id());
 }
 
 void test_TransportErrorAfterSoftQuarantineBlocksLateRecovery() {
@@ -757,10 +762,14 @@ void test_P2pReceivePersistsThroughSoftPingQuarantine() {
   auto* cc = server->client_connection();
   TEST_ASSERT_NOT_NULL(cc);
 
-  AeMessage msg1{.uid = peer_uid, .data = Bytes({1})};
+  AeMessage msg1{.uid = peer_uid, .data = mgr.Frame(0, Bytes({1}))};
   cc->client_safe_api().SendMessage(msg1);
   h.ctx.Advance(std::chrono::milliseconds{20});
   TEST_ASSERT_EQUAL(1, rx_count);
+  cc->client_safe_api().SendMessage(msg1);
+  h.ctx.Advance(std::chrono::milliseconds{20});
+  TEST_ASSERT_EQUAL_MESSAGE(1, rx_count,
+                            "a repeated cloud delivery must be deduplicated");
 
   TEST_ASSERT_FALSE(server->quarantine());
 
@@ -771,7 +780,7 @@ void test_P2pReceivePersistsThroughSoftPingQuarantine() {
                              cloud.selected_servers().end(),
                              server) == cloud.selected_servers().end());
 
-  AeMessage msg2{.uid = peer_uid, .data = Bytes({2})};
+  AeMessage msg2{.uid = peer_uid, .data = mgr.Frame(0, Bytes({2}))};
   cc->client_safe_api().SendMessage(msg2);
   h.ctx.Advance(std::chrono::milliseconds{20});
   TEST_ASSERT_EQUAL_MESSAGE(
@@ -785,12 +794,12 @@ void test_P2pReceivePersistsThroughSoftPingQuarantine() {
   cc = server->client_connection();
   TEST_ASSERT_NOT_NULL(cc);
 
-  AeMessage msg3{.uid = peer_uid, .data = Bytes({3})};
+  AeMessage msg3{.uid = peer_uid, .data = mgr.Frame(0, Bytes({3}))};
   cc->client_safe_api().SendMessage(msg3);
   h.ctx.Advance(std::chrono::milliseconds{20});
   TEST_ASSERT_EQUAL(3, rx_count);
 
-  AeMessage msg4{.uid = peer_uid, .data = Bytes({4})};
+  AeMessage msg4{.uid = peer_uid, .data = mgr.Frame(0, Bytes({4}))};
   cc->client_safe_api().SendMessage(msg4);
   h.ctx.Advance(std::chrono::milliseconds{20});
   TEST_ASSERT_EQUAL(4, rx_count);
@@ -821,7 +830,7 @@ void test_P2pReceiveSubscribesAfterLateLink() {
   h.ctx.Advance(std::chrono::milliseconds{20});
   auto* cc = server->client_connection();
   TEST_ASSERT_NOT_NULL(cc);
-  AeMessage message{.uid = peer_uid, .data = Bytes({1})};
+  AeMessage message{.uid = peer_uid, .data = mgr.Frame(0, Bytes({1}))};
   cc->client_safe_api().SendMessage(message);
   h.ctx.Advance(std::chrono::milliseconds{20});
   TEST_ASSERT_EQUAL_MESSAGE(1, rx_count,
@@ -846,7 +855,7 @@ void test_P2pSubscriptionClearsAfterDisconnect() {
   TEST_ASSERT_NOT_NULL(server);
   auto* cc = server->client_connection();
   TEST_ASSERT_NOT_NULL(cc);
-  AeMessage message{.uid = peer_uid, .data = Bytes({1})};
+  AeMessage message{.uid = peer_uid, .data = mgr.Frame(0, Bytes({1}))};
   cc->client_safe_api().SendMessage(message);
   h.ctx.Advance(std::chrono::milliseconds{20});
   TEST_ASSERT_EQUAL(1, rx_count);

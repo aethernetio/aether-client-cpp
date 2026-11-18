@@ -16,12 +16,16 @@
 
 #include "aether/client.h"
 
+#include <stdexcept>
 #include <utility>
 
-#include "aether/connection_manager/peer_presence_query.h"
 #include "aether/ae_actions/telemetry.h"
+#include "aether/connection_manager/peer_presence_query.h"
 
 #include "aether/aether.h"
+#include "aether/cloud_connections/cloud_request.h"
+#include "aether/peer/peer_transport.h"
+#include "aether/streams/stream_hierarchy.h"
 
 namespace ae {
 
@@ -33,6 +37,37 @@ Client::Client(ObjProp prop, Aether::ptr aether)
 #endif  // AE_DISTILLATION
 
 Client::~Client() = default;
+
+void Client::Loaded() {
+  AeContext context{*this};
+#if AE_SUPPORT_P2P
+  if (!peer_settings_.app_id.empty() || !stream_definitions_.empty()) {
+    context.scheduler().Task(peer_start_task_, [this] {
+      peer_transport();
+      message_stream_manager();
+      streams();
+    });
+  }
+#else
+  if (!stream_definitions_.empty()) {
+    streams();
+  }
+#endif
+}
+
+void Client::ConfigureStreams(std::vector<StreamDefinition> definitions) {
+  auto hierarchy = std::make_unique<StreamHierarchy>(
+      AeContext{*this}, MakePtrFromThis(this), definitions);
+  stream_hierarchy_ = std::move(hierarchy);
+  stream_definitions_ = std::move(definitions);
+}
+StreamHierarchy& Client::streams() {
+  if (!stream_hierarchy_) {
+    stream_hierarchy_ = std::make_unique<StreamHierarchy>(
+        AeContext{*this}, MakePtrFromThis(this), stream_definitions_);
+  }
+  return *stream_hierarchy_;
+}
 
 std::string const& Client::id() const { return client_id_; }
 Uid const& Client::parent_uid() const { return parent_uid_; }
@@ -108,18 +143,24 @@ bool Client::IsLocallyOnline() const noexcept {
 ae::PeerPresenceQuery& Client::QueryPeerPresence(Uid peer_uid) {
   auto& query = peer_presence_queries_[peer_uid];
   if (!query || query->is_finished()) {
-    query = std::make_unique<ae::PeerPresenceQuery>(AeContext{*aether_}, *this, peer_uid);
+    query = std::make_unique<ae::PeerPresenceQuery>(AeContext{*aether_}, *this,
+                                                    peer_uid);
   }
   return *query;
 }
 
 void Client::SetConfig(std::string client_id, Uid parent_uid, Uid uid,
-                       Uid ephemeral_uid, Key master_key, Cloud::ptr cloud) {
+                       Uid ephemeral_uid, Key master_key, Cloud::ptr cloud,
+                       PeerIdentity peer_identity) {
+  if (peer_identity.certified && peer_identity.certificate.uid != uid) {
+    throw std::invalid_argument("Peer identity belongs to another UID");
+  }
   client_id_ = std::move(client_id);
   parent_uid_ = parent_uid;
   uid_ = uid;
   ephemeral_uid_ = ephemeral_uid;
   master_key_ = std::move(master_key);
+  peer_identity_ = std::move(peer_identity);
   cloud_ = std::move(cloud);
 
   for (auto const& server_entry : cloud_->servers()) {

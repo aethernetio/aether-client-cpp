@@ -8,6 +8,7 @@
 
 #include "aether/api_protocol/api_protocol.h"
 
+#include "aether/peer/peer_serialization.h"
 #include "aether/work_cloud_api/ae_message.h"
 #include "aether/work_cloud_api/work_server_api/authorized_api.h"
 #include "aether/work_cloud_api/work_server_api/login_api.h"
@@ -57,7 +58,13 @@ Result<std::size_t, EncodePacketError> EncodePacket(
 
   auto auth_context = ApiContext{login_api.authorized_api()};
   auth_context->SendMessage(
-      AeMessage{send_message->destination_uid, DataBuffer{payload}});
+      AeMessage{send_message->destination_uid,
+                PeerEncode(PeerDelivery{0x31444d41,
+                                        send_message->delivery_epoch,
+                                        ++send_message->delivery_number,
+                                        0,
+                                        DataBuffer{payload},
+                                        {}})});
 
   login_context->LoginByAlias(send_message->sender_ephemeral,
                               std::move(auth_context));

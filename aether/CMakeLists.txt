@@ -15,6 +15,13 @@
 cmake_minimum_required(VERSION 3.16.0)
 
 list(APPEND aether_srcs
+            "peer/peer_crypto.cpp"
+            "peer/peer_delivery.cpp"
+            "peer/peer_protocol.cpp"
+            "peer/peer_udp.cpp"
+            "peer/peer_transport.cpp"
+            "peer/peer_identity.cpp"
+            "streams/stream_hierarchy.cpp"
             "aether_app.cpp"
             "aether.cpp"
             "aether_tele.cpp"

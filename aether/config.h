@@ -48,7 +48,12 @@
 
 // Configuration for event system
 #ifndef AE_EVENTS_MAX_COUNT
-#  define AE_EVENTS_MAX_COUNT 256
+// Desktop clients may own several cloud connections and logical stream trees.
+#  if defined(_WIN32) || defined(__linux__) || defined(__APPLE__)
+#    define AE_EVENTS_MAX_COUNT 1024
+#  else
+#    define AE_EVENTS_MAX_COUNT 256
+#  endif
 #endif
 #ifndef AE_EVENT_HANDLER_MAX_SIZE
 #  define AE_EVENT_HANDLER_MAX_SIZE 48
@@ -281,9 +286,12 @@
 #else  // AE_SUPPORT_REGISTRATION == 1
 #  undef AE_POW
 #  define AE_POW AE_NONE
-#  undef AE_SIGNATURE
-#  define AE_SIGNATURE AE_NONE
 #endif  // AE_SUPPORT_REGISTRATION == 1
+
+// Saved peer identities must remain verifiable in registration-free builds.
+#ifndef AE_SIGNATURE
+#  define AE_SIGNATURE AE_ED25519
+#endif
 
 // Public key cryptography
 #ifndef AE_CRYPTO_ASYNC
@@ -301,6 +309,36 @@
 #endif  // AE_KDF
 
 // Cryptographic hash
+// Native peer sessions use the configured Æthernet cryptographic profile.
+#ifndef AE_SUPPORT_P2P
+#  if AE_SUPPORT_UDP && AE_SUPPORT_IPV4 &&                             \
+      (defined(_WIN32) || defined(__linux__) || defined(__APPLE__)) && \
+      ((AE_SIGNATURE == AE_ED25519 &&                                  \
+        AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305 &&                      \
+        AE_CRYPTO_ASYNC == AE_SODIUM_BOX_SEAL) ||                      \
+       (AE_SIGNATURE == AE_HYDRO_SIGNATURE &&                          \
+        AE_CRYPTO_SYNC == AE_HYDRO_CRYPTO_SK &&                        \
+        AE_CRYPTO_ASYNC == AE_HYDRO_CRYPTO_PK))
+#    define AE_SUPPORT_P2P 1
+#  else
+#    define AE_SUPPORT_P2P 0
+#  endif
+#endif
+#ifndef AE_SUPPORT_LAN
+#  define AE_SUPPORT_LAN AE_SUPPORT_P2P
+#endif
+#ifndef AE_LAN_DISCOVERY_PORT
+#  define AE_LAN_DISCOVERY_PORT 46000
+#endif
+#ifndef AE_LAN_LISTEN_PORT
+#  define AE_LAN_LISTEN_PORT 0
+#endif
+#if AE_SUPPORT_LAN && (!AE_SUPPORT_P2P || !AE_SUPPORT_UDP)
+#  error "LAN discovery requires native UDP peer sessions"
+#endif
+#if AE_SUPPORT_P2P && (!AE_SUPPORT_UDP || !AE_SUPPORT_IPV4)
+#  error "Native peer sessions require IPv4 UDP"
+#endif
 #ifndef AE_CRYPTO_HASH
 #  define AE_CRYPTO_HASH AE_BLAKE2B
 #endif  // AE_CRYPTO_HASH
@@ -557,6 +595,6 @@
 #  define AE_OFFLINE_DETECTION_TIMEOUT_MS 1000
 #endif
 #ifndef AE_BENCH_TCP_PROXY
-#define AE_BENCH_TCP_PROXY 0
+#  define AE_BENCH_TCP_PROXY 0
 #endif
 #endif  // AETHER_CONFIG_H_

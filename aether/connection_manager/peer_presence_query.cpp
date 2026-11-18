@@ -1,6 +1,7 @@
 #include "aether/connection_manager/peer_presence_query.h"
 #include <algorithm>
 #include "aether/client.h"
+#include "aether/peer/peer_transport.h"
 #include "aether/server.h"
 namespace ae {
 PeerPresenceQuery::PeerPresenceQuery(AeContext const& context, Client& client,
@@ -16,6 +17,13 @@ PeerPresenceQuery::PeerPresenceQuery(AeContext const& context, Client& client,
     execution_policy_ = policy->cloud_request_execution_policy();
   }
   start_sub_ = context_.scheduler().Task([this]() {
+#if AE_SUPPORT_P2P
+    if (auto* peer = client_->peer_transport();
+        peer && peer->BestPath(peer_uid_)) {
+      Complete({PeerPresenceState::kOnline});
+      return;
+    }
+#endif
     auto& action = client_->cloud_manager()->GetCloud(peer_uid_);
     cloud_sub_ = action.result_event().Subscribe(
         [this](auto result) { OnCloud(std::move(result)); });

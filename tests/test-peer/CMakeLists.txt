@@ -1,0 +1,5 @@
+add_executable(test-peer main.cpp)
+target_include_directories(test-peer PRIVATE ${ROOT_DIR})
+target_link_libraries(test-peer PRIVATE aether unity)
+add_test(NAME test-peer COMMAND test-peer)
+set_tests_properties(test-peer PROPERTIES TIMEOUT 45)

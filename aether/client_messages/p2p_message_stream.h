@@ -33,7 +33,11 @@
 #include "aether/cloud_connections/cloud_server_connections.h"
 #include "aether/connection_manager/client_cloud_manager.h"
 
+#include "aether/actions/action_pool.h"
+#include "aether/peer/peer_types.h"
+#include "aether/peer/peer_write_action.h"
 #include "aether/prepared_packet/packet_encoder.h"
+#include "aether/streams/stream_definition.h"
 
 namespace ae {
 class Client;
@@ -47,7 +51,8 @@ class P2pStream final : public ByteIStream {
   P2pStream(
       AeContext const& ae_context, Ptr<Client> const& client, Uid destination,
       P2pPortHandle handle,
-      RequestPolicy::Variant send_request_policy = RequestPolicy::MainServer{});
+      RequestPolicy::Variant send_request_policy = RequestPolicy::MainServer{},
+      StreamRoutePolicy route_policy = {});
 
   ~P2pStream() override;
 
@@ -67,6 +72,7 @@ class P2pStream final : public ByteIStream {
     bool linked_tcp_endpoint{false};
   };
   SendPathTransportView InspectSendPathTransport() const;
+  std::array<TransportStatistics, 3> statistics() const;
 
  private:
   static constexpr auto kBufferCapacity = AE_P2P_MESSAGE_STREAM_BUFFER_CAPACITY;
@@ -86,6 +92,8 @@ class P2pStream final : public ByteIStream {
 
   P2pPortHandle handle_;
   RequestPolicy::Variant send_request_policy_;
+  StreamRoutePolicy route_policy_;
+  bool connecting_cloud_{};
 
   // connection to destination cloud
   std::unique_ptr<CloudServerConnections> dest_cloud_conn_;
@@ -97,6 +105,8 @@ class P2pStream final : public ByteIStream {
 
   Subscription get_client_cloud_sub_;
   Subscription out_data_sub_;
+  Subscription peer_changed_sub_;
+  ActionPool<AeContext, PeerWriteAction, 64> peer_writes_;
 };
 
 }  // namespace ae

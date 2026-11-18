@@ -24,6 +24,7 @@
 #include "aether/types/server_id.h"
 #include "aether/types/uid.h"
 
+#include "aether/crypto/key.h"
 #include "aether/work_cloud_api/ae_message.h"
 #include "aether/work_cloud_api/client_timing.h"
 #include "aether/work_cloud_api/cloud_configs.h"
@@ -46,20 +47,21 @@ class AuthorizedApi : public DeclareApi<AuthorizedApi> {
   void ResolveServer(std::vector<ServerId> const& sids);
   void ResolveClouds(std::vector<Uid> const& uids);
 
-  // Push protocol: response is ClientApiSafe::SendClientTiming (41), keyed by UID.
+  // Push protocol: response is ClientApiSafe::SendClientTiming (41), keyed by
+  // UID.
   void GetClientTiming(Uid const& uid);
 
   void SendTelemetry(Telemetric const& telemetric);
 
   void ReportAppliedConfigs(std::vector<AppliedConfig> const& configs);
+  void RequestSignedUid(std::vector<Key> const& keys);
 
   API_LIST(METHOD(4, Ping), METHOD(6, SendMessage), METHOD(7, SendMessages),
            METHOD(11, CheckAccessForSendMessage), METHOD(12, ResolveServer),
            METHOD(13, ResolveClouds), METHOD(18, SendTelemetry),
 
            METHOD(35, GetClientTiming), METHOD(38, ReportAppliedConfigs),
-           METHOD(51, SetSessionId))
-
+           METHOD(50, RequestSignedUid), METHOD(51, SetSessionId))
 };
 }  // namespace ae
 

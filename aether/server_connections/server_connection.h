@@ -17,9 +17,11 @@
 #ifndef AETHER_SERVER_CONNECTIONS_SERVER_CONNECTION_H_
 #define AETHER_SERVER_CONNECTIONS_SERVER_CONNECTION_H_
 
+#include <map>
 #include <memory>
 #include <optional>
 #include <vector>
+#include "aether/peer/peer_types.h"
 
 #include "aether-objects/ptr/ptr.h"
 #include "aether-objects/ptr/ptr_view.h"
@@ -55,6 +57,9 @@ class ServerConnection final : public ByteIStream {
   ChannelChangedEvent const& channel_changed_event();
 
   Ptr<Channel> current_channel() const;
+  std::map<Endpoint, TransportStatistics> const& transport_statistics() const {
+    return transport_statistics_;
+  }
 
  private:
   friend struct ServerConnectionTestAccess;
@@ -91,6 +96,7 @@ class ServerConnection final : public ByteIStream {
   Subscription channel_stream_update_sub_;
   Subscription channel_stream_out_data_sub_;
   TaskSubscription defer_sub_;
+  std::map<Endpoint, TransportStatistics> transport_statistics_;
 };
 }  // namespace ae
 

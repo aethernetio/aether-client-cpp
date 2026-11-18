@@ -1,6 +1,7 @@
 /* Copyright 2026 Aethernet Inc. Licensed under the Apache License, Version 2.0.
  */
 #include <unity.h>
+#include <algorithm>
 #include <limits>
 #include <memory>
 #include <vector>
@@ -162,6 +163,10 @@ void test_FragmentsFitActualLoginEncryptionPacketsWithoutSearchSideEffects() {
 }
 void test_LargeSnapshotUsesOneLiveActionBeyondEventPoolCapacity() {
   auto archive = Archive();
+  // Keep the stress case larger than the configured pool on every platform.
+  // Each 96-byte fragment carries fewer than 96 bytes of the source archive.
+  archive.spaces["aether"].environment.compiler.resize(
+      std::max<std::size_t>(100000, 4 * ae::kEventsCapacity * 96), 'x');
   auto payloads = ae::MakeTelemetryPayloads(archive, 96);
   TEST_ASSERT_TRUE(payloads.size() > 4 * ae::kEventsCapacity);
   auto expected = payloads.size();

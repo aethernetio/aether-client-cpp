@@ -30,10 +30,14 @@ namespace ae {
 struct P2pAdaptiveDatagramStream::Impl final : ByteIStream {
   Impl(AeContext const& context, Ptr<Client> const& client, Uid destination,
        P2pPortHandle handle, adaptive_datagram::Config config,
-       RequestPolicy::Variant send_policy)
+       RequestPolicy::Variant send_policy, StreamRoutePolicy route_policy)
       : context{context},
-        p2p{context, client, std::move(destination), std::move(handle),
-            std::move(send_policy)},
+        p2p{context,
+            client,
+            std::move(destination),
+            std::move(handle),
+            std::move(send_policy),
+            route_policy},
         output{context},
         adaptive{context, config},
         receive{p2p.out_data_event().Subscribe([this](auto const& data) {
@@ -87,10 +91,10 @@ struct P2pAdaptiveDatagramStream::Impl final : ByteIStream {
 P2pAdaptiveDatagramStream::P2pAdaptiveDatagramStream(
     AeContext const& context, Ptr<Client> const& client, Uid destination,
     P2pPortHandle handle, adaptive_datagram::Config config,
-    RequestPolicy::Variant send_policy)
+    RequestPolicy::Variant send_policy, StreamRoutePolicy route_policy)
     : impl_{std::make_unique<Impl>(context, client, std::move(destination),
                                    std::move(handle), config,
-                                   std::move(send_policy))} {}
+                                   std::move(send_policy), route_policy)} {}
 P2pAdaptiveDatagramStream::~P2pAdaptiveDatagramStream() = default;
 WriteAction& P2pAdaptiveDatagramStream::Write(DataBuffer&& data) {
   return impl_->adaptive.Write(std::move(data));
@@ -114,6 +118,10 @@ P2pAdaptiveDatagramStream::delivery_event() {
 adaptive_datagram::StreamStatistics P2pAdaptiveDatagramStream::statistics()
     const {
   return impl_->adaptive.statistics();
+}
+std::array<TransportStatistics, 3>
+P2pAdaptiveDatagramStream::transport_statistics() const {
+  return impl_->p2p.statistics();
 }
 adaptive_datagram::RateControllerMetrics const&
 P2pAdaptiveDatagramStream::metrics() const {

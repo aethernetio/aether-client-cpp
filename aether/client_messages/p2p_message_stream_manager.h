@@ -26,6 +26,7 @@
 #include "aether/client_messages/p2p_port_handle.h"
 #include "aether/cloud_connections/cloud_subscription.h"
 #include "aether/events/events.h"
+#include "aether/peer/peer_delivery.h"
 #include "aether/types/uid.h"
 
 namespace ae {
@@ -47,19 +48,34 @@ class P2pMessageStreamManager {
   P2pMessageStreamManager(AeContext const& ae_context,
                           Ptr<Client> const& client);
 
-  P2pPortHandle CreatePort(Uid const& destination);
+  P2pPortHandle CreatePort(Uid const& destination, std::uint32_t stream = 0,
+                           PeerService service = {});
+  DataBuffer Frame(std::uint32_t stream, DataBuffer data,
+                   PeerService service = {});
+  void AttachPeer();
+  void RetainPeerRoute(Uid const& destination, bool keep_backup);
+  void ReleasePeerRoute(Uid const& destination, bool keep_backup);
+  Event<void()> const& route_changed_event() const {
+    return route_changed_event_;
+  }
+  void RecordSent(Uid const& destination, std::uint32_t stream, PeerRoute route,
+                  std::size_t bytes);
+  std::array<TransportStatistics, 3> Statistics(Uid const& destination,
+                                                std::uint32_t stream) const;
   NewPortEvent const& new_port_event();
 
  private:
   friend struct P2pMessageStreamManagerTestAccess;
 
-  void NewMessageReceived(AeMessage const& message);
+  void NewMessageReceived(AeMessage const& message,
+                          PeerRoute route = PeerRoute::kCloud);
   void CleanUpPorts();
 
-  using PortsMap =
-      std::map<Uid, std::weak_ptr<p2p_stream_internal::P2pReceivePort>>;
+  using PortsMap = std::map<std::pair<Uid, std::uint32_t>,
+                            std::weak_ptr<p2p_stream_internal::P2pReceivePort>>;
   std::pair<std::shared_ptr<p2p_stream_internal::P2pReceivePort>, bool>
-  GetOrCreatePort(Uid const& destination);
+  GetOrCreatePort(Uid const& destination, std::uint32_t stream = 0,
+                  PeerService service = {});
 
   AeContext ae_context_;
   PtrView<Client> client_;
@@ -67,6 +83,15 @@ class P2pMessageStreamManager {
   PortsMap ports_;
   NewPortEvent new_port_event_;
   CloudEventListener on_message_received_sub_;
+  Subscription peer_received_sub_;
+  Subscription peer_updates_sub_;
+  Event<void()> route_changed_event_;
+  std::map<Uid, std::pair<std::size_t, std::size_t>> route_users_;
+  PeerDeliveryWindow receive_window_;
+  Uid delivery_epoch_{};
+  std::uint64_t delivery_number_{};
+  std::map<std::pair<Uid, std::uint32_t>, std::array<TransportStatistics, 3>>
+      traffic_;
 };
 
 }  // namespace ae

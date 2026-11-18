@@ -20,11 +20,13 @@
 #include "aether/types/uid.h"
 
 #include "aether/api_protocol/api_protocol.h"
+#include "aether/crypto/key.h"
+#include "aether/crypto/sign.h"
 #include "aether/events/events.h"
 
 #include "aether/work_cloud_api/ae_message.h"
-#include "aether/work_cloud_api/cloud_configs.h"
 #include "aether/work_cloud_api/client_timing.h"
+#include "aether/work_cloud_api/cloud_configs.h"
 #include "aether/work_cloud_api/server_descriptor.h"
 
 namespace ae {
@@ -84,9 +86,11 @@ class ClientApiSafe : public DeclareApi<ClientApiSafe> {
 
   void PingAck();
   void SendClientTiming(Uid const& uid, ClientTiming const& timing);
+  void SendSignedUid(std::vector<Key> const& keys,
+                     std::vector<Sign> const& signs);
+  auto const& signed_uid_event() const { return signed_uid_event_; }
 
   Event<void()> ping_ack_event;
-
 
   API_LIST(METHOD(3, ChangeParent), METHOD(4, ChangeAlias),
            METHOD(5, NewChildren), METHOD(6, SendMessages),
@@ -101,12 +105,9 @@ class ClientApiSafe : public DeclareApi<ClientApiSafe> {
            METHOD(18, SendAllAccessedClients),
            METHOD(19, SendAccessCheckResults), METHOD(20, SendMessage),
 
-
            METHOD(21, SendCLoudConfig), METHOD(24, PingAck),
-           METHOD(41, SendClientTiming),
+           METHOD(41, SendClientTiming), METHOD(71, SendSignedUid),
            METHOD(72, OnSessionId), METHOD(73, OnResponseFor));
-
-
 
   auto const& send_message_event() { return send_message_event_; }
   auto const& send_cloud_event() { return send_cloud_event_; }
@@ -117,7 +118,6 @@ class ClientApiSafe : public DeclareApi<ClientApiSafe> {
   auto const& send_cloud_configs() { return send_cloud_configs_; }
   auto const& client_timing_event() const { return client_timing_event_; }
 
-
   std::uint64_t session_id() const { return session_id_; }
   std::uint64_t response_session_id() const { return response_session_id_; }
   void ResetResponseContext() { response_session_id_ = 0; }
@@ -127,6 +127,8 @@ class ClientApiSafe : public DeclareApi<ClientApiSafe> {
   auto const& ping_ack_context_event() { return ping_ack_context_event_; }
 
  private:
+  Event<void(std::vector<Key> const&, std::vector<Sign> const&)>
+      signed_uid_event_;
   Event<void(AeMessage const& message)> send_message_event_;
   Event<void(ServerDescriptor const& server_descriptor)>
       send_server_descriptor_event_;
@@ -140,7 +142,6 @@ class ClientApiSafe : public DeclareApi<ClientApiSafe> {
   Event<void(std::uint64_t)> ping_ack_context_event_;
   std::uint64_t session_id_{0};
   std::uint64_t response_session_id_{0};
-
 };
 }  // namespace ae
 

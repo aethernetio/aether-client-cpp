@@ -33,6 +33,8 @@ namespace ae {
 struct PingTestAccess {
   static void Arm(Ping& ping, ClientApiSafe& api, TimePoint time) {
     ping.ArmResponse(api, time);
+    // The real server tags PingAck with the request's session context.
+    api.OnResponseFor(PackedSize{ping.context_id()});
   }
   static bool Waiting(Ping const& ping) { return bool(ping.wait_result_sub_); }
 };
@@ -258,21 +260,22 @@ void test_ObjDomainSaveLoadContinuesWithoutStop() {
 
 void test_ObjectRestartAndDrainStartIndependentTimeAnchors() {
   RamDomainStorage storage;
-  constexpr std::array<std::uint64_t, 4> bases{
-      1000000, 2000000, 100, 999999999999};
+  constexpr std::array<std::uint64_t, 4> bases{1000000, 2000000, 100,
+                                               999999999999};
   using LogSpace = tele::raw::Space<Identity>;
   for (std::size_t boot = 0; boot < bases.size(); ++boot) {
     Domain domain{storage};
-    auto object = boot == 0
-        ? TeleStatistics::ptr::Create(CreateWith{domain}.with_id(124))
-        : TeleStatistics::ptr::Declare(CreateWith{domain}.with_id(124));
+    auto object =
+        boot == 0
+            ? TeleStatistics::ptr::Create(CreateWith{domain}.with_id(124))
+            : TeleStatistics::ptr::Declare(CreateWith{domain}.with_id(124));
     TEST_ASSERT_TRUE(bool(object.Load()));
     auto backend = object->backend();
     LogSpace space;
     space.SetRuntime({true, false, true, true, tele::raw::kTime});
     Destination destination{backend};
     tele::raw::Stream<LogSpace, 128> stream(space, 3, Destination::Save,
-                                          &destination);
+                                            &destination);
     auto totals = Restore(*backend, "aether", 3);
     TEST_ASSERT_TRUE(stream.RestoreMetrics(totals));
     TEST_ASSERT_TRUE(stream.MetricFor(7).count == 3 * boot);
@@ -280,8 +283,8 @@ void test_ObjectRestartAndDrainStartIndependentTimeAnchors() {
     tele::raw::Tag<LogSpace> const tag{
         7, 1, 1, "restart-time", "restart-time", __FILE__, __LINE__};
     for (std::uint64_t event = 0; event < 3; ++event) {
-      TEST_ASSERT_TRUE(stream.Emit(tag, tele::raw::Kind::kLog,
-          space.Runtime(), {}, 0, bases[boot] + event));
+      TEST_ASSERT_TRUE(stream.Emit(tag, tele::raw::Kind::kLog, space.Runtime(),
+                                   {}, 0, bases[boot] + event));
       stream.Count(7);
       stream.AddDuration(7, 5);
       if (event == 1) {

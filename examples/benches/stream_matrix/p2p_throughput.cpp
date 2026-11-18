@@ -55,8 +55,13 @@ bool Until(AetherApp& app, auto predicate, unsigned seconds) {
   return predicate();
 }
 int Run(char const* filename, unsigned seconds, unsigned payload, bool udp) {
-  if (!AE_FILTRATION || !stream_matrix_bench::RegistrationSeedReadyForUdpBench(
-                            std::cerr, std::filesystem::current_path())) {
+#if defined(AE_FILTRATION) && AE_FILTRATION
+  constexpr bool filtration = true;
+#else
+  constexpr bool filtration = false;
+#endif
+  if (!filtration || !stream_matrix_bench::RegistrationSeedReadyForUdpBench(
+                         std::cerr, std::filesystem::current_path())) {
     return 3;
   }
   auto app = examples::construct_aether_app();

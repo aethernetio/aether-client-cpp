@@ -56,6 +56,7 @@ void BuildNewServers(Aether::ptr const& aether,
   for (auto const& sd : server_descriptors) {
     // check if server exits first
     if (auto s = a->GetServer(sd.server_id); s.is_valid()) {
+      s->signing_keys = sd.signing_keys;
       servers.emplace_back(std::move(s));
       continue;
     }
@@ -68,11 +69,12 @@ void BuildNewServers(Aether::ptr const& aether,
     }
 
     AETHER_TELED_DEBUG("Make new server id:{}, endpoints:{}", sd.server_id,
-                   endpoints);
+                       endpoints);
 
     auto s = Server::ptr::Create(aether.domain(), sd.server_id, endpoints,
                                  a->adapter_registry);
     aether->StoreServer(s);
+    s->signing_keys = sd.signing_keys;
     servers.emplace_back(std::move(s));
   }
 }
@@ -248,7 +250,7 @@ void ClientCloudManager::Loaded() {
 void ClientCloudManager::CloudConfigs(std::vector<CloudConfig> const& configs) {
   for (auto const& conf : configs) {
     AETHER_TELED_DEBUG("Got cloud config update subject:{}, ver:{}, cloud:[{}]",
-                   conf.subject_uid, conf.config_version, conf.cloud.sids);
+                       conf.subject_uid, conf.config_version, conf.cloud.sids);
 
     // find this config in cache
     auto it = cloud_cache_.find(conf.subject_uid);
@@ -287,7 +289,8 @@ void ClientCloudManager::CloudConfigs(std::vector<CloudConfig> const& configs) {
 void ClientCloudManager::FinalizeCloudConfig(CloudConfig const& conf) {
   auto aether = aether_.Load();
 
-  AETHER_TELED_DEBUG("Finalize servers for new cloud config [{}]", conf.cloud.sids);
+  AETHER_TELED_DEBUG("Finalize servers for new cloud config [{}]",
+                     conf.cloud.sids);
   // make async waiter for building the new cloud
   make_servers_.emplace_back(
       std::make_unique<ex::AnyWaiter<ex::set_value_t(std::vector<Server::ptr>),
@@ -302,7 +305,8 @@ void ClientCloudManager::FinalizeCloudConfig(CloudConfig const& conf) {
               cloud_update_event_->Emit(conf.subject_uid,
                                         Ok<Cloud::ptr const&>{cloud});
             } else {
-              AETHER_TELED_ERROR("Cloud resolve failed!, Error {}", res->error());
+              AETHER_TELED_ERROR("Cloud resolve failed!, Error {}",
+                                 res->error());
               // TODO: how to handle such error?
               cloud_update_event_->Emit(conf.subject_uid, Error{res->error()});
             }

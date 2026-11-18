@@ -26,6 +26,7 @@ namespace ae {
 
 ClientApiSafe::ClientApiSafe(EventSystem& event_system)
     : ping_ack_event{event_system},
+      signed_uid_event_{event_system},
       send_message_event_{event_system},
       send_server_descriptor_event_{event_system},
       send_cloud_event_{event_system},
@@ -44,10 +45,15 @@ void ClientApiSafe::PingAck() {
   ping_ack_event.Emit();
 }
 
-void ClientApiSafe::SendClientTiming(Uid const& uid, ClientTiming const& timing) {
-  client_timing_event_.Emit(uid, timing);
+void ClientApiSafe::SendSignedUid(std::vector<Key> const& keys,
+                                  std::vector<Sign> const& signs) {
+  signed_uid_event_.Emit(keys, signs);
 }
 
+void ClientApiSafe::SendClientTiming(Uid const& uid,
+                                     ClientTiming const& timing) {
+  client_timing_event_.Emit(uid, timing);
+}
 
 void ClientApiSafe::ChangeParent([[maybe_unused]] Uid const& uid) {
   AETHER_TELED_DEBUG("ChangeParent");

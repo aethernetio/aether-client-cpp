@@ -20,16 +20,18 @@
 #include <vector>
 
 #include "aether-miscpp/format/format.h"
+#include "aether-miscpp/reflect/reflect.h"
+#include "aether/crypto/signed_key.h"
 #include "aether/types/address.h"
 #include "aether/types/server_id.h"
-#include "aether-miscpp/reflect/reflect.h"
 
 namespace ae {
 struct ServerConfig {
-  AE_REFLECT_MEMBERS(id, endpoints)
+  AE_REFLECT_MEMBERS(id, endpoints, signing_keys)
 
   ServerId id;
   std::vector<Endpoint> endpoints;
+  std::vector<SignedKey> signing_keys{};
 };
 
 template <>

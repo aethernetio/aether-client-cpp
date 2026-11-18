@@ -17,6 +17,9 @@
 #include "aether/work_cloud_api/work_server_api/authorized_api.h"
 
 namespace ae {
+void AuthorizedApi::RequestSignedUid(std::vector<Key> const& keys) {
+  ClientMethod<&AuthorizedApi::RequestSignedUid>(keys);
+}
 
 void AuthorizedApi::Ping(std::uint64_t next_connect_ms_duration,
                          std::uint64_t rx_window_ms) {

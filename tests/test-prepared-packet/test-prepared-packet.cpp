@@ -37,6 +37,7 @@
 #include "aether/crypto/key_gen.h"
 #include "aether/crypto/sync_crypto_provider.h"
 #include "aether/env.h"
+#include "aether/peer/peer_serialization.h"
 #include "aether/prepared_packet/packet_encoder.h"
 #include "aether/prepared_packet/prepared_send_message.h"
 #include "aether/server.h"
@@ -238,8 +239,22 @@ void AssertEncodedPacket(PreparedPacketFixture& fixture,
   SyncDecryptProvider decrypt_provider{std::make_unique<FixedKeyProvider>(
       std::move(client_to_server_key), encoded_nonce)};
   auto const message = decrypt_provider.Decrypt(encrypted_message);
-  AssertPacket(message, PreparedPacketFixture::kEncryptedPayloadMessageId,
-               fixture.client->uid(), payload);
+  MessageId method{};
+  Uid destination;
+  DataBuffer framed;
+  TEST_ASSERT_TRUE(PeerDecode(message, method, destination, framed));
+  TEST_ASSERT_EQUAL(PreparedPacketFixture::kEncryptedPayloadMessageId, method);
+  TEST_ASSERT_TRUE(destination == fixture.client->uid());
+  PeerDelivery delivery;
+  TEST_ASSERT_TRUE(PeerDecode(framed, delivery));
+  TEST_ASSERT_EQUAL_HEX32(0x31444d41, delivery.magic);
+  TEST_ASSERT_TRUE(delivery.data == payload);
+  TEST_ASSERT_TRUE(delivery.stream == 0 && delivery.service.id.empty());
+  auto send_message = block.Resolve();
+  TEST_ASSERT_TRUE(delivery.epoch == send_message->delivery_epoch);
+  TEST_ASSERT_TRUE(!delivery.epoch.empty());
+  TEST_ASSERT_TRUE(delivery.number == send_message->delivery_number);
+  TEST_ASSERT_TRUE(delivery.number > 0);
 }
 #endif
 
@@ -521,6 +536,11 @@ void test_PrepareSendMessageBlockForConfiguredClientEncodesPacket() {
   TEST_ASSERT_TRUE(NoncesEqual(encoded_nonce, next_nonce));
   TEST_ASSERT_TRUE(NoncesEqual(expected_server_nonce, server_state->nonce()));
 
+  AssertEncodedPacket(f, block, encoded_nonce, packet, payload);
+  encoded_nonce.Next();
+  TEST_ASSERT_TRUE(
+      prepared_packet::EncodePacket(block, payload, packet).IsOk());
+  TEST_ASSERT_TRUE(block.Resolve()->delivery_number == 2);
   AssertEncodedPacket(f, block, encoded_nonce, packet, payload);
 }
 

@@ -65,6 +65,12 @@ std::optional<std::size_t> EncodedBytes(std::size_t payload_size) {
   // it with a fixed-size tag/nonce, then packs LoginByAlias(sender UID, sized
   // ciphertext). Count those fields without allocating or encrypting payloads.
   // Both method IDs are uint8_t and UIDs have a fixed 16-byte wire encoding.
+  auto const inner_length = PackedLengthBytes(payload_size);
+  if (!inner_length ||
+      !AddSize(payload_size, 4 + Uid::kSize + 8 + 4 + Uid::kSize + 2) ||
+      !AddSize(payload_size, *inner_length)) {
+    return std::nullopt;
+  }
   auto const overhead = EncryptOverhead();
   auto const payload_length = PackedLengthBytes(payload_size);
   if (!overhead || !payload_length) {
@@ -121,6 +127,7 @@ std::size_t P2pStreamWritePayloadLimitFromChannelMax(
   if (channel_max_element_size > kP2pStreamWriteBudgetDatagramSizingMax) {
     return channel_max_element_size;
   }
-  return MaxP2pStreamWritePayloadBytesForDatagramBudget(channel_max_element_size);
+  return MaxP2pStreamWritePayloadBytesForDatagramBudget(
+      channel_max_element_size);
 }
 }  // namespace ae
