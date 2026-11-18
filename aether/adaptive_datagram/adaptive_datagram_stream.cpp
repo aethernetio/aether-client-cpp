@@ -453,6 +453,7 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
   void Tick() {
     auto const epoch = link_epoch;
     auto const now = clock();
+    auto const queue_was_full = Queued() >= config.max_queue_packets;
     // Reap actions only on a later scheduler turn, after their terminal event.
     pending.remove_if([](auto const& w) { return w->is_finished(); });
     for (auto& w : pending) {
@@ -568,6 +569,9 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
       next = std::min(next, next_send);
     }
     Wake(next);
+    if (queue_was_full && Info().is_writable) {
+      updated.Emit();
+    }
   }
 
   void Receive(Datagram packet) {

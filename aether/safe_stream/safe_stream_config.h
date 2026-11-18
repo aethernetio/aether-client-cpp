@@ -22,6 +22,9 @@
 #include "aether/clock.h"
 
 namespace ae {
+template <std::size_t Capacity, typename Offset = std::uint16_t>
+class SafeStream;
+
 struct SafeStreamConfig {
   std::size_t window_size;        //< size of sending window
   std::size_t max_packet_size;    //< max size of sending data
@@ -29,6 +32,11 @@ struct SafeStreamConfig {
   Duration wait_ack_timeout;      //< Timeout for waiting ack
   Duration send_ack_timeout;      //< max time to wait before send ack
   Duration send_repeat_timeout;  //< max time to wait before send repeat request
+  // Wait for a writable event before submitting data to a bounded transport.
+  bool wait_for_writable_transport{false};
+  // Opt into 32-bit offsets in P2pSafeStream. Both peers must use the same mode.
+  bool wide_offsets{false};
+  Duration minimum_ack_timeout{};
 };
 
 }  // namespace ae

@@ -23,20 +23,26 @@
 #include "aether/types/data_buffer.h"
 
 namespace ae {
-class ISafeStreamApi : public DeclareApi<ISafeStreamApi> {
- public:
-  virtual ~ISafeStreamApi() = default;
+template <typename Offset>
+class SafeStreamApi : public DeclareApi<SafeStreamApi<Offset>> {
+  using SelfType = SafeStreamApi<Offset>;
+  static constexpr unsigned kFirstMethod = sizeof(Offset) == 4 ? 7 : 3;
 
-  virtual void Ack(std::uint16_t index) = 0;
-  virtual void RequestRepeat(std::uint16_t index) = 0;
-  virtual void SendReset(std::uint16_t index, std::uint16_t delta_offset,
+ public:
+  virtual ~SafeStreamApi() = default;
+
+  virtual void Ack(Offset index) = 0;
+  virtual void RequestRepeat(Offset index) = 0;
+  virtual void SendReset(Offset index, Offset delta_offset,
                          std::uint8_t repeat_count, DataBuffer data) = 0;
-  virtual void Send(std::uint16_t index, std::uint16_t delta_offset,
+  virtual void Send(Offset index, Offset delta_offset,
                     std::uint8_t repeat_count, DataBuffer data) = 0;
 
-  API_LIST(METHOD(3, Ack), METHOD(4, RequestRepeat), METHOD(5, SendReset),
-           METHOD(6, Send))
+  API_LIST(METHOD(kFirstMethod, Ack), METHOD(kFirstMethod + 1, RequestRepeat),
+           METHOD(kFirstMethod + 2, SendReset), METHOD(kFirstMethod + 3, Send))
 };
+
+using ISafeStreamApi = SafeStreamApi<std::uint16_t>;
 
 }  // namespace ae
 

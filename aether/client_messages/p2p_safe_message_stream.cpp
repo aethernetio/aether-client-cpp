@@ -18,16 +18,34 @@
 
 #include <utility>
 
+#include "aether/client_messages/p2p_adaptive_datagram_stream.h"
 #include "aether/safe_stream/safe_stream.h"
 #include "aether/stream_api/tied_gates.h"
 
 namespace ae {
+namespace {
+SafeStreamConfig AdaptiveTransportConfig(SafeStreamConfig config) {
+  config.wait_for_writable_transport = true;
+  config.wide_offsets = true;
+  config.minimum_ack_timeout = std::max(config.minimum_ack_timeout, Duration{1s});
+  return config;
+}
+std::unique_ptr<SafeStreamBase> MakeSafeStream(AeContext const& context,
+                                              SafeStreamConfig const& config) {
+  if (config.wide_offsets) {
+    return std::make_unique<SafeStream<kP2pSafeStreamWideCapacity, std::uint32_t>>(
+        context, config);
+  }
+  return std::make_unique<P2pSafeStream::SafeStreamImpl>(context, config);
+}
+}  // namespace
+
 P2pSafeStream::P2pSafeStream(AeContext const& ae_context,
                              SafeStreamConfig const& config,
-                             std::shared_ptr<ByteIStream> p2p_stream)
+                             std::shared_ptr<ByteIStream> transport)
     : sized_packet_gate_{ae_context},
-      safe_stream_{std::make_unique<SafeStreamImpl>(ae_context, config)},
-      p2p_stream_{std::move(p2p_stream)},
+      transport_{std::move(transport)},
+      safe_stream_{MakeSafeStream(ae_context, config)},
       out_data_event_{ae_context},
       receive_reset_event_{ae_context},
       out_data_sub_{
@@ -35,8 +53,18 @@ P2pSafeStream::P2pSafeStream(AeContext const& ae_context,
               [this](auto const& data) { out_data_event_.Emit(data); }),
           safe_stream_->out_data_event().Subscribe(
               [this](auto const& data) { OnSafeData(data); })} {
-  Tie(*safe_stream_, *p2p_stream_);
+  Tie(*safe_stream_, *transport_);
 }
+
+P2pSafeStream::P2pSafeStream(AeContext const& ae_context, SafeStreamConfig config,
+                             adaptive_datagram::Config datagram_config,
+                             Ptr<Client> const& client, Uid destination,
+                             P2pPortHandle handle)
+    : P2pSafeStream{
+          ae_context, AdaptiveTransportConfig(config),
+          std::make_shared<P2pAdaptiveDatagramStream>(
+              ae_context, client, std::move(destination), std::move(handle),
+              std::move(datagram_config))} {}
 
 P2pSafeStream::~P2pSafeStream() = default;
 

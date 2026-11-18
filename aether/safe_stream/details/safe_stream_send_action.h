@@ -47,14 +47,15 @@ static inline Num RandomOffset() {
 }
 }  // namespace safe_stream_send_action_internal
 
-template <std::size_t Capacity>
+template <std::size_t Capacity, typename Offset = std::uint16_t>
 class ISafeStreamSendActionDelegate {
  public:
-  using IndexType = RingIndex<Capacity>;
+  using IndexType = typename SafeStreamBuffer<Capacity, Offset>::index_type;
 
   virtual ~ISafeStreamSendActionDelegate() = default;
-  virtual WriteAction& PushData(std::uint16_t index,
-                                DataMessage&& data_message) = 0;
+  virtual bool CanPushData() const { return true; }
+  virtual WriteAction& PushData(Offset index,
+                                SafeStreamDataMessage<Offset>&& data_message) = 0;
   virtual void WriteAcknowledged(IndexType buffer_begin,
                                  IndexType ack_index) = 0;
   virtual void WriteStopped(IndexType buffer_begin, IndexType stop_index) = 0;
@@ -62,25 +63,26 @@ class ISafeStreamSendActionDelegate {
 };
 
 // TODO: split on templated and not templated parts
-template <std::size_t Capacity>
+template <std::size_t Capacity, typename Offset = std::uint16_t>
 class SafeStreamSendAction {
  public:
   using ResponseStatistics =
       StatisticsCounter<Duration, AE_STATISTICS_SAFE_STREAM_WINDOW_SIZE>;
 
   static constexpr std::size_t kCapacity = Capacity;
-  using CircularBufferImpl = CircularBuffer<kCapacity>;
+  using CircularBufferImpl = SafeStreamBuffer<kCapacity, Offset>;
   using IndexType = CircularBufferImpl::index_type;
   using IndexRangeType = RingIndexRange<IndexType>;
   using SendingChunkListImpl = SendingChunkList<IndexType>;
 
   SafeStreamSendAction(AeContext const& ae_context,
-                       ISafeStreamSendActionDelegate<Capacity>& delegate,
+                       ISafeStreamSendActionDelegate<Capacity, Offset>& delegate,
                        SafeStreamConfig const& config)
       : ae_context_{ae_context},
         delegate_{&delegate},
         max_repeat_count_{config.max_repeat_count},
         window_size_{config.window_size},
+        minimum_ack_timeout_{config.minimum_ack_timeout},
         sending_buffer_{
             safe_stream_send_action_internal::RandomOffset<std::size_t>()},
         sending_chunks_{sending_buffer_.begin()},
@@ -118,7 +120,7 @@ class SafeStreamSendAction {
     sending_buffer_.EraseFrom(range.left);
   }
 
-  bool Acknowledge(std::uint16_t confirm_offset) {
+  bool Acknowledge(Offset confirm_offset) {
     auto confirm_index = IndexType(confirm_offset);
     AETHER_TELED_DEBUG("Receive ack for offset {} index {}", confirm_offset,
                    confirm_index);
@@ -137,7 +139,7 @@ class SafeStreamSendAction {
       response_statistics_.Add(response_duration);
     }
 
-    if (IndexComparable{last_sent_, sending_buffer_.begin()} < confirm_index) {
+    if (IndexComparable{last_sent_, sending_buffer_.begin()} <= confirm_index) {
       last_sent_ = confirm_index + 1;
     }
     delegate_->WriteAcknowledged(sending_buffer_.begin(), confirm_index);
@@ -152,7 +154,7 @@ class SafeStreamSendAction {
     return true;
   }
 
-  void RequestRepeat(std::uint16_t request_offset) {
+  void RequestRepeat(Offset request_offset) {
     auto request_index = IndexType(request_offset);
     // if not in a current range
     if (!IndexRangeType{sending_buffer_.begin(), sending_buffer_.end()}.InRange(
@@ -197,7 +199,8 @@ class SafeStreamSendAction {
     auto const& selected_sch = sending_chunks_.front();
     // wait timeout is depends on repeat_count and response statistics
     auto wait_ack_timeout =
-        static_cast<double>(response_statistics_.percentile<99>().count());
+        static_cast<double>(std::max(minimum_ack_timeout_,
+                                     response_statistics_.template percentile<99>()).count());
     auto increase_factor = std::max(1.0, (AE_SAFE_STREAM_RTO_GROW_FACTOR *
                                           (selected_sch.repeat_count - 1)));
     auto wait_timeout = Duration{
@@ -229,17 +232,11 @@ class SafeStreamSendAction {
 
   Result<typename CircularBufferImpl::DSpan, int> GetNextChunk() {
     auto on_the_go_data_size = Distance(sending_buffer_.begin(), last_sent_);
+    if (on_the_go_data_size >= window_size_) {
+      return Error{0};
+    }
     auto payload_size =
         std::min(max_payload_size_, window_size_ - on_the_go_data_size);
-    if (payload_size == 0) {
-      AETHER_TELED_WARNING(
-          "Window size exceeded: begin: {} last_sent: {} on the go data "
-          "size: {}, window size: {}",
-          sending_buffer_.begin(), last_sent_, on_the_go_data_size,
-          window_size_);
-      // return empty span
-      return Ok{typename CircularBufferImpl::DSpan{}};
-    }
 
     // read payload_size
     auto read_res = sending_buffer_.Read(last_sent_, payload_size);
@@ -279,7 +276,7 @@ class SafeStreamSendAction {
      - push the data to send_data_push_ and wait either for timeout or result
    */
   void SendChunk(TimePoint current_time) {
-    if (max_payload_size_ == 0) {
+    if (max_payload_size_ == 0 || !delegate_->CanPushData()) {
       return;
     }
     auto res = GetNextChunk().Then([&](CircularBufferImpl::DSpan const& dspan) {
@@ -313,16 +310,19 @@ class SafeStreamSendAction {
     send_subs_ +=
         PushData(dspan, send_chunk.range.left, send_chunk.repeat_count - 1)
             .status_event()
-            .Subscribe([this, end_index{send_chunk.range.right}](auto status) {
+            .Subscribe([this, range{send_chunk.range}](auto status) {
               switch (status) {
                 case WriteAction::Status::kSuccess:
                   break;
                 case WriteAction::Status::kFail:
                 case WriteAction::Status::kStop:
                   // if send failed, repeat
-                  if (IndexComparable{last_sent_, sending_buffer_.begin()} >
-                      end_index) {
-                    last_sent_ = end_index;
+                  if (IndexRangeType{sending_buffer_.begin(),
+                                     sending_buffer_.end()}
+                          .InRange(range.left, sending_buffer_.begin()) &&
+                      IndexComparable{last_sent_, sending_buffer_.begin()} >
+                          range.left) {
+                    last_sent_ = range.left;
                   }
                   EnqueueSend();
                   break;
@@ -360,21 +360,22 @@ class SafeStreamSendAction {
                   static_cast<DataBuffer::difference_type>(dspan.first.size()));
 
     return delegate_->PushData(
-        static_cast<std::uint16_t>(sending_buffer_.begin()),
-        DataMessage{
+        static_cast<Offset>(sending_buffer_.begin()),
+        SafeStreamDataMessage<Offset>{
             init_state_,
             repeat_count,
-            static_cast<std::uint16_t>(
+            static_cast<Offset>(
                 sending_buffer_.begin().Distance(data_index)),
             std::move(std::move(data_buffer)),
         });
   }
 
   AeContext ae_context_;
-  ISafeStreamSendActionDelegate<Capacity>* delegate_;
+  ISafeStreamSendActionDelegate<Capacity, Offset>* delegate_;
 
   std::uint8_t max_repeat_count_{};
   std::size_t window_size_{};
+  Duration minimum_ack_timeout_{};
   std::size_t max_payload_size_{};
 
   CircularBufferImpl sending_buffer_;
