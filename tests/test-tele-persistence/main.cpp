@@ -22,6 +22,7 @@
 #include "aether/cloud_connections/cloud_server_connection.h"
 #include "aether/global_ids.h"
 #include "aether/tele.h"
+#include "aether/types/packed_size.h"
 #if AE_OBJECTS_RAW_TELE
 #  include "aether-objects/telemetry.h"
 #endif
@@ -736,8 +737,12 @@ void test_PingAckCompletesOnlyMatchingPendingConnectionAndCancelsTimeout() {
         })};
     PingTestAccess::Arm(ping, matching, start);
     TEST_ASSERT_TRUE(PingTestAccess::Waiting(ping));
+    auto const context_id = PackedSize{ping.context_id()};
+    unrelated.OnResponseFor(context_id);
     unrelated.PingAck();
+    environment.scheduler().Update(start);
     TEST_ASSERT_EQUAL_UINT(0, calls);
+    matching.OnResponseFor(context_id);
     matching.PingAck();
     TEST_ASSERT_EQUAL_UINT(0, calls);
     environment.scheduler().Update(start);
@@ -766,6 +771,7 @@ void test_PingAckCompletesOnlyMatchingPendingConnectionAndCancelsTimeout() {
     TEST_ASSERT_EQUAL_UINT(1, timeouts);
     TEST_ASSERT_TRUE(PingTestAccess::Waiting(ping));
     TEST_ASSERT_EQUAL_UINT(0, late_responses);
+    matching.OnResponseFor(PackedSize{ping.context_id()});
     matching.PingAck();
     TEST_ASSERT_EQUAL_UINT(0, late_responses);
     environment.scheduler().Update(start + std::chrono::seconds{2});
@@ -780,6 +786,7 @@ void test_PingAckCompletesOnlyMatchingPendingConnectionAndCancelsTimeout() {
     Ping ping{context, connection, std::chrono::seconds{5},
               std::chrono::seconds{5}, std::chrono::seconds{1}};
     PingTestAccess::Arm(ping, matching, start);
+    matching.OnResponseFor(PackedSize{ping.context_id()});
   }
   matching.PingAck();
   environment.scheduler().Update(start + std::chrono::seconds{4});
