@@ -41,7 +41,7 @@ reliable/adaptive streams keep their own acknowledgement and retry semantics.
 entries. `PeerPath::punch_lane` identifies the independent socket pair.
 
 For signaling the SDK reserves logical stream ID `0xfffffff0` and service
-`a89d9189-9e39-4a22-ae70-112812720101`, version 2. That stream explicitly allows
+`a89d9189-9e39-4a22-ae70-112812720101`. That stream explicitly allows
 only cloud transport, preventing recursive rendezvous attempts for signaling.
 
 ## Socket registration

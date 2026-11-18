@@ -115,6 +115,6 @@ The broker uses `ReceivePresenceState` for observed endpoint freshness. Inactive
 credentials expire after the larger of 180 seconds or the confirmed timing plus
 RX window and offline timeout. No UID is added to cleartext UDP records.
 
-Native protocol version is 2; rendezvous service version is 2 (`RVS2`/`RVU2`).
-Old data and wire compatibility are not provided. The UID certificate format and
+There is one current peer and rendezvous wire format, without version negotiation
+or parallel legacy implementations. The UID certificate format and
 Æthernet server APIs are unchanged.

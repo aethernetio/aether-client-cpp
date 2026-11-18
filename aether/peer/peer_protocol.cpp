@@ -5,8 +5,9 @@
 #  include <string>
 #  include "aether/api_protocol/details/api_packer.h"
 namespace ae {
-static_assert(std::endian::native == std::endian::little,
-              "Peer v1 uses the existing little-endian Æthernet wire format");
+static_assert(
+    std::endian::native == std::endian::little,
+    "Peer transport uses the existing little-endian Æthernet wire format");
 DataBuffer PeerRootApi::Pack(PeerPacket const& packet) {
   DataBuffer wire;
   ApiPacker packer{wire};
@@ -22,9 +23,8 @@ std::optional<PeerPacket> PeerRootApi::Parse(DataBuffer const& wire) {
   PeerPacket packet;
   MessageId id{};
   if (!PeerDecode(wire, id, packet.header, packet.body) ||
-      packet.header.magic != 0x31504541 ||
-      packet.header.version != kPeerProtocolVersion ||
-      packet.header.app.empty() || packet.header.token.empty() ||
+      packet.header.magic != 0x50504541 || packet.header.app.empty() ||
+      packet.header.token.empty() ||
       packet.header.profile != kDefaultCryptoLibProfile || id < 3 || id > 9) {
     return {};
   }

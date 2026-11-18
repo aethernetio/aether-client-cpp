@@ -4,8 +4,8 @@
 #  include "aether/api_protocol/details/api_packer.h"
 namespace ae {
 namespace rendezvous_protocol_internal {
-constexpr std::uint32_t kSignalMagic = 0x32535652;
-constexpr std::uint32_t kUdpMagic = 0x32555652;
+constexpr std::uint32_t kSignalMagic = 0x53535652;
+constexpr std::uint32_t kUdpMagic = 0x44555652;
 }  // namespace rendezvous_protocol_internal
 DataBuffer PackRendezvousSignal(RendezvousMethod method, DataBuffer body) {
   DataBuffer wire;

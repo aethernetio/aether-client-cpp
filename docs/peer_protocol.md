@@ -1,4 +1,4 @@
-# Native peer transport, version 1
+# Native peer transport
 
 `Client::ConfigurePeer()` enables LAN discovery and authenticated direct IPv4
 UDP. Existing `P2pStream`, `P2pSafeStream` and `P2pAdaptiveDatagramStream` use the
@@ -61,11 +61,11 @@ does not provide native peer sockets for ESP-IDF or browsers.
 
 Discovery uses IPv4 multicast `239.255.46.1`, with TTL 1, every two seconds on
 every active local IPv4 address. The shared discovery listener joins each local
-interface. The announcement contains protocol version, crypto profile, AppId, a
+interface. The announcement contains crypto profile, AppId, a
 random runtime instance token, listening port and service ID/version list. It
 contains no client UID or client signing key. Clients with a different AppId or
 crypto profile are ignored. Both applications must support a common compiled
-crypto profile; this version does not negotiate between Sodium and Hydrogen.
+crypto profile; the transport does not negotiate between Sodium and Hydrogen.
 
 The registry separates anonymous, untrusted `candidates()` from authenticated
 `clients()`. An authenticated client's services are refreshed through encrypted
@@ -147,7 +147,7 @@ application connecting to a particular service must apply its own UID/access rul
 ## Handshake and records
 
 All packets use the existing SDK API packer and binary serializer, with checked,
-bounded parsing. The common header contains magic `AEP1`, version 1, AppId, a
+bounded parsing. The common header contains magic `AEPP`, AppId, a
 random session token and crypto profile. The native wire uses the SDK's existing
 little-endian representation. Header and all key-exchange packets are hashed into
 the signed handshake transcript.

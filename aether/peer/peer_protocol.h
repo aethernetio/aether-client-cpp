@@ -5,7 +5,6 @@
 #include "aether/peer/peer_serialization.h"
 #if AE_SUPPORT_P2P
 namespace ae {
-inline constexpr std::uint16_t kPeerProtocolVersion = 2;
 enum class PeerMethod : std::uint8_t {
   kDiscover = 3,
   kHello = 4,
@@ -16,9 +15,8 @@ enum class PeerMethod : std::uint8_t {
   kPunch = 9
 };
 struct PeerHeader {
-  AE_REFLECT_MEMBERS(magic, version, app, token, profile)
-  std::uint32_t magic{0x31504541};  // AEP1 on supported little-endian targets.
-  std::uint16_t version{kPeerProtocolVersion};
+  AE_REFLECT_MEMBERS(magic, app, token, profile)
+  std::uint32_t magic{0x50504541};  // AEPP on supported little-endian targets.
   AppId app{};
   Uid token{};
   CryptoLib profile{kDefaultCryptoLibProfile};
