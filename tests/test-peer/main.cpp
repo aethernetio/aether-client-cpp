@@ -999,6 +999,7 @@ void test_FileVideoHierarchyKeepsKeyboardInteractive() {
   StreamDefinition root;
   root.id = 100;
   root.name = "root";
+  root.delivery = StreamDelivery::kReliable;
   root.destination = second.certificate.uid;
   root.routing = StreamRoutePolicy{false, true, false, true, false};
   root.sending = StreamSendPolicy{SendPriority::kNormal, 1000};
@@ -1056,6 +1057,11 @@ void test_FileVideoHierarchyKeepsKeyboardInteractive() {
     file_bytes[i] = static_cast<std::uint8_t>((i * 73u + (i >> 8)) & 0xffu);
   }
   MultiSubscription receive;
+  bool root_received{};
+  receive += b->streams().Find(100)->out_data_event().Subscribe(
+      [&](DataBuffer const& data) {
+        root_received = data == DataBuffer({0x7a});
+      });
   receive += b->streams().Find(101)->out_data_event().Subscribe(
       [&](DataBuffer const& data) {
         file_ok &= data == file_bytes;
@@ -1099,7 +1105,7 @@ void test_FileVideoHierarchyKeepsKeyboardInteractive() {
   PeerDelivery before, after;
   TEST_ASSERT_TRUE(
       PeerDecode(a->message_stream_manager().Frame(999, {}), before));
-  tree.Find(100)->Write({0x7a});
+  tree.Find(103)->Write({0x42});
   TEST_ASSERT_TRUE(
       PeerDecode(a->message_stream_manager().Frame(999, {}), after));
   TEST_ASSERT_TRUE(after.number ==
@@ -1108,11 +1114,11 @@ void test_FileVideoHierarchyKeepsKeyboardInteractive() {
   tree.Find(101)->Write(DataBuffer{file_bytes});
   tree.Find(104)->Write(DataBuffer{image_bytes});
   tree.Find(102)->Write(DataBuffer{video_bytes});
-  tree.Find(103)->Write({0x42});
+  tree.Find(100)->Write({0x7a});
   tree.Find(105)->Write({0x4b});
   TEST_ASSERT_TRUE(wait([&] {
-    return file_done && image_done && video_done && keys == 1 &&
-           block_count == 1;
+    return root_received && file_done && image_done && video_done &&
+           keys == 1 && block_count == 1;
   }));
   TEST_ASSERT_EQUAL_UINT(file_bytes.size(), file_received_size);
   TEST_ASSERT_TRUE(file_ok && image_ok && video_ok && blocks_ok && keyboard_ok);
