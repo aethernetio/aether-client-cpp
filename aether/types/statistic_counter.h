@@ -120,6 +120,8 @@ class StatisticsCounter final {
 
   std::size_t size() const { return value_buffer_.size(); }
   bool empty() const { return value_buffer_.empty(); }
+  auto begin() const { return value_buffer_.begin(); }
+  auto end() const { return value_buffer_.end(); }
 
  private:
   etl::circular_buffer<TValue, Capacity> value_buffer_;

@@ -22,11 +22,12 @@
 #include "aether/clock.h"
 #include "aether/config.h"
 
+#include "aether/types/ping_statistics.h"
 #include "aether/types/statistic_counter.h"
 
 namespace ae {
 class ChannelStatistics final : public Obj {
-  AE_OBJECT(ChannelStatistics, Obj, 0)
+  AE_OBJECT(ChannelStatistics, Obj, 1)
   ChannelStatistics() = default;
 
   static constexpr std::size_t kConnectionWindowSize =
@@ -36,14 +37,32 @@ class ChannelStatistics final : public Obj {
 
   using ConnectionTimeStatistics =
       StatisticsCounter<Duration, kConnectionWindowSize>;
-  using ResponseTimeStatistics =
-      StatisticsCounter<Duration, kResponseWindowSize>;
+  using ResponseTimeStatistics = PingStatistics<kResponseWindowSize>;
 
  public:
   explicit ChannelStatistics(ObjProp prop);
 
   AE_OBJECT_REFLECT(AE_MMBRS(connection_time_statistics_,
                              response_time_statistics_))
+
+  template <typename Dnv>
+  void Load(Version<0>, Dnv& dnv) {
+    StatisticsCounter<Duration, kResponseWindowSize> legacy;
+    dnv(connection_time_statistics_, legacy);
+    for (auto duration : legacy) {
+      AddResponseTime(duration);
+    }
+  }
+
+  template <typename Dnv>
+  void Load(CurrentVersion, Dnv& dnv) {
+    dnv(connection_time_statistics_, response_time_statistics_);
+  }
+
+  template <typename Dnv>
+  void Save(CurrentVersion, Dnv& dnv) const {
+    dnv(connection_time_statistics_, response_time_statistics_);
+  }
 
   void AddConnectionTime(Duration duration);
   void AddResponseTime(Duration duration);
