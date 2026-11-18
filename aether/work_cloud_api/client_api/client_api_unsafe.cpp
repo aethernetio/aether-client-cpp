@@ -27,19 +27,15 @@ ClientApiUnsafe::ClientApiUnsafe(EventSystem& event_system,
       pow_params_event{event_system},
       resolved_servers_event{event_system},
 
-
       registration_direct_event{event_system},
       my_ip_event{event_system},
-
-
 
       decrypt_provider_{&decrypt_provider},
       client_safe_api_{event_system} {}
 
-
 void ClientApiUnsafe::SendSafeApiData(SubApi<ClientApiSafe> sub_api) {
   auto unsafe_data = decrypt_provider_->Decrypt(std::move(sub_api).buffer());
-  AETHER_TELED_DEBUG("Client api unsafe data {}", unsafe_data);
+  AETHER_TELED_DEBUG("Client api unsafe bytes {}", unsafe_data.size());
 
   auto parser = ApiParser{server_context().protocol_context(), unsafe_data};
   // A response marker applies only to this decrypted packet.
@@ -58,15 +54,14 @@ void ClientApiUnsafe::SendPowParams(PowParams params) {
   pow_params_event.Emit(std::move(params));
 }
 
-void ClientApiUnsafe::SendResolvedServers(std::vector<ServerDescriptor> servers) {
+void ClientApiUnsafe::SendResolvedServers(
+    std::vector<ServerDescriptor> servers) {
   resolved_servers_event.Emit(std::move(servers));
 }
-
 
 void ClientApiUnsafe::SendRegistrationDirect(RegistrationDirectResult result) {
   registration_direct_event.Emit(std::move(result));
 }
-
 
 void ClientApiUnsafe::SendMyIpInfo(InfoIp info) {
   my_ip_event.Emit(std::move(info));

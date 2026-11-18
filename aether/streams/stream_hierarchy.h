@@ -19,7 +19,7 @@ class HierarchicalStream final : public ByteIStream {
   StreamUpdateEvent const& stream_update_event() override;
   OutDataEvent const& out_data_event() override;
   void Restream() override;
-  std::array<TransportStatistics, 3> statistics() const;
+  std::array<TransportStatistics, kPeerRouteCount> statistics() const;
 
  private:
   friend class StreamHierarchy;

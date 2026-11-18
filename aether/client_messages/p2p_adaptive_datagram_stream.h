@@ -48,7 +48,7 @@ class P2pAdaptiveDatagramStream final : public ByteIStream {
 
   AdaptiveDatagramStream::DeliveryEvent const& delivery_event();
   adaptive_datagram::StreamStatistics statistics() const;
-  std::array<TransportStatistics, 3> transport_statistics() const;
+  std::array<TransportStatistics, kPeerRouteCount> transport_statistics() const;
   adaptive_datagram::RateControllerMetrics const& metrics() const;
   std::uint64_t rate_bytes_per_second() const;
   bool valid() const;

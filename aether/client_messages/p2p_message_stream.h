@@ -38,6 +38,7 @@
 #include "aether/peer/peer_write_action.h"
 #include "aether/prepared_packet/packet_encoder.h"
 #include "aether/streams/stream_definition.h"
+#include "aether/tasks/manual_task_scheduler.h"
 
 namespace ae {
 class Client;
@@ -72,7 +73,7 @@ class P2pStream final : public ByteIStream {
     bool linked_tcp_endpoint{false};
   };
   SendPathTransportView InspectSendPathTransport() const;
-  std::array<TransportStatistics, 3> statistics() const;
+  std::array<TransportStatistics, kPeerRouteCount> statistics() const;
 
  private:
   static constexpr auto kBufferCapacity = AE_P2P_MESSAGE_STREAM_BUFFER_CAPACITY;
@@ -104,6 +105,7 @@ class P2pStream final : public ByteIStream {
   StreamUpdateEvent stream_update_event_;
 
   Subscription get_client_cloud_sub_;
+  TaskSubscription cloud_retry_sub_;
   Subscription out_data_sub_;
   Subscription peer_changed_sub_;
   ActionPool<AeContext, PeerWriteAction, 64> peer_writes_;

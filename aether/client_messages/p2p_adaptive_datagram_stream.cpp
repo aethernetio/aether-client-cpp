@@ -119,7 +119,7 @@ adaptive_datagram::StreamStatistics P2pAdaptiveDatagramStream::statistics()
     const {
   return impl_->adaptive.statistics();
 }
-std::array<TransportStatistics, 3>
+std::array<TransportStatistics, kPeerRouteCount>
 P2pAdaptiveDatagramStream::transport_statistics() const {
   return impl_->p2p.statistics();
 }

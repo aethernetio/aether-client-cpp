@@ -7,6 +7,8 @@
 #include "aether/ae_context.h"
 #include "aether/events/events.h"
 #include "aether/peer/peer_types.h"
+#include "aether/peer/peer_udp.h"
+#include "aether/peer/rendezvous_protocol.h"
 #if AE_SUPPORT_P2P
 namespace ae {
 class PeerRegistry {
@@ -33,9 +35,18 @@ class PeerTransport {
   void Connect(DirectPeer const& peer);
   void SetKeepBackupChannels(Uid const& peer, bool enabled);
   bool Send(Uid const& uid, DataBuffer const& data, bool lan = true,
-            bool direct_ip = true, PeerRoute* selected_route = nullptr);
+            bool direct_ip = true, PeerRoute* selected_route = nullptr,
+            bool hole_punching = true);
   std::optional<PeerPath> BestPath(Uid const& uid, bool lan = true,
-                                   bool direct_ip = true) const;
+                                   bool direct_ip = true,
+                                   bool hole_punching = true) const;
+  std::vector<PunchSocket> punch_sockets() const;
+  bool SendRendezvous(Uid const& socket, AddressPort const& endpoint,
+                      DataBuffer const& data);
+  Event<void(Uid const&, PeerDatagram const&)> const&
+  rendezvous_datagram_event() const;
+  void BeginPunch(PunchPlan const& plan);
+  bool NeedsHolePunch(Uid const& peer) const;
   PeerRegistry const& registry() const;
   Event<void(Uid const&, DataBuffer const&, PeerRoute)> const& message_event()
       const;

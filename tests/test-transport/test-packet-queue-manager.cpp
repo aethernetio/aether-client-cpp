@@ -12,10 +12,10 @@
 #include "aether/config.h"
 #include "aether/events/events.h"
 #include "aether/tasks/manual_task_scheduler.h"
-#include "aether/write_action/write_action.h"
 #include "aether/transport/packet_queue_manager.h"
 #include "aether/transport/packet_send_action.h"
 #include "aether/types/data_buffer.h"
+#include "aether/write_action/write_action.h"
 #if AE_SUPPORT_TCP
 #  include "aether/transport/system_sockets/tcp/tcp.h"
 #endif
@@ -50,6 +50,7 @@ class MockSendAction final : public PacketSendAction {
   explicit MockSendAction(AeContext const& ctx) : PacketSendAction(ctx) {}
 
   void Send() override {
+    ++send_count_;
     if (finish_on_send_) {
       SetStatus(Status::kSuccess);
     }
@@ -64,11 +65,29 @@ class MockSendAction final : public PacketSendAction {
   void Succeed() { SetStatus(Status::kSuccess); }
 
   bool finish_on_send_ = false;
+  unsigned send_count_{};
 };
 
 static constexpr std::size_t kQueueSize = 4;
 
 static void Pump(TestContext& ctx) { static_cast<void>(ctx.Update()); }
+
+void test_WriteReadyOnlySchedulesSocketWork() {
+  TestContext context;
+  AeContext ctx{context};
+  PacketQueueManager<MockSendAction, 4> queue{ctx};
+  auto* packet = queue.AddPacket(ctx);
+  TEST_ASSERT_NOT_NULL(packet);
+  queue.RequestSend();
+  queue.RequestSend();
+  TEST_ASSERT_EQUAL_UINT(0, packet->send_count_);
+  Pump(context);
+  TEST_ASSERT_EQUAL_UINT(1, packet->send_count_);
+  queue.RequestSend();
+  TEST_ASSERT_EQUAL_UINT(1, packet->send_count_);
+  Pump(context);
+  TEST_ASSERT_EQUAL_UINT(2, packet->send_count_);
+}
 
 void test_FinishedPendingFinishedPrefixPop() {
   TestContext tctx;
@@ -83,11 +102,12 @@ void test_FinishedPendingFinishedPrefixPop() {
   TEST_ASSERT_NOT_NULL(third);
 
   int pending_done = 0;
-  Subscription sub = pending->status_event().Subscribe([&](WriteAction::Status s) {
-    if (s == WriteAction::Status::kSuccess) {
-      ++pending_done;
-    }
-  });
+  Subscription sub =
+      pending->status_event().Subscribe([&](WriteAction::Status s) {
+        if (s == WriteAction::Status::kSuccess) {
+          ++pending_done;
+        }
+      });
   int pending_finished = 0;
   Subscription finished_sub =
       pending->finished_event().Subscribe([&]() { ++pending_finished; });
@@ -177,9 +197,7 @@ class MemoryMockSocket {
   std::size_t sent_bytes_{0};
 };
 
-static DataBuffer MakeSmallPayload() {
-  return DataBuffer{8, 0xAB};
-}
+static DataBuffer MakeSmallPayload() { return DataBuffer{8, 0xAB}; }
 
 static DataBuffer MakeTaggedPayload(std::uint8_t tag) {
   std::vector<std::uint8_t> bytes(8, tag);
@@ -555,18 +573,27 @@ void test_TcpSendMultipleFillDrainCycles() {
 }  // namespace ae::test_packet_queue_manager
 
 int test_packet_queue_manager() {
-  RUN_TEST(ae::test_packet_queue_manager::test_FinishedPendingFinishedPrefixPop);
+  RUN_TEST(
+      ae::test_packet_queue_manager::test_WriteReadyOnlySchedulesSocketWork);
+  RUN_TEST(
+      ae::test_packet_queue_manager::test_FinishedPendingFinishedPrefixPop);
   RUN_TEST(ae::test_packet_queue_manager::test_PendingFrontBlocksFinishedTail);
   RUN_TEST(ae::test_packet_queue_manager::test_AllFinishedFreesCapacity);
 #if AE_SUPPORT_TCP
-  RUN_TEST(ae::test_packet_queue_manager::test_TcpSendDeferredFinishReclaimOnAddWithoutSecondSend);
-  RUN_TEST(ae::test_packet_queue_manager::test_TcpSendSchedulerOverflowDeferredTerminal);
+  RUN_TEST(ae::test_packet_queue_manager::
+               test_TcpSendDeferredFinishReclaimOnAddWithoutSecondSend);
+  RUN_TEST(ae::test_packet_queue_manager::
+               test_TcpSendSchedulerOverflowDeferredTerminal);
   RUN_TEST(ae::test_packet_queue_manager::test_TcpSendMultipleFillDrainCycles);
   RUN_TEST(ae::test_packet_queue_manager::test_TcpAddPacketFromTerminalEvents);
-  RUN_TEST(ae::test_packet_queue_manager::test_TcpAddPacketRejectedUntilDeferredFinishPump);
-  RUN_TEST(ae::test_packet_queue_manager::test_TcpSchedulerOverflowTerminalReentrancyCombined);
-  RUN_TEST(ae::test_packet_queue_manager::test_TcpStopAfterOverflowPendingSingleTerminal);
-  RUN_TEST(ae::test_packet_queue_manager::test_TcpStopAfterOverflowReentrantAddSingleTerminal);
+  RUN_TEST(ae::test_packet_queue_manager::
+               test_TcpAddPacketRejectedUntilDeferredFinishPump);
+  RUN_TEST(ae::test_packet_queue_manager::
+               test_TcpSchedulerOverflowTerminalReentrancyCombined);
+  RUN_TEST(ae::test_packet_queue_manager::
+               test_TcpStopAfterOverflowPendingSingleTerminal);
+  RUN_TEST(ae::test_packet_queue_manager::
+               test_TcpStopAfterOverflowReentrantAddSingleTerminal);
 #endif
   return 0;
 }

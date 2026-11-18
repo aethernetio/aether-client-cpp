@@ -27,6 +27,7 @@
 #include "aether/client_messages/client_messages_tele.h"
 #include "aether/peer/peer_serialization.h"
 #include "aether/peer/peer_transport.h"
+#include "aether/peer/rendezvous_client.h"
 
 namespace ae {
 
@@ -154,18 +155,28 @@ void P2pMessageStreamManager::RecordSent(Uid const& destination,
 }
 
 void P2pMessageStreamManager::RetainPeerRoute(Uid const& destination,
-                                              bool keep_backup) {
+                                              bool keep_backup,
+                                              bool hole_punching) {
   auto& users = route_users_[destination];
   ++(keep_backup ? users.first : users.second);
+  if (hole_punching) {
+    ++hole_users_[destination];
+  }
 #if AE_SUPPORT_P2P
   auto client = client_.Lock();
   if (auto* peer = client->peer_transport()) {
     peer->SetKeepBackupChannels(destination, users.first != 0);
   }
+  if (hole_punching) {
+    if (auto* rendezvous = client->rendezvous_client()) {
+      rendezvous->RequestPeer(destination);
+    }
+  }
 #endif
 }
 void P2pMessageStreamManager::ReleasePeerRoute(Uid const& destination,
-                                               bool keep_backup) {
+                                               bool keep_backup,
+                                               bool hole_punching) {
   auto found = route_users_.find(destination);
   if (found == route_users_.end()) {
     return;
@@ -174,6 +185,19 @@ void P2pMessageStreamManager::ReleasePeerRoute(Uid const& destination,
   auto& count = keep_backup ? users.first : users.second;
   assert(count != 0);
   --count;
+  if (hole_punching) {
+    auto hole = hole_users_.find(destination);
+    if (hole != hole_users_.end() && --hole->second == 0) {
+      hole_users_.erase(hole);
+#if AE_SUPPORT_P2P
+      if (auto client = client_.Lock()) {
+        if (auto* rendezvous = client->rendezvous_client()) {
+          rendezvous->ReleasePeer(destination);
+        }
+      }
+#endif
+    }
+  }
 #if AE_SUPPORT_P2P
   auto client = client_.Lock();
   if (auto* peer = client->peer_transport()) {
@@ -185,12 +209,25 @@ void P2pMessageStreamManager::ReleasePeerRoute(Uid const& destination,
     route_users_.erase(found);
   }
 }
+void P2pMessageStreamManager::AttachRendezvous() {
+#if AE_SUPPORT_P2P
+  if (auto client = client_.Lock()) {
+    if (auto* rendezvous = client->rendezvous_client()) {
+      for (auto const& [uid, count] : hole_users_) {
+        rendezvous->RequestPeer(uid);
+      }
+    }
+  }
+#endif
+}
 
-std::array<TransportStatistics, 3> P2pMessageStreamManager::Statistics(
-    Uid const& destination, std::uint32_t stream) const {
+std::array<TransportStatistics, kPeerRouteCount>
+P2pMessageStreamManager::Statistics(Uid const& destination,
+                                    std::uint32_t stream) const {
   auto found = traffic_.find({destination, stream});
-  return found == traffic_.end() ? std::array<TransportStatistics, 3>{}
-                                 : found->second;
+  return found == traffic_.end()
+             ? std::array<TransportStatistics, kPeerRouteCount>{}
+             : found->second;
 }
 
 void P2pMessageStreamManager::CleanUpPorts() {

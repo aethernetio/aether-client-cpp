@@ -11,7 +11,8 @@ enum class PeerMethod : std::uint8_t {
   kReply = 5,
   kFinish = 6,
   kAuthenticate = 7,
-  kRecord = 8
+  kRecord = 8,
+  kPunch = 9
 };
 struct PeerHeader {
   AE_REFLECT_MEMBERS(magic, version, app, token, profile)

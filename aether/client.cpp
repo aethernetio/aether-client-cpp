@@ -25,6 +25,7 @@
 #include "aether/aether.h"
 #include "aether/cloud_connections/cloud_request.h"
 #include "aether/peer/peer_transport.h"
+#include "aether/peer/rendezvous_client.h"
 #include "aether/streams/stream_hierarchy.h"
 
 namespace ae {
@@ -132,6 +133,9 @@ P2pMessageStreamManager& Client::message_stream_manager() {
   if (!message_stream_manager_) {
     message_stream_manager_ = std::make_unique<P2pMessageStreamManager>(
         *aether_, MakePtrFromThis(this));
+#if AE_SUPPORT_P2P
+    StartPeerRendezvous();
+#endif
   }
   return *message_stream_manager_;
 }

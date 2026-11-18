@@ -3,6 +3,7 @@
 #define AETHER_PEER_PEER_TYPES_H_
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <vector>
@@ -20,7 +21,17 @@ namespace ae {
 using AppId = Uid;
 using ServiceId = Uid;
 
-enum class PeerRoute : std::uint8_t { kCloud, kDirectIp, kLan };
+enum class PeerRoute : std::uint8_t { kCloud, kDirectIp, kLan, kHolePunch };
+inline constexpr std::size_t kPeerRouteCount = 4;
+enum class PunchLane : std::uint8_t { kStandard, kFirst, kSecond };
+
+struct RendezvousSettings {
+  AE_REFLECT_MEMBERS(uid, endpoint, standard, dual_socket)
+  Uid uid{};
+  AddressPort endpoint{};
+  bool standard{true};
+  bool dual_socket{true};
+};
 
 struct PeerCertificate {
   AE_REFLECT_MEMBERS(uid, public_key, signature, server_key)
@@ -52,13 +63,14 @@ struct DirectPeer {
 
 struct PeerSettings {
   AE_REFLECT_MEMBERS(app_id, services, direct_peers, discovery_port,
-                     listen_port, discovery)
+                     listen_port, discovery, rendezvous)
   AppId app_id{};
   std::vector<PeerService> services;
   std::vector<DirectPeer> direct_peers;
   std::uint16_t discovery_port{AE_LAN_DISCOVERY_PORT};
   std::uint16_t listen_port{AE_LAN_LISTEN_PORT};
   bool discovery{AE_SUPPORT_LAN != 0};
+  std::optional<RendezvousSettings> rendezvous;
 };
 
 struct TransportStatistics {
@@ -90,6 +102,7 @@ struct PeerPath {
   AddressPort remote{};
   Address local{};
   PeerRoute route{};
+  PunchLane punch_lane{};
   bool authenticated{};
   bool connected{};
   TransportStatistics statistics;

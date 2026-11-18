@@ -102,6 +102,8 @@ class ClientCloudManager : public Obj {
    * New request to client cloud is performed or cloud returned from cache.
    */
   GetCloudAction& GetCloud(Uid client_uid);
+  // Returns nullptr when all fixed-capacity request slots are occupied.
+  GetCloudAction* TryGetCloud(Uid client_uid);
 
   /**
    * \brief Returns cloud from cache for client_uid or empty Cloud::ptr.

@@ -45,6 +45,8 @@ class PeerPresenceQuery;
 class PeerTransport;
 class CloudRequest;
 class StreamHierarchy;
+class RendezvousClient;
+class P2pStream;
 
 class Client : public Obj {
   AE_OBJECT(Client, Obj, 0)
@@ -81,6 +83,9 @@ class Client : public Obj {
   PeerIdentity const& peer_identity() const { return peer_identity_; }
   PeerTransport* peer_transport();
   void RenewPeerIdentity();
+  RendezvousClient* rendezvous_client() const {
+    return rendezvous_client_.get();
+  }
 #endif
 
   void SetConfig(std::string client_id, Uid parent_uid, Uid uid,
@@ -110,6 +115,7 @@ class Client : public Obj {
   void Loaded();
 #if AE_SUPPORT_P2P
   void EnsurePeerIdentity();
+  void StartPeerRendezvous();
 #endif
   ObjPtr<Aether> aether_;
   // configuration
@@ -135,6 +141,8 @@ class Client : public Obj {
   std::unique_ptr<StreamHierarchy> stream_hierarchy_;
 #if AE_SUPPORT_P2P
   std::unique_ptr<PeerTransport> peer_transport_;
+  std::unique_ptr<P2pStream> rendezvous_signaling_;
+  std::unique_ptr<RendezvousClient> rendezvous_client_;
   std::unique_ptr<CloudRequest> peer_identity_request_;
   TaskSubscription peer_start_task_;
   TaskSubscription peer_identity_task_;

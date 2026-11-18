@@ -228,7 +228,7 @@ class TcpTransport final : public tcp_internal::TcpBase {
   }
 
  private:
-  void OnReadyToWrite() { queue_manager_.Send(); }
+  void OnReadyToWrite() { queue_manager_.RequestSend(); }
 
   Socket socket_;
   PacketQueueManager<SendAction, QueueSize> queue_manager_;

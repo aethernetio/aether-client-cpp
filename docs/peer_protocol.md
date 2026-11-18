@@ -112,9 +112,9 @@ other side's selected path. Direct backup demand is shared
 by all streams to that peer: any stream requesting backups keeps them alive.
 The client's own cloud listener/control connection is independent of this flag.
 
-UDP hole punching, rendezvous signaling and the AeroAdmin dual-socket strategy
-are not implemented by this change. A public direct endpoint works when routing
-and firewall/NAT rules already permit it. Discoverable local endpoints and saved
+UDP hole punching and the AeroAdmin-style dual-socket strategy are described in
+[rendezvous.md](rendezvous.md). Their confirmed paths share this transport and have priority
+after direct IP and before cloud delivery. Discoverable local endpoints and saved
 reachable direct endpoints work without Internet after credential provisioning.
 
 ## Identity and trust
@@ -220,7 +220,7 @@ stream hierarchies to coexist. Other platforms retain 256; an application can
 override the existing `AE_EVENTS_MAX_COUNT` setting for its resource budget.
 
 `HierarchicalStream::statistics()` and `P2pStream::statistics()` return entries
-indexed by `PeerRoute`: cloud, direct IP, LAN. Message and byte counts are payload
+indexed by `PeerRoute`: cloud, direct IP, LAN, hole punching. Message and byte counts are payload
 handoffs at the base stream, and accepted incoming messages after common
 deduplication. Reliable/adaptive protocol data and retransmissions at that base
 layer therefore count as traffic; these are not application transaction counts.

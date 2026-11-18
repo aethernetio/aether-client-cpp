@@ -4,6 +4,7 @@
 #include <chrono>
 #include <map>
 #include <thread>
+#include <vector>
 #include "aether/config.h"
 #if AE_SUPPORT_P2P
 #  include "aether-objects/domain_storage/ram_domain_storage.h"
@@ -11,6 +12,7 @@
 #  include "aether/adapter_registry.h"
 #  include "aether/aether.h"
 #  include "aether/client.h"
+#  include "aether/connection_manager/client_cloud_manager.h"
 #  include "aether/crypto.h"
 #  include "aether/crypto/key_gen.h"
 #  include "aether/env.h"
@@ -19,6 +21,9 @@
 #  include "aether/peer/peer_protocol.h"
 #  include "aether/peer/peer_transport.h"
 #  include "aether/peer/peer_udp.h"
+#  include "aether/peer/peer_write_action.h"
+#  include "aether/peer/rendezvous_broker.h"
+#  include "aether/peer/rendezvous_client.h"
 #  include "aether/streams/stream_hierarchy.h"
 namespace ae::test_peer {
 struct Authority {
@@ -177,6 +182,362 @@ void test_MalformedPacketsAreRejected() {
   wire.push_back(0);
   TEST_ASSERT_FALSE(PeerRootApi::Parse(wire).has_value());
 }
+
+class SignalStream final : public ByteIStream {
+ public:
+  explicit SignalStream(AeContext context)
+      : context_{context},
+        output_{context},
+        updated_{context},
+        writes_{context} {}
+  WriteAction& Write(DataBuffer&& wire) override {
+    auto* action = writes_.Create(context_, true);
+    if (!action) {
+      throw std::runtime_error("Test signaling capacity exceeded");
+    }
+    send(std::move(wire));
+    return *action;
+  }
+  StreamInfo stream_info() const override {
+    return {1000, 16000, false, LinkState::kLinked, true};
+  }
+  StreamUpdateEvent const& stream_update_event() override { return updated_; }
+  OutDataEvent const& out_data_event() override { return output_; }
+  void Restream() override {}
+  void Receive(DataBuffer const& wire) { output_.Emit(wire); }
+  std::function<void(DataBuffer)> send;
+
+ private:
+  AeContext context_;
+  OutDataEvent output_;
+  StreamUpdateEvent updated_;
+  ActionPool<AeContext, PeerWriteAction, 128> writes_;
+};
+void RunRendezvous(bool standard, bool dual, bool different_app = false,
+                   bool congested = false) {
+  Authority ca;
+  auto a = ca.Issue(), b = ca.Issue();
+  Context context;
+  AeContext ctx{context};
+  PeerUdp udp{Address{IpV4Addr{{127, 0, 0, 1}}}, 0};
+  PeerSettings settings;
+  settings.app_id = RandomPeerToken();
+  settings.discovery = false;
+  settings.rendezvous =
+      RendezvousSettings{RandomPeerToken(),
+                         {Address{IpV4Addr{{127, 0, 0, 1}}}, udp.port()},
+                         standard,
+                         dual};
+  auto other = settings;
+  if (different_app) {
+    other.app_id = RandomPeerToken();
+  }
+  PeerTransport first{ctx, a, settings, ca.root.public_key};
+  PeerTransport second{ctx, b, other, ca.root.public_key};
+  PeerUdp unanswered{Address{IpV4Addr{{127, 0, 0, 1}}}, 0};
+  if (congested) {
+    auto socket = first.punch_sockets().front();
+    PunchPlan stale{
+        settings.app_id, {}, RandomPeerToken(), RandomPeerToken(), {}};
+    for (unsigned i = 0; i < 32; ++i) {
+      stale.pairs.push_back(
+          {socket.id,
+           socket.lane,
+           RandomPeerToken(),
+           {},
+           {Address{IpV4Addr{{127, 0, 0, 1}}}, unanswered.port()},
+           true});
+    }
+    first.BeginPunch(stale);
+    auto until =
+        std::chrono::steady_clock::now() + std::chrono::milliseconds{2100};
+    while (std::chrono::steady_clock::now() < until) {
+      context.scheduler.Update();
+      while (unanswered.Receive()) {
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds{2});
+    }
+  }
+  SignalStream left{ctx}, right{ctx};
+  RendezvousBroker broker{[&](Uid const& uid, DataBuffer wire) {
+                            if (uid == a.certificate.uid) {
+                              left.Receive(wire);
+                            }
+                            if (uid == b.certificate.uid) {
+                              right.Receive(wire);
+                            }
+                          },
+                          [&](AddressPort const& endpoint, DataBuffer wire) {
+                            udp.Send(endpoint, wire);
+                          }};
+  auto release_delayed =
+      std::chrono::steady_clock::now() + std::chrono::milliseconds{600};
+  std::vector<DataBuffer> delayed_enrollments;
+  left.send = [&](DataBuffer wire) {
+    if (congested && std::chrono::steady_clock::now() < release_delayed) {
+      auto signal = ParseRendezvousSignal(wire);
+      RendezvousEnrollment enrollment;
+      if (signal && signal->method == RendezvousMethod::kEnroll &&
+          PeerDecode(signal->body, enrollment) &&
+          enrollment.socket.lane == PunchLane::kSecond) {
+        delayed_enrollments.push_back(std::move(wire));
+        return;
+      }
+    }
+    broker.ReceiveSignal(a.certificate.uid, wire);
+  };
+  right.send = [&](DataBuffer wire) {
+    broker.ReceiveSignal(b.certificate.uid, wire);
+  };
+  RendezvousClient left_client{ctx, first, settings, left};
+  RendezvousClient right_client{ctx, second, other, right};
+  left_client.RequestPeer(b.certificate.uid);
+  right_client.RequestPeer(a.certificate.uid);
+  auto pump = [&] {
+    if (std::chrono::steady_clock::now() >= release_delayed) {
+      auto pending = std::move(delayed_enrollments);
+      delayed_enrollments.clear();
+      for (auto const& signal : pending) {
+        broker.ReceiveSignal(a.certificate.uid, signal);
+      }
+    }
+    for (unsigned i = 0; i < 64; ++i) {
+      auto packet = udp.Receive();
+      if (!packet) {
+        break;
+      }
+      broker.ReceiveDatagram(*packet);
+    }
+    broker.Update();
+    context.scheduler.Update();
+    std::this_thread::sleep_for(std::chrono::milliseconds{2});
+  };
+  auto has_lanes = [&](PeerTransport& transport, Uid const& peer,
+                       bool require_probes = false) {
+    bool ordinary = false, first_lane = false, second_lane = false;
+    for (auto const& info : transport.registry().clients()) {
+      if (info.uid != peer) {
+        continue;
+      }
+      for (auto const& path : info.paths) {
+        if (!path.connected || path.route != PeerRoute::kHolePunch) {
+          continue;
+        }
+        if (require_probes && path.statistics.probes_received == 0) {
+          continue;
+        }
+        ordinary |= path.punch_lane == PunchLane::kStandard;
+        first_lane |= path.punch_lane == PunchLane::kFirst;
+        second_lane |= path.punch_lane == PunchLane::kSecond;
+      }
+    }
+    return (!standard || ordinary) && (!dual || (first_lane && second_lane));
+  };
+  auto deadline =
+      std::chrono::steady_clock::now() +
+      (different_app ? std::chrono::seconds{1} : std::chrono::seconds{7});
+  while (std::chrono::steady_clock::now() < deadline) {
+    pump();
+    if (!different_app && has_lanes(first, b.certificate.uid) &&
+        has_lanes(second, a.certificate.uid)) {
+      break;
+    }
+  }
+  TEST_ASSERT_TRUE(broker.registered_sockets() >= 2);
+  if (different_app) {
+    TEST_ASSERT_FALSE(first.BestPath(b.certificate.uid).has_value());
+    return;
+  }
+  TEST_ASSERT_TRUE(has_lanes(first, b.certificate.uid));
+  TEST_ASSERT_TRUE(has_lanes(second, a.certificate.uid));
+  auto path = first.BestPath(b.certificate.uid);
+  TEST_ASSERT_TRUE(path && path->route == PeerRoute::kHolePunch);
+  TEST_ASSERT_FALSE(
+      first.BestPath(b.certificate.uid, true, true, false).has_value());
+  bool received = false;
+  Subscription sub = second.message_event().Subscribe(
+      [&](Uid const& uid, DataBuffer const& data, PeerRoute route) {
+        received = uid == a.certificate.uid && data == DataBuffer{6, 2, 6} &&
+                   route == PeerRoute::kHolePunch;
+      });
+  TEST_ASSERT_TRUE(first.Send(b.certificate.uid, {6, 2, 6}));
+  deadline = std::chrono::steady_clock::now() + std::chrono::seconds{2};
+  while (!received && std::chrono::steady_clock::now() < deadline) {
+    pump();
+  }
+  TEST_ASSERT_TRUE(received);
+  deadline = std::chrono::steady_clock::now() + std::chrono::seconds{3};
+  while ((!has_lanes(first, b.certificate.uid, true) ||
+          !has_lanes(second, a.certificate.uid, true)) &&
+         std::chrono::steady_clock::now() < deadline) {
+    pump();
+  }
+  TEST_ASSERT_TRUE(has_lanes(first, b.certificate.uid, true));
+  TEST_ASSERT_TRUE(has_lanes(second, a.certificate.uid, true));
+  if (standard && !dual) {
+    first.Connect({b.certificate.uid, path->remote});
+    deadline = std::chrono::steady_clock::now() + std::chrono::seconds{3};
+    while (std::chrono::steady_clock::now() < deadline) {
+      auto preferred = first.BestPath(b.certificate.uid);
+      if (preferred && preferred->route == PeerRoute::kDirectIp) {
+        break;
+      }
+      pump();
+    }
+    auto preferred = first.BestPath(b.certificate.uid);
+    TEST_ASSERT_TRUE(preferred && preferred->route == PeerRoute::kDirectIp);
+    TEST_ASSERT_TRUE(
+        first.BestPath(b.certificate.uid, false, false, true).has_value());
+  }
+}
+void test_StandardRendezvousUsesRegisteredUdpSockets() {
+  RunRendezvous(true, false);
+}
+void test_StaleAttemptsDoNotStarveAnyRendezvousLane() {
+  RunRendezvous(true, true, false, true);
+}
+void test_IncomingAuthenticatedPingsDoNotHideMissingPongs() {
+  Authority ca;
+  auto a = ca.Issue(), b = ca.Issue();
+  Context context;
+  PeerSettings settings;
+  settings.app_id = RandomPeerToken();
+  settings.discovery = false;
+  PeerTransport transport{AeContext{context}, a, settings, ca.root.public_key};
+  PeerUdp remote{Address{IpV4Addr{{127, 0, 0, 1}}}, 0};
+  transport.Connect(
+      {b.certificate.uid, {Address{IpV4Addr{{127, 0, 0, 1}}}, remote.port()}});
+  struct Responder {
+    AddressPort endpoint;
+    std::unique_ptr<PeerHandshake> session;
+  };
+  std::map<Uid, Responder> responders;
+  auto next_ping = std::chrono::steady_clock::now();
+  std::uint64_t probe{};
+  auto pump = [&] {
+    while (auto datagram = remote.Receive()) {
+      auto packet = PeerRootApi::Parse(datagram->data);
+      if (!packet) {
+        continue;
+      }
+      auto found = responders.find(packet->header.token);
+      if (found == responders.end()) {
+        if (packet->method != PeerMethod::kHello) {
+          continue;
+        }
+        found =
+            responders
+                .emplace(packet->header.token,
+                         Responder{datagram->source,
+                                   std::make_unique<PeerHandshake>(
+                                       b, ca.root.public_key, packet->header,
+                                       false, a.certificate.uid)})
+                .first;
+      }
+      auto& response = found->second;
+      if (!response.session->ready()) {
+        auto reply = response.session->Receive(*packet);
+        if (reply) {
+          remote.Send(response.endpoint, PeerRootApi::Pack(*reply));
+        }
+      } else {
+        // Deliberately consume every request without producing any Pong.
+        response.session->Unprotect(*packet);
+      }
+    }
+    if (std::chrono::steady_clock::now() >= next_ping) {
+      next_ping += std::chrono::milliseconds{200};
+      for (auto& [token, response] : responders) {
+        auto packet = response.session->Protect(
+            PeerSessionMethod::kPing,
+            PeerEncode(++probe, std::vector<PeerService>{}));
+        if (packet) {
+          remote.Send(response.endpoint, PeerRootApi::Pack(*packet));
+        }
+      }
+    }
+    context.scheduler.Update();
+    std::this_thread::sleep_for(std::chrono::milliseconds{2});
+  };
+  auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds{3};
+  while (!transport.BestPath(b.certificate.uid) &&
+         std::chrono::steady_clock::now() < deadline) {
+    pump();
+  }
+  TEST_ASSERT_TRUE(transport.BestPath(b.certificate.uid).has_value());
+  deadline = std::chrono::steady_clock::now() + std::chrono::seconds{5};
+  while (std::chrono::steady_clock::now() < deadline) {
+    pump();
+  }
+  TEST_ASSERT_FALSE(transport.BestPath(b.certificate.uid).has_value());
+}
+void test_DualSocketRendezvousAuthenticatesBothOppositeInitiators() {
+  RunRendezvous(false, true);
+}
+void test_RendezvousSeparatesApplications() {
+  RunRendezvous(true, false, true);
+}
+void test_RendezvousRequiresEncryptedReturnReachabilityAndRejectsReplay() {
+  std::vector<DataBuffer> signals;
+  std::vector<PeerDatagram> outgoing;
+  RendezvousBroker broker{
+      [&](Uid const&, DataBuffer wire) { signals.push_back(std::move(wire)); },
+      [&](AddressPort const& to, DataBuffer wire) {
+        outgoing.push_back({to, std::move(wire)});
+      }};
+  auto uid = RandomPeerToken();
+  auto request = PeerEncode(
+      RendezvousEnrollment{RandomPeerToken(),
+                           RandomPeerToken(),
+                           kDefaultCryptoLibProfile,
+                           {RandomPeerToken(),
+                            PunchLane::kStandard,
+                            {Address{IpV4Addr{{10, 0, 0, 2}}}, 4000}}});
+  broker.ReceiveSignal(
+      uid, PackRendezvousSignal(RendezvousMethod::kEnroll, request));
+  TEST_ASSERT_EQUAL_UINT(1, signals.size());
+  auto signal = ParseRendezvousSignal(signals.front());
+  TEST_ASSERT_TRUE(signal.has_value());
+  RendezvousGrant grant;
+  TEST_ASSERT_TRUE(PeerDecode(signal->body, grant));
+  PeerRecordCipher cipher{grant.upstream, grant.downstream};
+  auto record = cipher.Seal(PeerEncode(RendezvousUdpMethod::kRegister, Uid{}));
+  TEST_ASSERT_TRUE(record.has_value());
+  auto wire = PackRendezvousDatagram(grant.token, *record);
+  TEST_ASSERT_TRUE(std::search(wire.begin(), wire.end(), uid.value.begin(),
+                               uid.value.end()) == wire.end());
+  AddressPort original{Address{IpV4Addr{{203, 0, 113, 1}}}, 5000};
+  AddressPort attacker{Address{IpV4Addr{{203, 0, 113, 2}}}, 6000};
+  broker.ReceiveDatagram({original, wire});
+  TEST_ASSERT_EQUAL_UINT(0, broker.registered_sockets());
+  TEST_ASSERT_EQUAL_UINT(1, outgoing.size());
+  Uid token, challenge;
+  DataBuffer encrypted;
+  TEST_ASSERT_TRUE(
+      ParseRendezvousDatagram(outgoing.back().data, token, encrypted));
+  auto plain = cipher.Open(encrypted);
+  TEST_ASSERT_TRUE(plain.has_value());
+  RendezvousUdpMethod method{};
+  AddressPort observed;
+  TEST_ASSERT_TRUE(PeerDecode(*plain, method, challenge, observed));
+  auto wrong_source =
+      cipher.Seal(PeerEncode(RendezvousUdpMethod::kConfirm, challenge));
+  broker.ReceiveDatagram(
+      {attacker, PackRendezvousDatagram(token, *wrong_source)});
+  TEST_ASSERT_EQUAL_UINT(0, broker.registered_sockets());
+  auto confirm =
+      cipher.Seal(PeerEncode(RendezvousUdpMethod::kConfirm, challenge));
+  auto confirmation = PackRendezvousDatagram(token, *confirm);
+  broker.ReceiveDatagram({original, confirmation});
+  TEST_ASSERT_EQUAL_UINT(1, broker.registered_sockets());
+  auto count = outgoing.size();
+  broker.ReceiveDatagram({attacker, confirmation});
+  TEST_ASSERT_EQUAL_UINT(count, outgoing.size());
+  broker.ReceiveSignal(
+      uid, PackRendezvousSignal(RendezvousMethod::kEnroll, request));
+  auto repeated = ParseRendezvousSignal(signals.back());
+  TEST_ASSERT_TRUE(repeated && repeated->body == signal->body);
+}
 void test_RealUdpDirectConnectionOffline() {
   Authority ca;
   auto a = ca.Issue(), b = ca.Issue();
@@ -242,6 +603,51 @@ struct ClientFixture {
   }
   void Update() { context.scheduler().Update(); }
 };
+void test_RendezvousCloudLookupsReleaseTheirActionSlots() {
+  ClientFixture fixture;
+  auto client = fixture.Add(fixture.ca.Issue(), "lookups", RandomPeerToken());
+  auto manager = client->cloud_manager().Load();
+  auto cloud = client->cloud();
+  unsigned results{};
+  // Inject authenticated cloud updates without requiring an external server.
+  auto& updates = const_cast<ClientCloudManager::CloudUpdateEvent&>(
+      manager->cloud_update_event());
+  for (unsigned i = 0; i < 2 * ClientCloudManager::kGetCloudActionPoolCapacity;
+       ++i) {
+    auto uid = RandomPeerToken();
+    auto& request = manager->GetCloud(uid);
+    Subscription result =
+        request.result_event().Subscribe([&](auto const&) { ++results; });
+    Result<Cloud::ptr const&, int> response =
+        i % 2 ? Result<Cloud::ptr const&, int>{Error{-1}}
+              : Result<Cloud::ptr const&, int>{Ok<Cloud::ptr const&>{cloud}};
+    updates.Emit(uid, response);
+    TEST_ASSERT_TRUE(request.is_finished());
+    updates.Emit(uid, response);
+    TEST_ASSERT_EQUAL_UINT(i + 1, results);
+    fixture.Update();
+  }
+  std::vector<std::pair<Uid, GetCloudAction*>> pending;
+  for (unsigned i = 0; i < ClientCloudManager::kGetCloudActionPoolCapacity;
+       ++i) {
+    auto uid = RandomPeerToken();
+    auto* request = manager->TryGetCloud(uid);
+    TEST_ASSERT_NOT_NULL(request);
+    pending.emplace_back(uid, request);
+  }
+  auto delayed = RandomPeerToken();
+  TEST_ASSERT_NULL(manager->TryGetCloud(delayed));
+  for (auto const& [uid, request] : pending) {
+    updates.Emit(uid, Error{-1});
+    TEST_ASSERT_TRUE(request->is_finished());
+  }
+  fixture.Update();
+  auto* retried = manager->TryGetCloud(delayed);
+  TEST_ASSERT_NOT_NULL(retried);
+  updates.Emit(delayed, Error{-1});
+  TEST_ASSERT_TRUE(retried->is_finished());
+  fixture.Update();
+}
 AddressPort LoopbackEndpoint(PeerTransport& transport) {
   for (auto const& endpoint : transport.listen_endpoints()) {
     if (endpoint.address == Address{IpV4Addr{{127, 0, 0, 1}}}) {
@@ -611,12 +1017,19 @@ int main() {
   RUN_TEST(test_DeliveryDeduplicatesAcrossRoutes);
   RUN_TEST(test_MalformedPacketsAreRejected);
   RUN_TEST(test_RealUdpDirectConnectionOffline);
+  RUN_TEST(test_StandardRendezvousUsesRegisteredUdpSockets);
+  RUN_TEST(test_StaleAttemptsDoNotStarveAnyRendezvousLane);
+  RUN_TEST(test_IncomingAuthenticatedPingsDoNotHideMissingPongs);
+  RUN_TEST(test_DualSocketRendezvousAuthenticatesBothOppositeInitiators);
+  RUN_TEST(test_RendezvousSeparatesApplications);
+  RUN_TEST(test_RendezvousRequiresEncryptedReturnReachabilityAndRejectsReplay);
   RUN_TEST(test_HandshakeRetransmissionsAreIdempotent);
   RUN_TEST(test_TransportCanBeDestroyedFromReceiveCallback);
   RUN_TEST(test_NoBackupsPreservesReciprocalSessions);
   RUN_TEST(test_DataReorderedBeforeFinalConfirmationDoesNotBreakHandshake);
   RUN_TEST(test_RttThenLossSelectsPathAndRecoversFromBlackout);
   RUN_TEST(test_ExistingStreamsOverAuthenticatedUdpAndIndependentChildren);
+  RUN_TEST(test_RendezvousCloudLookupsReleaseTheirActionSlots);
   RUN_TEST(test_HierarchyAndIdentityPersistAndRestore);
   RUN_TEST(test_StorageIntentFailsExplicitlyUntilProviderImplemented);
 #  if AE_SUPPORT_LAN

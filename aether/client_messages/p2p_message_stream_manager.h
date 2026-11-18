@@ -53,15 +53,18 @@ class P2pMessageStreamManager {
   DataBuffer Frame(std::uint32_t stream, DataBuffer data,
                    PeerService service = {});
   void AttachPeer();
-  void RetainPeerRoute(Uid const& destination, bool keep_backup);
-  void ReleasePeerRoute(Uid const& destination, bool keep_backup);
+  void RetainPeerRoute(Uid const& destination, bool keep_backup,
+                       bool hole_punching = true);
+  void ReleasePeerRoute(Uid const& destination, bool keep_backup,
+                        bool hole_punching = true);
+  void AttachRendezvous();
   Event<void()> const& route_changed_event() const {
     return route_changed_event_;
   }
   void RecordSent(Uid const& destination, std::uint32_t stream, PeerRoute route,
                   std::size_t bytes);
-  std::array<TransportStatistics, 3> Statistics(Uid const& destination,
-                                                std::uint32_t stream) const;
+  std::array<TransportStatistics, kPeerRouteCount> Statistics(
+      Uid const& destination, std::uint32_t stream) const;
   NewPortEvent const& new_port_event();
 
  private:
@@ -87,10 +90,12 @@ class P2pMessageStreamManager {
   Subscription peer_updates_sub_;
   Event<void()> route_changed_event_;
   std::map<Uid, std::pair<std::size_t, std::size_t>> route_users_;
+  std::map<Uid, std::size_t> hole_users_;
   PeerDeliveryWindow receive_window_;
   Uid delivery_epoch_{};
   std::uint64_t delivery_number_{};
-  std::map<std::pair<Uid, std::uint32_t>, std::array<TransportStatistics, 3>>
+  std::map<std::pair<Uid, std::uint32_t>,
+           std::array<TransportStatistics, kPeerRouteCount>>
       traffic_;
 };
 

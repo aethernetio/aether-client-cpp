@@ -60,6 +60,12 @@ class PacketQueueManager {
   /**
    * \brief Triggers send on queued action.
    */
+  void RequestSend() {
+    // Poller callbacks may hold the descriptor mutex. Never take queue_lock_
+    // there: Send takes that mutex before entering the socket/poller instead.
+    Enqueue();
+  }
+
   void Send() {
     std::unique_lock lock{queue_lock_};
     DrainFinishedLocked();

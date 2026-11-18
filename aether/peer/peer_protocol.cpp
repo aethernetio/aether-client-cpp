@@ -24,7 +24,7 @@ std::optional<PeerPacket> PeerRootApi::Parse(DataBuffer const& wire) {
   if (!PeerDecode(wire, id, packet.header, packet.body) ||
       packet.header.magic != 0x31504541 || packet.header.version != 1 ||
       packet.header.app.empty() || packet.header.token.empty() ||
-      packet.header.profile != kDefaultCryptoLibProfile || id < 3 || id > 8) {
+      packet.header.profile != kDefaultCryptoLibProfile || id < 3 || id > 9) {
     return {};
   }
   packet.method = static_cast<PeerMethod>(id);

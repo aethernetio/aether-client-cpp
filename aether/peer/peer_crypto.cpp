@@ -63,6 +63,9 @@ void ErasePeerPrivateKey(Key& key) {
       },
       static_cast<Key::variant&>(key));
 }
+void ErasePeerSecret(std::span<std::uint8_t> bytes) {
+  peer_crypto_internal::Erase(bytes.data(), bytes.size());
+}
 Sign SignPeerBytes(Key const& private_key,
                    std::span<std::uint8_t const> bytes) {
   peer_crypto_internal::Initialize();

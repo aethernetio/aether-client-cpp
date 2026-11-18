@@ -23,7 +23,7 @@ void Validate(std::vector<StreamDefinition> const& nodes, Uid inherited,
       throw std::logic_error("Offline storage providers are not implemented");
     }
     if (node.routing && !node.routing->lan && !node.routing->direct_ip &&
-        !node.routing->cloud) {
+        !node.routing->hole_punching && !node.routing->cloud) {
       throw std::invalid_argument("Stream has no enabled route");
     }
     Validate(node.children, uid, ids, depth + 1);
@@ -96,7 +96,8 @@ ByteIStream::OutDataEvent const& HierarchicalStream::out_data_event() {
   return stream_->out_data_event();
 }
 void HierarchicalStream::Restream() { stream_->Restream(); }
-std::array<TransportStatistics, 3> HierarchicalStream::statistics() const {
+std::array<TransportStatistics, kPeerRouteCount>
+HierarchicalStream::statistics() const {
   if (definition_.delivery == StreamDelivery::kAdaptiveDatagram) {
     return static_cast<P2pAdaptiveDatagramStream*>(delivery_.get())
         ->transport_statistics();

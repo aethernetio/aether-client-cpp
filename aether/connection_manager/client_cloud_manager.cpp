@@ -179,12 +179,21 @@ ClientCloudManager::cloud_update_event() {
 }
 
 GetCloudAction& ClientCloudManager::GetCloud(Uid client_uid) {
+  auto* action = TryGetCloud(client_uid);
+  assert(action != nullptr && "Cloud action pool is full");
+  return *action;
+}
+
+GetCloudAction* ClientCloudManager::TryGetCloud(Uid client_uid) {
   AETHER_TELED_DEBUG("Ask cloud for uid: {}", client_uid);
 
   auto aether = aether_.Load();
   assert(aether && "Aether did not loaded");
   if (!cloud_actions_) {
     cloud_actions_.emplace(*aether);
+  }
+  if (cloud_actions_->full()) {
+    return nullptr;
   }
 
   auto cached = cloud_cache_.find(client_uid);
@@ -194,8 +203,7 @@ GetCloudAction& ClientCloudManager::GetCloud(Uid client_uid) {
         cloud_actions_
             ->Create<client_cloud_manager_internal::GetCloudFromCache>(
                 *aether, cached->second.cloud);
-    assert(action != nullptr && "Failed to create GetCloudFromCache action");
-    return *action;
+    return action;
   }
 
   // get from aethernet
@@ -204,8 +212,7 @@ GetCloudAction& ClientCloudManager::GetCloud(Uid client_uid) {
 
   auto* action = cloud_actions_->Create<GetCloudFromAether>(
       *aether, *this, client->cloud_connection(), client_uid);
-  assert(action != nullptr && "Failed to create GetCloudFromAether action");
-  return *action;
+  return action;
 }
 
 Cloud::ptr ClientCloudManager::GetCachedCloud(Uid client_uid) {

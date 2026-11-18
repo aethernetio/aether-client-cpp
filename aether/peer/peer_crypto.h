@@ -14,6 +14,7 @@ struct PeerKeyPair {
 };
 PeerKeyPair GeneratePeerSigningKey();
 void ErasePeerPrivateKey(Key& key);
+void ErasePeerSecret(std::span<std::uint8_t> bytes);
 Sign SignPeerBytes(Key const& private_key, std::span<std::uint8_t const> bytes);
 bool VerifyPeerBytes(Key const& public_key, Sign const& signature,
                      std::span<std::uint8_t const> bytes);

@@ -12,11 +12,12 @@ enum class StreamDelivery : std::uint8_t {
   kAdaptiveDatagram
 };
 struct StreamRoutePolicy {
-  AE_REFLECT_MEMBERS(lan, direct_ip, cloud, keep_backup_channels)
+  AE_REFLECT_MEMBERS(lan, direct_ip, cloud, keep_backup_channels, hole_punching)
   bool lan{true};
   bool direct_ip{true};
   bool cloud{true};
   bool keep_backup_channels{true};
+  bool hole_punching{true};
 };
 // Persistent intent reserved for a future storage provider. Creating a live
 // stream with storage configured currently fails explicitly.
