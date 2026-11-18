@@ -121,7 +121,7 @@ class SafeStreamSendAction {
   bool Acknowledge(std::uint16_t confirm_offset) {
     auto confirm_index = IndexType(confirm_offset);
     AETHER_TELED_DEBUG("Receive ack for offset {} index {}", confirm_offset,
-                   confirm_index);
+                       confirm_index);
     // if not in a current range, ignore
     if (!IndexRangeType{sending_buffer_.begin(), sending_buffer_.end()}.InRange(
             confirm_index, sending_buffer_.begin())) {
@@ -158,7 +158,7 @@ class SafeStreamSendAction {
     if (!IndexRangeType{sending_buffer_.begin(), sending_buffer_.end()}.InRange(
             request_index, sending_buffer_.begin())) {
       AETHER_TELED_WARNING("Request repeat send for not sent index {}",
-                       request_index);
+                           request_index);
       return;
     }
     last_sent_ = request_index;
@@ -237,8 +237,8 @@ class SafeStreamSendAction {
           "size: {}, window size: {}",
           sending_buffer_.begin(), last_sent_, on_the_go_data_size,
           window_size_);
-      // return empty span
-      return Ok{typename CircularBufferImpl::DSpan{}};
+      // A full window is idle, not an empty chunk to register/retry.
+      return Error{0};
     }
 
     // read payload_size
@@ -252,7 +252,7 @@ class SafeStreamSendAction {
       return Error{0};
     }
     AETHER_TELED_ERROR("Read from buffer error: {}",
-                   static_cast<int>(read_res.error()));
+                       static_cast<int>(read_res.error()));
     return Error{1};
   }
 

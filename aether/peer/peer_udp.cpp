@@ -20,6 +20,7 @@
 #    include <netinet/in.h>
 #    include <sys/socket.h>
 #    include <unistd.h>
+#    include <cerrno>
 #  endif
 #  include <algorithm>
 #  include <cstring>
@@ -124,6 +125,12 @@ std::vector<Address> PeerUdp::Interfaces() {
 }
 PeerUdp::PeerUdp(Address local, std::uint16_t port, bool discovery)
     : impl_{std::make_unique<Impl>()}, local_{std::move(local)} {
+#  if !AE_SUPPORT_LAN
+  if (discovery) {
+    throw std::invalid_argument("LAN is disabled in this build");
+  }
+#  endif
+
   peer_udp_internal::Initialize();
   if (local_.Index() != AddrVersion::kIpV4) {
     throw std::invalid_argument("Peer socket requires IPv4");
@@ -136,10 +143,16 @@ PeerUdp::PeerUdp(Address local, std::uint16_t port, bool discovery)
     return setsockopt(impl_->socket, level, option,
                       reinterpret_cast<char const*>(&value), sizeof value) == 0;
   };
+  int send_buffer = AE_SOCKET_SEND_BUFFER_BYTES;
+  if (!set(SOL_SOCKET, SO_SNDBUF, send_buffer)) {
+    throw std::runtime_error("Cannot set peer send buffer");
+  }
+#  if AE_SUPPORT_LAN
   int one = 1;
   if (discovery && !set(SOL_SOCKET, SO_REUSEADDR, one)) {
     throw std::runtime_error("Cannot share discovery socket");
   }
+#  endif
   auto address = peer_udp_internal::ToNative({local_, port});
   if (bind(impl_->socket, reinterpret_cast<sockaddr*>(&address),
            sizeof address) != 0) {
@@ -156,6 +169,7 @@ PeerUdp::PeerUdp(Address local, std::uint16_t port, bool discovery)
     throw std::runtime_error("Cannot make peer socket nonblocking");
   }
 #  endif
+#  if AE_SUPPORT_LAN
   unsigned char ttl = 1;
   unsigned char loop = 1;
   set(IPPROTO_IP, IP_MULTICAST_TTL, ttl);
@@ -175,22 +189,50 @@ PeerUdp::PeerUdp(Address local, std::uint16_t port, bool discovery)
     auto iface = peer_udp_internal::NativeAddress(local_);
     set(IPPROTO_IP, IP_MULTICAST_IF, iface);
   }
+#  endif
 }
 PeerUdp::~PeerUdp() = default;
+PeerSendResult PeerUdp::ClassifySendFailure(int error) {
+#  ifdef _WIN32
+  if (error == WSAEWOULDBLOCK || error == WSAENOBUFS || error == WSAEINTR) {
+    return PeerSendResult::kBlocked;
+  }
+#  else
+  if (error == EAGAIN || error == EWOULDBLOCK || error == ENOBUFS ||
+      error == EINTR) {
+    return PeerSendResult::kBlocked;
+  }
+#  endif
+  return PeerSendResult::kError;
+}
 bool PeerUdp::Send(AddressPort const& remote, DataBuffer const& data) {
+  return TrySend(remote, data) == PeerSendResult::kSent;
+}
+PeerSendResult PeerUdp::TrySend(AddressPort const& remote,
+                                DataBuffer const& data) {
   if (remote.address.Index() != AddrVersion::kIpV4 || data.size() > 65507 ||
       remote.port == 0) {
-    return false;
+    return PeerSendResult::kError;
   }
   auto address = peer_udp_internal::ToNative(remote);
   auto sent = sendto(impl_->socket, reinterpret_cast<char const*>(data.data()),
                      static_cast<peer_udp_internal::SocketSize>(data.size()), 0,
                      reinterpret_cast<sockaddr*>(&address), sizeof address);
-  return sent >= 0 && static_cast<std::size_t>(sent) == data.size();
+  if (sent < 0) {
+#  ifdef _WIN32
+    return ClassifySendFailure(WSAGetLastError());
+#  else
+    return ClassifySendFailure(errno);
+#  endif
+  }
+  return static_cast<std::size_t>(sent) == data.size() ? PeerSendResult::kSent
+                                                       : PeerSendResult::kError;
 }
+#  if AE_SUPPORT_LAN
 bool PeerUdp::Announce(std::uint16_t port, DataBuffer const& data) {
   return Send({Address{IpV4Addr{{239, 255, 46, 1}}}, port}, data);
 }
+#  endif
 std::optional<PeerDatagram> PeerUdp::Receive() {
   std::array<char, 65536> bytes{};
   sockaddr_in source{};

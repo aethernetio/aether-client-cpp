@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <optional>
 
+#include "aether/client_messages/priority_send_queue.h"
 #include "aether/common.h"
 #include "aether/config.h"
 
@@ -53,7 +54,7 @@ class P2pStream final : public ByteIStream {
       AeContext const& ae_context, Ptr<Client> const& client, Uid destination,
       P2pPortHandle handle,
       RequestPolicy::Variant send_request_policy = RequestPolicy::MainServer{},
-      StreamRoutePolicy route_policy = {});
+      StreamRoutePolicy route_policy = {}, StreamSendPolicy send_policy = {});
 
   ~P2pStream() override;
 
@@ -86,6 +87,8 @@ class P2pStream final : public ByteIStream {
       Ptr<Cloud> const& cloud,
       std::unique_ptr<IServerConnectionFactory> factory);
   WriteAction* OnWrite(AeMessage&& message);
+  WriteAction* SendNow(AeMessage const& message,
+                       std::optional<AeMessage>& prepared);
 
   AeContext ae_context_;
   PtrView<Client> client_;
@@ -94,6 +97,10 @@ class P2pStream final : public ByteIStream {
   P2pPortHandle handle_;
   RequestPolicy::Variant send_request_policy_;
   StreamRoutePolicy route_policy_;
+  StreamSendPolicy send_policy_;
+  bool queue_writable_{true};
+  Subscription send_writable_sub_;
+  std::optional<FailedWriteAction> failed_write_;
   bool connecting_cloud_{};
 
   // connection to destination cloud

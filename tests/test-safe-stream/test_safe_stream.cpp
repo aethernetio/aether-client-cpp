@@ -165,6 +165,28 @@ void test_SafeStreamStopBeforeTransmission() {
   TEST_ASSERT_FALSE(transmitted);
 }
 
+void test_SafeStreamWaitsForCarrierBackpressure() {
+  TestContext ctx;
+  MockWriteStream carrier{ctx, 120};
+  carrier.SetWritable(false);
+  SafeStream<kCapacity> safe{ctx, config};
+  safe.LinkOut(carrier);
+  unsigned writes{};
+  Subscription sent =
+      carrier.on_write_event().Subscribe([&](auto const&) { ++writes; });
+  safe.Write(ToDataBuffer(_100_bytes_data));
+  auto epoch = Now();
+  for (unsigned i = 0; i < 10; ++i) {
+    ctx.Update(epoch += std::chrono::milliseconds{1});
+  }
+  TEST_ASSERT_EQUAL_UINT(0, writes);
+  carrier.SetWritable(true);
+  for (unsigned i = 0; i < 10 && writes == 0; ++i) {
+    ctx.Update(epoch += std::chrono::milliseconds{1});
+  }
+  TEST_ASSERT_TRUE(writes > 0);
+}
+
 }  // namespace ae::test_safe_stream
 
 int test_safe_stream() {
@@ -172,5 +194,6 @@ int test_safe_stream() {
   RUN_TEST(ae::test_safe_stream::test_SafeStreamWriteFewData);
   RUN_TEST(ae::test_safe_stream::test_SafeStreamPacketLoss);
   RUN_TEST(ae::test_safe_stream::test_SafeStreamStopBeforeTransmission);
+  RUN_TEST(ae::test_safe_stream::test_SafeStreamWaitsForCarrierBackpressure);
   return UNITY_END();
 }

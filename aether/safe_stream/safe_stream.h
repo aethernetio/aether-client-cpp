@@ -214,9 +214,10 @@ class SafeStream final : public ByteStream,  // NOLINT
     stream_info_.rec_element_size = out_info.rec_element_size;
     stream_info_.max_element_size = config_.max_packet_size;
 
-    sender_.SetMaxPayload((out_info.rec_element_size > 0)
-                              ? (out_info.rec_element_size - kSendOverhead)
-                              : 0);
+    sender_.SetMaxPayload(
+        (out_info.is_writable && out_info.rec_element_size > kSendOverhead)
+            ? (out_info.rec_element_size - kSendOverhead)
+            : 0);
 
     stream_update_event_.Emit();
   }

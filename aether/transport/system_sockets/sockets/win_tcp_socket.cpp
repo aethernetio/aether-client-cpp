@@ -67,6 +67,13 @@ WinTcpSocket::WinTcpSocket(Ptr<IPoller> const& poller)
     }
   };
 
+  int send_buffer = AE_SOCKET_SEND_BUFFER_BYTES;
+  if (::setsockopt(sock, SOL_SOCKET, SO_SNDBUF,
+                   reinterpret_cast<char const*>(&send_buffer),
+                   sizeof(send_buffer)) == SOCKET_ERROR) {
+    AETHER_TELED_ERROR("Cannot set TCP send buffer {}", WSAGetLastError());
+    return;
+  }
   int on = 1;
   auto res1 = ::setsockopt(sock, IPPROTO_TCP, TCP_NODELAY,
                            reinterpret_cast<char const*>(&on), sizeof(on));
@@ -97,7 +104,9 @@ ISocket& WinTcpSocket::Connect(AddressPort const& destination,
   bool already_polled = false;
 
   ae_defer[&]() {
-    if (!already_polled) { Poll(); }
+    if (!already_polled) {
+      Poll();
+    }
     connected_cb_(connection_state_);
   };
 
@@ -156,8 +165,8 @@ ISocket& WinTcpSocket::Connect(AddressPort const& destination,
     already_polled = true;
   }
 #  endif
-  if (!connect_ex(socket_, addr.addr(), static_cast<int>(addr.size), initial_data,
-                  initial_size, NULL, &conn_overlapped_)) {
+  if (!connect_ex(socket_, addr.addr(), static_cast<int>(addr.size),
+                  initial_data, initial_size, NULL, &conn_overlapped_)) {
     auto err_code = WSAGetLastError();
     if (err_code != WSA_IO_PENDING) {
       AETHER_TELED_ERROR("Socket connect error {}", err_code);
@@ -220,7 +229,8 @@ bool WinTcpSocket::InitConnection() {
     // Update socket context for proper API usage
     if (setsockopt(socket_, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, NULL, 0) ==
         SOCKET_ERROR) {
-      AETHER_TELED_ERROR("SO_UPDATE_CONNECT_CONTEXT failed: {}", WSAGetLastError());
+      AETHER_TELED_ERROR("SO_UPDATE_CONNECT_CONTEXT failed: {}",
+                         WSAGetLastError());
       return false;
     }
   }

@@ -158,13 +158,15 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
 P2pStream::P2pStream(AeContext const& ae_context, Ptr<Client> const& client,
                      Uid destination, P2pPortHandle handle,
                      RequestPolicy::Variant send_request_policy,
-                     StreamRoutePolicy route_policy)
+                     StreamRoutePolicy route_policy,
+                     StreamSendPolicy send_policy)
     : ae_context_{ae_context},
       client_{client},
       destination_{std::move(destination)},
       handle_{std::move(handle)},
       send_request_policy_{std::move(send_request_policy)},
       route_policy_{route_policy},
+      send_policy_{send_policy},
       buffer_write_{ae_context_, MethodPtr<&P2pStream::OnWrite>{this}},
       out_data_event_{ae_context_},
       stream_update_event_{ae_context_},
@@ -172,6 +174,23 @@ P2pStream::P2pStream(AeContext const& ae_context, Ptr<Client> const& client,
   AETHER_TELE_DEBUG(kP2pMessageStreamNew, "P2pStream created for {}",
                     destination_);
   assert(!destination_.empty());
+  if (!send_policy_.max_packet_bytes ||
+      send_policy_.max_packet_bytes > AE_SOCKET_SEND_BUFFER_BYTES - 256) {
+    throw std::invalid_argument("Invalid stream packet budget");
+  }
+  send_writable_sub_ = client->send_queue().writable_event().Subscribe([this] {
+    if (!buffer_write_.is_buffer_on()) {
+      buffer_write_.buffer_off();
+    }
+    auto owner = client_.Lock();
+    bool writable = owner && owner->send_queue().CanEnqueue(
+                                 send_policy_.priority,
+                                 send_policy_.max_packet_bytes + 128);
+    if (queue_writable_ != writable) {
+      queue_writable_ = writable;
+      stream_update_event_.Emit();
+    }
+  });
   client->message_stream_manager().RetainPeerRoute(
       destination_, route_policy_.keep_backup_channels,
       route_policy_.hole_punching);
@@ -213,7 +232,9 @@ P2pStream::P2pStream(AeContext const& ae_context, Ptr<Client> const& client,
 }
 
 P2pStream::~P2pStream() {
+  send_writable_sub_.Reset();
   if (auto client = client_.Lock()) {
+    client->send_queue().Cancel(this);
     client->message_stream_manager().ReleasePeerRoute(
         destination_, route_policy_.keep_backup_channels,
         route_policy_.hole_punching);
@@ -221,13 +242,15 @@ P2pStream::~P2pStream() {
 }
 
 WriteAction& P2pStream::Write(DataBuffer&& data) {
+  if (data.size() > send_policy_.max_packet_bytes) {
+    if (!failed_write_ || failed_write_->is_finished()) {
+      failed_write_.emplace(ae_context_);
+    }
+    return *failed_write_;
+  }
   AETHER_TELED_DEBUG("Write message for uid {} size:{}", destination_,
                      data.size());
-  auto client = client_.Lock();
-  AeMessage message_data{destination_,
-                         client->message_stream_manager().Frame(
-                             handle_ ? handle_.stream_id() : 0, std::move(data),
-                             handle_ ? handle_.service() : PeerService{})};
+  AeMessage message_data{destination_, std::move(data)};
   return buffer_write_.Write(std::move(message_data));
 }
 
@@ -243,12 +266,25 @@ StreamInfo P2pStream::stream_info() const {
         peer &&
         peer->BestPath(destination_, route_policy_.lan, route_policy_.direct_ip,
                        route_policy_.hole_punching)) {
-      return {1000, 56000, false, LinkState::kLinked, true};
+      return {std::min<std::uint32_t>(1000, send_policy_.max_packet_bytes),
+              send_policy_.max_packet_bytes, false, LinkState::kLinked,
+              client->send_queue().CanEnqueue(
+                  send_policy_.priority, send_policy_.max_packet_bytes + 128)};
     }
   }
 #endif
   if (message_send_stream_) {
-    return message_send_stream_->stream_info();
+    auto info = message_send_stream_->stream_info();
+    info.max_element_size = std::min<std::size_t>(
+        info.max_element_size, send_policy_.max_packet_bytes);
+    info.rec_element_size =
+        std::min<std::size_t>(info.rec_element_size, info.max_element_size);
+    auto client = client_.Lock();
+    info.is_writable =
+        info.is_writable && client &&
+        client->send_queue().CanEnqueue(send_policy_.priority,
+                                        send_policy_.max_packet_bytes + 128);
+    return info;
   }
   return {};
 }
@@ -349,42 +385,87 @@ std::unique_ptr<CloudServerConnections> P2pStream::MakeDestinationCloudConn(
 }
 
 WriteAction* P2pStream::OnWrite(AeMessage&& message) {
-  auto record_sent = [&](PeerRoute route) {
-    auto client = client_.Lock();
-    PeerDelivery delivery;
-    if (PeerDecode(message.data, delivery)) {
-      client->message_stream_manager().RecordSent(destination_, delivery.stream,
-                                                  route, delivery.data.size());
+  auto client = client_.Lock();
+  if (!client) {
+    return nullptr;
+  }
+  auto& queue = client->send_queue();
+  WriteAction* action{};
+  if (queue.CanEnqueue(send_policy_.priority, message.data.size() + 128)) {
+    auto bytes = message.data.size() + 128;
+    action = queue.Enqueue(this, send_policy_.priority, bytes,
+                           [this, message = std::move(message),
+                            prepared = std::optional<AeMessage>{}]() mutable {
+                             return SendNow(message, prepared);
+                           });
+  }
+  bool writable = queue.CanEnqueue(send_policy_.priority,
+                                   send_policy_.max_packet_bytes + 128);
+  if (queue_writable_ != writable) {
+    queue_writable_ = writable;
+    stream_update_event_.Emit();
+  }
+  return action;
+}
+
+WriteAction* P2pStream::SendNow(AeMessage const& message,
+                                std::optional<AeMessage>& prepared) {
+  auto client = client_.Lock();
+  if (!client) {
+    return nullptr;
+  }
+  // A previous blocked attempt handed off no bytes. Allocate a fresh delivery
+  // number only after selecting a writable route, preserving the dedup window.
+  prepared.reset();
+  auto frame = [&]() -> AeMessage& {
+    if (!prepared) {
+      prepared.emplace(AeMessage{
+          destination_, client->message_stream_manager().Frame(
+                            handle_ ? handle_.stream_id() : 0, message.data,
+                            handle_ ? handle_.service() : PeerService{})});
     }
+    return *prepared;
+  };
+  auto record_sent = [&](PeerRoute route) {
+    client->message_stream_manager().RecordSent(
+        destination_, handle_ ? handle_.stream_id() : 0, route,
+        message.data.size());
   };
 #if AE_SUPPORT_P2P
-  auto client = client_.Lock();
   if (auto* peer = client->peer_transport()) {
     if (auto path = peer->BestPath(destination_, route_policy_.lan,
                                    route_policy_.direct_ip,
                                    route_policy_.hole_punching);
         path && message.data.size() < 57000) {
-      // Reserve the completion action before doing any observable send.
       auto* action = peer_writes_.Create(ae_context_, true);
       if (!action) {
         return nullptr;
       }
       auto selected_route = path->route;
-      if (peer->Send(destination_, message.data, route_policy_.lan,
+      if (peer->Send(destination_, frame().data, route_policy_.lan,
                      route_policy_.direct_ip, &selected_route,
                      route_policy_.hole_punching)) {
         record_sent(selected_route);
         return action;
       }
-      // UDP enqueue failed. The cloud path below is still available.
+      if (auto* current = client->peer_transport();
+          current && current->BestPath(destination_, route_policy_.lan,
+                                       route_policy_.direct_ip,
+                                       route_policy_.hole_punching)) {
+        return nullptr;  // Socket backpressure retains the direct route.
+      }
     }
   }
 #endif
   if (!message_send_stream_) {
-    return {};
+    return nullptr;
+  }
+  auto info = message_send_stream_->stream_info();
+  if (info.link_state != LinkState::kLinked || !info.is_writable) {
+    return nullptr;
   }
   record_sent(PeerRoute::kCloud);
-  return &message_send_stream_->Write(std::move(message));
+  return &message_send_stream_->Write(std::move(frame()));
 }
 
 std::array<TransportStatistics, kPeerRouteCount> P2pStream::statistics() const {

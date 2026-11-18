@@ -168,9 +168,11 @@ void P2pMessageStreamManager::RetainPeerRoute(Uid const& destination,
     peer->SetKeepBackupChannels(destination, users.first != 0);
   }
   if (hole_punching) {
+#  if AE_SUPPORT_P2P && AE_SUPPORT_HOLE_PUNCH
     if (auto* rendezvous = client->rendezvous_client()) {
       rendezvous->RequestPeer(destination);
     }
+#  endif
   }
 #endif
 }
@@ -191,9 +193,11 @@ void P2pMessageStreamManager::ReleasePeerRoute(Uid const& destination,
       hole_users_.erase(hole);
 #if AE_SUPPORT_P2P
       if (auto client = client_.Lock()) {
+#  if AE_SUPPORT_P2P && AE_SUPPORT_HOLE_PUNCH
         if (auto* rendezvous = client->rendezvous_client()) {
           rendezvous->ReleasePeer(destination);
         }
+#  endif
       }
 #endif
     }
@@ -212,11 +216,13 @@ void P2pMessageStreamManager::ReleasePeerRoute(Uid const& destination,
 void P2pMessageStreamManager::AttachRendezvous() {
 #if AE_SUPPORT_P2P
   if (auto client = client_.Lock()) {
+#  if AE_SUPPORT_P2P && AE_SUPPORT_HOLE_PUNCH
     if (auto* rendezvous = client->rendezvous_client()) {
       for (auto const& [uid, count] : hole_users_) {
         rendezvous->RequestPeer(uid);
       }
     }
+#  endif
   }
 #endif
 }

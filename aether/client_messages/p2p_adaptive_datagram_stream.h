@@ -36,7 +36,7 @@ class P2pAdaptiveDatagramStream final : public ByteIStream {
       AeContext const& context, Ptr<Client> const& client, Uid destination,
       P2pPortHandle handle, adaptive_datagram::Config config,
       RequestPolicy::Variant send_policy = RequestPolicy::MainServer{},
-      StreamRoutePolicy route_policy = {});
+      StreamRoutePolicy route_policy = {}, StreamSendPolicy sending = {});
   ~P2pAdaptiveDatagramStream() override;
   AE_CLASS_NO_COPY_MOVE(P2pAdaptiveDatagramStream);
 

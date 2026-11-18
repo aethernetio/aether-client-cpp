@@ -6,6 +6,7 @@
 #  include <chrono>
 #  include <limits>
 #  include <map>
+#  include <span>
 #  include <stdexcept>
 #  include <string>
 #  include <tuple>
@@ -100,6 +101,18 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
         settings.direct_peers.size() > 32 || settings.discovery_port == 0) {
       throw std::invalid_argument("Invalid peer configuration");
     }
+#  if !AE_SUPPORT_DIRECT_IP
+    if (!settings.direct_peers.empty()) {
+      throw std::invalid_argument("Direct IP is disabled in this build");
+    }
+#  endif
+#  if !AE_SUPPORT_HOLE_PUNCH
+    if (settings.rendezvous) {
+      throw std::invalid_argument("Hole punching is disabled in this build");
+    }
+#  endif
+
+#  if AE_SUPPORT_HOLE_PUNCH
     if (settings.rendezvous &&
         (settings.rendezvous->uid.empty() ||
          !ValidRendezvousEndpoint(settings.rendezvous->endpoint) ||
@@ -107,6 +120,8 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
           !settings.rendezvous->dual_socket))) {
       throw std::invalid_argument("Invalid rendezvous configuration");
     }
+#  endif
+
     for (auto const& peer : settings.direct_peers) {
       if (peer.uid.empty() || peer.endpoint.port == 0 ||
           peer.endpoint.address.Index() != AddrVersion::kIpV4) {
@@ -167,10 +182,13 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
   }
   void AddInterface(Address const& address) {
     AddSocket(address, settings.listen_port, PunchLane::kStandard);
+
+#  if AE_SUPPORT_HOLE_PUNCH
     if (settings.rendezvous && settings.rendezvous->dual_socket) {
       AddSocket(address, 0, PunchLane::kFirst);
       AddSocket(address, 0, PunchLane::kSecond);
     }
+#  endif
   }
   void Stop() {
     stopped = true;
@@ -240,13 +258,16 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
       paths.emplace_back(std::move(path));
     }
   }
-  bool SendPacket(Path& path, PeerPacket const& packet) {
+  PeerSendResult TrySendPacket(Path& path, PeerPacket const& packet) {
     auto wire = PeerRootApi::Pack(packet);
-    if (!sockets[path.socket]->Send(path.endpoint, wire)) {
-      return false;
+    auto result = sockets[path.socket]->TrySend(path.endpoint, wire);
+    if (result == PeerSendResult::kSent) {
+      path.view.statistics.wire_sent_bytes += wire.size();
     }
-    path.view.statistics.wire_sent_bytes += wire.size();
-    return true;
+    return result;
+  }
+  bool SendPacket(Path& path, PeerPacket const& packet) {
+    return TrySendPacket(path, packet) == PeerSendResult::kSent;
   }
   void SendFlight(Path& path, PeerPacket const& packet) {
     path.flight = PeerRootApi::Pack(packet);
@@ -268,6 +289,8 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
     }
   }
   bool PreparePunch(PunchPlan const& plan) {
+#  if AE_SUPPORT_HOLE_PUNCH
+
     if (!identity.certified || plan.app != settings.app_id ||
         plan.peer.empty() || plan.peer == identity.certificate.uid ||
         plan.pairs.empty() || plan.pairs.size() > 32) {
@@ -317,8 +340,15 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
       paths.push_back(std::move(path));
     }
     return true;
+
+#  else
+    static_cast<void>(plan);
+    return false;
+#  endif
   }
   bool BeginPunch(PunchPlan const& plan) {
+#  if AE_SUPPORT_HOLE_PUNCH
+
     if (!PreparePunch(plan)) {
       return false;
     }
@@ -343,8 +373,15 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
       SendFlight(*path, packet);
     }
     return true;
+
+#  else
+    static_cast<void>(plan);
+    return false;
+#  endif
   }
   bool MakePunchRoom(Uid const& peer) {
+#  if AE_SUPPORT_HOLE_PUNCH
+
     if (paths.size() < 64 &&
         std::count_if(paths.begin(), paths.end(), [](auto const& path) {
           return path->route == PeerRoute::kHolePunch;
@@ -372,17 +409,29 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
     Archive(**oldest);
     paths.erase(oldest);
     return true;
+
+#  else
+    static_cast<void>(peer);
+    return false;
+#  endif
   }
   Path* Best(Uid const& uid, bool lan = true, bool direct_ip = true,
-             bool hole_punching = true) const {
+             bool hole_punching = true,
+             std::span<Path* const> excluded = {}) const {
     Path* best{};
     for (auto const& p : paths) {
+      if (std::find(excluded.begin(), excluded.end(), p.get()) !=
+          excluded.end()) {
+        continue;
+      }
       if (!Connected(*p) || p->view.uid != uid) {
         continue;
       }
-      if ((p->route == PeerRoute::kLan && !lan) ||
-          (p->route == PeerRoute::kDirectIp && !direct_ip) ||
-          (p->route == PeerRoute::kHolePunch && !hole_punching)) {
+      if ((p->route == PeerRoute::kLan && (!AE_SUPPORT_LAN || !lan)) ||
+          (p->route == PeerRoute::kDirectIp &&
+           (!AE_SUPPORT_DIRECT_IP || !direct_ip)) ||
+          (p->route == PeerRoute::kHolePunch &&
+           (!AE_SUPPORT_HOLE_PUNCH || !hole_punching))) {
         continue;
       }
       if (!best ||
@@ -505,6 +554,8 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
     }
   }
   void Announce() {
+#  if AE_SUPPORT_LAN
+
     for (std::size_t index = 0; index < sockets.size(); ++index) {
       auto const& socket = sockets[index];
       if (!socket || socket_lanes[index] != PunchLane::kStandard) {
@@ -519,8 +570,14 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
                        PeerRootApi::Pack({PeerMethod::kDiscover, header,
                                           PeerEncode(advertisement)}));
     }
+
+#  else
+
+#  endif
   }
   void OnDiscovery(PeerDatagram const& datagram) {
+#  if AE_SUPPORT_LAN
+
     auto packet = PeerRootApi::Parse(datagram.data);
     if (!packet || packet->method != PeerMethod::kDiscover ||
         packet->header.app != settings.app_id ||
@@ -553,12 +610,19 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
     candidate_seen[std::tuple{packet->header.token, endpoint.address,
                               endpoint.port}] = Clock::now();
     Connect(endpoint, {}, PeerRoute::kLan);
+
+#  else
+    static_cast<void>(datagram);
+#  endif
   }
   void OnDatagram(std::size_t index, PeerDatagram const& datagram) {
+#  if AE_SUPPORT_HOLE_PUNCH
     if (IsRendezvousDatagram(datagram.data)) {
       rendezvous_datagrams.Emit(socket_ids[index], datagram);
       return;
     }
+#  endif
+
     auto packet = PeerRootApi::Parse(datagram.data);
     if (!packet || packet->header.app != settings.app_id ||
         packet->method == PeerMethod::kDiscover || !identity.certified) {
@@ -591,6 +655,11 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
           break;
         }
       }
+#  if !AE_SUPPORT_DIRECT_IP
+      if (incoming->route == PeerRoute::kDirectIp) {
+        return;
+      }
+#  endif
       incoming->session = std::make_unique<PeerHandshake>(
           identity, root, packet->header, false);
       incoming->view.local = sockets[index]->local();
@@ -815,6 +884,8 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
         return;
       }
     }
+
+#  if AE_SUPPORT_LAN
     if (discovery) {
       for (unsigned i = 0; i < 64; ++i) {
         auto data = discovery->Receive();
@@ -831,12 +902,16 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
         Announce();
       }
     }
+#  endif
+
+#  if AE_SUPPORT_DIRECT_IP
     if (now - direct_attempt > std::chrono::seconds{2}) {
       direct_attempt = now;
       for (auto const& peer : settings.direct_peers) {
         Connect(peer.endpoint, peer.uid, PeerRoute::kDirectIp);
       }
     }
+#  endif
     for (std::size_t index = 0; index < sockets.size(); ++index) {
       if (!sockets[index]) {
         continue;
@@ -949,34 +1024,54 @@ void PeerTransport::SetKeepBackupChannels(Uid const& peer, bool enabled) {
   }
 }
 void PeerTransport::Connect(DirectPeer const& peer) {
+#  if AE_SUPPORT_DIRECT_IP
+
   if (peer.uid.empty() || peer.endpoint.port == 0 ||
       peer.endpoint.address.Index() != AddrVersion::kIpV4) {
     throw std::invalid_argument(
         "Direct peer requires a UID and an IPv4 endpoint");
   }
   impl_->Connect(peer.endpoint, peer.uid, PeerRoute::kDirectIp);
+
+#  else
+  static_cast<void>(peer);
+  throw std::logic_error("Direct IP is disabled in this build");
+#  endif
 }
 bool PeerTransport::Send(Uid const& uid, DataBuffer const& data, bool lan,
                          bool direct_ip, PeerRoute* selected_route,
                          bool hole_punching) {
   auto impl = impl_;
+  std::array<Impl::Path*, 64> attempted{};
+  std::size_t attempted_count{};
+  // Backpressure tries another ready path without changing presence.
   // A failed immediate send tries the next already authenticated path.
   for (std::size_t i = 0; i < impl->paths.size() && !impl->stopped; ++i) {
-    auto* path = impl->Best(uid, lan, direct_ip, hole_punching);
+    auto* path = impl->Best(
+        uid, lan, direct_ip, hole_punching,
+        std::span<Impl::Path* const>{attempted.data(), attempted_count});
     if (!path) {
       return false;
     }
+    if (attempted_count == attempted.size()) {
+      return false;
+    }
+    attempted[attempted_count++] = path;
     auto packet = path->session->Protect(PeerSessionMethod::kData, data);
     if (!packet) {
       return false;
     }
-    if (impl->SendPacket(*path, *packet)) {
+    auto outcome = impl->TrySendPacket(*path, *packet);
+    if (outcome == PeerSendResult::kSent) {
       if (selected_route) {
         *selected_route = path->route;
       }
       ++path->view.statistics.sent_messages;
       path->view.statistics.sent_bytes += data.size();
       return true;
+    }
+    if (outcome == PeerSendResult::kBlocked) {
+      continue;
     }
     path->hard_failed = true;
     path->view.connected = false;
@@ -1013,6 +1108,8 @@ std::vector<AddressPort> PeerTransport::listen_endpoints() const {
   return result;
 }
 std::vector<PunchSocket> PeerTransport::punch_sockets() const {
+#  if AE_SUPPORT_HOLE_PUNCH
+
   std::vector<PunchSocket> result;
   for (std::size_t i = 0; i < impl_->sockets.size(); ++i) {
     if (impl_->sockets[i]) {
@@ -1023,10 +1120,16 @@ std::vector<PunchSocket> PeerTransport::punch_sockets() const {
     }
   }
   return result;
+
+#  else
+  return {};
+#  endif
 }
 bool PeerTransport::SendRendezvous(Uid const& socket,
                                    AddressPort const& endpoint,
                                    DataBuffer const& data) {
+#  if AE_SUPPORT_HOLE_PUNCH
+
   auto found =
       std::find(impl_->socket_ids.begin(), impl_->socket_ids.end(), socket);
   if (found == impl_->socket_ids.end()) {
@@ -1034,6 +1137,13 @@ bool PeerTransport::SendRendezvous(Uid const& socket,
   }
   auto index = static_cast<std::size_t>(found - impl_->socket_ids.begin());
   return impl_->sockets[index] && impl_->sockets[index]->Send(endpoint, data);
+
+#  else
+  static_cast<void>(socket);
+  static_cast<void>(endpoint);
+  static_cast<void>(data);
+  return false;
+#  endif
 }
 Event<void(Uid const&, PeerDatagram const&)> const&
 PeerTransport::rendezvous_datagram_event() const {
@@ -1046,6 +1156,8 @@ bool PeerTransport::BeginPunch(PunchPlan const& plan) {
   return impl_->BeginPunch(plan);
 }
 bool PeerTransport::NeedsHolePunch(Uid const& uid) const {
+#  if AE_SUPPORT_HOLE_PUNCH
+
   if (!impl_->identity.certified) {
     return false;
   }
@@ -1053,6 +1165,11 @@ bool PeerTransport::NeedsHolePunch(Uid const& uid) const {
   return !impl_->Best(uid, false, false, true) &&
          (policy == impl_->keep_backups.end() || policy->second ||
           !impl_->Best(uid));
+
+#  else
+  static_cast<void>(uid);
+  return false;
+#  endif
 }
 OnlineType PeerTransport::OnlineTypes(Uid const* uid) const noexcept {
   auto result = OnlineType::kNone;

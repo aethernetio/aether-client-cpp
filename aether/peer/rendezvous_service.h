@@ -5,7 +5,7 @@
 #include "aether-objects/ptr/ptr.h"
 #include "aether/ae_context.h"
 #include "aether/peer/rendezvous_broker.h"
-#if AE_SUPPORT_P2P
+#if AE_SUPPORT_P2P && AE_SUPPORT_HOLE_PUNCH
 namespace ae {
 class Client;
 // Public-host service attached to an ordinary authenticated Æthernet client.

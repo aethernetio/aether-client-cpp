@@ -6,7 +6,8 @@
 #include <thread>
 #include <vector>
 #include "aether/config.h"
-#if AE_SUPPORT_P2P
+#if AE_SUPPORT_P2P && AE_SUPPORT_LAN && AE_SUPPORT_DIRECT_IP && \
+    AE_SUPPORT_HOLE_PUNCH
 #  include "aether-objects/domain_storage/ram_domain_storage.h"
 #  include "aether-objects/obj/domain.h"
 #  include "aether/adapter_registry.h"
@@ -27,6 +28,18 @@
 #  include "aether/peer/rendezvous_broker.h"
 #  include "aether/peer/rendezvous_client.h"
 #  include "aether/streams/stream_hierarchy.h"
+#  ifdef _WIN32
+#    include <winsock2.h>
+#  else
+#    include <cerrno>
+#  endif
+namespace ae {
+struct PeerUdpTestHelper {
+  static PeerSendResult Classify(int error) {
+    return PeerUdp::ClassifySendFailure(error);
+  }
+};
+}  // namespace ae
 namespace ae::test_peer {
 struct Authority {
   PeerKeyPair root{GeneratePeerSigningKey()};
@@ -71,6 +84,24 @@ struct Context : Env {
   ClientConnectivityPolicy::ptr policy{
       ClientConnectivityPolicy::ptr::Create(CreateWith{domain})};
 };
+void test_UdpSendClassifiesSocketPressureAsBackpressure() {
+#  ifdef _WIN32
+  TEST_ASSERT_TRUE(PeerUdpTestHelper::Classify(WSAEWOULDBLOCK) ==
+                   PeerSendResult::kBlocked);
+  TEST_ASSERT_TRUE(PeerUdpTestHelper::Classify(WSAENOBUFS) ==
+                   PeerSendResult::kBlocked);
+  TEST_ASSERT_TRUE(PeerUdpTestHelper::Classify(WSAECONNRESET) ==
+                   PeerSendResult::kError);
+#  else
+  TEST_ASSERT_TRUE(PeerUdpTestHelper::Classify(EAGAIN) ==
+                   PeerSendResult::kBlocked);
+  TEST_ASSERT_TRUE(PeerUdpTestHelper::Classify(ENOBUFS) ==
+                   PeerSendResult::kBlocked);
+  TEST_ASSERT_TRUE(PeerUdpTestHelper::Classify(EHOSTUNREACH) ==
+                   PeerSendResult::kError);
+#  endif
+}
+
 void test_CertificateAndWireEncoding() {
   Authority ca;
   auto identity = ca.Issue();
@@ -864,6 +895,251 @@ void test_ExistingStreamsOverAuthenticatedUdpAndIndependentChildren() {
   TEST_ASSERT_TRUE(statistics[0].received_messages == 0);
   TEST_ASSERT_NOT_NULL(a->streams().Find(11));
 }
+
+class HeldPacketWrite : public WriteAction {
+ public:
+  explicit HeldPacketWrite(AeContext context) : WriteAction{context} {}
+  void Complete() { SetStatus(Status::kSuccess); }
+};
+void test_InteractivePacketsOvertakeReadyFilePackets() {
+  ClientFixture fixture;
+  PrioritySendQueue queue{AeContext{*fixture.aether}};
+  std::vector<unsigned> dispatches;
+  std::vector<std::unique_ptr<HeldPacketWrite>> packets;
+  int file_owner{}, keyboard_owner{};
+  auto enqueue = [&](void const* owner, SendPriority priority,
+                     unsigned number) {
+    return queue.Enqueue(owner, priority, 1000, [&, number]() -> WriteAction* {
+      dispatches.push_back(number);
+      packets.push_back(
+          std::make_unique<HeldPacketWrite>(AeContext{*fixture.aether}));
+      return packets.back().get();
+    });
+  };
+  auto wait = [&](std::size_t count) {
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds{2};
+    while (dispatches.size() < count &&
+           std::chrono::steady_clock::now() < deadline) {
+      fixture.Update();
+      std::this_thread::sleep_for(std::chrono::milliseconds{1});
+    }
+    TEST_ASSERT_EQUAL_UINT(count, dispatches.size());
+  };
+  for (unsigned i = 0; i < 10; ++i) {
+    TEST_ASSERT_NOT_NULL(enqueue(&file_owner, SendPriority::kBackground, i));
+  }
+  wait(1);
+  TEST_ASSERT_EQUAL_UINT(0, dispatches.front());
+  TEST_ASSERT_NOT_NULL(
+      enqueue(&keyboard_owner, SendPriority::kInteractive, 100));
+  TEST_ASSERT_NOT_NULL(
+      enqueue(&keyboard_owner, SendPriority::kInteractive, 101));
+  fixture.Update();
+  TEST_ASSERT_EQUAL_UINT(1,
+                         dispatches.size());  // One downstream write in flight.
+  packets.back()->Complete();
+  wait(2);
+  TEST_ASSERT_EQUAL_UINT(100, dispatches.back());
+  packets.back()->Complete();
+  wait(3);
+  TEST_ASSERT_EQUAL_UINT(101, dispatches.back());
+  packets.back()->Complete();
+  wait(4);
+  TEST_ASSERT_EQUAL_UINT(1,
+                         dispatches.back());  // Equal priorities preserve FIFO.
+  queue.Cancel(&file_owner);
+  auto count = dispatches.size();
+  for (unsigned i = 0; i < 10; ++i) {
+    fixture.Update();
+  }
+  TEST_ASSERT_EQUAL_UINT(count, dispatches.size());
+}
+
+void test_BackgroundCannotFillInteractiveQueueSlots() {
+  ClientFixture fixture;
+  PrioritySendQueue queue{AeContext{*fixture.aether}};
+  int file_owner{}, keyboard_owner{};
+  bool dispatched = false;
+  auto dispatch = [&]() -> WriteAction* {
+    dispatched = true;
+    return nullptr;
+  };
+  unsigned background{};
+  while (queue.CanEnqueue(SendPriority::kBackground, 1000)) {
+    TEST_ASSERT_NOT_NULL(
+        queue.Enqueue(&file_owner, SendPriority::kBackground, 1000, dispatch));
+    ++background;
+  }
+  TEST_ASSERT_TRUE(background > 0);
+  TEST_ASSERT_NOT_NULL(
+      queue.Enqueue(&keyboard_owner, SendPriority::kInteractive, 20, dispatch));
+  queue.Cancel(&file_owner);
+  queue.Cancel(&keyboard_owner);
+  fixture.Update();
+  auto* cancelled =
+      queue.Enqueue(&keyboard_owner, SendPriority::kInteractive, 20, dispatch);
+  TEST_ASSERT_NOT_NULL(cancelled);
+  bool stopped = false;
+  Subscription terminal = cancelled->status_event().Subscribe(
+      [&](auto status) { stopped = status == WriteAction::Status::kStop; });
+  cancelled->Stop();
+  TEST_ASSERT_TRUE(stopped);
+  fixture.Update();
+  TEST_ASSERT_FALSE(dispatched);
+}
+
+void test_FileVideoHierarchyKeepsKeyboardInteractive() {
+  // Source: New doc, "And a particular case with file transfer and real-time
+  // video streaming"; the original JSON is in
+  // fixtures/file_video_hierarchy.json. Offline storage remains an explicit
+  // unsupported feature, tested separately.
+  ClientFixture fixture;
+  auto first = fixture.ca.Issue(), second = fixture.ca.Issue();
+  auto app = RandomPeerToken();
+  StreamDefinition root;
+  root.id = 100;
+  root.name = "root";
+  root.destination = second.certificate.uid;
+  root.routing = StreamRoutePolicy{false, true, false, true, false};
+  root.sending = StreamSendPolicy{SendPriority::kNormal, 1000};
+  StreamDefinition file;
+  file.id = 101;
+  file.name = "file";
+  file.delivery = StreamDelivery::kReliable;
+  file.sending = StreamSendPolicy{SendPriority::kBackground, 1000};
+  StreamDefinition video;
+  video.id = 102;
+  video.name = "video_frames";
+  video.delivery = StreamDelivery::kReliable;
+  video.sending = StreamSendPolicy{SendPriority::kRealtime, 900};
+  StreamDefinition blocks;
+  blocks.id = 103;
+  blocks.name = "blocks";
+  blocks.delivery = StreamDelivery::kMessages;
+  blocks.sending = StreamSendPolicy{SendPriority::kRealtime, 800};
+  StreamDefinition progressive;
+  progressive.id = 104;
+  progressive.name = "progressive_img";
+  progressive.delivery =
+      StreamDelivery::kReliable;  // Inherits blocks' sending policy.
+  blocks.children = {progressive};
+  video.children = {blocks};
+  StreamDefinition keyboard;
+  keyboard.id = 105;
+  keyboard.name = "keyboard";
+  keyboard.delivery = StreamDelivery::kReliable;
+  keyboard.sending = StreamSendPolicy{SendPriority::kInteractive, 128};
+  root.children = {file, video, keyboard};
+  auto reverse = root;
+  reverse.destination = first.certificate.uid;
+  auto a = fixture.Add(first, "tree-a", app, {root});
+  auto b = fixture.Add(second, "tree-b", app, {reverse});
+  auto& tree = a->streams();
+  TEST_ASSERT_EQUAL_UINT(3, tree.Find(100)->children().size());
+  TEST_ASSERT_EQUAL_UINT(104, tree.Find(103)->children().front()->id());
+  TEST_ASSERT_EQUAL_UINT(800,
+                         tree.Find(104)->sending_policy().max_packet_bytes);
+  TEST_ASSERT_TRUE(tree.Find(104)->sending_policy().priority ==
+                   SendPriority::kRealtime);
+  TEST_ASSERT_TRUE(tree.Find(104)->destination() == b->uid());
+  TEST_ASSERT_TRUE(tree.Find(104)->routing_policy().direct_ip);
+  TEST_ASSERT_FALSE(tree.Find(104)->routing_policy().cloud);
+  bool file_done{}, image_done{}, video_done{};
+  bool file_ok = true, image_ok = true, video_ok = true, blocks_ok = true,
+       keyboard_ok = true;
+  std::size_t file_received_size{};
+  unsigned keys{}, block_count{};
+  std::vector<std::string> completion;
+  DataBuffer file_bytes(16000, 0x53), image_bytes(4000, 0x47),
+      video_bytes(1000, 0x29);
+  for (std::size_t i = 0; i < file_bytes.size(); ++i) {
+    file_bytes[i] = static_cast<std::uint8_t>((i * 73u + (i >> 8)) & 0xffu);
+  }
+  MultiSubscription receive;
+  receive += b->streams().Find(101)->out_data_event().Subscribe(
+      [&](DataBuffer const& data) {
+        file_ok &= data == file_bytes;
+        file_received_size = data.size();
+        file_done = true;
+        completion.push_back("file");
+      });
+  receive += b->streams().Find(104)->out_data_event().Subscribe(
+      [&](DataBuffer const& data) {
+        image_ok &= data == image_bytes;
+        image_done = true;
+      });
+  receive += b->streams().Find(102)->out_data_event().Subscribe(
+      [&](DataBuffer const& data) {
+        video_ok &= data == video_bytes;
+        video_done = true;
+      });
+  receive += b->streams().Find(103)->out_data_event().Subscribe(
+      [&](DataBuffer const& data) {
+        blocks_ok &= data == DataBuffer({0x42});
+        ++block_count;
+      });
+  receive += b->streams().Find(105)->out_data_event().Subscribe(
+      [&](DataBuffer const& data) {
+        keyboard_ok &= data == DataBuffer({0x4b});
+        ++keys;
+        completion.push_back("keyboard");
+      });
+  a->peer_transport()->Connect(
+      {b->uid(), LoopbackEndpoint(*b->peer_transport())});
+  auto wait = [&](auto predicate) {
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds{8};
+    while (!predicate() && std::chrono::steady_clock::now() < deadline) {
+      fixture.Update();
+      std::this_thread::sleep_for(std::chrono::milliseconds{1});
+    }
+    return predicate();
+  };
+  TEST_ASSERT_TRUE(wait(
+      [&] { return a->peer_transport()->BestPath(b->uid()).has_value(); }));
+  PeerDelivery before, after;
+  TEST_ASSERT_TRUE(
+      PeerDecode(a->message_stream_manager().Frame(999, {}), before));
+  tree.Find(100)->Write({0x7a});
+  TEST_ASSERT_TRUE(
+      PeerDecode(a->message_stream_manager().Frame(999, {}), after));
+  TEST_ASSERT_TRUE(after.number ==
+                   before.number +
+                       1);  // Queued data consumes no delivery number.
+  tree.Find(101)->Write(DataBuffer{file_bytes});
+  tree.Find(104)->Write(DataBuffer{image_bytes});
+  tree.Find(102)->Write(DataBuffer{video_bytes});
+  tree.Find(103)->Write({0x42});
+  tree.Find(105)->Write({0x4b});
+  TEST_ASSERT_TRUE(wait([&] {
+    return file_done && image_done && video_done && keys == 1 &&
+           block_count == 1;
+  }));
+  TEST_ASSERT_EQUAL_UINT(file_bytes.size(), file_received_size);
+  TEST_ASSERT_TRUE(file_ok && image_ok && video_ok && blocks_ok && keyboard_ok);
+  TEST_ASSERT_TRUE(completion.front() == "keyboard");
+  for (auto id : {101u, 102u, 103u, 104u, 105u}) {
+    auto stats = tree.Find(id)->statistics();
+    TEST_ASSERT_TRUE(
+        stats[static_cast<unsigned>(PeerRoute::kDirectIp)].sent_messages > 0);
+    TEST_ASSERT_TRUE(stats[0].sent_messages == 0);
+  }
+  // Child definitions and priorities survive loading; live queues do not.
+  a.Save();
+  fixture.aether.Save();
+  AeEnv env;
+  Domain restarted{fixture.storage, &env};
+  auto restored_aether =
+      Aether::ptr::Declare(CreateWith{restarted}.with_id(fixture.aether.id()));
+  env.SetAether(restored_aether);
+  TEST_ASSERT_TRUE(static_cast<bool>(restored_aether.Load()));
+  auto restored =
+      Client::ptr::Declare(CreateWith{restarted}.with_id(a.id())).Load();
+  TEST_ASSERT_EQUAL_UINT(
+      800, restored->streams().Find(104)->sending_policy().max_packet_bytes);
+  TEST_ASSERT_TRUE(restored->streams().Find(105)->sending_policy().priority ==
+                   SendPriority::kInteractive);
+}
+
 void test_HierarchyAndIdentityPersistAndRestore() {
   ClientFixture fixture;
   auto identity = fixture.ca.Issue();
@@ -1333,13 +1609,77 @@ void test_RttThenLossSelectsPathAndRecoversFromBlackout() {
 }
 }  // namespace ae::test_peer
 #endif
+
+#if AE_SUPPORT_P2P && \
+    (!AE_SUPPORT_DIRECT_IP || !AE_SUPPORT_HOLE_PUNCH || !AE_SUPPORT_LAN)
+#  include "aether-objects/domain_storage/ram_domain_storage.h"
+#  include "aether-objects/obj/domain.h"
+#  include "aether/aether.h"
+#  include "aether/env.h"
+#  include "aether/peer/peer_transport.h"
+void test_ExcludedPeerModulesCannotBeEnabledAtRuntime() {
+  ae::AeEnv env;
+  ae::RamDomainStorage storage;
+  ae::Domain domain{storage, &env};
+  auto aether = ae::Aether::ptr::Create(ae::CreateWith{domain});
+  env.SetAether(aether);
+  auto policy =
+      ae::ClientConnectivityPolicy::ptr::Create(ae::CreateWith{domain});
+  ae::PeerIdentity identity;
+  ae::PeerSettings settings;
+  settings.app_id = ae::Uid::FromString("a89d9189-9e39-4a22-ae70-112812720155");
+  settings.discovery = false;
+  auto rejects = [&](ae::PeerSettings const& conf, char const* reason) {
+    bool rejected = false;
+    try {
+      ae::PeerTransport unused{ae::AeContext{*aether}, identity, conf,
+                               ae::Key{}, policy.Load()};
+    } catch (std::invalid_argument const& error) {
+      rejected = std::string{error.what()} == reason;
+    }
+    return rejected;
+  };
+#  if !AE_SUPPORT_DIRECT_IP
+  auto direct = settings;
+  direct.direct_peers.push_back(
+      {settings.app_id, {ae::Address{ae::IpV4Addr{{127, 0, 0, 1}}}, 12345}});
+  TEST_ASSERT_TRUE(rejects(direct, "Direct IP is disabled in this build"));
+  ae::PeerTransport transport{ae::AeContext{*aether}, identity, settings,
+                              ae::Key{}, policy.Load()};
+  bool rejected = false;
+  try {
+    transport.Connect(direct.direct_peers.front());
+  } catch (std::logic_error const&) {
+    rejected = true;
+  }
+  TEST_ASSERT_TRUE(rejected);
+#  endif
+#  if !AE_SUPPORT_HOLE_PUNCH
+  auto hole = settings;
+  hole.rendezvous.emplace();
+  TEST_ASSERT_TRUE(rejects(hole, "Hole punching is disabled in this build"));
+#  endif
+#  if !AE_SUPPORT_LAN
+  auto lan = settings;
+  lan.discovery = true;
+  TEST_ASSERT_TRUE(rejects(lan, "LAN is disabled in this build"));
+#  endif
+}
+#endif
+
 extern "C" void setUp() {}
 extern "C" void tearDown() {}
 int main() {
   UNITY_BEGIN();
-#if AE_SUPPORT_P2P
+#if AE_SUPPORT_P2P && \
+    (!AE_SUPPORT_DIRECT_IP || !AE_SUPPORT_HOLE_PUNCH || !AE_SUPPORT_LAN)
+  RUN_TEST(test_ExcludedPeerModulesCannotBeEnabledAtRuntime);
+#endif
+#if AE_SUPPORT_P2P && AE_SUPPORT_LAN && AE_SUPPORT_DIRECT_IP && \
+    AE_SUPPORT_HOLE_PUNCH
   using namespace ae::test_peer;  // NOLINT: Unity suite dispatch.
   RUN_TEST(test_CertificateAndWireEncoding);
+  RUN_TEST(test_UdpSendClassifiesSocketPressureAsBackpressure);
 #  if AE_ENABLE_PING
   RUN_TEST(test_SharedPingCorrelatesLateAndReplacementAcks);
   RUN_TEST(test_PeerUsesUserCadenceWindowAndConfirmedConfiguration);
@@ -1366,6 +1706,9 @@ int main() {
   RUN_TEST(test_RttThenLossSelectsPathAndRecoversFromBlackout);
   RUN_TEST(test_ExistingStreamsOverAuthenticatedUdpAndIndependentChildren);
   RUN_TEST(test_RendezvousCloudLookupsReleaseTheirActionSlots);
+  RUN_TEST(test_InteractivePacketsOvertakeReadyFilePackets);
+  RUN_TEST(test_BackgroundCannotFillInteractiveQueueSlots);
+  RUN_TEST(test_FileVideoHierarchyKeepsKeyboardInteractive);
   RUN_TEST(test_HierarchyAndIdentityPersistAndRestore);
   RUN_TEST(test_StorageIntentFailsExplicitlyUntilProviderImplemented);
 #  if AE_SUPPORT_LAN

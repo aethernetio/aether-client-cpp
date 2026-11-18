@@ -15,6 +15,7 @@
  */
 
 #include "aether/client.h"
+#include "aether/client_messages/priority_send_queue.h"
 
 #include <stdexcept>
 #include <utility>
@@ -138,6 +139,13 @@ P2pMessageStreamManager& Client::message_stream_manager() {
 #endif
   }
   return *message_stream_manager_;
+}
+
+PrioritySendQueue& Client::send_queue() {
+  if (!send_queue_) {
+    send_queue_ = std::make_unique<PrioritySendQueue>(AeContext{*this});
+  }
+  return *send_queue_;
 }
 
 bool Client::IsLocallyOnline() const noexcept {

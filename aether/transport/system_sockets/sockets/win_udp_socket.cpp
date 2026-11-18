@@ -54,6 +54,13 @@ WinUdpSocket::WinUdpSocket(Ptr<IPoller> const& poller)
     }
   };
 
+  int send_buffer = AE_SOCKET_SEND_BUFFER_BYTES;
+  if (::setsockopt(sock, SOL_SOCKET, SO_SNDBUF,
+                   reinterpret_cast<char const*>(&send_buffer),
+                   sizeof(send_buffer)) == SOCKET_ERROR) {
+    AETHER_TELED_ERROR("Cannot set UDP send buffer {}", WSAGetLastError());
+    return;
+  }
   // make socket non-blocking
   u_long nonblocking = 1;
   if (auto res = ::ioctlsocket(sock, static_cast<long>(FIONBIO), &nonblocking);
@@ -92,10 +99,12 @@ ISocket& WinUdpSocket::Connect(AddressPort const& destination,
         "AE_BENCH_UDP_PROXY_PORT", relay_port, sizeof(relay_port));
     bool const relayed = relay_length > 0;
     if (relayed) {
-      char* end{}; auto port = std::strtoul(relay_port, &end, 10);
-      if (relay_length >= sizeof(relay_port) || !port || port > 65535 ||
-          *end || addr.data.ipv4.sin_family != AF_INET) {
-        connection_state = ConnectionState::kConnectionFailed; return *this;
+      char* end{};
+      auto port = std::strtoul(relay_port, &end, 10);
+      if (relay_length >= sizeof(relay_port) || !port || port > 65535 || *end ||
+          addr.data.ipv4.sin_family != AF_INET) {
+        connection_state = ConnectionState::kConnectionFailed;
+        return *this;
       }
       std::memcpy(relay_header, &addr.data.ipv4.sin_addr.s_addr, 4);
       std::memcpy(relay_header + 4, &addr.data.ipv4.sin_port, 2);
@@ -112,9 +121,10 @@ ISocket& WinUdpSocket::Connect(AddressPort const& destination,
     }
 #  if AE_BENCH_TCP_PROXY
     if (relayed && send(socket_, reinterpret_cast<char const*>(relay_header),
-                        static_cast<int>(sizeof(relay_header)), 0) !=
-                       static_cast<int>(sizeof(relay_header))) {
-      connection_state = ConnectionState::kConnectionFailed; return *this;
+                        static_cast<int>(sizeof(relay_header)),
+                        0) != static_cast<int>(sizeof(relay_header))) {
+      connection_state = ConnectionState::kConnectionFailed;
+      return *this;
     }
 #  endif
   }

@@ -5,7 +5,7 @@
 #include <memory>
 #include "aether/peer/peer_udp.h"
 #include "aether/peer/rendezvous_protocol.h"
-#if AE_SUPPORT_P2P
+#if AE_SUPPORT_P2P && AE_SUPPORT_HOLE_PUNCH
 namespace ae {
 // Rendezvous state machine. The owner supplies authenticated Æthernet signaling
 // and UDP output; registration never trusts an endpoint claimed over signaling.

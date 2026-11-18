@@ -3,7 +3,7 @@
 #define AETHER_PEER_RENDEZVOUS_CLIENT_H_
 #include "aether/peer/peer_transport.h"
 #include "aether/stream_api/istream.h"
-#if AE_SUPPORT_P2P
+#if AE_SUPPORT_P2P && AE_SUPPORT_HOLE_PUNCH
 namespace ae {
 class RendezvousClient {
  public:

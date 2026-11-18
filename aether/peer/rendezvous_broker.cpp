@@ -1,6 +1,6 @@
 // Copyright 2026 Aethernet Inc. Licensed under the Apache License, Version 2.0.
 #include "aether/peer/rendezvous_broker.h"
-#if AE_SUPPORT_P2P
+#if AE_SUPPORT_P2P && AE_SUPPORT_HOLE_PUNCH
 #  include <algorithm>
 #  include <array>
 #  include <chrono>

@@ -39,7 +39,8 @@ class MockWriteStream : public ByteStream {
   explicit MockWriteStream(AeContext const& context, std::size_t max_data_size)
       : ByteStream{context},
         context_{context},
-        stream_info_{max_data_size, max_data_size, {}, {}, {}},
+        stream_info_{max_data_size, max_data_size, false, LinkState::kLinked,
+                     true},
         on_write_{context_},
         out_data_event_{context_},
         stream_update_event_{context_} {}
@@ -50,6 +51,10 @@ class MockWriteStream : public ByteStream {
   }
 
   StreamInfo stream_info() const override { return stream_info_; }
+  void SetWritable(bool writable) {
+    stream_info_.is_writable = writable;
+    stream_update_event_.Emit();
+  }
   StreamUpdateEvent const& stream_update_event() override {
     return stream_update_event_;
   }

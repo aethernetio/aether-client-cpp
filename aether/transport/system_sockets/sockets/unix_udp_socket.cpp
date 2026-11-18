@@ -52,9 +52,16 @@ int UnixUdpSocket::MakeSocket() {
     }
   };
 
+  int send_buffer = AE_SOCKET_SEND_BUFFER_BYTES;
+  if (setsockopt(sock, SOL_SOCKET, SO_SNDBUF, &send_buffer,
+                 sizeof(send_buffer)) != 0) {
+    AETHER_TELED_ERROR("Cannot set UDP send buffer {}", errno);
+    return kInvalidDescriptor;
+  }
   // make socket non-blocking
   if (fcntl(sock, F_SETFL, O_NONBLOCK) != 0) {
-    AETHER_TELED_ERROR("Socket set O_NONBLOCK error {} {}", errno, strerror(errno));
+    AETHER_TELED_ERROR("Socket set O_NONBLOCK error {} {}", errno,
+                       strerror(errno));
     return kInvalidDescriptor;
   }
   created = true;

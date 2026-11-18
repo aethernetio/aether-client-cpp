@@ -48,6 +48,7 @@ class CloudRequest;
 class StreamHierarchy;
 class RendezvousClient;
 class P2pStream;
+class PrioritySendQueue;
 
 class Client : public Obj {
   AE_OBJECT(Client, Obj, 0)
@@ -73,6 +74,7 @@ class Client : public Obj {
   CloudServerConnections& cloud_connection();
   ClientConnectivityPolicy::ptr const& connectivity_policy();
   P2pMessageStreamManager& message_stream_manager();
+  PrioritySendQueue& send_queue();
 
   bool IsLocallyOnline() const noexcept;
   bool IsAetherOnline() const noexcept;
@@ -88,7 +90,11 @@ class Client : public Obj {
   PeerTransport* peer_transport();
   void RenewPeerIdentity();
   RendezvousClient* rendezvous_client() const {
+#  if AE_SUPPORT_HOLE_PUNCH
     return rendezvous_client_.get();
+#  else
+    return nullptr;
+#  endif
   }
 #endif
 
@@ -143,14 +149,17 @@ class Client : public Obj {
   ClientCloudManager::ptr client_cloud_manager_;
   std::unique_ptr<ServerConnectionManager> server_connection_manager_;
   std::unique_ptr<CloudServerConnections> cloud_connection_;
+  std::unique_ptr<PrioritySendQueue> send_queue_;
   std::unique_ptr<P2pMessageStreamManager> message_stream_manager_;
   std::map<Uid, std::unique_ptr<ae::PeerPresenceQuery>> peer_presence_queries_;
   std::map<Uid, std::vector<RemoteServerPresenceSample>> peer_cloud_presence_;
   std::unique_ptr<StreamHierarchy> stream_hierarchy_;
 #if AE_SUPPORT_P2P
   std::unique_ptr<PeerTransport> peer_transport_;
+#  if AE_SUPPORT_HOLE_PUNCH
   std::unique_ptr<P2pStream> rendezvous_signaling_;
   std::unique_ptr<RendezvousClient> rendezvous_client_;
+#  endif
   std::unique_ptr<CloudRequest> peer_identity_request_;
   TaskSubscription peer_start_task_;
   TaskSubscription peer_identity_task_;

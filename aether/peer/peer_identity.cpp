@@ -25,16 +25,32 @@ void Client::ConfigurePeer(PeerSettings settings) {
           "Direct peer requires a UID and an IPv4 endpoint");
     }
   }
+
+#  if AE_SUPPORT_HOLE_PUNCH
   if (settings.rendezvous &&
       (settings.rendezvous->uid == uid_ || settings.rendezvous->uid.empty() ||
        !ValidRendezvousEndpoint(settings.rendezvous->endpoint) ||
        (!settings.rendezvous->standard && !settings.rendezvous->dual_socket))) {
     throw std::invalid_argument("Invalid rendezvous configuration");
   }
+#  endif
+
+#  if !AE_SUPPORT_DIRECT_IP
+  if (!settings.direct_peers.empty()) {
+    throw std::invalid_argument("Direct IP is disabled in this build");
+  }
+#  endif
+#  if !AE_SUPPORT_HOLE_PUNCH
+  if (settings.rendezvous) {
+    throw std::invalid_argument("Hole punching is disabled in this build");
+  }
+#  endif
   peer_identity_task_.Reset();
   peer_identity_request_.reset();
+#  if AE_SUPPORT_HOLE_PUNCH
   rendezvous_client_.reset();
   rendezvous_signaling_.reset();
+#  endif
   peer_transport_.reset();
   peer_settings_ = std::move(settings);
   peer_transport();
@@ -42,6 +58,8 @@ void Client::ConfigurePeer(PeerSettings settings) {
   StartPeerRendezvous();
 }
 void Client::StartPeerRendezvous() {
+#  if AE_SUPPORT_HOLE_PUNCH
+
   if (rendezvous_client_ || !peer_settings_.rendezvous) {
     return;
   }
@@ -51,11 +69,17 @@ void Client::StartPeerRendezvous() {
   rendezvous_signaling_ = std::make_unique<P2pStream>(
       AeContext{*this}, MakePtrFromThis(this), rendezvous.uid,
       std::move(handle), RequestPolicy::MainServer{},
-      StreamRoutePolicy{false, false, true, false, false});
+      StreamRoutePolicy{false, false, true, false, false},
+      StreamSendPolicy{SendPriority::kInteractive,
+                       AE_SOCKET_SEND_BUFFER_BYTES - 256});
   rendezvous_client_ = std::make_unique<RendezvousClient>(
       AeContext{*this}, *peer_transport(), peer_settings_,
       *rendezvous_signaling_);
   message_stream_manager().AttachRendezvous();
+
+#  else
+
+#  endif
 }
 PeerTransport* Client::peer_transport() {
   if (peer_settings_.app_id.empty()) {
@@ -82,8 +106,10 @@ PeerTransport* Client::peer_transport() {
 void Client::RenewPeerIdentity() {
   peer_identity_task_.Reset();
   peer_identity_request_.reset();
+#  if AE_SUPPORT_HOLE_PUNCH
   rendezvous_client_.reset();
   rendezvous_signaling_.reset();
+#  endif
   peer_transport_.reset();
   ErasePeerPrivateKey(peer_identity_.private_key);
   peer_identity_ = {};

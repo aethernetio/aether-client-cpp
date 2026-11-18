@@ -4,6 +4,7 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include "aether/client_messages/priority_send_queue.h"
 #include "aether/peer/peer_types.h"
 namespace ae {
 enum class StreamDelivery : std::uint8_t {
@@ -13,11 +14,11 @@ enum class StreamDelivery : std::uint8_t {
 };
 struct StreamRoutePolicy {
   AE_REFLECT_MEMBERS(lan, direct_ip, cloud, keep_backup_channels, hole_punching)
-  bool lan{true};
-  bool direct_ip{true};
+  bool lan{AE_SUPPORT_LAN != 0};
+  bool direct_ip{AE_SUPPORT_DIRECT_IP != 0};
   bool cloud{true};
   bool keep_backup_channels{true};
-  bool hole_punching{true};
+  bool hole_punching{AE_SUPPORT_HOLE_PUNCH != 0};
 };
 // Persistent intent reserved for a future storage provider. Creating a live
 // stream with storage configured currently fails explicitly.
@@ -28,14 +29,15 @@ struct OfflineStorageSettings {
   bool fetch_pending_on_client_load{true};
 };
 struct StreamDefinition {
-  AE_REFLECT_MEMBERS(id, name, destination, service, delivery, routing, storage,
-                     children)
+  AE_REFLECT_MEMBERS(id, name, destination, service, delivery, routing, sending,
+                     storage, children)
   std::uint32_t id{};
   std::string name;
   Uid destination{};
   PeerService service;
   StreamDelivery delivery{StreamDelivery::kMessages};
   std::optional<StreamRoutePolicy> routing;
+  std::optional<StreamSendPolicy> sending;
   std::optional<OfflineStorageSettings> storage;
   std::vector<StreamDefinition> children;
 };

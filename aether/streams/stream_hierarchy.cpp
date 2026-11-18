@@ -22,8 +22,10 @@ void Validate(std::vector<StreamDefinition> const& nodes, Uid inherited,
     if (node.storage) {
       throw std::logic_error("Offline storage providers are not implemented");
     }
-    if (node.routing && !node.routing->lan && !node.routing->direct_ip &&
-        !node.routing->hole_punching && !node.routing->cloud) {
+    if (node.routing && !(node.routing->lan && AE_SUPPORT_LAN) &&
+        !(node.routing->direct_ip && AE_SUPPORT_DIRECT_IP) &&
+        !(node.routing->hole_punching && AE_SUPPORT_HOLE_PUNCH) &&
+        !node.routing->cloud) {
       throw std::invalid_argument("Stream has no enabled route");
     }
     Validate(node.children, uid, ids, depth + 1);
@@ -44,7 +46,8 @@ HierarchicalStream* Find(HierarchicalStream& node, std::uint32_t id) {
 
 HierarchicalStream::HierarchicalStream(
     AeContext context, Ptr<Client> const& client, StreamDefinition definition,
-    Uid destination, StreamRoutePolicy inherited, PeerService inherited_service)
+    Uid destination, StreamRoutePolicy inherited, PeerService inherited_service,
+    StreamSendPolicy inherited_sending)
     : definition_{std::move(definition)} {
   if (!definition_.destination.empty()) {
     destination = definition_.destination;
@@ -53,22 +56,27 @@ HierarchicalStream::HierarchicalStream(
     definition_.service = inherited_service;
   }
   auto policy = definition_.routing.value_or(inherited);
+  auto sending = definition_.sending.value_or(inherited_sending);
+  sending_ = sending;
+  routing_ = policy;
+  destination_ = destination;
   auto handle = client->message_stream_manager().CreatePort(
       destination, definition_.id, definition_.service);
   if (definition_.delivery == StreamDelivery::kAdaptiveDatagram) {
     delivery_ = std::make_unique<P2pAdaptiveDatagramStream>(
         context, client, destination, std::move(handle),
-        adaptive_datagram::Config{}, RequestPolicy::MainServer{}, policy);
+        adaptive_datagram::Config{}, RequestPolicy::MainServer{}, policy,
+        sending);
     stream_ = delivery_.get();
   } else {
     transport_ = std::make_shared<P2pStream>(
         context, client, destination, std::move(handle),
-        RequestPolicy::MainServer{}, policy);
+        RequestPolicy::MainServer{}, policy, sending);
     stream_ = transport_.get();
   }
   if (definition_.delivery == StreamDelivery::kReliable) {
     SafeStreamConfig config{AE_SAFE_STREAM_CAPACITY / 2 - 1,
-                            1000,
+                            AE_SAFE_STREAM_CAPACITY - 8,
                             10,
                             std::chrono::seconds{2},
                             std::chrono::milliseconds{5},
@@ -77,8 +85,9 @@ HierarchicalStream::HierarchicalStream(
     stream_ = delivery_.get();
   }
   for (auto const& child : definition_.children) {
-    children_.emplace_back(new HierarchicalStream{
-        context, client, child, destination, policy, definition_.service});
+    children_.emplace_back(
+        new HierarchicalStream{context, client, child, destination, policy,
+                               definition_.service, sending});
   }
 }
 HierarchicalStream::~HierarchicalStream() = default;
@@ -110,8 +119,13 @@ StreamHierarchy::StreamHierarchy(
   std::set<std::uint32_t> ids;
   stream_hierarchy_internal::Validate(definitions, {}, ids);
   for (auto const& definition : definitions) {
-    roots_.emplace_back(new HierarchicalStream{
-        context, client, definition, {}, StreamRoutePolicy{}, {}});
+    roots_.emplace_back(new HierarchicalStream{context,
+                                               client,
+                                               definition,
+                                               {},
+                                               StreamRoutePolicy{},
+                                               {},
+                                               StreamSendPolicy{}});
   }
 }
 HierarchicalStream* StreamHierarchy::Find(std::uint32_t id) const {

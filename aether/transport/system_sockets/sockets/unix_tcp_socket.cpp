@@ -45,7 +45,7 @@ inline bool SetTcpNoDelay(int sock) {
   auto res = setsockopt(sock, SOL_TCP, TCP_NODELAY, &one, sizeof(one));
   if (res == -1) {
     AETHER_TELED_ERROR("Socket set option TCP_NODELAY error {} {}", errno,
-                   strerror(errno));
+                       strerror(errno));
     return false;
   }
   return true;
@@ -57,7 +57,7 @@ inline bool SetNoSigpipe([[maybe_unused]] int sock) {
   auto res = setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
   if (res == -1) {
     AETHER_TELED_ERROR("Socket set option SO_NOSIGPIPE error {} {}", errno,
-                   strerror(errno));
+                       strerror(errno));
     return false;
   }
 #  endif
@@ -66,7 +66,8 @@ inline bool SetNoSigpipe([[maybe_unused]] int sock) {
 
 inline bool SetNonblocking(int sock) {
   if (fcntl(sock, F_SETFL, O_NONBLOCK) != 0) {
-    AETHER_TELED_ERROR("Socket set O_NONBLOCK error {} {}", errno, strerror(errno));
+    AETHER_TELED_ERROR("Socket set O_NONBLOCK error {} {}", errno,
+                       strerror(errno));
     return false;
   }
   return true;
@@ -95,6 +96,12 @@ int UnixTcpSocket::MakeSocket() {
     }
   };
 
+  int send_buffer = AE_SOCKET_SEND_BUFFER_BYTES;
+  if (setsockopt(sock, SOL_SOCKET, SO_SNDBUF, &send_buffer,
+                 sizeof(send_buffer)) != 0) {
+    AETHER_TELED_ERROR("Cannot set TCP send buffer {}", errno);
+    return kInvalidDescriptor;
+  }
   if (!unix_tcp_socket_internal::SetNonblocking(sock)) {
     return kInvalidDescriptor;
   }
@@ -156,7 +163,7 @@ void UnixTcpSocket::OnConnectionEvent(DescriptorType fd) {
   auto sock_err = GetSocketError(fd);
   if (!sock_err || (sock_err.value() != 0)) {
     AETHER_TELED_ERROR("Connect error {}, {}", sock_err,
-                   strerror(sock_err.value_or(0)));
+                       strerror(sock_err.value_or(0)));
     connection_state_ = ConnectionState::kConnectionFailed;
     return;
   }

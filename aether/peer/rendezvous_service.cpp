@@ -1,6 +1,6 @@
 // Copyright 2026 Aethernet Inc. Licensed under the Apache License, Version 2.0.
 #include "aether/peer/rendezvous_service.h"
-#if AE_SUPPORT_P2P
+#if AE_SUPPORT_P2P && AE_SUPPORT_HOLE_PUNCH
 #  include <chrono>
 #  include <map>
 #  include "aether/client.h"
@@ -46,7 +46,9 @@ struct RendezvousService::Impl : std::enable_shared_from_this<Impl> {
     auto uid = handle.destination();
     auto stream = std::make_unique<P2pStream>(
         context, client, uid, std::move(handle), RequestPolicy::MainServer{},
-        StreamRoutePolicy{false, false, true, false, false});
+        StreamRoutePolicy{false, false, true, false, false},
+        StreamSendPolicy{SendPriority::kInteractive,
+                         AE_SOCKET_SEND_BUFFER_BYTES - 256});
     std::weak_ptr<Impl> weak = shared_from_this();
     auto sub =
         stream->out_data_event().Subscribe([weak, uid](DataBuffer const& wire) {

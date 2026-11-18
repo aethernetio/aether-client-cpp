@@ -1,0 +1,325 @@
+{
+  "name": "root",
+  "ordered": false,
+  "qos": {
+    "acceptable_loss_pct": 0,
+    "latency_target_ms": 0,
+    "jitter_sensitivity": "medium",
+    "throughput_bias": 0.5,
+    "exactly_once_for_unordered": true,
+    "duplicates_ok": false
+  },
+  "delivery": {
+    "mode": "ack",
+    "replicas": 2,
+    "offline": {
+      "mode": "fallback",
+      "targets": {
+        "lan": true,
+        "cloud": true,
+        "retention_sec": 10
+      },
+      "detect": {
+        "ack_timeout_ms": 200,
+        "max_retries": 2,
+        "server_hint": true
+      }
+    }
+  },
+  "transport": {
+    "attempt_direct": true,
+    "wait_for_direct": false,
+    "direct_methods": [
+      "lan_broadcast",
+      "hole_punching",
+      "public_ip",
+      "dns"
+    ],
+    "protocols": [
+      "udp",
+      "tcp"
+    ],
+    "per_protocol": {
+      "udp": {
+        "enabled": true,
+        "mtu": 1200,
+        "fec": {
+          "enabled": false,
+          "rate": 0
+        },
+        "retransmit": {
+          "enabled": false
+        },
+        "congestion": "cubic-lite"
+      },
+      "tcp": {
+        "enabled": true,
+        "nodelay": true,
+        "keepalive_s": 10,
+        "fast_open": true,
+        "congestion": "cubic"
+      }
+    }
+  },
+  "children": [
+    {
+      "name": "file",
+      "ordered": false,
+      "qos": {
+        "acceptable_loss_pct": 0,
+        "latency_target_ms": 3000,
+        "jitter_sensitivity": "low",
+        "throughput_bias": 1,
+        "exactly_once_for_unordered": true,
+        "duplicates_ok": true
+      },
+      "delivery": {
+        "mode": "ack",
+        "replicas": 2,
+        "offline": {
+          "mode": "mirror",
+          "targets": {
+            "lan": true,
+            "cloud": true,
+            "retention_sec": 10
+          },
+          "detect": {
+            "ack_timeout_ms": 500,
+            "max_retries": 1,
+            "server_hint": true
+          }
+        }
+      },
+      "transport": {
+        "attempt_direct": true,
+        "wait_for_direct": false,
+        "direct_methods": [
+          "hole_punching",
+          "public_ip",
+          "dns",
+          "lan_broadcast"
+        ],
+        "protocols": [
+          "tcp",
+          "udp"
+        ],
+        "per_protocol": {
+          "udp": {
+            "enabled": true,
+            "mtu": 1200,
+            "fec": {
+              "enabled": true,
+              "rate": 0.1
+            },
+            "retransmit": {
+              "enabled": true
+            },
+            "congestion": "cubic-lite"
+          },
+          "tcp": {
+            "enabled": true,
+            "nodelay": false,
+            "keepalive_s": 30,
+            "fast_open": true,
+            "congestion": "cubic"
+          }
+        }
+      },
+      "children": []
+    },
+    {
+      "name": "video_frames",
+      "ordered": true,
+      "qos": {
+        "acceptable_loss_pct": 0,
+        "latency_target_ms": 100,
+        "jitter_sensitivity": "high",
+        "throughput_bias": 0.5,
+        "exactly_once_for_unordered": false,
+        "duplicates_ok": false
+      },
+      "delivery": {
+        "mode": "ack",
+        "replicas": 2,
+        "offline": {
+          "mode": "fallback",
+          "targets": {
+            "lan": true,
+            "cloud": true,
+            "retention_sec": 10
+          },
+          "detect": {
+            "ack_timeout_ms": 120,
+            "max_retries": 1,
+            "server_hint": true
+          }
+        }
+      },
+      "transport": {
+        "attempt_direct": true,
+        "wait_for_direct": true,
+        "direct_methods": [
+          "hole_punching",
+          "lan_broadcast",
+          "public_ip",
+          "dns"
+        ],
+        "protocols": [
+          "udp"
+        ],
+        "per_protocol": {
+          "udp": {
+            "enabled": true,
+            "mtu": 1200,
+            "fec": {
+              "enabled": true,
+              "rate": 0.15
+            },
+            "retransmit": {
+              "enabled": false
+            },
+            "congestion": "cubic-lite"
+          },
+          "tcp": {
+            "enabled": false,
+            "nodelay": true,
+            "keepalive_s": 10,
+            "fast_open": true,
+            "congestion": "cubic"
+          }
+        }
+      },
+      "children": [
+        {
+          "name": "blocks",
+          "ordered": false,
+          "qos": {
+            "acceptable_loss_pct": 5,
+            "latency_target_ms": 100,
+            "jitter_sensitivity": "medium",
+            "throughput_bias": 0.6,
+            "exactly_once_for_unordered": true,
+            "duplicates_ok": true
+          },
+          "delivery": {
+            "mode": "fire_and_forget",
+            "replicas": 2,
+            "offline": {
+              "mode": "never",
+              "targets": {
+                "lan": false,
+                "cloud": false,
+                "retention_sec": 10
+              },
+              "detect": {
+                "ack_timeout_ms": 0,
+                "max_retries": 0,
+                "server_hint": false
+              }
+            }
+          },
+          "transport": {
+            "attempt_direct": true,
+            "wait_for_direct": false,
+            "direct_methods": [
+              "hole_punching",
+              "lan_broadcast",
+              "public_ip",
+              "dns"
+            ],
+            "protocols": [
+              "udp"
+            ],
+            "per_protocol": {
+              "udp": {
+                "enabled": true,
+                "mtu": 1200,
+                "fec": {
+                  "enabled": true,
+                  "rate": 0.2
+                },
+                "retransmit": {
+                  "enabled": false
+                },
+                "congestion": "cubic-lite"
+              },
+              "tcp": {
+                "enabled": false,
+                "nodelay": true,
+                "keepalive_s": 10,
+                "fast_open": true,
+                "congestion": "cubic"
+              }
+            }
+          },
+          "children": [
+            {
+              "name": "progressive_img",
+              "ordered": true,
+              "qos": {
+                "acceptable_loss_pct": 0,
+                "latency_target_ms": 100,
+                "jitter_sensitivity": "high",
+                "throughput_bias": 0.4,
+                "exactly_once_for_unordered": false,
+                "duplicates_ok": false
+              },
+              "delivery": {
+                "mode": "ack",
+                "replicas": 2,
+                "offline": {
+                  "mode": "fallback",
+                  "targets": {
+                    "lan": true,
+                    "cloud": true,
+                    "retention_sec": 10
+                  },
+                  "detect": {
+                    "ack_timeout_ms": 100,
+                    "max_retries": 1,
+                    "server_hint": true
+                  }
+                }
+              },
+              "transport": {
+                "attempt_direct": true,
+                "wait_for_direct": true,
+                "direct_methods": [
+                  "hole_punching",
+                  "lan_broadcast",
+                  "public_ip",
+                  "dns"
+                ],
+                "protocols": [
+                  "udp"
+                ],
+                "per_protocol": {
+                  "udp": {
+                    "enabled": true,
+                    "mtu": 1200,
+                    "fec": {
+                      "enabled": true,
+                      "rate": 0.1
+                    },
+                    "retransmit": {
+                      "enabled": true
+                    },
+                    "congestion": "cubic-lite"
+                  },
+                  "tcp": {
+                    "enabled": false,
+                    "nodelay": true,
+                    "keepalive_s": 10,
+                    "fast_open": true,
+                    "congestion": "cubic"
+                  }
+                }
+              },
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

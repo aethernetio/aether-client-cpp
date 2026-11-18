@@ -1,6 +1,6 @@
 // Copyright 2026 Aethernet Inc. Licensed under the Apache License, Version 2.0.
 #include "aether/peer/rendezvous_protocol.h"
-#if AE_SUPPORT_P2P
+#if AE_SUPPORT_P2P && AE_SUPPORT_HOLE_PUNCH
 #  include "aether/api_protocol/details/api_packer.h"
 namespace ae {
 namespace rendezvous_protocol_internal {

@@ -11,6 +11,7 @@ struct PeerDatagram {
   AddressPort source;
   DataBuffer data;
 };
+enum class PeerSendResult { kSent, kBlocked, kError };
 class PeerUdp {
  public:
   static std::vector<Address> Interfaces();
@@ -19,12 +20,17 @@ class PeerUdp {
   PeerUdp(PeerUdp const&) = delete;
   PeerUdp& operator=(PeerUdp const&) = delete;
   bool Send(AddressPort const& remote, DataBuffer const& data);
+  PeerSendResult TrySend(AddressPort const& remote, DataBuffer const& data);
+#  if AE_SUPPORT_LAN
   bool Announce(std::uint16_t port, DataBuffer const& data);
+#  endif
   std::optional<PeerDatagram> Receive();
   Address const& local() const { return local_; }
   std::uint16_t port() const;
 
  private:
+  friend struct PeerUdpTestHelper;
+  static PeerSendResult ClassifySendFailure(int error);
   struct Impl;
   std::unique_ptr<Impl> impl_;
   Address local_;

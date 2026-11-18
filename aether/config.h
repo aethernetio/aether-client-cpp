@@ -327,6 +327,25 @@
 #ifndef AE_SUPPORT_LAN
 #  define AE_SUPPORT_LAN AE_SUPPORT_P2P
 #endif
+#ifndef AE_SUPPORT_DIRECT_IP
+#  define AE_SUPPORT_DIRECT_IP AE_SUPPORT_P2P
+#endif
+#ifndef AE_SUPPORT_HOLE_PUNCH
+#  define AE_SUPPORT_HOLE_PUNCH AE_SUPPORT_P2P
+#endif
+#if (AE_SUPPORT_DIRECT_IP || AE_SUPPORT_HOLE_PUNCH) && !AE_SUPPORT_P2P
+#  error "Direct IP and hole punching require native peer sessions"
+#endif
+#ifndef AE_SOCKET_SEND_BUFFER_BYTES
+#  define AE_SOCKET_SEND_BUFFER_BYTES 4096
+#endif
+#ifndef AE_CLIENT_SEND_QUEUE_BYTES
+#  define AE_CLIENT_SEND_QUEUE_BYTES 262144
+#endif
+#if AE_SOCKET_SEND_BUFFER_BYTES < 2048 || \
+    AE_CLIENT_SEND_QUEUE_BYTES <= AE_SOCKET_SEND_BUFFER_BYTES
+#  error "Send budgets must hold a packet and reserve interactive capacity"
+#endif
 #ifndef AE_LAN_DISCOVERY_PORT
 #  define AE_LAN_DISCOVERY_PORT 46000
 #endif
