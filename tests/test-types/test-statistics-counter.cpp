@@ -16,6 +16,14 @@
 
 #include <unity.h>
 
+#include <algorithm>
+#include <array>
+#include <cstdint>
+#include <vector>
+
+#include "aether-miscpp/serialization/binary_archive.h"
+
+#include "aether/types/ping_statistics.h"
 #include "aether/types/statistic_counter.h"
 
 namespace ae::test_statistics_counter {
@@ -89,6 +97,71 @@ void test_Percentiles() {
   TEST_ASSERT_EQUAL(100, counter.percentile<100>());
 }
 
+void test_PackedPingPercentilesAndEviction() {
+  PingStatistics<100> history;
+  history.Add(Duration::max());
+  history.Add(Duration{1});
+  std::array<Duration, 100> ordered{};
+  for (std::uint32_t i = 0; i < ordered.size(); ++i) {
+    // Shuffle the insertion order. Include ties and replies several seconds
+    // late.
+    auto const group = (i * 53U) % 100U / 2U;
+    auto const sample = Duration{20'000U + group * 200'000U};
+    PingStatistics<1> single;
+    single.Add(sample);
+    ordered[i] = single.percentile<0>();
+    history.Add(sample);
+  }
+  std::sort(ordered.begin(), ordered.end());
+
+  TEST_ASSERT_EQUAL(100, history.size());
+  TEST_ASSERT_EQUAL_UINT32(ordered[0].count(), history.percentile<0>().count());
+  TEST_ASSERT_EQUAL_UINT32(ordered[95].count(),
+                           history.percentile<95>().count());
+  TEST_ASSERT_EQUAL_UINT32(
+      ordered[95].count(),
+      history.PercentileValue(Percentile::FromPercent(95)).count());
+  TEST_ASSERT_EQUAL_UINT32(ordered[99].count(),
+                           history.percentile<99>().count());
+  TEST_ASSERT_UINT32_WITHIN(200'000, 9'420'000,
+                            history.percentile<95>().count());
+  TEST_ASSERT_EQUAL_UINT32(ordered[99].count(),
+                           history.percentile<100>().count());
+}
+
+void test_PackedPingArchiveRoundTrip() {
+  PingStatistics<4> history;
+  history.Add(Duration{0});
+  history.Add(Duration{50'000});
+  history.Add(Duration{6'000'000});
+  history.Add(Duration::max());
+
+  std::vector<std::uint8_t> bytes;
+  auto writer = seri::BinaryArchive{seri::BinaryVectorBuffer<>{bytes}};
+  TEST_ASSERT(writer.Save(history));
+  auto reader = seri::BinaryArchive{seri::BinaryVectorBuffer<>{bytes}};
+  std::size_t packed_size{};
+  TEST_ASSERT(reader.buffer().Read(seri::SizeTag{packed_size}));
+  TEST_ASSERT_EQUAL(6, packed_size);
+
+  PingStatistics<4> restored;
+  auto roundtrip = seri::BinaryArchive{seri::BinaryVectorBuffer<>{bytes}};
+  TEST_ASSERT(roundtrip.Load(restored));
+  TEST_ASSERT_EQUAL(history.size(), restored.size());
+  TEST_ASSERT_EQUAL_UINT32(0, restored.percentile<0>().count());
+  TEST_ASSERT_EQUAL_UINT32(history.percentile<50>().count(),
+                           restored.percentile<50>().count());
+  TEST_ASSERT_UINT32_WITHIN(120'000, 6'000'000,
+                            restored.percentile<50>().count());
+  TEST_ASSERT_EQUAL_UINT32(Duration::max().count(),
+                           restored.percentile<95>().count());
+
+  bytes.pop_back();
+  auto truncated = seri::BinaryArchive{seri::BinaryVectorBuffer<>{bytes}};
+  TEST_ASSERT_FALSE(truncated.Load(restored));
+  TEST_ASSERT_EQUAL(4, restored.size());
+}
+
 }  // namespace ae::test_statistics_counter
 
 int test_statistics_counter() {
@@ -98,5 +171,7 @@ int test_statistics_counter() {
   RUN_TEST(ae::test_statistics_counter::test_MultipleValues);
   RUN_TEST(ae::test_statistics_counter::test_CircularBehavior);
   RUN_TEST(ae::test_statistics_counter::test_Percentiles);
+  RUN_TEST(ae::test_statistics_counter::test_PackedPingPercentilesAndEviction);
+  RUN_TEST(ae::test_statistics_counter::test_PackedPingArchiveRoundTrip);
   return UNITY_END();
 }
