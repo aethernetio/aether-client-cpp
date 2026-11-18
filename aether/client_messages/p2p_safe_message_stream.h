@@ -24,22 +24,34 @@
 #include "aether/config.h"
 #include "aether/memory.h"
 
+#include "aether/adaptive_datagram/adaptive_datagram_config.h"
+#include "aether/client_messages/p2p_port_handle.h"
 #include "aether/safe_stream/safe_stream_config.h"
 #include "aether/stream_api/istream.h"
 #include "aether/stream_api/sized_packet_gate.h"
+#include "aether/types/uid.h"
 
 namespace ae {
-template <std::size_t Capacity>
-class SafeStream;
+class Client;
+class SafeStreamBase;
 
 static constexpr inline std::size_t kP2pSafeStreamCapacity =
     AE_SAFE_STREAM_CAPACITY;
+static constexpr inline std::size_t kP2pSafeStreamWideCapacity = 1024 * 1024;
 class P2pSafeStream final : public ByteIStream {
  public:
   using SafeStreamImpl = SafeStream<kP2pSafeStreamCapacity>;
 
   P2pSafeStream(AeContext const& ae_context, SafeStreamConfig const& config,
-                std::shared_ptr<ByteIStream> p2p_stream);
+                std::shared_ptr<ByteIStream> transport);
+  // Use one adaptive UDP route. Both peers must construct the same stack and
+  // configure reciprocal adaptive session IDs and the peer clock offset.
+  // The datagram config controls pacing and per-attempt lifetimes. SafeStream
+  // confirms complete messages and retries missing byte ranges.
+  P2pSafeStream(AeContext const& ae_context, SafeStreamConfig config,
+                adaptive_datagram::Config datagram_config,
+                Ptr<Client> const& client, Uid destination,
+                P2pPortHandle handle);
   ~P2pSafeStream() override;
 
   AE_CLASS_NO_COPY_MOVE(P2pSafeStream)
@@ -56,8 +68,8 @@ class P2pSafeStream final : public ByteIStream {
   void OnSafeData(DataBuffer const& data);
 
   SizedPacketGate sized_packet_gate_;
-  std::unique_ptr<SafeStreamImpl> safe_stream_;
-  std::shared_ptr<ByteIStream> p2p_stream_;
+  std::shared_ptr<ByteIStream> transport_;
+  std::unique_ptr<SafeStreamBase> safe_stream_;
   OutDataEvent out_data_event_;
   Event<void()> receive_reset_event_;
   std::optional<std::size_t> receive_session_offset_;

@@ -1,10 +1,13 @@
 #include <unity.h>
 #include <memory>
 #include <vector>
+#include "aether/adaptive_datagram/adaptive_datagram_stream.h"
 #include "aether/client_messages/p2p_safe_message_stream.h"
 #include "aether/safe_stream/details/safe_stream_api.h"
 #include "aether/stream_api/api_call_adapter.h"
 #include "aether/stream_api/sized_packet_gate.h"
+#include "aether/transport/emulated/emulated_datagram_socket.h"
+#include "aether/transport/system_sockets/udp/udp.h"
 #include "tests/test-safe-stream/stream-test-ctx.h"
 #include "tests/test-stream/mock_write_stream.h"
 
@@ -152,6 +155,103 @@ void RestartDiscardsIncompleteOuterFrame() {
   TEST_ASSERT_EQUAL_MEMORY(expected.data(), messages.front().data(),
                            expected.size());
 }
+
+#if defined(SYSTEM_SOCKET_UDP_TRANSPORT_ENABLED)
+void AdaptiveTransportRetransmitsAndPreservesFraming(bool wide_offsets) {
+  TestContext context;
+  EmulatedDatagramNetwork network{12345};
+  network.AdvanceTo(Now());
+  EmulatedDatagramProfile profile;
+  profile.delay = 1ms;
+  if (wide_offsets) {
+    profile.mtu = 1400;
+    auto reverse_profile = profile;
+    network.SetProfile(1, reverse_profile);
+  }
+  profile.burst_every = 1000;
+  profile.burst_length = 1;
+  network.SetProfile(0, profile);
+  using Transport = UdpTransport<EmulatedDatagramSocket, 16>;
+  Transport sender_udp{context, AddressPort{},
+                       EmulatedDatagramSocket{network, 0}};
+  Transport receiver_udp{context, AddressPort{},
+                         EmulatedDatagramSocket{network, 1}};
+
+  adaptive_datagram::Config sender_config;
+  sender_config.session_id = 11;
+  sender_config.peer_session_id = 12;
+  sender_config.max_datagram_size = wide_offsets ? 1400 : 256;
+  if (wide_offsets) {
+    sender_config.initial_rate_bytes_per_second = 2000000;
+  }
+  sender_config.max_queue_packets = 1;
+  sender_config.latency_target = 1s;
+  sender_config.loss_window = 3s;
+  auto receiver_config = sender_config;
+  receiver_config.session_id = sender_config.peer_session_id;
+  receiver_config.peer_session_id = sender_config.session_id;
+  auto clock = [&network] { return network.now(); };
+  auto sender_adaptive = std::make_shared<AdaptiveDatagramStream>(
+      context, sender_config, clock);
+  auto receiver_adaptive = std::make_shared<AdaptiveDatagramStream>(
+      context, receiver_config, clock);
+  sender_adaptive->LinkOut(sender_udp);
+  receiver_adaptive->LinkOut(receiver_udp);
+
+  SafeStreamConfig config{512, 700, 30, 80ms, 2ms, 10ms, true};
+  if (wide_offsets) {
+    config.window_size = 96 * 1024;
+    config.max_packet_size = 50000;
+    config.wide_offsets = true;
+    config.wait_ack_timeout = 1s;
+    config.minimum_ack_timeout = 1s;
+  }
+  P2pSafeStream sender{context, config, sender_adaptive};
+  P2pSafeStream receiver{context, config, receiver_adaptive};
+  std::vector<DataBuffer> expected{DataBuffer(wide_offsets ? 48000 : 400, 0x31),
+                                   DataBuffer(wide_offsets ? 48000 : 350, 0x52),
+                                   DataBuffer(wide_offsets ? 43000 : 9, 0x73)};
+  std::vector<DataBuffer> received;
+  MultiSubscription subscriptions;
+  subscriptions += receiver.out_data_event().Subscribe(
+      [&](DataBuffer const& data) { received.push_back(data); });
+  unsigned acknowledged{};
+  unsigned failed{};
+  for (auto const& data : expected) {
+    subscriptions += sender.Write(DataBuffer{data}).status_event().Subscribe(
+        [&](auto status) {
+          if (status == WriteAction::Status::kSuccess) {
+            ++acknowledged;
+          } else {
+            ++failed;
+          }
+        });
+  }
+
+  for (unsigned i = 0; i < 4500 && acknowledged < expected.size(); ++i) {
+    network.AdvanceTo(network.now() + 1ms);
+    context.Update(network.now());
+  }
+
+  TEST_ASSERT_TRUE(network.stats(0).dropped_burst > 0);
+  TEST_ASSERT_TRUE(sender.stream_info().is_reliable);
+  TEST_ASSERT_EQUAL(0, failed);
+  TEST_ASSERT_EQUAL(0, sender_adaptive->statistics().rejected);
+  TEST_ASSERT_EQUAL(expected.size(), acknowledged);
+  TEST_ASSERT_EQUAL(expected.size(), received.size());
+  for (std::size_t i = 0; i < expected.size(); ++i) {
+    TEST_ASSERT_EQUAL(expected[i].size(), received[i].size());
+    TEST_ASSERT_EQUAL_MEMORY(expected[i].data(), received[i].data(),
+                             expected[i].size());
+  }
+}
+void test_AdaptiveTransportRetransmitsAndPreservesFraming() {
+  AdaptiveTransportRetransmitsAndPreservesFraming(false);
+}
+void test_WideAdaptiveTransportCrossesLegacyOffsetBoundary() {
+  AdaptiveTransportRetransmitsAndPreservesFraming(true);
+}
+#endif
 }  // namespace ae::test_p2p_restart_framing
 
 int test_p2p_restart_framing() {
@@ -161,5 +261,11 @@ int test_p2p_restart_framing() {
   RUN_TEST(ae::test_p2p_restart_framing::
                RepeatedResetMarkerKeepsCurrentPartialMessage);
   RUN_TEST(ae::test_p2p_restart_framing::RestartDiscardsIncompleteOuterFrame);
+#if defined(SYSTEM_SOCKET_UDP_TRANSPORT_ENABLED)
+  RUN_TEST(ae::test_p2p_restart_framing::
+               test_AdaptiveTransportRetransmitsAndPreservesFraming);
+  RUN_TEST(ae::test_p2p_restart_framing::
+               test_WideAdaptiveTransportCrossesLegacyOffsetBoundary);
+#endif
   return UNITY_END();
 }

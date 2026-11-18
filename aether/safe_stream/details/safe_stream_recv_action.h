@@ -29,26 +29,29 @@
 #include "aether/tele.h"
 
 namespace ae {
-class ISafeStreamRecvActionDelegate {
+template <typename Offset>
+class SafeStreamRecvActionDelegate {
  public:
-  virtual ~ISafeStreamRecvActionDelegate() = default;
+  virtual ~SafeStreamRecvActionDelegate() = default;
 
-  virtual void SendAck(std::uint16_t index) = 0;
-  virtual void SendRepeatRequest(std::uint16_t index) = 0;
+  virtual void SendAck(Offset index) = 0;
+  virtual void SendRepeatRequest(Offset index) = 0;
   virtual void ReceiveData(DataBuffer& data) = 0;
 };
 
-template <std::size_t Capacity>
+using ISafeStreamRecvActionDelegate = SafeStreamRecvActionDelegate<std::uint16_t>;
+
+template <std::size_t Capacity, typename Offset = std::uint16_t>
 class SafeStreamRecvAction {
  public:
   static constexpr std::size_t kCapacity = Capacity;
-  using CircularBufferImpl = CircularBuffer<kCapacity>;
+  using CircularBufferImpl = SafeStreamBuffer<kCapacity, Offset>;
   using IndexType = CircularBufferImpl::index_type;
   using IndexRangeType = CircularBufferImpl::index_range_type;
   using ReceiveChunkListImpl = ReceiveChunkList<IndexType>;
 
   SafeStreamRecvAction(AeContext const& ae_context,
-                       ISafeStreamRecvActionDelegate& delegate,
+                       SafeStreamRecvActionDelegate<Offset>& delegate,
                        SafeStreamConfig const& config)
       : ae_context_{ae_context},
         delegate_{&delegate},
@@ -65,7 +68,7 @@ class SafeStreamRecvAction {
     return chunks_ ? std::optional{session_offset} : std::nullopt;
   }
 
-  void PushData(std::uint16_t index, DataMessage data_message) {
+  void PushData(Offset index, SafeStreamDataMessage<Offset> data_message) {
     AETHER_TELED_DEBUG(
         "Data received index: {}, delta: {}, repeat {}, reset {}, size "
         "{}",
@@ -216,7 +219,7 @@ class SafeStreamRecvAction {
   void HandleAcknowledgement() {
     auto ack_offset = static_cast<std::size_t>(last_emitted_);
     AETHER_TELED_DEBUG("Send acknowledgement for offset: {}", ack_offset);
-    delegate_->SendAck(static_cast<std::uint16_t>(ack_offset));
+    delegate_->SendAck(static_cast<Offset>(ack_offset));
   }
 
   void HandleMissing() {
@@ -227,7 +230,7 @@ class SafeStreamRecvAction {
       AETHER_TELED_DEBUG("Send repeat request for offset range {}-{}", res->left,
                      res->right);
       auto request_offset = static_cast<std::size_t>(res->left);
-      delegate_->SendRepeatRequest(static_cast<std::uint16_t>(request_offset));
+      delegate_->SendRepeatRequest(static_cast<Offset>(request_offset));
       // enqueue again
       missing_timer_.Reset();
       EnqueueMissing();
@@ -235,7 +238,7 @@ class SafeStreamRecvAction {
   }
 
   AeContext ae_context_;
-  ISafeStreamRecvActionDelegate* delegate_;
+  SafeStreamRecvActionDelegate<Offset>* delegate_;
 
   Duration send_ack_timeout_;
   Duration send_repeat_timeout_;

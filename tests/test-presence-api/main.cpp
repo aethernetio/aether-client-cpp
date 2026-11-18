@@ -20,11 +20,16 @@
 #include <cstdio>
 #include <functional>
 #include <map>
+#include <utility>
 #include <vector>
 
 #include <unity.h>
 
 #include "ae-numeric/percentile.h"
+#include "aether-miscpp/serialization/binary_archive.h"
+#include "aether-objects/domain_storage/ram_domain_storage.h"
+#include "aether-objects/obj/domain.h"
+#include "aether/channels/channel_statistics.h"
 #include "aether/client_connectivity_policy.h"
 #include "aether/cloud_connections/local_presence_schedule.h"
 #include "aether/remote_presence.h"
@@ -58,6 +63,48 @@ TimePoint Tp(std::int64_t ms) { return TimePoint{Ms{ms}}; }
 
 Duration Dur(std::int64_t ms) {
   return std::chrono::duration_cast<Duration>(Ms{ms});
+}
+
+void test_ChannelStatisticsMigratesAndReloadsPingHistory() {
+  RamDomainStorage storage;
+  constexpr ObjId id{4242};
+  {
+    auto writer = storage.Store({id, ChannelStatistics::kClassId, 0});
+    auto archive =
+        seri::BinaryArchive{DomainBuffer{.id = id, .writer = writer.get()}};
+    StatisticsCounter<Duration, 2> connection;
+    StatisticsCounter<Duration, 2> rtt;
+    connection.Add(Dur(321));
+    rtt.Add(Dur(40));
+    rtt.Add(Dur(6200));
+    TEST_ASSERT_TRUE(archive.Save(connection));
+    TEST_ASSERT_TRUE(archive.Save(rtt));
+    TEST_ASSERT_TRUE(writer->Commit());
+  }
+
+  Duration migrated_p95;
+  {
+    Domain domain{storage};
+    auto stats =
+        ChannelStatistics::ptr::Declare(CreateWith{domain}.with_id(id));
+    TEST_ASSERT_TRUE(stats.Load());
+    TEST_ASSERT_EQUAL_UINT32(Dur(321).count(),
+                             stats->connection_time_statistics().max().count());
+    TEST_ASSERT_EQUAL(2, stats->response_time_statistics().size());
+    migrated_p95 = stats->response_time_statistics().percentile<95>();
+    TEST_ASSERT_UINT32_WITHIN(124'000, 6'200'000, migrated_p95.count());
+    stats->AddResponseTime(Dur(700));
+    stats.Save();
+  }
+
+  Domain domain{storage};
+  auto restored =
+      ChannelStatistics::ptr::Declare(CreateWith{domain}.with_id(id));
+  TEST_ASSERT_TRUE(restored.Load());
+  TEST_ASSERT_EQUAL(3, restored->response_time_statistics().size());
+  TEST_ASSERT_EQUAL_UINT32(
+      migrated_p95.count(),
+      restored->response_time_statistics().percentile<95>().count());
 }
 
 std::int64_t ToMs(TimePoint tp) {
@@ -451,6 +498,8 @@ int main() {
   UNITY_BEGIN();
   RUN_TEST(ae::test_local_presence::
                test_PeerOnlineTypesKeepCloudAndDirectEvidenceSeparate);
+  RUN_TEST(ae::test_local_presence::
+               test_ChannelStatisticsMigratesAndReloadsPingHistory);
   RUN_TEST(
       ae::test_local_presence::test_StaleRttCannotProjectServerReceiptAfterAck);
   RUN_TEST(ae::test_local_presence::test_ConfirmOnlyAfterPong);

@@ -35,12 +35,13 @@ enum class CircularBufferError : unsigned char {
 /**
  * \brief Circular buffer to work with sending and receiving buffers
  */
-template <std::size_t Capacity>
+template <std::size_t Capacity, std::size_t IndexPeriod = Capacity>
 class CircularBuffer {
  public:
   using value_type = std::uint8_t;
   static constexpr std::size_t kCapacity = Capacity;
-  using index_type = RingIndex<kCapacity>;
+  static_assert(IndexPeriod % Capacity == 0);
+  using index_type = RingIndex<IndexPeriod>;
   using index_range_type = RingIndexRange<index_type>;
 
   struct DSpan {
@@ -71,7 +72,8 @@ class CircularBuffer {
    */
   constexpr Result<index_range_type, CircularBufferError> Insert(
       index_type pos, std::span<value_type const> data) noexcept {
-    auto available = (begin_ == pos) ? kCapacity : Distance(pos, begin_);
+    auto const offset = Distance(begin_, pos);
+    auto const available = offset < kCapacity ? kCapacity - 1 - offset : 0;
     if (data.size() > available) {
       return Error{CircularBufferError::kDataOverflow};
     }
@@ -79,10 +81,11 @@ class CircularBuffer {
     // copy the data into array
     // expect for 2 copies depends on does data overlaps buffer or not
     while (!data.empty()) {
-      auto remaining = buffer_.size() - static_cast<std::size_t>(pos);
+      auto const buffer_offset = static_cast<std::size_t>(pos) % kCapacity;
+      auto remaining = buffer_.size() - buffer_offset;
       auto copy_size = data.size() > remaining ? remaining : data.size();
       std::copy_n(std::begin(data), copy_size,
-                  buffer_.data() + static_cast<std::size_t>(pos));
+                  buffer_.data() + buffer_offset);
       data = data.subspan(copy_size);
       pos += copy_size;
     }
@@ -114,11 +117,11 @@ class CircularBuffer {
     size = size > max_distance ? max_distance : size;
 
     // handle wrapping around the buffer
-    std::size_t first_max_size =
-        buffer_.size() - static_cast<std::size_t>(start);
+    auto const buffer_offset = static_cast<std::size_t>(start) % kCapacity;
+    auto const first_max_size = buffer_.size() - buffer_offset;
     std::size_t first_size = first_max_size > size ? size : first_max_size;
     res.first = std::span<value_type const>(
-        buffer_.data() + static_cast<std::size_t>(start), first_size);
+        buffer_.data() + buffer_offset, first_size);
     if (first_size < size) {
       res.second =
           std::span<value_type const>(buffer_.data(), size - first_size);
@@ -162,6 +165,12 @@ class CircularBuffer {
 
   std::array<value_type, kCapacity> buffer_;
 };
+
+// The wide wire offset wraps independently of the physical buffer.
+template <std::size_t Capacity, typename Offset>
+using SafeStreamBuffer =
+    CircularBuffer<Capacity, sizeof(Offset) == 4 ? (std::size_t{1} << 30)
+                                                  : Capacity>;
 
 }  // namespace ae
 

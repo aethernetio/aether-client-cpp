@@ -25,12 +25,14 @@ namespace ae {
 /**
  * \brief The data message used for sending data by Safe Stream Api.
  */
-struct DataMessage {
+template <typename Offset>
+struct SafeStreamDataMessage {
   bool reset;
   std::uint8_t repeat_count;
-  std::uint16_t delta_offset;  // data offset form sender's buffer begin
+  Offset delta_offset;  // data offset form sender's buffer begin
   DataBuffer data;
 };
+using DataMessage = SafeStreamDataMessage<std::uint16_t>;
 }  // namespace ae
 
 #endif  // AETHER_SAFE_STREAM_DETAILS_SAFE_STREAM_DATA_MESSAGE_H_
