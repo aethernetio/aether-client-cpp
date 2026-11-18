@@ -172,7 +172,7 @@ endif()
 CPMAddPackage(
   NAME ae-numeric
   GIT_REPOSITORY "https://github.com/aethernetio/aethernet-numeric.git"
-  GIT_TAG "f3c6a8b882443eacf4a72a818a6de0c4d99d9d2a"
+  GIT_TAG "fde102de232c7bf4c998abb3f2724b2cb9b84c7b"
   OPTIONS "AE_NUMERIC_INSTALL ${AE_INSTALL}" "AE_BUILD_TESTS OFF"
   EXCLUDE_FROM_ALL FALSE
 )

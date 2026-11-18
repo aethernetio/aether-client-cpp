@@ -55,8 +55,8 @@ bool Until(AetherApp& app, auto predicate, unsigned seconds) {
   return predicate();
 }
 int Run(char const* filename, unsigned seconds, unsigned payload, bool udp) {
-  if (!AE_FILTRATION || !stream_matrix_bench::RegistrationSeedReadyForUdpBench(
-                            std::cerr, std::filesystem::current_path())) {
+  if (!stream_matrix_bench::RegistrationSeedReadyForUdpBench(
+          std::cerr, std::filesystem::current_path())) {
     return 3;
   }
   auto app = examples::construct_aether_app();
@@ -265,6 +265,11 @@ int main(int argc, char** argv) {
   if (mode != "tcp" && mode != "udp") {
     return 2;
   }
+#if AE_FILTRATION
   return ae::p2p_throughput_internal::Run(argv[1], seconds, payload,
-                                          mode == "udp");
+                                         mode == "udp");
+#else
+  std::cerr << "p2p-throughput requires AE_FILTRATION\n";
+  return 3;
+#endif
 }
