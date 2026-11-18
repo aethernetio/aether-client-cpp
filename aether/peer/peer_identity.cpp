@@ -73,7 +73,8 @@ PeerTransport* Client::peer_transport() {
     auto crypto = Crypto::ptr{aether_->crypto};
     auto root = crypto->signs_pk_.at(kDefaultSignatureMethod);
     peer_transport_ = std::make_unique<PeerTransport>(
-        AeContext{*this}, peer_identity_, peer_settings_, std::move(root));
+        AeContext{*this}, peer_identity_, peer_settings_, std::move(root),
+        connectivity_policy().Load());
     EnsurePeerIdentity();
   }
   return peer_transport_.get();

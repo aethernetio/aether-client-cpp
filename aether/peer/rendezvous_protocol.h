@@ -7,7 +7,7 @@
 namespace ae {
 inline constexpr std::uint32_t kRendezvousStream = 0xfffffff0;
 inline PeerService RendezvousServiceId() {
-  return {Uid::FromString("a89d9189-9e39-4a22-ae70-112812720101"), 1};
+  return {Uid::FromString("a89d9189-9e39-4a22-ae70-112812720101"), 2};
 }
 struct PunchSocket {
   AE_REFLECT_MEMBERS(id, lane, local)

@@ -33,6 +33,7 @@ class PeerPresenceQuery final : public Action {
   Uid peer_uid_;
   ResultEvent result_event_;
   Subscription cloud_sub_;
+  Subscription peer_sub_;
   MultiSubscription query_subs_;
   Subscription quarantine_sub_;
   TaskSubscription start_sub_;

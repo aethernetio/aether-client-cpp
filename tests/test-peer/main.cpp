@@ -10,9 +10,11 @@
 #  include "aether-objects/domain_storage/ram_domain_storage.h"
 #  include "aether-objects/obj/domain.h"
 #  include "aether/adapter_registry.h"
+#  include "aether/ae_actions/ping.h"
 #  include "aether/aether.h"
 #  include "aether/client.h"
 #  include "aether/connection_manager/client_cloud_manager.h"
+#  include "aether/connection_manager/peer_presence_query.h"
 #  include "aether/crypto.h"
 #  include "aether/crypto/key_gen.h"
 #  include "aether/env.h"
@@ -47,6 +49,12 @@ struct Authority {
   }
 };
 struct Context : Env {
+  Context() {
+    policy->ConfigureRxTimings().ForAllPriorities(
+        RxTimingConf::Every(std::chrono::milliseconds{50})
+            .WithWindow(std::chrono::milliseconds{20}));
+    policy->SetOfflineDetectionTimeout(std::chrono::milliseconds{250});
+  }
   void* find_component(EnvId id) noexcept override {
     if (id == EnvTypeId<TaskScheduler>::value) {
       return &scheduler;
@@ -58,6 +66,10 @@ struct Context : Env {
   }
   TaskScheduler scheduler;
   EventSystem events;
+  RamDomainStorage storage;
+  Domain domain{storage, this};
+  ClientConnectivityPolicy::ptr policy{
+      ClientConnectivityPolicy::ptr::Create(CreateWith{domain})};
 };
 void test_CertificateAndWireEncoding() {
   Authority ca;
@@ -76,6 +88,55 @@ void test_CertificateAndWireEncoding() {
   TEST_ASSERT_FALSE(
       VerifyPeerCertificate(identity.certificate, ca.root.public_key));
 }
+#  if AE_ENABLE_PING
+void test_SharedPingCorrelatesLateAndReplacementAcks() {
+  Context context;
+  Event<void(std::uint64_t)> acknowledgements{AeContext{context}};
+  std::uint64_t first_context{};
+  unsigned results{};
+  Ping ping{AeContext{context},
+            acknowledgements,
+            [&](std::uint64_t id, Duration interval, Duration window) {
+              first_context = id;
+              TEST_ASSERT_TRUE(interval == std::chrono::seconds{7});
+              TEST_ASSERT_TRUE(window == std::chrono::milliseconds{120});
+              return true;
+            },
+            std::chrono::seconds{7},
+            std::chrono::milliseconds{120},
+            std::chrono::milliseconds{10}};
+  Subscription result =
+      ping.result_event().Subscribe([&](auto const&) { ++results; });
+  ping.Start(Now());
+  acknowledgements.Emit(first_context + 1);
+  context.scheduler.Update();
+  TEST_ASSERT_TRUE(ping.IsPending());
+  std::this_thread::sleep_for(std::chrono::milliseconds{15});
+  context.scheduler.Update();
+  TEST_ASSERT_TRUE(ping.IsAwaitingLateResponse());
+  acknowledgements.Emit(first_context);
+  context.scheduler.Update();
+  TEST_ASSERT_EQUAL_UINT(2, results);
+  std::uint64_t second_context{};
+  Ping replacement{AeContext{context},
+                   acknowledgements,
+                   [&](std::uint64_t id, Duration, Duration) {
+                     second_context = id;
+                     return true;
+                   },
+                   std::chrono::seconds{7},
+                   Duration{},
+                   std::chrono::seconds{1}};
+  replacement.Start(Now());
+  TEST_ASSERT_TRUE(first_context != second_context);
+  acknowledgements.Emit(first_context);
+  context.scheduler.Update();
+  TEST_ASSERT_TRUE(replacement.IsPending());
+  acknowledgements.Emit(second_context);
+  context.scheduler.Update();
+  TEST_ASSERT_FALSE(replacement.IsPending());
+}
+#  endif
 struct HandshakePair {
   Authority ca;
   PeerIdentity a{ca.Issue()}, b{ca.Issue()};
@@ -232,8 +293,10 @@ void RunRendezvous(bool standard, bool dual, bool different_app = false,
   if (different_app) {
     other.app_id = RandomPeerToken();
   }
-  PeerTransport first{ctx, a, settings, ca.root.public_key};
-  PeerTransport second{ctx, b, other, ca.root.public_key};
+  PeerTransport first{ctx, a, settings, ca.root.public_key,
+                      context.policy.Load()};
+  PeerTransport second{ctx, b, other, ca.root.public_key,
+                       context.policy.Load()};
   PeerUdp unanswered{Address{IpV4Addr{{127, 0, 0, 1}}}, 0};
   if (congested) {
     auto socket = first.punch_sockets().front();
@@ -348,6 +411,25 @@ void RunRendezvous(bool standard, bool dual, bool different_app = false,
     TEST_ASSERT_FALSE(first.BestPath(b.certificate.uid).has_value());
     return;
   }
+  if (!has_lanes(first, b.certificate.uid) ||
+      !has_lanes(second, a.certificate.uid)) {
+    for (auto* transport : {&first, &second}) {
+      for (auto const& info : transport->registry().clients()) {
+        for (auto const& path : info.paths) {
+          TEST_MESSAGE(Format("side={} route={} lane={} connected={} "
+                              "probes={}/{} wire={}/{}",
+                              transport == &first ? 0 : 1,
+                              static_cast<unsigned>(path.route),
+                              static_cast<unsigned>(path.punch_lane),
+                              path.connected, path.statistics.probes_received,
+                              path.statistics.probes_sent,
+                              path.statistics.wire_received_bytes,
+                              path.statistics.wire_sent_bytes)
+                           .c_str());
+        }
+      }
+    }
+  }
   TEST_ASSERT_TRUE(has_lanes(first, b.certificate.uid));
   TEST_ASSERT_TRUE(has_lanes(second, a.certificate.uid));
   auto path = first.BestPath(b.certificate.uid);
@@ -393,6 +475,57 @@ void RunRendezvous(bool standard, bool dual, bool different_app = false,
 void test_StandardRendezvousUsesRegisteredUdpSockets() {
   RunRendezvous(true, false);
 }
+void test_PreparedPunchKeepsItsRouteBeforeLocalGo() {
+  Authority ca;
+  auto a = ca.Issue(), b = ca.Issue();
+  Context context;
+  PeerSettings settings;
+  settings.app_id = RandomPeerToken();
+  settings.discovery = false;
+  PeerTransport first{AeContext{context}, a, settings, ca.root.public_key,
+                      context.policy.Load()};
+  PeerTransport second{AeContext{context}, b, settings, ca.root.public_key,
+                       context.policy.Load()};
+  auto socket = [](PeerTransport& transport) {
+    for (auto const& value : transport.punch_sockets()) {
+      if (value.local.address == Address{IpV4Addr{{127, 0, 0, 1}}}) {
+        return value;
+      }
+    }
+    throw std::runtime_error("Loopback socket required");
+  };
+  auto left = socket(first), right = socket(second);
+  auto token = RandomPeerToken();
+  PunchPlan outgoing{
+      settings.app_id,
+      {},
+      RandomPeerToken(),
+      b.certificate.uid,
+      {{left.id, PunchLane::kStandard, token, right.local, right.local, true}}};
+  PunchPlan incoming{
+      settings.app_id,
+      {},
+      outgoing.attempt,
+      a.certificate.uid,
+      {{right.id, PunchLane::kStandard, token, left.local, left.local, false}}};
+  TEST_ASSERT_TRUE(second.PreparePunch(incoming));
+  TEST_ASSERT_TRUE(second.OnlineTypes() == OnlineType::kNone);
+  TEST_ASSERT_TRUE(first.BeginPunch(outgoing));
+  // Deliberately never deliver the responder's Go. Its prepared session must
+  // accept the already-started peer without misclassifying this as direct IP.
+  auto until = std::chrono::steady_clock::now() + std::chrono::seconds{3};
+  while ((!first.BestPath(b.certificate.uid) ||
+          !second.BestPath(a.certificate.uid)) &&
+         std::chrono::steady_clock::now() < until) {
+    context.scheduler.Update();
+    std::this_thread::sleep_for(std::chrono::milliseconds{2});
+  }
+  auto path = second.BestPath(a.certificate.uid);
+  TEST_ASSERT_TRUE(path.has_value());
+  TEST_ASSERT_TRUE(path->route == PeerRoute::kHolePunch);
+  TEST_ASSERT_TRUE(second.PresenceState(a.certificate.uid) ==
+                   PeerPresenceState::kOnline);
+}
 void test_StaleAttemptsDoNotStarveAnyRendezvousLane() {
   RunRendezvous(true, true, false, true);
 }
@@ -403,7 +536,8 @@ void test_IncomingAuthenticatedPingsDoNotHideMissingPongs() {
   PeerSettings settings;
   settings.app_id = RandomPeerToken();
   settings.discovery = false;
-  PeerTransport transport{AeContext{context}, a, settings, ca.root.public_key};
+  PeerTransport transport{AeContext{context}, a, settings, ca.root.public_key,
+                          context.policy.Load()};
   PeerUdp remote{Address{IpV4Addr{{127, 0, 0, 1}}}, 0};
   transport.Connect(
       {b.certificate.uid, {Address{IpV4Addr{{127, 0, 0, 1}}}, remote.port()}});
@@ -414,6 +548,7 @@ void test_IncomingAuthenticatedPingsDoNotHideMissingPongs() {
   std::map<Uid, Responder> responders;
   auto next_ping = std::chrono::steady_clock::now();
   std::uint64_t probe{};
+  bool drop_pongs{};
   auto pump = [&] {
     while (auto datagram = remote.Receive()) {
       auto packet = PeerRootApi::Parse(datagram->data);
@@ -442,7 +577,13 @@ void test_IncomingAuthenticatedPingsDoNotHideMissingPongs() {
         }
       } else {
         // Deliberately consume every request without producing any Pong.
-        response.session->Unprotect(*packet);
+        auto message = response.session->Unprotect(*packet);
+        if (message && message->method == PeerSessionMethod::kPing &&
+            !drop_pongs) {
+          auto pong = response.session->Protect(PeerSessionMethod::kPong,
+                                                message->body);
+          remote.Send(response.endpoint, PeerRootApi::Pack(*pong));
+        }
       }
     }
     if (std::chrono::steady_clock::now() >= next_ping) {
@@ -450,7 +591,9 @@ void test_IncomingAuthenticatedPingsDoNotHideMissingPongs() {
       for (auto& [token, response] : responders) {
         auto packet = response.session->Protect(
             PeerSessionMethod::kPing,
-            PeerEncode(++probe, std::vector<PeerService>{}));
+            PeerEncode(++probe,
+                       RxTimingConf::Every(std::chrono::milliseconds{50}),
+                       std::vector<PeerService>{}));
         if (packet) {
           remote.Send(response.endpoint, PeerRootApi::Pack(*packet));
         }
@@ -465,7 +608,8 @@ void test_IncomingAuthenticatedPingsDoNotHideMissingPongs() {
     pump();
   }
   TEST_ASSERT_TRUE(transport.BestPath(b.certificate.uid).has_value());
-  deadline = std::chrono::steady_clock::now() + std::chrono::seconds{5};
+  drop_pongs = true;
+  deadline = std::chrono::steady_clock::now() + std::chrono::seconds{1};
   while (std::chrono::steady_clock::now() < deadline) {
     pump();
   }
@@ -501,7 +645,11 @@ void test_RendezvousRequiresEncryptedReturnReachabilityAndRejectsReplay() {
   RendezvousGrant grant;
   TEST_ASSERT_TRUE(PeerDecode(signal->body, grant));
   PeerRecordCipher cipher{grant.upstream, grant.downstream};
-  auto record = cipher.Seal(PeerEncode(RendezvousUdpMethod::kRegister, Uid{}));
+  auto timing = RxTimingConf::Every(std::chrono::seconds{7})
+                    .WithWindow(std::chrono::milliseconds{120});
+  Duration offline{std::chrono::seconds{1}};
+  auto record = cipher.Seal(
+      PeerEncode(RendezvousUdpMethod::kRegister, Uid{}, timing, offline));
   TEST_ASSERT_TRUE(record.has_value());
   auto wire = PackRendezvousDatagram(grant.token, *record);
   TEST_ASSERT_TRUE(std::search(wire.begin(), wire.end(), uid.value.begin(),
@@ -519,14 +667,19 @@ void test_RendezvousRequiresEncryptedReturnReachabilityAndRejectsReplay() {
   TEST_ASSERT_TRUE(plain.has_value());
   RendezvousUdpMethod method{};
   AddressPort observed;
-  TEST_ASSERT_TRUE(PeerDecode(*plain, method, challenge, observed));
-  auto wrong_source =
-      cipher.Seal(PeerEncode(RendezvousUdpMethod::kConfirm, challenge));
+  RxTimingConf echoed;
+  Duration echoed_timeout{};
+  TEST_ASSERT_TRUE(
+      PeerDecode(*plain, method, challenge, observed, echoed, echoed_timeout));
+  TEST_ASSERT_TRUE(echoed.interval == timing.interval &&
+                   echoed.rx_window == timing.rx_window);
+  auto wrong_source = cipher.Seal(
+      PeerEncode(RendezvousUdpMethod::kConfirm, challenge, timing, offline));
   broker.ReceiveDatagram(
       {attacker, PackRendezvousDatagram(token, *wrong_source)});
   TEST_ASSERT_EQUAL_UINT(0, broker.registered_sockets());
-  auto confirm =
-      cipher.Seal(PeerEncode(RendezvousUdpMethod::kConfirm, challenge));
+  auto confirm = cipher.Seal(
+      PeerEncode(RendezvousUdpMethod::kConfirm, challenge, timing, offline));
   auto confirmation = PackRendezvousDatagram(token, *confirm);
   broker.ReceiveDatagram({original, confirmation});
   TEST_ASSERT_EQUAL_UINT(1, broker.registered_sockets());
@@ -545,8 +698,10 @@ void test_RealUdpDirectConnectionOffline() {
   PeerSettings settings;
   settings.app_id = RandomPeerToken();
   settings.discovery = false;
-  PeerTransport first{AeContext{context}, a, settings, ca.root.public_key};
-  PeerTransport second{AeContext{context}, b, settings, ca.root.public_key};
+  PeerTransport first{AeContext{context}, a, settings, ca.root.public_key,
+                      context.policy.Load()};
+  PeerTransport second{AeContext{context}, b, settings, ca.root.public_key,
+                       context.policy.Load()};
   bool received = false;
   Subscription sub = second.message_event().Subscribe(
       [&](Uid const& uid, DataBuffer const& data, PeerRoute) {
@@ -599,7 +754,13 @@ struct ClientFixture {
     config.peer_settings.app_id = app;
     config.peer_settings.discovery = false;
     config.streams = std::move(definitions);
-    return aether->CreateClient(config, name);
+    auto client = aether->CreateClient(config, name);
+    client->connectivity_policy()->ConfigureRxTimings().ForAllPriorities(
+        RxTimingConf::Every(std::chrono::milliseconds{50})
+            .WithWindow(std::chrono::milliseconds{20}));
+    client->connectivity_policy()->SetOfflineDetectionTimeout(
+        std::chrono::milliseconds{250});
+    return client;
   }
   void Update() { context.scheduler().Update(); }
 };
@@ -712,6 +873,9 @@ void test_HierarchyAndIdentityPersistAndRestore() {
   definition.destination = RandomPeerToken();
   definition.routing = StreamRoutePolicy{true, true, false, false};
   auto client = fixture.Add(identity, "saved", RandomPeerToken(), {definition});
+  client->connectivity_policy()->ConfigurePeerRxTiming(
+      definition.destination, RxTimingConf::Every(std::chrono::seconds{7})
+                                  .WithWindow(std::chrono::milliseconds{120}));
   client.Save();
   fixture.aether.Save();
   AeEnv restored_context;
@@ -724,6 +888,10 @@ void test_HierarchyAndIdentityPersistAndRestore() {
       Client::ptr::Declare(CreateWith{restarted}.with_id(client.id()));
   TEST_ASSERT_TRUE(static_cast<bool>(restored.Load()));
   TEST_ASSERT_TRUE(restored->peer_identity().certified);
+  auto timing =
+      restored->connectivity_policy()->PeerRxTiming(definition.destination);
+  TEST_ASSERT_TRUE(timing.interval == std::chrono::seconds{7});
+  TEST_ASSERT_TRUE(timing.rx_window == std::chrono::milliseconds{120});
   TEST_ASSERT_TRUE(restored->peer_identity().certificate.uid ==
                    identity.certificate.uid);
   restored_context.scheduler().Update();
@@ -731,6 +899,80 @@ void test_HierarchyAndIdentityPersistAndRestore() {
   TEST_ASSERT_TRUE(restored->streams().Find(42)->definition().name ==
                    "persisted");
 }
+#  if AE_ENABLE_PING
+void test_ClientPresenceReportsPeerRoutesWithoutAethernet() {
+  ClientFixture fixture;
+  auto app = RandomPeerToken();
+  auto a = fixture.Add(fixture.ca.Issue(), "presence-a", app);
+  auto b = fixture.Add(fixture.ca.Issue(), "presence-b", app);
+  auto& query = a->QueryPeerPresence(b->uid());
+  PeerPresence observed;
+  bool completed{};
+  Subscription sub = query.result_event().Subscribe([&](auto const& result) {
+    TEST_ASSERT_TRUE(result.IsOk());
+    observed = result.value();
+    completed = true;
+  });
+  fixture.Update();  // Start the query before any direct route exists.
+  a->peer_transport()->Connect(
+      {b->uid(), LoopbackEndpoint(*b->peer_transport())});
+  auto wait = [&](auto predicate) {
+    auto until = std::chrono::steady_clock::now() + std::chrono::seconds{5};
+    while (!predicate() && std::chrono::steady_clock::now() < until) {
+      fixture.Update();
+      std::this_thread::sleep_for(std::chrono::milliseconds{2});
+    }
+    return predicate();
+  };
+  TEST_ASSERT_TRUE(wait([&] {
+    return a->GetPeerPresence(b->uid()).IsOnlineVia(OnlineType::kDirectIp);
+  }));
+  TEST_ASSERT_FALSE(a->IsAetherOnline());
+  TEST_ASSERT_TRUE(a->IsLocallyOnline());
+  TEST_ASSERT_FALSE(a->GetPresence().aether_online);
+  TEST_ASSERT_TRUE(a->GetPresence().IsOnlineVia(OnlineType::kDirectIp));
+  TEST_ASSERT_FALSE(a->GetPeerPresence(RandomPeerToken()).state ==
+                    PeerPresenceState::kOnline);
+  TEST_ASSERT_TRUE(wait([&] { return completed; }));
+  TEST_ASSERT_TRUE(observed.state == PeerPresenceState::kOnline);
+  TEST_ASSERT_TRUE(observed.IsOnlineVia(OnlineType::kDirectIp));
+  TEST_ASSERT_FALSE(observed.IsOnlineVia(OnlineType::kAethernet));
+  TEST_ASSERT_TRUE(observed.aether_state == PeerPresenceState::kUnknown);
+  TEST_ASSERT_TRUE(query.peer_cloud_server_ids().empty());
+#    if AE_SUPPORT_LAN
+  auto settings = a->peer_settings();
+  settings.discovery = true;
+  a->ConfigurePeer(settings);
+  b->ConfigurePeer(settings);
+  TEST_ASSERT_TRUE(wait([&] {
+    return a->GetPeerPresence(b->uid()).IsOnlineVia(OnlineType::kLan);
+  }));
+  TEST_ASSERT_FALSE(
+      a->GetPeerPresence(b->uid()).IsOnlineVia(OnlineType::kDirectIp));
+  auto policy = a->connectivity_policy().Load();
+  auto now = Now();
+  policy->ConfirmServerPong(7, now, now, std::chrono::seconds{7},
+                            std::chrono::milliseconds{120}, Duration{});
+  auto presence = a->GetPresence();
+  TEST_ASSERT_TRUE(presence.IsOnlineVia(OnlineType::kLan));
+  TEST_ASSERT_TRUE(presence.IsOnlineVia(OnlineType::kAethernet));
+  // This client's server promise does not prove the peer's server presence.
+  TEST_ASSERT_FALSE(
+      a->GetPeerPresence(b->uid()).IsOnlineVia(OnlineType::kAethernet));
+  policy->ClearServerPresence(7);
+  TEST_ASSERT_FALSE(a->IsAetherOnline());
+  TEST_ASSERT_TRUE(a->GetPresence().IsOnlineVia(OnlineType::kLan));
+  policy->ConfigurePeerRxTiming(b->uid(), {});
+  TEST_ASSERT_TRUE(wait([&] {
+    return a->GetPeerPresence(b->uid()).state == PeerPresenceState::kOffline;
+  }));
+  policy->ResetPeerRxTiming(b->uid());
+  TEST_ASSERT_TRUE(wait([&] {
+    return a->GetPeerPresence(b->uid()).IsOnlineVia(OnlineType::kLan);
+  }));
+#    endif
+}
+#  endif
 void test_StorageIntentFailsExplicitlyUntilProviderImplemented() {
   ClientFixture fixture;
   auto client = fixture.Add(fixture.ca.Issue(), "storage", RandomPeerToken());
@@ -760,9 +1002,12 @@ void test_DiscoveryFiltersApplicationsAndAuthenticatesMatchingPeers() {
   }
   auto wrong = first;
   wrong.app_id = RandomPeerToken();
-  PeerTransport one{AeContext{context}, a, first, ca.root.public_key};
-  PeerTransport two{AeContext{context}, b, first, ca.root.public_key};
-  PeerTransport three{AeContext{context}, other, wrong, ca.root.public_key};
+  PeerTransport one{AeContext{context}, a, first, ca.root.public_key,
+                    context.policy.Load()};
+  PeerTransport two{AeContext{context}, b, first, ca.root.public_key,
+                    context.policy.Load()};
+  PeerTransport three{AeContext{context}, other, wrong, ca.root.public_key,
+                      context.policy.Load()};
   auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds{5};
   while (!one.BestPath(b.certificate.uid) &&
          std::chrono::steady_clock::now() < deadline) {
@@ -801,9 +1046,11 @@ void test_TransportCanBeDestroyedFromReceiveCallback() {
   PeerSettings settings;
   settings.app_id = RandomPeerToken();
   settings.discovery = false;
-  PeerTransport first{AeContext{context}, a, settings, ca.root.public_key};
+  PeerTransport first{AeContext{context}, a, settings, ca.root.public_key,
+                      context.policy.Load()};
   auto second = std::make_unique<PeerTransport>(AeContext{context}, b, settings,
-                                                ca.root.public_key);
+                                                ca.root.public_key,
+                                                context.policy.Load());
   first.Connect({b.certificate.uid, LoopbackEndpoint(*second)});
   auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds{5};
   while (!first.BestPath(b.certificate.uid) &&
@@ -829,8 +1076,10 @@ void test_NoBackupsPreservesReciprocalSessions() {
   PeerSettings settings;
   settings.app_id = RandomPeerToken();
   settings.discovery = false;
-  PeerTransport first{AeContext{context}, a, settings, ca.root.public_key};
-  PeerTransport second{AeContext{context}, b, settings, ca.root.public_key};
+  PeerTransport first{AeContext{context}, a, settings, ca.root.public_key,
+                      context.policy.Load()};
+  PeerTransport second{AeContext{context}, b, settings, ca.root.public_key,
+                       context.policy.Load()};
   first.Connect({b.certificate.uid, LoopbackEndpoint(second)});
   second.Connect({a.certificate.uid, LoopbackEndpoint(first)});
   first.SetKeepBackupChannels(b.certificate.uid, false);
@@ -943,6 +1192,85 @@ class DelayedProxy {
   std::map<Uid, unsigned> downstream_;
   std::vector<Pending> pending_;
 };
+#  if AE_ENABLE_PING
+void test_PeerUsesUserCadenceWindowAndConfirmedConfiguration() {
+  Authority ca;
+  auto a = ca.Issue(), b = ca.Issue();
+  Context left, right;
+  auto timing = RxTimingConf::Every(std::chrono::seconds{7})
+                    .WithWindow(std::chrono::milliseconds{120});
+  left.policy->ConfigurePeerRxTiming(b.certificate.uid, timing);
+  right.policy->ConfigureRxTimings().ForAllPriorities(timing);
+  PeerSettings settings;
+  settings.app_id = RandomPeerToken();
+  settings.discovery = false;
+  PeerTransport first{AeContext{left}, a, settings, ca.root.public_key,
+                      left.policy.Load()};
+  PeerTransport second{AeContext{right}, b, settings, ca.root.public_key,
+                       right.policy.Load()};
+  DelayedProxy proxy{LoopbackEndpoint(second), std::chrono::milliseconds{1}};
+  first.Connect({b.certificate.uid, proxy.endpoint()});
+  auto pump = [&] {
+    proxy.Update();
+    left.scheduler.Update();
+    right.scheduler.Update();
+    std::this_thread::sleep_for(std::chrono::milliseconds{2});
+  };
+  auto wait = [&](auto predicate, unsigned millis) {
+    auto until =
+        std::chrono::steady_clock::now() + std::chrono::milliseconds{millis};
+    while (!predicate() && std::chrono::steady_clock::now() < until) {
+      pump();
+    }
+    return predicate();
+  };
+  TEST_ASSERT_TRUE(wait(
+      [&] { return first.BestPath(b.certificate.uid).has_value(); }, 3000));
+  auto path = *first.BestPath(b.certificate.uid);
+  TEST_ASSERT_TRUE(path.receive_presence.confirmed_interval == timing.interval);
+  TEST_ASSERT_TRUE(path.receive_presence.confirmed_rx_window ==
+                   timing.rx_window);
+  TEST_ASSERT_TRUE(
+      path.receive_presence.IsOnline(Now() + std::chrono::seconds{4},
+                                     left.policy->offline_detection_timeout()));
+  auto until =
+      std::chrono::steady_clock::now() + std::chrono::milliseconds{1150};
+  while (std::chrono::steady_clock::now() < until) {
+    pump();
+  }
+  auto unchanged = first.BestPath(b.certificate.uid);
+  TEST_ASSERT_TRUE(unchanged.has_value());
+  TEST_ASSERT_TRUE(unchanged->statistics.probes_sent ==
+                   path.statistics.probes_sent);
+  TEST_ASSERT_TRUE(left.policy->GetStatus().can_suspend);
+  TEST_ASSERT_TRUE(left.policy->GetStatus().next_service_time >
+                   Now() + std::chrono::seconds{1});
+  proxy.drop_all = true;
+  auto changed = RxTimingConf::Every(std::chrono::milliseconds{150})
+                     .WithWindow(std::chrono::milliseconds{30});
+  left.policy->ConfigurePeerRxTiming(b.certificate.uid, changed);
+  until = std::chrono::steady_clock::now() + std::chrono::milliseconds{100};
+  while (std::chrono::steady_clock::now() < until) {
+    pump();
+  }
+  auto pending = *first.BestPath(b.certificate.uid);
+  TEST_ASSERT_TRUE(pending.receive_presence.config_change_pending);
+  TEST_ASSERT_TRUE(pending.receive_presence.confirmed_interval ==
+                   timing.interval);
+  proxy.drop_all = false;
+  TEST_ASSERT_TRUE(wait(
+      [&] {
+        auto view = first.BestPath(b.certificate.uid);
+        return view &&
+               view->receive_presence.confirmed_interval == changed.interval;
+      },
+      1500));
+  left.policy->ConfigurePeerRxTiming(b.certificate.uid, {});
+  TEST_ASSERT_TRUE(wait(
+      [&] { return !first.BestPath(b.certificate.uid).has_value(); }, 1500));
+  TEST_ASSERT_FALSE(HasOnlineType(first.OnlineTypes(), OnlineType::kDirectIp));
+}
+#  endif
 void test_RttThenLossSelectsPathAndRecoversFromBlackout() {
   Authority ca;
   auto a = ca.Issue(), b = ca.Issue();
@@ -950,8 +1278,10 @@ void test_RttThenLossSelectsPathAndRecoversFromBlackout() {
   PeerSettings settings;
   settings.app_id = RandomPeerToken();
   settings.discovery = false;
-  PeerTransport first{AeContext{context}, a, settings, ca.root.public_key};
-  PeerTransport second{AeContext{context}, b, settings, ca.root.public_key};
+  PeerTransport first{AeContext{context}, a, settings, ca.root.public_key,
+                      context.policy.Load()};
+  PeerTransport second{AeContext{context}, b, settings, ca.root.public_key,
+                       context.policy.Load()};
   auto target = LoopbackEndpoint(second);
   DelayedProxy fast{target, std::chrono::milliseconds{20}};
   DelayedProxy slow{target, std::chrono::milliseconds{40}};
@@ -1010,6 +1340,11 @@ int main() {
 #if AE_SUPPORT_P2P
   using namespace ae::test_peer;  // NOLINT: Unity suite dispatch.
   RUN_TEST(test_CertificateAndWireEncoding);
+#  if AE_ENABLE_PING
+  RUN_TEST(test_SharedPingCorrelatesLateAndReplacementAcks);
+  RUN_TEST(test_PeerUsesUserCadenceWindowAndConfirmedConfiguration);
+  RUN_TEST(test_ClientPresenceReportsPeerRoutesWithoutAethernet);
+#  endif
   RUN_TEST(test_OfflineHandshakeHidesUidAndAuthenticates);
   RUN_TEST(test_WrongExpectedUidRejected);
   RUN_TEST(test_ForgedCertificateRejected);
@@ -1018,6 +1353,7 @@ int main() {
   RUN_TEST(test_MalformedPacketsAreRejected);
   RUN_TEST(test_RealUdpDirectConnectionOffline);
   RUN_TEST(test_StandardRendezvousUsesRegisteredUdpSockets);
+  RUN_TEST(test_PreparedPunchKeepsItsRouteBeforeLocalGo);
   RUN_TEST(test_StaleAttemptsDoNotStarveAnyRendezvousLane);
   RUN_TEST(test_IncomingAuthenticatedPingsDoNotHideMissingPongs);
   RUN_TEST(test_DualSocketRendezvousAuthenticatesBothOppositeInitiators);

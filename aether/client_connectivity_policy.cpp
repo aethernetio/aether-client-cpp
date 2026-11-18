@@ -20,27 +20,72 @@
 #include <chrono>
 #include <utility>
 #include "aether/ae_context.h"
+#include "aether/tele.h"
 
 namespace ae {
+
+struct ClientConnectivityPolicy::PeerReceiveWindows
+    : std::enable_shared_from_this<PeerReceiveWindows> {
+  explicit PeerReceiveWindows(ClientConnectivityPolicy& owner)
+      : policy{owner} {}
+  ~PeerReceiveWindows() {
+    task.Reset();
+    blocker.Reset();
+  }
+  void Update() {
+    auto owner = ClientConnectivityPolicy::ptr::MakeFromThis(&policy).Load();
+    auto now = Now();
+    std::erase_if(windows,
+                  [now](auto const& item) { return item.second <= now; });
+    if (windows.empty()) {
+      task.Reset();
+      scheduled = {};
+      blocked = false;
+      blocker.Reset();
+      return;
+    }
+    if (!blocked) {
+      blocker = policy.AcquireSuspendBlock();
+      blocked = true;
+    }
+    auto earliest = std::min_element(windows.begin(), windows.end(),
+                                     [](auto const& a, auto const& b) {
+                                       return a.second < b.second;
+                                     })
+                        ->second;
+    if (task && scheduled == earliest) {
+      return;
+    }
+    scheduled = earliest;
+    auto weak = weak_from_this();
+    auto posted = AeContext{policy}.scheduler().DelayedTask(
+        task,
+        [weak] {
+          if (auto self = weak.lock()) {
+            self->scheduled = {};
+            self->Update();
+          }
+        },
+        earliest);
+    if (!posted) {
+      AETHER_TELED_ERROR("Peer receive window task allocation failed");
+      assert(false && "Peer receive window task allocation failed");
+    }
+  }
+  ClientConnectivityPolicy& policy;
+  std::map<Uid, TimePoint> windows;
+  SuspendBlocker blocker;
+  bool blocked{};
+  TaskSubscription task;
+  TimePoint scheduled{};
+};
+
+ClientConnectivityPolicy::~ClientConnectivityPolicy() = default;
 
 namespace {
 Duration PresenceClassificationTimeout(ServerPresenceState const& state,
                                        Duration configured) {
-  // The projected server receipt precedes the observed Ack. Allow one
-  // observed round trip plus scheduler guard when waiting for a renewal.
-  // Cap the allowance: a late buffered Ack must not buy an unbounded Online.
-  Duration observed{};
-  if (state.confirmed_pong_receive_time > state.confirmed_ping_send_time) {
-    auto const elapsed =
-        state.confirmed_pong_receive_time - state.confirmed_ping_send_time;
-    if (elapsed > std::chrono::duration_cast<TimePoint::duration>(configured)) {
-      return configured;  // An already late Ack supplies no extra freshness.
-    }
-    observed = std::chrono::duration_cast<Duration>(elapsed);
-  }
-  return SaturatingAdd(
-      configured,
-      std::min(configured, SaturatingAdd(observed, kLocalPresenceGuard)));
+  return state.ClassificationTimeout(configured);
 }
 
 constexpr auto kDefaultTiming = RxTiming{
@@ -90,9 +135,8 @@ ClientConnectivityPolicy::SuspendBlocker::operator=(
 }
 
 void ClientConnectivityPolicy::SuspendBlocker::Reset() {
-  if (policy_ != nullptr) {
-    policy_->DecrementSuspendBlock();
-    policy_ = nullptr;
+  if (auto* policy = std::exchange(policy_, nullptr)) {
+    policy->DecrementSuspendBlock();
   }
 }
 
@@ -114,6 +158,41 @@ void ClientConnectivityPolicy::Loaded() {
 auto ClientConnectivityPolicy::ConfigureRxTimings(
     RequestPolicy::Variant targets) -> RxTimingConfig {
   return RxTimingConfig{*this, std::move(targets)};
+}
+
+void ClientConnectivityPolicy::ConfigurePeerRxTiming(Uid peer,
+                                                     RxTimingConf conf) {
+  peer_rx_timings_[peer] = conf;
+}
+void ClientConnectivityPolicy::ResetPeerRxTiming(Uid peer) {
+  peer_rx_timings_.erase(peer);
+}
+RxTimingConf ClientConnectivityPolicy::PeerRxTiming(Uid peer) const {
+  auto found = peer_rx_timings_.find(peer);
+  return found == peer_rx_timings_.end() ? rx_timings_.front().conf
+                                         : found->second;
+}
+void ClientConnectivityPolicy::ReportPeerServiceTime(Uid session,
+                                                     TimePoint next) {
+  peer_service_times_[session] = next;
+}
+void ClientConnectivityPolicy::RemovePeerServiceTime(Uid session) {
+  peer_service_times_.erase(session);
+}
+void ClientConnectivityPolicy::OpenPeerRxWindow(Uid path, TimePoint closes) {
+  if (!peer_receive_windows_) {
+    peer_receive_windows_ = std::make_shared<PeerReceiveWindows>(*this);
+  }
+  auto windows = peer_receive_windows_;
+  windows->windows[path] = closes;
+  windows->Update();
+}
+void ClientConnectivityPolicy::RemovePeerRxWindow(Uid path) {
+  if (peer_receive_windows_) {
+    auto windows = peer_receive_windows_;
+    windows->windows.erase(path);
+    windows->Update();
+  }
 }
 
 void ClientConnectivityPolicy::ConfigureServerRxTiming(
@@ -167,9 +246,15 @@ ConnectivityStatus ClientConnectivityPolicy::GetStatus() const noexcept {
   auto current_time = Now();
   auto next_service_time = TimePoint::max();
   for (auto const& t : rx_timings_) {
+    if (t.next_rx_point == TimePoint{} && t.recordet_at == TimePoint{}) {
+      continue;
+    }
     next_service_time = std::min(
         next_service_time,
         (t.recordet_at > current_time) ? current_time : t.next_rx_point);
+  }
+  for (auto const& [session, next] : peer_service_times_) {
+    next_service_time = std::min(next_service_time, next);
   }
   return ConnectivityStatus{.can_suspend = can_suspend_,
                             .suspend_block_count = suspend_block_count_,
@@ -220,31 +305,7 @@ void ClientConnectivityPolicy::ConfirmServerPong(
     ServerId server_id, TimePoint send_time, TimePoint pong_time,
     Duration interval, Duration rx_window, Duration selected_rtt) {
   auto& state = EnsureServerPresence(server_id);
-  // interval == 0 clears the future Presence promise after the server
-  // accepted the reset Ping. rx_window is unrelated to Presence.
-  if (interval <= Duration{}) {
-    state.has_confirmed_schedule = false;
-    state.confirmed_interval = {};
-    state.confirmed_rx_window = rx_window;
-    state.confirmed_ping_send_time = send_time;
-    state.confirmed_pong_receive_time = pong_time;
-    state.confirmed_window_open_local = {};
-    state.confirmed_window_close_local = {};
-    state.config_change_pending = (state.desired.interval != interval) ||
-                                  (state.desired.rx_window != rx_window);
-    return;
-  }
-  auto const schedule = MakeConfirmedSchedule(send_time, pong_time, interval,
-                                              rx_window, selected_rtt);
-  state.has_confirmed_schedule = true;
-  state.confirmed_interval = schedule.interval;
-  state.confirmed_rx_window = schedule.rx_window;
-  state.confirmed_ping_send_time = schedule.ping_send_time;
-  state.confirmed_pong_receive_time = schedule.pong_receive_time;
-  state.confirmed_window_open_local = schedule.window_open_local;
-  state.confirmed_window_close_local = schedule.window_close_local;
-  state.config_change_pending = (state.desired.interval != interval) ||
-                                (state.desired.rx_window != rx_window);
+  state.ConfirmPong(send_time, pong_time, interval, rx_window, selected_rtt);
 }
 
 void ClientConnectivityPolicy::ClearServerPresence(ServerId server_id) {

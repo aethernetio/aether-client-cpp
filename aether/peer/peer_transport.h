@@ -5,10 +5,12 @@
 #include <optional>
 #include <vector>
 #include "aether/ae_context.h"
+#include "aether/client_connectivity_policy.h"
 #include "aether/events/events.h"
 #include "aether/peer/peer_types.h"
 #include "aether/peer/peer_udp.h"
 #include "aether/peer/rendezvous_protocol.h"
+#include "aether/remote_presence.h"
 #if AE_SUPPORT_P2P
 namespace ae {
 class PeerRegistry {
@@ -28,7 +30,8 @@ class PeerRegistry {
 class PeerTransport {
  public:
   PeerTransport(AeContext context, PeerIdentity& identity,
-                PeerSettings const& settings, Key root);
+                PeerSettings const& settings, Key root,
+                Ptr<ClientConnectivityPolicy> const& connectivity);
   ~PeerTransport();
   PeerTransport(PeerTransport const&) = delete;
   PeerTransport& operator=(PeerTransport const&) = delete;
@@ -45,8 +48,13 @@ class PeerTransport {
                       DataBuffer const& data);
   Event<void(Uid const&, PeerDatagram const&)> const&
   rendezvous_datagram_event() const;
-  void BeginPunch(PunchPlan const& plan);
+  bool PreparePunch(PunchPlan const& plan);
+  bool BeginPunch(PunchPlan const& plan);
   bool NeedsHolePunch(Uid const& peer) const;
+  OnlineType OnlineTypes(Uid const* peer = nullptr) const noexcept;
+  PeerPresenceState PresenceState(Uid peer) const noexcept;
+  RxTimingConf RxTiming(Uid peer) const;
+  Duration OfflineDetectionTimeout() const;
   PeerRegistry const& registry() const;
   Event<void(Uid const&, DataBuffer const&, PeerRoute)> const& message_event()
       const;

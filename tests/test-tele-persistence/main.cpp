@@ -32,7 +32,7 @@
 namespace ae {
 struct PingTestAccess {
   static void Arm(Ping& ping, ClientApiSafe& api, TimePoint time) {
-    ping.ArmResponse(api, time);
+    ping.ArmResponse(api.ping_ack_context_event(), time);
     // The real server tags PingAck with the request's session context.
     api.OnResponseFor(PackedSize{ping.context_id()});
   }

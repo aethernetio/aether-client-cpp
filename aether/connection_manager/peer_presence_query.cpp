@@ -18,14 +18,24 @@ PeerPresenceQuery::PeerPresenceQuery(AeContext const& context, Client& client,
   }
   start_sub_ = context_.scheduler().Task([this]() {
 #if AE_SUPPORT_P2P
-    if (auto* peer = client_->peer_transport();
-        peer && peer->BestPath(peer_uid_)) {
-      Complete({PeerPresenceState::kOnline});
+    if (client_->DirectOnlineTypes(&peer_uid_) != OnlineType::kNone) {
+      Complete(client_->GetPeerPresence(peer_uid_));
       return;
     }
+    if (auto* transport = client_->peer_transport()) {
+      peer_sub_ = transport->changed_event().Subscribe([this] {
+        if (client_->DirectOnlineTypes(&peer_uid_) != OnlineType::kNone) {
+          ScheduleCompletion();
+        }
+      });
+    }
 #endif
-    auto& action = client_->cloud_manager()->GetCloud(peer_uid_);
-    cloud_sub_ = action.result_event().Subscribe(
+    auto* action = client_->cloud_manager()->TryGetCloud(peer_uid_);
+    if (action == nullptr) {
+      Complete({PeerPresenceState::kUnknown});
+      return;
+    }
+    cloud_sub_ = action->result_event().Subscribe(
         [this](auto result) { OnCloud(std::move(result)); });
   });
   deadline_sub_ = context_.scheduler().DelayedTask(
@@ -105,6 +115,13 @@ void PeerPresenceQuery::MaybeComplete() {
   if (completed_) {
     return;
   }
+  if (client_->DirectOnlineTypes(&peer_uid_) != OnlineType::kNone) {
+    Complete(client_->GetPeerPresence(peer_uid_));
+    return;
+  }
+  if (!cloud_) {
+    return;
+  }
   bool terminal = true;
   for (auto& sample : samples_) {
     if (sample.status == RemoteServerPresence::kOnline &&
@@ -127,9 +144,17 @@ void PeerPresenceQuery::Complete(PeerPresence result) {
   completion_sub_.Reset();
   deadline_sub_.Reset();
   cloud_sub_.Reset();
+  peer_sub_.Reset();
   quarantine_sub_.Reset();
   query_subs_.Reset();
   queries_.clear();
+  if (!samples_.empty()) {
+    client_->peer_cloud_presence_[peer_uid_] = samples_;
+  }
+  // A failed/offline server observation cannot erase a working direct route.
+  result = CombinePeerPresence(result, client_->DirectOnlineTypes(&peer_uid_),
+                               client_->IsAetherOnline(),
+                               client_->DirectPresenceState(peer_uid_));
   result_event_.Emit(Ok{result});
   Finish();
 }

@@ -41,7 +41,7 @@ reliable/adaptive streams keep their own acknowledgement and retry semantics.
 entries. `PeerPath::punch_lane` identifies the independent socket pair.
 
 For signaling the SDK reserves logical stream ID `0xfffffff0` and service
-`a89d9189-9e39-4a22-ae70-112812720101`, version 1. That stream explicitly allows
+`a89d9189-9e39-4a22-ae70-112812720101`, version 2. That stream explicitly allows
 only cloud transport, preventing recursive rendezvous attempts for signaling.
 
 ## Socket registration
@@ -111,16 +111,12 @@ Rendezvous cannot turn an unconfirmed candidate into an online peer.
 
 ## Probes, NAT state and recovery
 
-Every retained active path has its own encrypted Ping/Pong every second, using
-its data socket and exact peer endpoint. Probes measure RTT, jitter and loss and
-refresh that NAT mapping. Incoming packets alone do not establish outbound
-health: a regularly probed path without a matching Pong for four seconds is
-retired, even if authenticated incoming Pings continue. A newly resumed path gets
-a bounded fresh probing interval. The registry and route selector use these same
-authenticated path states as local evidence of peer reachability. Æthernet's
-server-side presence query remains a separate observation; it does not override
-a working offline LAN path. Existing cloud-server Ping scheduling continues
-under `ClientConnectivityPolicy` (all servers by default).
+Every retained active path uses the existing `ae::Ping` lifecycle, user RX timing
+and shared `ReceivePresenceState`, using its data socket and exact peer endpoint.
+Probes measure RTT, jitter and loss and refresh that NAT mapping. There are no
+independent one-second/four-second timers. The client API reports simultaneous
+cloud/LAN/direct-IP/hole-punch reachability and keeps the authoritative cloud
+observation separate. See [client_presence.md](client_presence.md).
 
 With backups enabled all established alternatives are probed. With backups
 disabled, only the preferred outgoing path is actively maintained; incoming
@@ -128,13 +124,16 @@ probes on a reciprocal session are still answered so the other side can keep
 its independently selected outgoing path. Healthy LAN/direct IP also suppresses
 unnecessary new traversal attempts when backups are disabled.
 
-Rendezvous UDP registration has its own ten-second refresh. This maintains the
-mapping to rendezvous and does not replace direct probes to the peer. Missing
-registration retries every second; enrollment retries every two seconds until
-observed and then every ten seconds. Grants last 180 seconds; observed endpoints
-are usable for 30 seconds without confirmation. Pending peer requests retry
+Confirmed rendezvous registration follows the same user timing for the
+rendezvous UID. Its encrypted challenge echoes RX timing and offline timeout;
+freshness uses the shared confirmed schedule. Missing registration retries every
+second and enrollment every two seconds during setup. Inactive credentials last
+at least 180 seconds, extended by longer configured timing. Pending peer requests retry
 every three seconds, offers/Go every 500 ms, and a coordination job lasts nine
 seconds. A native handshake attempt has the existing five-second lifetime.
+Native sockets reserve the plan before acknowledging Ready. A remote Hello that
+arrives before the local Go is therefore attributed to its planned hole-punch
+route rather than an unsolicited direct-IP session.
 
 The broker bounds registrations (512 globally, 64 per UID), pending requests and
 jobs (128 each), and candidate pairs (10 per lane, at most 30 per plan). Native

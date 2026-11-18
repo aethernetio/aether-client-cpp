@@ -37,9 +37,58 @@ enum class PeerPresenceState : std::uint8_t {
   kUnknown,
 };
 
+enum class OnlineType : std::uint8_t {
+  kNone = 0,
+  kAethernet = 1,
+  kLan = 2,
+  kDirectIp = 4,
+  kHolePunching = 8
+};
+constexpr OnlineType operator|(OnlineType a, OnlineType b) {
+  return static_cast<OnlineType>(static_cast<unsigned>(a) |
+                                 static_cast<unsigned>(b));
+}
+constexpr bool HasOnlineType(OnlineType types, OnlineType type) {
+  return (static_cast<unsigned>(types) & static_cast<unsigned>(type)) != 0;
+}
+
 struct PeerPresence {
   PeerPresenceState state{PeerPresenceState::kUnknown};
+  // Remote server observation is independent of this client's direct paths.
+  PeerPresenceState aether_state{PeerPresenceState::kUnknown};
+  OnlineType online_types{OnlineType::kNone};
+  bool IsOnlineVia(OnlineType type) const {
+    return HasOnlineType(online_types, type);
+  }
 };
+
+struct ClientPresence {
+  bool aether_online{};
+  OnlineType online_types{OnlineType::kNone};
+  bool IsOnline() const { return online_types != OnlineType::kNone; }
+  bool IsOnlineVia(OnlineType type) const {
+    return HasOnlineType(online_types, type);
+  }
+};
+
+inline PeerPresence CombinePeerPresence(
+    PeerPresence aether, OnlineType direct_types, bool aether_available,
+    PeerPresenceState direct_state = PeerPresenceState::kUnknown) {
+  aether.online_types = direct_types;
+  if (aether_available && aether.aether_state == PeerPresenceState::kOnline) {
+    aether.online_types = aether.online_types | OnlineType::kAethernet;
+  }
+  aether.state = aether.online_types != OnlineType::kNone
+                     ? PeerPresenceState::kOnline
+                 : aether.aether_state == PeerPresenceState::kUnknown
+                     ? PeerPresenceState::kUnknown
+                     : PeerPresenceState::kOffline;
+  if (aether.state == PeerPresenceState::kUnknown && !aether_available &&
+      direct_state == PeerPresenceState::kOffline) {
+    aether.state = PeerPresenceState::kOffline;
+  }
+  return aether;
+}
 
 // Per authoritative usable server contribution for reachability aggregation.
 enum class RemoteServerPresence : std::uint8_t {
@@ -171,10 +220,13 @@ inline PeerPresence AggregateRemotePresence(
   }
   if (online > 0) {
     out.state = PeerPresenceState::kOnline;
+    out.aether_state = out.state;
+    out.online_types = OnlineType::kAethernet;
     return out;
   }
   if (offline == usable && !any_unknown) {
     out.state = PeerPresenceState::kOffline;
+    out.aether_state = out.state;
     return out;
   }
   out.state = PeerPresenceState::kUnknown;

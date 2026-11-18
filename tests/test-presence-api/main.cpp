@@ -33,6 +33,25 @@
 
 namespace ae::test_local_presence {
 
+void test_PeerOnlineTypesKeepCloudAndDirectEvidenceSeparate() {
+  PeerPresence offline{PeerPresenceState::kOffline,
+                       PeerPresenceState::kOffline};
+  auto lan = CombinePeerPresence(offline, OnlineType::kLan, false);
+  TEST_ASSERT_TRUE(lan.state == PeerPresenceState::kOnline);
+  TEST_ASSERT_TRUE(lan.aether_state == PeerPresenceState::kOffline);
+  TEST_ASSERT_TRUE(lan.IsOnlineVia(OnlineType::kLan));
+  TEST_ASSERT_FALSE(lan.IsOnlineVia(OnlineType::kAethernet));
+  PeerPresence online{PeerPresenceState::kOnline, PeerPresenceState::kOnline};
+  auto both = CombinePeerPresence(online, OnlineType::kHolePunching, true);
+  TEST_ASSERT_TRUE(both.IsOnlineVia(OnlineType::kAethernet));
+  TEST_ASSERT_TRUE(both.IsOnlineVia(OnlineType::kHolePunching));
+  auto no_local_cloud = CombinePeerPresence(online, OnlineType::kNone, false);
+  TEST_ASSERT_TRUE(no_local_cloud.state == PeerPresenceState::kOffline);
+  TEST_ASSERT_TRUE(no_local_cloud.aether_state == PeerPresenceState::kOnline);
+  TEST_ASSERT_TRUE(CombinePeerPresence({}, OnlineType::kNone, true).state ==
+                   PeerPresenceState::kUnknown);
+}
+
 using Ms = std::chrono::milliseconds;
 
 TimePoint Tp(std::int64_t ms) { return TimePoint{Ms{ms}}; }
@@ -430,15 +449,18 @@ void setUp() {}
 void tearDown() {}
 int main() {
   UNITY_BEGIN();
+  RUN_TEST(ae::test_local_presence::
+               test_PeerOnlineTypesKeepCloudAndDirectEvidenceSeparate);
   RUN_TEST(
       ae::test_local_presence::test_StaleRttCannotProjectServerReceiptAfterAck);
   RUN_TEST(ae::test_local_presence::test_ConfirmOnlyAfterPong);
-  RUN_TEST(
-      ae::test_local_presence::test_LatePongDoesNotAdvanceSelectedRttProjection);
+  RUN_TEST(ae::test_local_presence::
+               test_LatePongDoesNotAdvanceSelectedRttProjection);
   RUN_TEST(ae::test_local_presence::test_PerServerIndependence);
   RUN_TEST(
       ae::test_local_presence::test_OfflineOnlyAfterOfflineDetectionTimeout);
-  RUN_TEST(ae::test_local_presence::test_RenewalRttDoesNotCauseBriefLocalOffline);
+  RUN_TEST(
+      ae::test_local_presence::test_RenewalRttDoesNotCauseBriefLocalOffline);
   RUN_TEST(
       ae::test_local_presence::test_RuntimeIntervalChangeKeepsOldConfirmed);
   RUN_TEST(ae::test_local_presence::test_RuntimePercentile);

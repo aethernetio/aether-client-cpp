@@ -25,6 +25,7 @@
 #include "aether/client_connectivity_policy.h"
 #include "aether/cloud.h"
 #include "aether/memory.h"
+#include "aether/remote_presence.h"
 #include "aether/server_keys.h"
 #include "aether/types/uid.h"
 
@@ -74,6 +75,9 @@ class Client : public Obj {
   P2pMessageStreamManager& message_stream_manager();
 
   bool IsLocallyOnline() const noexcept;
+  bool IsAetherOnline() const noexcept;
+  ClientPresence GetPresence() const;
+  PeerPresence GetPeerPresence(Uid peer_uid) const;
   ae::PeerPresenceQuery& QueryPeerPresence(Uid peer_uid);
   void ConfigureStreams(std::vector<StreamDefinition> definitions);
   StreamHierarchy& streams();
@@ -112,6 +116,9 @@ class Client : public Obj {
   void SendTelemetry();
 
  private:
+  friend class PeerPresenceQuery;
+  OnlineType DirectOnlineTypes(Uid const* peer_uid = nullptr) const;
+  PeerPresenceState DirectPresenceState(Uid peer_uid) const;
   void Loaded();
 #if AE_SUPPORT_P2P
   void EnsurePeerIdentity();
@@ -138,6 +145,7 @@ class Client : public Obj {
   std::unique_ptr<CloudServerConnections> cloud_connection_;
   std::unique_ptr<P2pMessageStreamManager> message_stream_manager_;
   std::map<Uid, std::unique_ptr<ae::PeerPresenceQuery>> peer_presence_queries_;
+  std::map<Uid, std::vector<RemoteServerPresenceSample>> peer_cloud_presence_;
   std::unique_ptr<StreamHierarchy> stream_hierarchy_;
 #if AE_SUPPORT_P2P
   std::unique_ptr<PeerTransport> peer_transport_;

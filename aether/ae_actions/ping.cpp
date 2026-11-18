@@ -90,9 +90,37 @@ Ping::Ping(AeContext const& ae_context,
 
 Ping::ResultEvent const& Ping::result_event() const { return result_event_; }
 
+Ping::Ping(AeContext const& context, AckEvent const& acknowledgements,
+           Sender sender, Duration interval, Duration window, Duration timeout,
+           bool ack_on_scheduler)
+    : ae_context_{context},
+      cloud_server_connection_{nullptr},
+      acknowledgements_{&acknowledgements},
+      sender_{std::move(sender)},
+      ack_on_scheduler_{ack_on_scheduler},
+      next_ping_hint_{interval},
+      rx_window_{window},
+      timeout_{timeout},
+      server_id_{},
+      context_id_{NextPingContextId()},
+      result_event_{context} {}
+
 Ping::~Ping() { ResetRequestSubscriptions(); }
 
 void Ping::Start(TimePoint current_time) {
+  if (cloud_server_connection_ == nullptr) {
+    assert(state_ == RequestState::kCreated && "Ping starts once");
+    if (state_ != RequestState::kCreated) {
+      return;
+    }
+    ArmResponse(*acknowledgements_, current_time);
+    if (!sender_(context_id_, next_ping_hint_, rx_window_) &&
+        state_ == RequestState::kPending) {
+      write_fail_dispatch_sub_ = ae_context_.scheduler().Task(
+          [this] { EmitWriteFailureFromWriteCallback(); });
+    }
+    return;
+  }
   auto* cc = cloud_server_connection_->client_connection();
   assert(cc != nullptr && "Ping::Start requires a client connection");
   assert(cc->stream_info().link_state == LinkState::kLinked &&
@@ -102,8 +130,10 @@ void Ping::Start(TimePoint current_time) {
   if (state_ != RequestState::kCreated) {
     return;
   }
-  ArmResponse(cc->client_safe_api(), current_time);
-  if (BenchDropPing(false)) { return; }
+  ArmResponse(cc->client_safe_api().ping_ack_context_event(), current_time);
+  if (BenchDropPing(false)) {
+    return;
+  }
   PresenceApiTrace("ping_context_send", server_id_, context_id_);
 
   auto& write_action =
@@ -144,12 +174,13 @@ void Ping::Start(TimePoint current_time) {
 #  endif
 }
 
-void Ping::ArmResponse(ClientApiSafe& api, TimePoint current_time) {
+void Ping::ArmResponse(AckEvent const& acknowledgements,
+                       TimePoint current_time) {
   state_ = RequestState::kPending;
   request_start_ = current_time;
   // Arm both completion paths before sending, including a synchronous ack.
   wait_result_sub_ =
-      api.ping_ack_context_event().Subscribe([this](std::uint64_t response_id) {
+      acknowledgements.Subscribe([this](std::uint64_t response_id) {
         PresenceApiTrace("ping_context_ack", server_id_, response_id,
                          context_id_);
         if (response_id == context_id_) {
@@ -171,8 +202,19 @@ void Ping::EmitWriteFailureFromWriteCallback() {
 }
 
 void Ping::PingResponse(std::uint64_t request_id) {
-  if (BenchDropPing(true)) { return; }
+  if (cloud_server_connection_ != nullptr && BenchDropPing(true)) {
+    return;
+  }
   write_fail_dispatch_sub_.Reset();
+  if (ack_on_scheduler_) {
+    if (state_ == RequestState::kPending && Now() > request_start_ + timeout_) {
+      state_ = RequestState::kTimedOut;
+      timeout_sub_.Reset();
+      write_sub_.Reset();
+    }
+    PingResponseImpl(request_id);
+    return;
+  }
   ack_dispatch_sub_ = ae_context_.scheduler().Task(
       [this, request_id]() { PingResponseImpl(request_id); });
 }

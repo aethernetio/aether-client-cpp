@@ -227,6 +227,11 @@ int Run(int argc, char** argv) {
     return 7;
   }
   auto cloud_before = output->statistics()[0].sent_messages;
+  auto presence = client->GetPeerPresence(target);
+  if (presence.state != PeerPresenceState::kOnline ||
+      !presence.IsOnlineVia(OnlineType::kHolePunching)) {
+    return 10;
+  }
   auto before = replies;
   for (unsigned i = 0; i < 20; ++i) {
     output->Write(DataBuffer{payload});
@@ -246,9 +251,10 @@ int Run(int argc, char** argv) {
   }
   std::cout << Format(
                    "PUNCH_OK mode={} replies={} cloud_before={} cloud_after={} "
-                   "hole={} rtt_us={}",
+                   "hole={} rtt_us={} online_types={}",
                    mode, replies - before, cloud_before, stats[0].sent_messages,
-                   stats[3].sent_messages, stats[3].rtt_us.value_or(0))
+                   stats[3].sent_messages, stats[3].rtt_us.value_or(0),
+                   static_cast<unsigned>(presence.online_types))
             << std::endl;
   client.Save();
   app->aether().Save();

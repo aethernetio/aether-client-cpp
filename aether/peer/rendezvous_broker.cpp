@@ -38,6 +38,9 @@ struct RendezvousBroker::Impl {
     AddressPort observed{}, pending{};
     Uid challenge{};
     Time created{Clock::now()}, seen{}, challenged{};
+    RxTimingConf pending_timing;
+    Duration pending_timeout{}, confirmed_timeout{};
+    ReceivePresenceState presence;
   };
   struct Request {
     Uid sender;
@@ -100,7 +103,8 @@ struct RendezvousBroker::Impl {
   void SendUdp(Registration& reg, AddressPort const& to,
                RendezvousUdpMethod method, Uid const& challenge,
                AddressPort const& observed) {
-    auto record = reg.cipher->Seal(PeerEncode(method, challenge, observed));
+    auto record = reg.cipher->Seal(PeerEncode(
+        method, challenge, observed, reg.pending_timing, reg.pending_timeout));
     if (record) {
       datagram(to, PackRendezvousDatagram(reg.grant.token, std::move(*record)));
     }
@@ -108,11 +112,11 @@ struct RendezvousBroker::Impl {
   std::vector<Registration*> Find(Uid const& uid, AppId const& app,
                                   std::optional<Uid> instance = {}) {
     std::vector<Registration*> result;
-    auto now = Clock::now();
     for (auto const& [token, reg] : registrations) {
       if (reg->uid == uid && reg->enrollment.app == app &&
           (!instance || reg->enrollment.instance == *instance) &&
-          reg->observed.port && now - reg->seen < std::chrono::seconds{30}) {
+          reg->observed.port &&
+          reg->presence.IsOnline(Now(), reg->confirmed_timeout)) {
         result.push_back(reg.get());
       }
     }
@@ -305,7 +309,9 @@ void RendezvousBroker::ReceiveDatagram(PeerDatagram const& datagram) {
   auto plain = reg.cipher->Open(record);
   RendezvousUdpMethod method{};
   Uid challenge;
-  if (!plain || !PeerDecode(*plain, method, challenge)) {
+  RxTimingConf timing;
+  Duration timeout{};
+  if (!plain || !PeerDecode(*plain, method, challenge, timing, timeout)) {
     return;
   }
   auto now = Impl::Clock::now();
@@ -313,15 +319,24 @@ void RendezvousBroker::ReceiveDatagram(PeerDatagram const& datagram) {
     reg.pending = datagram.source;
     reg.challenge = RandomPeerToken();
     reg.challenged = now;
+    reg.pending_timing = timing;
+    reg.pending_timeout = timeout;
     impl_->SendUdp(reg, reg.pending, RendezvousUdpMethod::kChallenge,
                    reg.challenge, reg.pending);
   } else if (method == RendezvousUdpMethod::kConfirm &&
              !reg.challenge.empty() && challenge == reg.challenge &&
+             timing.interval == reg.pending_timing.interval &&
+             timing.rx_window == reg.pending_timing.rx_window &&
+             timeout == reg.pending_timeout &&
              rendezvous_broker_internal::Same(reg.pending, datagram.source) &&
              now - reg.challenged < std::chrono::seconds{3}) {
     reg.observed = datagram.source;
     reg.challenge = {};
     reg.seen = now;
+    reg.confirmed_timeout = timeout;
+    reg.presence.desired = timing;
+    reg.presence.ConfirmPong(Now(), Now(), timing.interval, timing.rx_window,
+                             Duration{});
     impl_->SendUdp(reg, reg.observed, RendezvousUdpMethod::kObserved, {},
                    reg.observed);
   }
@@ -329,7 +344,13 @@ void RendezvousBroker::ReceiveDatagram(PeerDatagram const& datagram) {
 void RendezvousBroker::Update() {
   auto now = Impl::Clock::now();
   std::erase_if(impl_->registrations, [&](auto const& item) {
-    return now - item.second->created > std::chrono::seconds{180};
+    auto const& reg = *item.second;
+    auto idle =
+        std::max(Duration{std::chrono::seconds{180}},
+                 SaturatingAdd(SaturatingAdd(reg.presence.confirmed_interval,
+                                             reg.presence.confirmed_rx_window),
+                               reg.confirmed_timeout));
+    return now - (reg.observed.port ? reg.seen : reg.created) > idle;
   });
   std::erase_if(impl_->requests, [&](auto const& item) {
     return now - item.second.seen > std::chrono::seconds{10};

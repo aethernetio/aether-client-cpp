@@ -22,6 +22,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <optional>
 
 #include "aether-objects/obj/obj.h"
@@ -33,7 +34,9 @@
 #include "aether/common.h"
 #include "aether/config.h"
 #include "aether/events/events.h"
+#include "aether/receive_presence.h"
 #include "aether/types/server_id.h"
+#include "aether/types/uid.h"
 
 #include <chrono>
 
@@ -42,21 +45,6 @@ namespace ae {
 inline constexpr std::size_t kMaxRxServerPriorities{
     AE_CLOUD_MAX_SERVER_CONNECTIONS};
 static_assert(kMaxRxServerPriorities > 0);
-
-struct RxTimingConf {
-  AE_REFLECT_MEMBERS(interval, rx_window)
-
-  Duration interval{};
-  Duration rx_window{};
-
-  static constexpr RxTimingConf Every(Duration i) {
-    return RxTimingConf{.interval = i, .rx_window = i};
-  }
-
-  constexpr RxTimingConf WithWindow(Duration rx_w) const {
-    return RxTimingConf{.interval = interval, .rx_window = rx_w};
-  }
-};
 
 struct RxTiming {
   AE_REFLECT_MEMBERS(conf, next_rx_point, recordet_at)
@@ -72,20 +60,7 @@ struct ConnectivityStatus {
   TimePoint next_service_time;
 };
 
-struct ServerPresenceState {
-  RxTimingConf desired{
-      RxTimingConf::Every(std::chrono::milliseconds{AE_PING_INTERVAL_MS})};
-  Percentile rtt_reliability_percentile{kDefaultRttReliabilityPercentile};
-
-  bool has_confirmed_schedule{false};
-  Duration confirmed_interval{};
-  Duration confirmed_rx_window{};
-  TimePoint confirmed_ping_send_time{};
-  TimePoint confirmed_pong_receive_time{};
-  TimePoint confirmed_window_open_local{};
-  TimePoint confirmed_window_close_local{};
-
-  bool config_change_pending{false};
+struct ServerPresenceState : ReceivePresenceState {
   bool selected_for_aggregate{true};
   bool has_user_rx_timing{false};
   bool quarantined{false};
@@ -132,13 +107,23 @@ class ClientConnectivityPolicy : public Obj {
 
   ClientConnectivityPolicy();
   explicit ClientConnectivityPolicy(ObjProp prop);
+  ~ClientConnectivityPolicy() override;
 
   AE_CLASS_NO_COPY_MOVE(ClientConnectivityPolicy);
 
-  AE_OBJECT_REFLECT(AE_MMBRS(rx_targets_, rx_timings_))
+  AE_OBJECT_REFLECT(AE_MMBRS(rx_targets_, rx_timings_, peer_rx_timings_))
 
   RxTimingConfig ConfigureRxTimings(
       RequestPolicy::Variant targets = RequestPolicy::All{});
+
+  // Peer channels inherit priority zero unless this UID has an explicit timing.
+  void ConfigurePeerRxTiming(Uid peer, RxTimingConf conf);
+  void ResetPeerRxTiming(Uid peer);
+  RxTimingConf PeerRxTiming(Uid peer) const;
+  void ReportPeerServiceTime(Uid session, TimePoint next);
+  void RemovePeerServiceTime(Uid session);
+  void OpenPeerRxWindow(Uid path, TimePoint closes);
+  void RemovePeerRxWindow(Uid path);
 
   // Per-server runtime config. Does not invent ONLINE until a confirming Pong.
   void ConfigureServerRxTiming(
@@ -232,6 +217,8 @@ class ClientConnectivityPolicy : public Obj {
   RequestPolicy::Variant rx_targets_;
   std::array<RxTiming, kMaxRxServerPriorities> rx_timings_;
   std::map<ServerId, ServerPresenceState> server_presence_;
+  std::map<Uid, RxTimingConf> peer_rx_timings_;
+  std::map<Uid, TimePoint> peer_service_times_;
 
   bool can_suspend_{true};
   std::uint8_t suspend_block_count_{};
@@ -241,6 +228,8 @@ class ClientConnectivityPolicy : public Obj {
 
   std::optional<Event<void()>> suspend_allowed_event_;
   std::optional<Event<void(ServerId)>> server_rx_timing_changed_event_;
+  struct PeerReceiveWindows;
+  std::shared_ptr<PeerReceiveWindows> peer_receive_windows_;
 };
 
 }  // namespace ae

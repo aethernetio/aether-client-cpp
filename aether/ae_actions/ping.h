@@ -22,6 +22,7 @@
 #if AE_ENABLE_PING
 
 #  include <cstdint>
+#  include <functional>
 #  include <variant>
 
 #  include "aether-miscpp/types/result.h"
@@ -46,10 +47,17 @@ class Ping {
   };
   using PingResult = std::variant<Ok<Duration>, LateDuration, Error<int>>;
   using ResultEvent = Event<void(PingResult const&)>;
+  using AckEvent = Event<void(std::uint64_t)>;
+  using Sender = std::function<bool(std::uint64_t, Duration, Duration)>;
 
   Ping(AeContext const& ae_context,
        CloudServerConnection& cloud_server_connection, Duration next_ping_hint,
        Duration rx_window, Duration timeout);
+
+  // Same request lifecycle for a transport supplying authenticated Ping/Ack.
+  // ack_on_scheduler requires Ack emission on this context's scheduler.
+  Ping(AeContext const&, AckEvent const&, Sender, Duration interval,
+       Duration rx_window, Duration timeout, bool ack_on_scheduler = false);
 
   ~Ping();
 
@@ -73,7 +81,7 @@ class Ping {
 
  private:
   friend struct PingTestAccess;
-  void ArmResponse(ClientApiSafe& api, TimePoint current_time);
+  void ArmResponse(AckEvent const&, TimePoint current_time);
   void PingResponse(std::uint64_t request_id);
   void PingResponseImpl(std::uint64_t request_id);
   void PingResponseError(std::uint64_t request_id, std::int32_t error_code);
@@ -90,6 +98,9 @@ class Ping {
 
   AeContext ae_context_;
   CloudServerConnection* cloud_server_connection_;
+  AckEvent const* acknowledgements_{};
+  Sender sender_;
+  bool ack_on_scheduler_{};
   Duration next_ping_hint_;
   Duration rx_window_;
   Duration timeout_;

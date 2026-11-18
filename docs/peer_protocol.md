@@ -85,9 +85,10 @@ send of every payload through all transports.
 
 Within a route class, measured RTT selects the path initially. After eight probe
 outcomes the score is `RTT / max(0.05, 1 - recent loss)`, using the last 16 outcomes.
-Probes run once a second; the preceding unanswered probe counts as a loss. RTT
-and jitter use moving averages. Four seconds without authenticated traffic removes
-the path. An immediate UDP send failure tries another authenticated path in the
+Probes use the existing `ae::Ping` lifecycle and user-configured RX timings.
+Confirmed schedules and the user's offline timeout determine presence; there is
+no independent one-second/four-second timer. See [client_presence.md](client_presence.md).
+RTT and jitter use moving averages. An immediate UDP send failure tries another authenticated path in the
 same write, then permits the cloud fallback. A silent blackout is detected by
 probes; raw datagrams already accepted by the OS may be lost. Existing reliable
 streams perform their own retransmission and can continue over the next route.

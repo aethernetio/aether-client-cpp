@@ -141,7 +141,51 @@ P2pMessageStreamManager& Client::message_stream_manager() {
 }
 
 bool Client::IsLocallyOnline() const noexcept {
+  return GetPresence().IsOnline();
+}
+bool Client::IsAetherOnline() const noexcept {
   return connectivity_policy_ && connectivity_policy_.Load()->IsLocallyOnline();
+}
+
+OnlineType Client::DirectOnlineTypes(Uid const* uid) const {
+#if AE_SUPPORT_P2P
+  return peer_transport_ ? peer_transport_->OnlineTypes(uid)
+                         : OnlineType::kNone;
+#else
+  static_cast<void>(uid);
+  return OnlineType::kNone;
+#endif
+}
+ClientPresence Client::GetPresence() const {
+  auto aether = IsAetherOnline();
+  return {aether, DirectOnlineTypes() |
+                      (aether ? OnlineType::kAethernet : OnlineType::kNone)};
+}
+PeerPresenceState Client::DirectPresenceState(Uid uid) const {
+#if AE_SUPPORT_P2P
+  if (peer_transport_) {
+    return peer_transport_->PresenceState(uid);
+  }
+#else
+  static_cast<void>(uid);
+#endif
+  return PeerPresenceState::kUnknown;
+}
+PeerPresence Client::GetPeerPresence(Uid uid) const {
+  PeerPresence result;
+  if (auto cached = peer_cloud_presence_.find(uid);
+      cached != peer_cloud_presence_.end()) {
+    auto samples = cached->second;
+    for (auto& sample : samples) {
+      if (sample.status == RemoteServerPresence::kOnline &&
+          Now() > sample.offline_deadline) {
+        sample.status = RemoteServerPresence::kUnknown;
+      }
+    }
+    result = AggregateRemotePresence(samples);
+  }
+  return CombinePeerPresence(result, DirectOnlineTypes(&uid), IsAetherOnline(),
+                             DirectPresenceState(uid));
 }
 
 ae::PeerPresenceQuery& Client::QueryPeerPresence(Uid peer_uid) {

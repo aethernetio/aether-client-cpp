@@ -14,6 +14,8 @@ struct RendezvousClient::Impl : std::enable_shared_from_this<Impl> {
     std::unique_ptr<PeerRecordCipher> cipher;
     Time enrolled{}, sent{};
     bool observed{};
+    RxTimingConf timing;
+    Duration offline_timeout{};
   };
   struct Offer {
     PunchPlan plan;
@@ -70,7 +72,8 @@ struct RendezvousClient::Impl : std::enable_shared_from_this<Impl> {
   }
   void Udp(Uid const& socket, Registration& registration,
            RendezvousUdpMethod method, Uid challenge = {}) {
-    auto cipher = registration.cipher->Seal(PeerEncode(method, challenge));
+    auto cipher = registration.cipher->Seal(PeerEncode(
+        method, challenge, registration.timing, registration.offline_timeout));
     if (cipher) {
       transport.SendRendezvous(
           socket, settings.rendezvous->endpoint,
@@ -152,7 +155,13 @@ struct RendezvousClient::Impl : std::enable_shared_from_this<Impl> {
     auto plain = registration.cipher->Open(cipher);
     RendezvousUdpMethod method{};
     AddressPort observed;
-    if (!plain || !PeerDecode(*plain, method, challenge, observed) ||
+    RxTimingConf timing;
+    Duration timeout{};
+    if (!plain ||
+        !PeerDecode(*plain, method, challenge, observed, timing, timeout) ||
+        timing.interval != registration.timing.interval ||
+        timing.rx_window != registration.timing.rx_window ||
+        timeout != registration.offline_timeout ||
         !ValidRendezvousEndpoint(observed)) {
       return;
     }
@@ -176,10 +185,22 @@ struct RendezvousClient::Impl : std::enable_shared_from_this<Impl> {
         continue;
       }
       auto& registration = registrations[socket.id];
+      auto timing = transport.RxTiming(settings.rendezvous->uid);
+      auto timeout = transport.OfflineDetectionTimeout();
+      if (timing.interval != registration.timing.interval ||
+          timing.rx_window != registration.timing.rx_window ||
+          timeout != registration.offline_timeout) {
+        registration.timing = timing;
+        registration.offline_timeout = timeout;
+        registration.observed = false;
+        registration.sent = {};
+        registration.enrolled = {};
+      }
       auto enrollment_interval = registration.observed
-                                     ? std::chrono::seconds{10}
-                                     : std::chrono::seconds{2};
-      if (now - registration.enrolled > enrollment_interval) {
+                                     ? timing.interval
+                                     : Duration{std::chrono::seconds{2}};
+      if ((!registration.observed || timing.interval > Duration{}) &&
+          now - registration.enrolled > enrollment_interval) {
         registration.enrolled = now;
         Signal(RendezvousMethod::kEnroll,
                PeerEncode(RendezvousEnrollment{
@@ -190,9 +211,11 @@ struct RendezvousClient::Impl : std::enable_shared_from_this<Impl> {
           return;
         }
       }
-      auto interval = registration.observed ? std::chrono::seconds{10}
-                                            : std::chrono::seconds{1};
-      if (registration.cipher && now - registration.sent > interval) {
+      auto interval = registration.observed ? timing.interval
+                                            : Duration{std::chrono::seconds{1}};
+      if (registration.cipher &&
+          (!registration.observed || interval > Duration{}) &&
+          now - registration.sent > interval) {
         registration.sent = now;
         Udp(socket.id, registration, RendezvousUdpMethod::kRegister);
       }
@@ -215,7 +238,8 @@ struct RendezvousClient::Impl : std::enable_shared_from_this<Impl> {
     });
     for (auto& [attempt, offer] : offers) {
       if (!offer.started && now - offer.ack > std::chrono::milliseconds{400} &&
-          transport.NeedsHolePunch(offer.plan.peer)) {
+          transport.NeedsHolePunch(offer.plan.peer) &&
+          transport.PreparePunch(offer.plan)) {
         offer.ack = now;
         Signal(RendezvousMethod::kReady, PeerEncode(attempt));
         if (stopped) {
@@ -223,8 +247,7 @@ struct RendezvousClient::Impl : std::enable_shared_from_this<Impl> {
         }
       }
       if (!offer.started && offer.start != Time{} && now >= offer.start) {
-        offer.started = true;
-        transport.BeginPunch(offer.plan);
+        offer.started = transport.BeginPunch(offer.plan);
       }
     }
   }

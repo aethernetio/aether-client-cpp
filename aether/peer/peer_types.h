@@ -13,6 +13,7 @@
 #include "aether/crypto/key.h"
 #include "aether/crypto/sign.h"
 #include "aether/crypto/signed_key.h"
+#include "aether/receive_presence.h"
 #include "aether/types/address.h"
 #include "aether/types/data_buffer.h"
 #include "aether/types/uid.h"
@@ -105,6 +106,7 @@ struct PeerPath {
   PunchLane punch_lane{};
   bool authenticated{};
   bool connected{};
+  ReceivePresenceState receive_presence;
   TransportStatistics statistics;
 };
 

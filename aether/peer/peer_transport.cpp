@@ -9,10 +9,13 @@
 #  include <stdexcept>
 #  include <string>
 #  include <tuple>
+#  include "aether/ae_actions/ping.h"
 #  include "aether/clock.h"
 #  include "aether/peer/peer_protocol.h"
 #  include "aether/peer/peer_udp.h"
 #  include "aether/tasks/manual_task_scheduler.h"
+#  include "aether/tele.h"
+#  include "aether/types/statistic_counter.h"
 namespace ae {
 namespace peer_transport_internal {
 using Clock = std::chrono::steady_clock;
@@ -52,6 +55,7 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
   using Clock = peer_transport_internal::Clock;
   using Time = peer_transport_internal::Time;
   struct Path {
+    explicit Path(AeContext context) : acknowledgements{context} {}
     std::size_t socket{};
     AddressPort endpoint{};
     PeerRoute route{};
@@ -60,24 +64,35 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
     PeerPath view;
     Time created{Clock::now()};
     Time received{created};
-    Time acknowledged{created};
-    Time probing_since{created};
     Time sent{};
-    Time probe_sent{};
-    std::uint64_t probe_number{};
-    std::uint64_t pending_probe{};
+    Uid schedule_id{RandomPeerToken()};
+    TimePoint next_ping{};
+    Event<void(std::uint64_t)> acknowledgements;
+#  if AE_ENABLE_PING
+    std::unique_ptr<Ping> ping;
+    Subscription ping_result;
+    ClientConnectivityPolicy::SuspendBlocker ping_blocker;
+    StatisticsCounter<Duration, AE_STATISTICS_RESPONSE_WINDOW_SIZE> rtts;
+    Duration selected_rtt{};
+    bool probe_timed_out{};
+#  endif
     unsigned attempts{};
     std::uint16_t loss_window{};
     DataBuffer flight;
     std::vector<AddressPort> targets;
     bool published{};
+    bool hard_failed{};
+    bool punch_started{true}, punch_initiator{};
     std::vector<PeerService> services;
   };
-  Impl(AeContext ctx, PeerIdentity& id, PeerSettings const& conf, Key root_key)
+  Impl(AeContext ctx, PeerIdentity& id, PeerSettings const& conf, Key root_key,
+       Ptr<ClientConnectivityPolicy> const& policy)
       : context{ctx},
         identity{id},
         settings{conf},
         root{std::move(root_key)},
+        connectivity_owner{policy},
+        connectivity{*connectivity_owner},
         registry{context},
         messages{context},
         rendezvous_datagrams{context} {
@@ -126,7 +141,13 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
     }
 #  endif
   }
-  ~Impl() { tick.Reset(); }
+  ~Impl() {
+    tick.Reset();
+    for (auto const& path : paths) {
+      connectivity.RemovePeerServiceTime(path->schedule_id);
+      connectivity.RemovePeerRxWindow(path->schedule_id);
+    }
+  }
   void AddSocket(Address const& address, std::uint16_t port, PunchLane lane) {
     auto socket = std::make_unique<PeerUdp>(address, port);
     auto free = std::find(sockets.begin(), sockets.end(), nullptr);
@@ -157,7 +178,7 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
   }
   void Schedule() {
     std::weak_ptr<Impl> weak = shared_from_this();
-    context.scheduler().DelayedTask(
+    auto posted = context.scheduler().DelayedTask(
         tick,
         [weak] {
           if (auto self = weak.lock(); self && !self->stopped) {
@@ -168,6 +189,10 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
           }
         },
         std::chrono::milliseconds{10});
+    if (!posted) {
+      AETHER_TELED_ERROR("Peer poll task allocation failed");
+      assert(false && "Peer poll task allocation failed");
+    }
   }
   void Connect(AddressPort const& endpoint, std::optional<Uid> expected,
                PeerRoute route) {
@@ -198,7 +223,7 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
       if (exists || paths.size() >= 64) {
         continue;
       }
-      auto path = std::make_unique<Path>();
+      auto path = std::make_unique<Path>(context);
       path->socket = index;
       path->endpoint = endpoint;
       path->route = route;
@@ -242,22 +267,22 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
       }
     }
   }
-  void BeginPunch(PunchPlan const& plan) {
+  bool PreparePunch(PunchPlan const& plan) {
     if (!identity.certified || plan.app != settings.app_id ||
         plan.peer.empty() || plan.peer == identity.certificate.uid ||
-        plan.pairs.size() > 32) {
-      return;
+        plan.pairs.empty() || plan.pairs.size() > 32) {
+      return false;
     }
     for (auto const& pair : plan.pairs) {
       auto socket =
           std::find(socket_ids.begin(), socket_ids.end(), pair.socket);
       if (socket == socket_ids.end() || pair.token.empty() ||
           !ValidRendezvousEndpoint(pair.external)) {
-        continue;
+        return false;
       }
       auto index = static_cast<std::size_t>(socket - socket_ids.begin());
       if (!sockets[index] || socket_lanes[index] != pair.lane) {
-        continue;
+        return false;
       }
       if (std::any_of(paths.begin(), paths.end(), [&](auto const& path) {
             return path->socket == index &&
@@ -266,13 +291,15 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
         continue;
       }
       if (!MakePunchRoom(plan.peer)) {
-        break;
+        return false;
       }
-      auto path = std::make_unique<Path>();
+      auto path = std::make_unique<Path>(context);
       path->socket = index;
       path->endpoint = pair.external;
       path->route = PeerRoute::kHolePunch;
       path->punch_peer = plan.peer;
+      path->punch_started = false;
+      path->punch_initiator = pair.initiator;
       path->view.local = sockets[index]->local();
       path->view.remote = pair.external;
       path->view.route = path->route;
@@ -287,11 +314,35 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
       header.token = pair.token;
       path->session = std::make_unique<PeerHandshake>(
           identity, root, header, pair.initiator, plan.peer);
-      auto packet = pair.initiator ? path->session->Start()
-                                   : PeerPacket{PeerMethod::kPunch, header, {}};
-      SendFlight(*path, packet);
       paths.push_back(std::move(path));
     }
+    return true;
+  }
+  bool BeginPunch(PunchPlan const& plan) {
+    if (!PreparePunch(plan)) {
+      return false;
+    }
+    for (auto& path : paths) {
+      if (path->punch_started || path->punch_peer != plan.peer) {
+        continue;
+      }
+      auto matches = std::any_of(
+          plan.pairs.begin(), plan.pairs.end(), [&](auto const& pair) {
+            return pair.token == path->session->header().token &&
+                   pair.socket == socket_ids[path->socket];
+          });
+      if (!matches) {
+        continue;
+      }
+      path->punch_started = true;
+      path->created = Clock::now();
+      auto packet =
+          path->punch_initiator
+              ? path->session->Start()
+              : PeerPacket{PeerMethod::kPunch, path->session->header(), {}};
+      SendFlight(*path, packet);
+    }
+    return true;
   }
   bool MakePunchRoom(Uid const& peer) {
     if (paths.size() < 64 &&
@@ -307,7 +358,9 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
     for (auto it = paths.begin(); it != paths.end(); ++it) {
       auto const& path = **it;
       if (path.route == PeerRoute::kHolePunch && path.punch_peer != peer &&
-          !path.session->ready() &&
+          (!path.session->ready() ||
+           !path.view.receive_presence.IsOnline(
+               Now(), connectivity.offline_detection_timeout())) &&
           Clock::now() - path.created > std::chrono::seconds{2} &&
           (oldest == paths.end() || path.created < (*oldest)->created)) {
         oldest = it;
@@ -324,7 +377,7 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
              bool hole_punching = true) const {
     Path* best{};
     for (auto const& p : paths) {
-      if (!p->session->ready() || !p->view.connected || p->view.uid != uid) {
+      if (!Connected(*p) || p->view.uid != uid) {
         continue;
       }
       if ((p->route == PeerRoute::kLan && !lan) ||
@@ -353,6 +406,8 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
         std::popcount(path.loss_window) * 1000 / stat.loss_samples);
   }
   void Archive(Path const& path) {
+    connectivity.RemovePeerServiceTime(path.schedule_id);
+    connectivity.RemovePeerRxWindow(path.schedule_id);
     if (path.view.uid.empty()) {
       return;
     }
@@ -371,6 +426,7 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
       peer.paths.push_back(path);
     }
     for (auto const& p : paths) {
+      p->view.connected = Connected(*p);
       if (p->view.uid.empty()) {
         continue;
       }
@@ -386,6 +442,12 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
     if (notify) {
       registry.changed_.Emit();
     }
+  }
+  bool Connected(Path const& path) const {
+    return path.session->ready() && !path.hard_failed &&
+           (!AE_ENABLE_PING ||
+            path.view.receive_presence.IsOnline(
+                Now(), connectivity.offline_detection_timeout()));
   }
   void RefreshInterfaces() {
     std::vector<Address> available;
@@ -518,7 +580,7 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
           socket_lanes[index] != PunchLane::kStandard) {
         return;
       }
-      auto incoming = std::make_unique<Path>();
+      auto incoming = std::make_unique<Path>(context);
       incoming->socket = index;
       incoming->endpoint = datagram.source;
       incoming->route = PeerRoute::kDirectIp;
@@ -539,6 +601,13 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
     }
     path->view.statistics.wire_received_bytes += datagram.data.size();
     if (!path->session->ready()) {
+      if (!path->punch_started && packet->method != PeerMethod::kPunch) {
+        if (path->punch_initiator || packet->method != PeerMethod::kHello) {
+          return;
+        }
+        path->punch_started = true;
+        path->created = Clock::now();
+      }
       if (path->route == PeerRoute::kHolePunch &&
           packet->method == PeerMethod::kPunch) {
         if (path->targets.size() < 4 &&
@@ -569,9 +638,8 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
         }
         known_endpoints[key] = path->view.uid;
         path->view.authenticated = true;
-        path->view.connected = true;
+        path->view.connected = !AE_ENABLE_PING;
         path->received = Clock::now();
-        path->acknowledged = path->received;
         path->published = true;
         path->services = {};
         Publish();
@@ -591,8 +659,10 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
     path->received = Clock::now();
     if (message->method == PeerSessionMethod::kPing) {
       std::uint64_t probe{};
+      RxTimingConf timing;
       std::vector<PeerService> services;
-      if (!PeerDecode(message->body, probe, services) || services.size() > 32) {
+      if (!PeerDecode(message->body, probe, timing, services) ||
+          services.size() > 32) {
         return;
       }
       path->services = std::move(services);
@@ -603,28 +673,15 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
       }
     } else if (message->method == PeerSessionMethod::kPong) {
       std::uint64_t number{};
+      RxTimingConf timing;
       std::vector<PeerService> echoed_services;
-      if (PeerDecode(message->body, number, echoed_services) &&
-          number == path->pending_probe && path->pending_probe != 0) {
-        auto measured = std::chrono::duration_cast<std::chrono::microseconds>(
-                            Clock::now() - path->probe_sent)
-                            .count();
-        auto sample = static_cast<std::uint32_t>(std::min<std::int64_t>(
-            measured, std::numeric_limits<std::uint32_t>::max()));
-        auto& stat = path->view.statistics;
-        if (stat.rtt_us) {
-          auto delta = sample > *stat.rtt_us ? sample - *stat.rtt_us
-                                             : *stat.rtt_us - sample;
-          stat.jitter_us = (stat.jitter_us * 3 + delta) / 4;
-          stat.rtt_us = (*stat.rtt_us * 3 + sample) / 4;
-        } else {
-          stat.rtt_us = sample;
+      if (PeerDecode(message->body, number, timing, echoed_services)) {
+#  if AE_ENABLE_PING
+        if (path->ping && timing.interval == path->ping->interval() &&
+            timing.rx_window == path->ping->rx_window()) {
+          path->acknowledgements.Emit(number);
         }
-        ++stat.probes_received;
-        path->acknowledged = Clock::now();
-        ProbeOutcome(*path, false);
-        path->pending_probe = 0;
-        Publish();
+#  endif
       }
     } else if (message->method == PeerSessionMethod::kData) {
       ++path->view.statistics.received_messages;
@@ -633,6 +690,122 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
       messages.Emit(uid, message->body, path->route);
     }
   }
+#  if AE_ENABLE_PING
+  void OnProbe(Path& path, Ping::PingResult const& result) {
+    path.ping_blocker.Reset();
+    if (auto* error = std::get_if<Error<int>>(&result)) {
+      ++path.view.statistics.probes_lost;
+      path.probe_timed_out = true;
+      ProbeOutcome(path, true);
+      if (path.ping->interval() == Duration{}) {
+        path.next_ping = Now() + path.selected_rtt + kLocalPresenceGuard;
+      }
+      if (error->error != 2) {
+        path.hard_failed = true;
+        path.view.connected = false;
+      }
+      Publish();
+      return;
+    }
+    auto measured = std::holds_alternative<Ok<Duration>>(result)
+                        ? std::get<Ok<Duration>>(result).value
+                        : std::get<Ping::LateDuration>(result).duration;
+    auto sample = measured.count();
+    auto& stat = path.view.statistics;
+    if (stat.rtt_us) {
+      auto delta =
+          sample > *stat.rtt_us ? sample - *stat.rtt_us : *stat.rtt_us - sample;
+      stat.jitter_us = (stat.jitter_us * 3 + delta) / 4;
+      stat.rtt_us = (*stat.rtt_us * 3 + sample) / 4;
+    } else {
+      stat.rtt_us = sample;
+    }
+    path.rtts.Add(measured);
+    path.hard_failed = false;
+    ++stat.probes_received;
+    if (std::holds_alternative<Ok<Duration>>(result)) {
+      ProbeOutcome(path, false);
+    } else if (!path.probe_timed_out) {
+      ++stat.probes_lost;
+      ProbeOutcome(path, true);
+    }
+    path.view.receive_presence.ConfirmPong(
+        path.ping->send_time(), path.ping->pong_time(), path.ping->interval(),
+        path.ping->rx_window(), path.selected_rtt);
+    path.view.connected = path.view.receive_presence.IsOnline(
+        Now(), connectivity.offline_detection_timeout());
+    if (path.ping->interval() == Duration{}) {
+      path.next_ping = TimePoint::max();
+      connectivity.ReportPeerServiceTime(path.schedule_id, path.next_ping);
+    }
+    Publish();
+  }
+  void UpdateProbe(Path& path) {
+    auto now = Now();
+    auto& presence = path.view.receive_presence;
+    auto conf = connectivity.PeerRxTiming(path.view.uid);
+    bool changed = conf.interval != presence.desired.interval ||
+                   conf.rx_window != presence.desired.rx_window;
+    presence.desired = conf;
+    presence.config_change_pending |= changed;
+    path.view.connected = Connected(path);
+    auto policy = keep_backups.find(path.view.uid);
+    auto* best = Best(path.view.uid);
+    if (policy != keep_backups.end() && !policy->second && best &&
+        best != &path) {
+      connectivity.RemovePeerServiceTime(path.schedule_id);
+      return;
+    }
+    // Desired changes wait for the in-flight request, exactly like ServerPing.
+    if (path.ping && path.ping->IsPending()) {
+      return;
+    }
+    if (changed || (presence.config_change_pending && path.ping &&
+                    (path.ping->interval() != conf.interval ||
+                     path.ping->rx_window() != conf.rx_window))) {
+      path.next_ping = now;
+    }
+    if (now < path.next_ping) {
+      return;
+    }
+    path.ping_result.Reset();
+    path.ping.reset();
+    path.probe_timed_out = false;
+    path.selected_rtt =
+        path.rtts.empty()
+            ? std::chrono::duration_cast<Duration>(Clock::now() - path.created)
+            : path.rtts.PercentileValue(presence.rtt_reliability_percentile);
+    auto timeout = SaturatingAdd(path.selected_rtt, kLocalPresenceGuard);
+    path.ping = std::make_unique<Ping>(
+        context, path.acknowledgements,
+        [this, &path](std::uint64_t number, Duration interval,
+                      Duration window) {
+          auto packet = path.session->Protect(
+              PeerSessionMethod::kPing,
+              PeerEncode(number, RxTimingConf{interval, window},
+                         settings.services));
+          if (!packet || !SendPacket(path, *packet)) {
+            return false;
+          }
+          ++path.view.statistics.probes_sent;
+          return true;
+        },
+        conf.interval, conf.rx_window, timeout, true);
+    auto weak = weak_from_this();
+    path.ping_result = path.ping->result_event().Subscribe(
+        [weak, &path](Ping::PingResult const& result) {
+          if (auto self = weak.lock(); self && !self->stopped) {
+            self->OnProbe(path, result);
+          }
+        });
+    path.ping_blocker = connectivity.AcquireSuspendBlock();
+    connectivity.OpenPeerRxWindow(path.schedule_id, now + conf.rx_window);
+    path.next_ping =
+        conf.interval > Duration{} ? now + conf.interval : TimePoint::max();
+    connectivity.ReportPeerServiceTime(path.schedule_id, path.next_ping);
+    path.ping->Start(now);
+  }
+#  endif
   void Poll() {
     auto const now = Clock::now();
     if (now - interface_scan > std::chrono::seconds{10}) {
@@ -694,6 +867,9 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
     changed |= expired != 0;
     for (auto& path : paths) {
       if (!path->session->ready()) {
+        if (!path->punch_started) {
+          continue;
+        }
         if (now - path->sent > std::chrono::milliseconds{250} &&
             !path->flight.empty() && path->attempts < 20) {
           RetryFlight(*path);
@@ -702,56 +878,26 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
         }
         continue;
       }
-      if (now - path->received > std::chrono::seconds{4}) {
-        changed |= path->view.connected;
-        path->view.connected = false;
-      }
-      auto policy = keep_backups.find(path->view.uid);
-      auto* best = Best(path->view.uid);
-      if (policy != keep_backups.end() && !policy->second && best &&
-          best != path.get() && best->view.statistics.rtt_us &&
-          now - path->created > std::chrono::seconds{2}) {
-        // Stop maintaining local backups. The remote may independently choose
-        // this session for its outgoing traffic, so keep answering its probes
-        // instead of unilaterally destroying its selected path. A session that
-        // neither side uses expires through the normal authenticated-idle
-        // check.
-        continue;
-      }
-      if (now - path->probe_sent > std::chrono::seconds{2}) {
-        path->probing_since = now;
-      }
-      if (now - std::max(path->acknowledged, path->probing_since) >
-          std::chrono::seconds{4}) {
-        changed |= path->view.connected;
-        path->view.connected = false;
-        continue;
-      }
-      if (now - path->probe_sent > std::chrono::seconds{1}) {
-        auto& stat = path->view.statistics;
-        if (path->pending_probe != 0) {
-          ++stat.probes_lost;
-          ProbeOutcome(*path, true);
-        }
-        path->pending_probe = ++path->probe_number;
-        auto ping = path->session->Protect(
-            PeerSessionMethod::kPing,
-            PeerEncode(path->pending_probe, settings.services));
-        if (ping && SendPacket(*path, *ping)) {
-          ++stat.probes_sent;
-        } else {
-          path->pending_probe = 0;
-          changed |= path->view.connected;
-          path->view.connected = false;
-        }
-        path->probe_sent = now;
-      }
+#  if AE_ENABLE_PING
+      auto was_connected = path->view.connected;
+      UpdateProbe(*path);
+      changed |= was_connected != path->view.connected;
+#  endif
     }
     auto removed = std::erase_if(paths, [&](auto const& path) {
-      bool remove = path->session->failed() ||
-                    (!path->session->ready() &&
-                     now - path->created > std::chrono::seconds{5}) ||
-                    (path->session->ready() && !path->view.connected);
+      bool remove =
+          path->session->failed() ||
+          (!path->session->ready() &&
+           now - path->created > (path->punch_started
+                                      ? std::chrono::seconds{5}
+                                      : std::chrono::seconds{10})) ||
+          (path->session->ready() && !path->view.connected &&
+           now - path->received >
+               SaturatingAdd(
+                   PresenceHardWait(
+                       Duration{}, path->view.receive_presence.desired.interval,
+                       path->view.receive_presence.desired.rx_window),
+                   connectivity.offline_detection_timeout()));
       if (remove) {
         Archive(*path);
       }
@@ -765,6 +911,8 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
   PeerIdentity& identity;
   PeerSettings settings;
   Key root;
+  Ptr<ClientConnectivityPolicy> connectivity_owner;
+  ClientConnectivityPolicy& connectivity;
   Uid instance{RandomPeerToken()};
   PeerRegistry registry;
   Event<void(Uid const&, DataBuffer const&, PeerRoute)> messages;
@@ -786,9 +934,10 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
 };
 
 PeerTransport::PeerTransport(AeContext context, PeerIdentity& identity,
-                             PeerSettings const& settings, Key root)
-    : impl_{std::make_unique<Impl>(context, identity, settings,
-                                   std::move(root))} {
+                             PeerSettings const& settings, Key root,
+                             Ptr<ClientConnectivityPolicy> const& connectivity)
+    : impl_{std::make_unique<Impl>(context, identity, settings, std::move(root),
+                                   connectivity)} {
   impl_->Schedule();
 }
 PeerTransport::~PeerTransport() { impl_->Stop(); }
@@ -829,6 +978,7 @@ bool PeerTransport::Send(Uid const& uid, DataBuffer const& data, bool lan,
       path->view.statistics.sent_bytes += data.size();
       return true;
     }
+    path->hard_failed = true;
     path->view.connected = false;
     impl->Publish();
   }
@@ -889,8 +1039,11 @@ Event<void(Uid const&, PeerDatagram const&)> const&
 PeerTransport::rendezvous_datagram_event() const {
   return impl_->rendezvous_datagrams;
 }
-void PeerTransport::BeginPunch(PunchPlan const& plan) {
-  impl_->BeginPunch(plan);
+bool PeerTransport::PreparePunch(PunchPlan const& plan) {
+  return impl_->PreparePunch(plan);
+}
+bool PeerTransport::BeginPunch(PunchPlan const& plan) {
+  return impl_->BeginPunch(plan);
 }
 bool PeerTransport::NeedsHolePunch(Uid const& uid) const {
   if (!impl_->identity.certified) {
@@ -900,6 +1053,45 @@ bool PeerTransport::NeedsHolePunch(Uid const& uid) const {
   return !impl_->Best(uid, false, false, true) &&
          (policy == impl_->keep_backups.end() || policy->second ||
           !impl_->Best(uid));
+}
+OnlineType PeerTransport::OnlineTypes(Uid const* uid) const noexcept {
+  auto result = OnlineType::kNone;
+  for (auto const& path : impl_->paths) {
+    auto const& view = path->view;
+    if ((uid != nullptr && view.uid != *uid) || !view.authenticated ||
+        !impl_->Connected(*path) ||
+        !view.receive_presence.IsOnline(
+            Now(), impl_->connectivity.offline_detection_timeout())) {
+      continue;
+    }
+    auto type = view.route == PeerRoute::kLan ? OnlineType::kLan
+                : view.route == PeerRoute::kDirectIp
+                    ? OnlineType::kDirectIp
+                    : OnlineType::kHolePunching;
+    result = result | type;
+  }
+  return result;
+}
+RxTimingConf PeerTransport::RxTiming(Uid peer) const {
+  return impl_->connectivity.PeerRxTiming(peer);
+}
+PeerPresenceState PeerTransport::PresenceState(Uid uid) const noexcept {
+  if (OnlineTypes(&uid) != OnlineType::kNone) {
+    return PeerPresenceState::kOnline;
+  }
+  auto known = [&](PeerPath const& path) {
+    return path.uid == uid && path.authenticated &&
+           path.statistics.probes_received != 0;
+  };
+  if (std::any_of(impl_->paths.begin(), impl_->paths.end(),
+                  [&](auto const& path) { return known(path->view); }) ||
+      std::any_of(impl_->retired.begin(), impl_->retired.end(), known)) {
+    return PeerPresenceState::kOffline;
+  }
+  return PeerPresenceState::kUnknown;
+}
+Duration PeerTransport::OfflineDetectionTimeout() const {
+  return impl_->connectivity.offline_detection_timeout();
 }
 }  // namespace ae
 #endif
