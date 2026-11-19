@@ -57,7 +57,8 @@ class SafeStreamRecvAction {
         delegate_{&delegate},
         send_ack_timeout_{config.send_ack_timeout},
         send_repeat_timeout_{config.send_repeat_timeout},
-        window_size_{config.window_size} {
+        window_size_{config.window_size},
+        ack_batch_bytes_{std::min(config.ack_batch_bytes, config.window_size)} {
     assert((window_size_ < Capacity / 2) &&
            "Window size should be less than half of capacity");
   }
@@ -87,6 +88,10 @@ class SafeStreamRecvAction {
       reset = true;
     }
     if (reset) {
+      ack_timer_.Reset();
+      ack_urgent_ = false;
+      pending_ack_bytes_ = 0;
+      last_emitted_.reset();
       session_offset = index;
       buffer_.Reset(static_cast<std::size_t>(index));
       chunks_.emplace(buffer_.begin());
@@ -109,7 +114,7 @@ class SafeStreamRecvAction {
       AETHER_TELED_DEBUG("Got old package");
       // We know nothing about the package, either it is repeated or duplicated
       // TODO: do not send ack if the package is duplicated
-      EnqueueAck();
+      EnqueueAck(ack_batch_bytes_ != 0 && repeat_count != 0);
       return;
     }
 
@@ -131,7 +136,7 @@ class SafeStreamRecvAction {
       }
       case ChunkAddResult::kAddRepeated: {
         AETHER_TELED_DEBUG("Received repeated chunk, enqueeu ack!");
-        EnqueueAck();
+        EnqueueAck(ack_batch_bytes_ != 0);
         break;
       }
       default: {
@@ -159,12 +164,15 @@ class SafeStreamRecvAction {
     });
   }
 
-  void EnqueueAck() {
-    if (ack_timer_) {
+  void EnqueueAck(bool urgent = false) {
+    if (!last_emitted_ || (ack_timer_ && (!urgent || ack_urgent_))) {
       return;
     }
+    ack_timer_.Reset();
+    ack_urgent_ = urgent;
     ack_timer_ = ae_context_.scheduler().DelayedTask(
-        [this]() { HandleAcknowledgement(); }, send_ack_timeout_);
+        [this]() { HandleAcknowledgement(); },
+        urgent ? Duration::zero() : send_ack_timeout_);
   }
 
   void EnqueueMissing() {
@@ -202,13 +210,16 @@ class SafeStreamRecvAction {
       last_emitted_ = recv_range.right;
       AETHER_TELED_DEBUG(
           "Emitted received data range: {}-{} size: {}, last_emitted_: {}",
-          recv_range.left, recv_range.right, data_buffer.size(), last_emitted_);
+          recv_range.left, recv_range.right, data_buffer.size(), *last_emitted_);
       delegate_->ReceiveData(data_buffer);
 
       chunks_->Acknowledge(recv_range.right);
       buffer_.Erase(recv_range.right + 1);
       chunks_->set_buffer_begin(buffer_.begin());
-      EnqueueAck();
+      if (ack_batch_bytes_ != 0) {
+        pending_ack_bytes_ += recv_range.distance() + 1;
+      }
+      EnqueueAck(ack_batch_bytes_ != 0 && pending_ack_bytes_ >= ack_batch_bytes_);
     } else {
       AETHER_TELED_DEBUG("Receiver chunk unsuccess {}", res.error());
       // TODO: handle errors
@@ -217,7 +228,10 @@ class SafeStreamRecvAction {
   }
 
   void HandleAcknowledgement() {
-    auto ack_offset = static_cast<std::size_t>(last_emitted_);
+    ack_timer_.Reset();
+    ack_urgent_ = false;
+    pending_ack_bytes_ = 0;
+    auto ack_offset = static_cast<std::size_t>(*last_emitted_);
     AETHER_TELED_DEBUG("Send acknowledgement for offset: {}", ack_offset);
     delegate_->SendAck(static_cast<Offset>(ack_offset));
   }
@@ -243,11 +257,14 @@ class SafeStreamRecvAction {
   Duration send_ack_timeout_;
   Duration send_repeat_timeout_;
   std::size_t window_size_;
+  std::size_t ack_batch_bytes_;
+  std::size_t pending_ack_bytes_{};
+  bool ack_urgent_{};
 
   CircularBufferImpl buffer_;
   std::optional<ReceiveChunkListImpl> chunks_;
   std::size_t session_offset{};  //< current session start offset
-  IndexType last_emitted_{};
+  std::optional<IndexType> last_emitted_;
 
   TaskSubscription recv_enqueued_;
   TaskSubscription ack_timer_;

@@ -152,7 +152,9 @@ void test_LateDataIsNotDeliveredToApplication() {
 }
 
 void test_LostFeedbackIsRepeatedWithoutDuplicatingPayload() {
-  Pair pair;
+  Config config;
+  config.compact_feedback = true;
+  Pair pair{config};
   EmulatedDatagramProfile profile;
   profile.blackhole = true;
   pair.network.SetProfile(1, profile);
@@ -164,6 +166,25 @@ void test_LostFeedbackIsRepeatedWithoutDuplicatingPayload() {
   TEST_ASSERT_EQUAL(1, pair.received.size());
   TEST_ASSERT_EQUAL(1, pair.first.statistics().delivered);
   TEST_ASSERT_EQUAL(0, pair.first.statistics().lost);
+}
+
+void test_CompactFeedbackPreservesReceiptsAndReducesReverseBytes() {
+  Config config;
+  config.initial_rate_bytes_per_second = 2000000;
+  Pair legacy{config};
+  config.compact_feedback = true;
+  Pair compact{config};
+
+  for (auto* pair : {&legacy, &compact}) {
+    pair->Run(2000, true, 2);
+    pair->Run(800);
+    TEST_ASSERT_EQUAL(1000, pair->received.size());
+    TEST_ASSERT_EQUAL(1000, pair->first.statistics().delivered);
+    TEST_ASSERT_EQUAL(0, pair->first.statistics().unconfirmed);
+    TEST_ASSERT_EQUAL(0, pair->first.statistics().malformed);
+  }
+  TEST_ASSERT_TRUE(compact.network.stats(1).bytes_sent * 10 <=
+                   legacy.network.stats(1).bytes_sent);
 }
 
 void test_BoundedQueueExpiresBlockedWrites() {
@@ -445,6 +466,7 @@ int test_adaptive_stream() {
   RUN_TEST(test_DuplicatesAndReorderingDoNotDuplicateMessages);
   RUN_TEST(test_LateDataIsNotDeliveredToApplication);
   RUN_TEST(test_LostFeedbackIsRepeatedWithoutDuplicatingPayload);
+  RUN_TEST(test_CompactFeedbackPreservesReceiptsAndReducesReverseBytes);
   RUN_TEST(test_BoundedQueueExpiresBlockedWrites);
   RUN_TEST(test_CancelAndUnlinkStopPendingWrites);
   RUN_TEST(test_RateRespondsToCapacityDropAndRecovery);

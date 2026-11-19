@@ -37,6 +37,9 @@ struct SafeStreamConfig {
   // Opt into 32-bit offsets in P2pSafeStream. Both peers must use the same mode.
   bool wide_offsets{false};
   Duration minimum_ack_timeout{};
+  // Flush a cumulative ACK early after delivering this many new bytes.
+  // Zero leaves ACKs on the configured timer.
+  std::size_t ack_batch_bytes{};
 };
 
 }  // namespace ae

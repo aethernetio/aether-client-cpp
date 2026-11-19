@@ -56,12 +56,27 @@ struct Feedback {
                      reported_at_us)
 };
 
+struct CompactFeedback {
+  std::uint64_t session{};
+  std::uint32_t stream{};
+  std::uint64_t report{};
+  std::uint64_t largest_sequence{};
+  std::uint64_t echo_sent_at_us{};
+  std::uint64_t received_at_us{};
+  std::uint64_t sampled_sequence{};
+  std::uint64_t reported_at_us{};
+  DataBuffer runs;
+  AE_REFLECT_MEMBERS(session, stream, report, largest_sequence, echo_sent_at_us,
+                     received_at_us, sampled_sequence, reported_at_us, runs)
+};
+
 class IAdaptiveDatagramApi : public DeclareApi<IAdaptiveDatagramApi> {
  public:
   virtual ~IAdaptiveDatagramApi() = default;
   virtual void Data(Datagram datagram) = 0;
   virtual void Report(Feedback feedback) = 0;
-  API_LIST(METHOD(3, Data), METHOD(4, Report))
+  virtual void ReportCompact(CompactFeedback feedback) = 0;
+  API_LIST(METHOD(3, Data), METHOD(4, Report), METHOD(5, ReportCompact))
 };
 }  // namespace ae::adaptive_datagram
 #endif  // AETHER_ADAPTIVE_DATAGRAM_ADAPTIVE_DATAGRAM_PROTOCOL_H_

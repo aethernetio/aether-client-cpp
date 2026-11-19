@@ -160,6 +160,39 @@ void test_RecvActionCreateAndReceive() {
                     static_cast<std::uint16_t>(mock_sender.ack_data->index));
 }
 
+void test_RecvActionFlushesCumulativeAckAtBatchThreshold() {
+  TestContext ctx;
+  MockSendConfirmRepeat mock;
+  auto batch_config = config;
+  batch_config.ack_batch_bytes = 200;
+  Receiver receiver{ctx, mock, batch_config};
+  auto const begin = std::uint16_t{2000};
+
+  receiver.PushData(begin, DataMessage{false, 0, 0, DataBuffer(100, 1)});
+  ctx.Update(Now());
+  TEST_ASSERT_FALSE(mock.ack_data.has_value());
+
+  receiver.PushData(begin, DataMessage{false, 0, 100, DataBuffer(100, 2)});
+  ctx.Update(Now());
+  ctx.Update(Now() + kTick);
+  TEST_ASSERT_TRUE(mock.ack_data.has_value());
+  TEST_ASSERT_EQUAL(begin + 199, mock.ack_data->index);
+
+  mock.Reset();
+  receiver.PushData(begin, DataMessage{false, 1, 0, DataBuffer(100, 1)});
+  ctx.Update(Now() + kTick);
+  TEST_ASSERT_TRUE(mock.ack_data.has_value());
+  TEST_ASSERT_EQUAL(begin + 199, mock.ack_data->index);
+
+  mock.Reset();
+  receiver.PushData(begin, DataMessage{false, 0, 200, DataBuffer(20, 3)});
+  ctx.Update(Now());
+  TEST_ASSERT_FALSE(mock.ack_data.has_value());
+  ctx.Update(Now() + config.send_ack_timeout + kTick);
+  TEST_ASSERT_TRUE(mock.ack_data.has_value());
+  TEST_ASSERT_EQUAL(begin + 219, mock.ack_data->index);
+}
+
 void test_RecvActionInOrderDataChain() {
   TestContext ctx;
 
@@ -530,6 +563,8 @@ void test_RecvActionWindowSizeLimit() {
 int test_safe_stream_recv() {
   UNITY_BEGIN();
   RUN_TEST(ae::test_safe_stream_recv::test_RecvActionCreateAndReceive);
+  RUN_TEST(ae::test_safe_stream_recv::
+               test_RecvActionFlushesCumulativeAckAtBatchThreshold);
   RUN_TEST(ae::test_safe_stream_recv::test_RecvActionInOrderDataChain);
   RUN_TEST(ae::test_safe_stream_recv::test_RecvActionOutOfOrderDataChain);
   RUN_TEST(ae::test_safe_stream_recv::test_RecvActionSendConfirmOnTimeout);

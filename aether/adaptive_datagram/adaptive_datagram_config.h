@@ -33,6 +33,9 @@ struct Config {
   Duration latency_target{100ms};
   Duration feedback_interval{10ms};
   Duration feedback_timeout{500ms};
+  // Both endpoints must support compact reports before enabling this mode.
+  // Use the same receipt window with a lower report frequency.
+  bool compact_feedback{false};
   Duration control_interval{100ms};
   std::uint64_t initial_rate_bytes_per_second{64000};
   std::uint64_t min_rate_bytes_per_second{2000};
