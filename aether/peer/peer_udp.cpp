@@ -143,8 +143,24 @@ PeerUdp::PeerUdp(Address local, std::uint16_t port, bool discovery)
     return setsockopt(impl_->socket, level, option,
                       reinterpret_cast<char const*>(&value), sizeof value) == 0;
   };
-  int send_buffer = AE_SOCKET_SEND_BUFFER_BYTES;
-  if (!set(SOL_SOCKET, SO_SNDBUF, send_buffer)) {
+  // Burst arrivals can queue between scheduler polls. Keep the platform
+  // default if the socket cannot raise its receive buffer.
+  int const receive_buffer = 512 * 1024;
+  int current_receive_buffer{};
+#ifdef _WIN32
+  int receive_buffer_length = sizeof current_receive_buffer;
+#else
+  socklen_t receive_buffer_length = sizeof current_receive_buffer;
+#endif
+  if (getsockopt(impl_->socket, SOL_SOCKET, SO_RCVBUF,
+                 reinterpret_cast<char*>(&current_receive_buffer),
+                 &receive_buffer_length) != 0 ||
+      current_receive_buffer < receive_buffer) {
+    static_cast<void>(set(SOL_SOCKET, SO_RCVBUF, receive_buffer));
+  }
+  int const send_buffer = std::max<int>(AE_SOCKET_SEND_BUFFER_BYTES, 512 * 1024);
+  if (!set(SOL_SOCKET, SO_SNDBUF, send_buffer) &&
+      !set(SOL_SOCKET, SO_SNDBUF, AE_SOCKET_SEND_BUFFER_BYTES)) {
     throw std::runtime_error("Cannot set peer send buffer");
   }
 #  if AE_SUPPORT_LAN

@@ -194,6 +194,8 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
     stopped = true;
     tick.Reset();
   }
+  bool poll_busy{};
+
   void Schedule() {
     std::weak_ptr<Impl> weak = shared_from_this();
     auto posted = context.scheduler().DelayedTask(
@@ -206,7 +208,8 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
             }
           }
         },
-        std::chrono::milliseconds{10});
+        poll_busy ? std::chrono::milliseconds{1}
+                  : std::chrono::milliseconds{10});
     if (!posted) {
       AETHER_TELED_ERROR("Peer poll task allocation failed");
       assert(false && "Peer poll task allocation failed");
@@ -755,6 +758,7 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
     } else if (message->method == PeerSessionMethod::kData) {
       ++path->view.statistics.received_messages;
       path->view.statistics.received_bytes += message->body.size();
+      poll_busy = true;
       auto uid = path->view.uid;
       messages.Emit(uid, message->body, path->route);
     }
@@ -876,6 +880,7 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
   }
 #  endif
   void Poll() {
+    poll_busy = false;
     auto const now = Clock::now();
     if (now - interface_scan > std::chrono::seconds{10}) {
       interface_scan = now;
