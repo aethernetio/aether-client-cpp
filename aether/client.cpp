@@ -27,6 +27,9 @@
 #include "aether/cloud_connections/cloud_request.h"
 #include "aether/peer/peer_transport.h"
 #include "aether/peer/rendezvous_client.h"
+#if AE_SUPPORT_HOLE_PUNCH
+#  include "aether/client_messages/p2p_message_stream.h"
+#endif
 #if AE_ENABLE_STREAM_HIERARCHY
 #  include "aether/streams/stream_hierarchy.h"
 #endif
