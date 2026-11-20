@@ -290,7 +290,7 @@ static DnsResolver::ptr DnsResolverFactory(AetherAppContext const& context) {
     return dns_resolver;
   }
 #  if AE_SUPPORT_CLOUD_DNS
-#    if defined DNS_RESOLVE_ARES_ENABLED
+#    if defined DNS_RESOLVE_DESKTOP_ENABLED
   return DnsResolverCares::ptr::Create(
       CreateWith{context.domain()}
           .with_id(GlobalId::kDnsResolver)

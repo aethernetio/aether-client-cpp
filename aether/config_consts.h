@@ -19,6 +19,11 @@
 
 #define AE_NONE 0
 
+// AE_DNS_BACKEND
+#define AE_DNS_NONE 0
+#define AE_DNS_CARES 1
+#define AE_DNS_SYSTEM 2
+
 // AE_POW, Proof of work methods
 #define AE_BCRYPT_CRC32 1
 

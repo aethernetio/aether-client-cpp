@@ -24,7 +24,13 @@
 #  if defined __linux__ || defined __ANDROID__ || defined __APPLE__ || \
       defined __FreeBSD__ || defined _WIN32
 
-#    define DNS_RESOLVE_ARES_ENABLED 1
+// Keep the persisted class identity common to both desktop backends.
+#    define DNS_RESOLVE_DESKTOP_ENABLED 1
+#    if AE_DNS_BACKEND == AE_DNS_CARES
+#      define DNS_RESOLVE_ARES_ENABLED 1
+#    elif AE_DNS_BACKEND == AE_DNS_SYSTEM
+#      define DNS_RESOLVE_SYSTEM_ENABLED 1
+#    endif
 
 #    include <memory>
 

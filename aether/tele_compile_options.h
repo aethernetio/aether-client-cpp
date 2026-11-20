@@ -71,6 +71,7 @@ constexpr inline auto _compile_options_list = std::array{
     _OPTION(AE_SUPPORT_PROXY),
     _OPTION(AE_SUPPORT_DYNAMIC_PROXY),
     _OPTION(AE_SUPPORT_CLOUD_DNS),
+    _OPTION(AE_DNS_BACKEND),
 #ifdef AE_SUPPORT_DYNAMIC_CLOUD_DNS
     _OPTION(AE_SUPPORT_DYNAMIC_CLOUD_DNS),
 #else

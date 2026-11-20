@@ -69,6 +69,7 @@ list(APPEND aether_srcs
 list(APPEND aether_srcs
             "dns/dns_resolve.cpp"
             "dns/dns_c_ares.cpp"
+            "dns/dns_system.cpp"
             "dns/esp32_dns_resolve.cpp")
 
 list(APPEND aether_srcs

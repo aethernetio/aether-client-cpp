@@ -331,12 +331,29 @@ target_include_directories(${TARGET_NAME} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/g
 target_compile_definitions(${TARGET_NAME} PUBLIC "$<$<CONFIG:Debug>:AE_TELE_RAW_DEBUG=1>")
 
 message(STATUS "Aether build for CMAKE_SYSTEM_NAME: ${CMAKE_SYSTEM_NAME}")
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux"
-  OR CMAKE_SYSTEM_NAME STREQUAL "Darwin"
-  OR CMAKE_SYSTEM_NAME MATCHES ".*BSD.*"
-  OR CMAKE_SYSTEM_NAME STREQUAL "Windows"
-  OR CMAKE_SYSTEM_NAME STREQUAL "Android" )
-  # for desktop and Android projects add c-ares
+if(NOT EMSCRIPTEN AND (WIN32 OR UNIX OR ANDROID) AND NOT ESP_PLATFORM)
+  include(CheckCXXSourceCompiles)
+  function(ae_check_cares)
+    set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+    set(CMAKE_REQUIRED_INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}")
+    if(USER_CONFIG)
+      set(CMAKE_REQUIRED_DEFINITIONS "-DUSER_CONFIG=\"${USER_CONFIG}\"")
+      set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${USER_CONFIG}")
+    endif()
+    unset(AE_CONFIG_USES_CARES CACHE)
+    check_cxx_source_compiles([=[
+      #include "aether/config.h"
+      #if AE_DNS_BACKEND != AE_DNS_CARES
+      #error c-ares is not selected
+      #endif
+      int main() {}
+    ]=] AE_CONFIG_USES_CARES)
+    set(AE_CONFIG_USES_CARES "${AE_CONFIG_USES_CARES}" PARENT_SCOPE)
+  endfunction()
+  ae_check_cares()
+endif()
+
+if(AE_CONFIG_USES_CARES)
   CPMAddPackage(
     NAME c-ares
     GIT_REPOSITORY "https://github.com/c-ares/c-ares.git"

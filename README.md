@@ -73,6 +73,17 @@ For production builds, pin `GIT_TAG` to a reviewed commit SHA until versioned re
 | `USER_CONFIG` | empty | Path to a user configuration header |
 | `FS_INIT` | empty | Path to generated saved-state data |
 
+Set `AE_DNS_BACKEND` in `USER_CONFIG` to choose a resolver.
+
+| Value | Resolver |
+| --- | --- |
+| `AE_DNS_SYSTEM` | Default for native builds. Windows uses asynchronous Winsock when available and a background lookup on older versions. Apple uses DNS-SD. Linux and Android use background `getaddrinfo`. ESP32 uses its platform resolver. |
+| `AE_DNS_CARES` | Use c-ares on supported desktop and Android builds. |
+| `AE_DNS_NONE` | Use numeric endpoints. This is the SDK default for Emscripten, where browser WebSockets resolve names. |
+
+The legacy `AE_SUPPORT_CLOUD_DNS=0` setting still disables the SDK resolver
+when `AE_DNS_BACKEND` is unspecified.
+
 ## ESP32
 
 ESP32 builds use ESP-IDF components for Wi-Fi, networking, NVS, SPIFFS, and UART. For a complete device project, start with the [ESP32 examples](https://github.com/aethernetio/aethernet-examples) or the [temperature sensor reference project](https://github.com/aethernetio/temperature-sensor).

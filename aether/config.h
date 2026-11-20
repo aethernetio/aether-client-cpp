@@ -176,15 +176,30 @@
 #  endif  // AE_SUPPORT_DYNAMIC_PROXY
 #endif    // AE_SUPPORT_PROXY
 
-// Domain names are specified for finding a cloud server if all stored IPs are
-// refusing connection.
-#ifndef AE_SUPPORT_CLOUD_DNS
+// The old DNS support flag is retained for existing user configurations.
+#ifndef AE_DNS_BACKEND
+#  if defined(__EMSCRIPTEN__) || (defined(AE_SUPPORT_CLOUD_DNS) && !AE_SUPPORT_CLOUD_DNS)
+#    define AE_DNS_BACKEND AE_DNS_NONE
+#  else
+#    define AE_DNS_BACKEND AE_DNS_SYSTEM
+#  endif
+#endif
+
+#if AE_DNS_BACKEND != AE_DNS_NONE && AE_DNS_BACKEND != AE_DNS_CARES && \
+    AE_DNS_BACKEND != AE_DNS_SYSTEM
+#  error Invalid AE_DNS_BACKEND
+#endif
+
+#if AE_DNS_BACKEND == AE_DNS_NONE
+#  undef AE_SUPPORT_CLOUD_DNS
+#  define AE_SUPPORT_CLOUD_DNS 0
+#else
+#  undef AE_SUPPORT_CLOUD_DNS
 #  define AE_SUPPORT_CLOUD_DNS 1
-// A domain name can be added and initialized with any values at run-time
 #  ifndef AE_SUPPORT_DYNAMIC_CLOUD_DNS
 #    define AE_SUPPORT_DYNAMIC_CLOUD_DNS 1
-#  endif  // AE_SUPPORT_DYNAMIC_CLOUD_DNS
-#endif    // AE_SUPPORT_CLOUD_DNS
+#  endif
+#endif
 
 // Cloud IPs are specified and store.
 #ifndef AE_SUPPORT_CLOUD_IPS
@@ -309,7 +324,7 @@
 #endif  // AE_KDF
 
 // Cryptographic hash
-// Native peer sessions use the configured Æthernet cryptographic profile.
+// Native peer sessions use the configured Г†thernet cryptographic profile.
 #ifndef AE_SUPPORT_P2P
 #  if AE_SUPPORT_UDP && AE_SUPPORT_IPV4 &&                             \
       (defined(_WIN32) || defined(__linux__) || defined(__APPLE__)) && \
