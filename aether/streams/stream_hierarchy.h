@@ -1,6 +1,8 @@
 // Copyright 2026 Aethernet Inc. Licensed under the Apache License, Version 2.0.
 #ifndef AETHER_STREAMS_STREAM_HIERARCHY_H_
 #define AETHER_STREAMS_STREAM_HIERARCHY_H_
+#include "aether/config.h"
+#if AE_ENABLE_STREAM_HIERARCHY
 #include <memory>
 #include <vector>
 #include "aether/client_messages/p2p_message_stream.h"
@@ -52,4 +54,5 @@ class StreamHierarchy {
   std::vector<std::unique_ptr<HierarchicalStream>> roots_;
 };
 }  // namespace ae
+#endif
 #endif

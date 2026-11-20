@@ -65,6 +65,7 @@ option(AE_BUILD_TELE_DISABLED_TESTS "Build the disabled-telemetry application re
 option(AE_BUILD_ANDROID_SMOKE "Build Android NDK smoke shared library and runner" Off)
 option(AE_ADDRESS_SANITIZE "Enable address sanitizer" Off)
 option(AE_NATIVE_WEBSOCKET "Build native ws/wss transport (browser uses its built-in API)" OFF)
+option(AE_ENABLE_STREAM_HIERARCHY "Build the application stream hierarchy" ON)
 option(AE_BUILD_WEBSOCKET_PROBE "Build the real-server WebSocket transport probe" OFF)
 
 set(UTM_ID "0" CACHE STRING "User Tracking Measurement ID, must be a uint32 value")
@@ -229,6 +230,8 @@ CPMAddPackage(
 )
 
 add_library(${TARGET_NAME} STATIC )
+target_compile_definitions(${TARGET_NAME} PUBLIC
+  AE_ENABLE_STREAM_HIERARCHY=$<BOOL:${AE_ENABLE_STREAM_HIERARCHY}>)
 # collect sources
 add_subdirectory(aether)
 if(WIN32)
@@ -507,8 +510,10 @@ if(AE_BUILD_EXAMPLES)
   add_subdirectory(examples/common)
   add_subdirectory(examples/cloud)
   add_subdirectory(examples/a_b_message_exchange)
-  add_subdirectory(examples/peer_lan)
-  add_subdirectory(examples/peer_rendezvous)
+  if(AE_ENABLE_STREAM_HIERARCHY)
+    add_subdirectory(examples/peer_lan)
+    add_subdirectory(examples/peer_rendezvous)
+  endif()
   add_subdirectory(examples/message_server)
   add_subdirectory(examples/capi/oddity)
   add_subdirectory(examples/benches/send_message_delays)

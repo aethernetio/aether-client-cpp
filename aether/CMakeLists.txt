@@ -26,7 +26,6 @@ list(APPEND aether_srcs
             "peer/rendezvous_broker.cpp"
             "peer/rendezvous_client.cpp"
             "peer/rendezvous_service.cpp"
-            "streams/stream_hierarchy.cpp"
             "aether_app.cpp"
             "aether.cpp"
             "aether_tele.cpp"
@@ -235,6 +234,9 @@ list(APPEND aether_srcs
             "channels/lora_module_channel.cpp"
             "channels/modem_channel.cpp")
 
+if(AE_ENABLE_STREAM_HIERARCHY)
+  list(APPEND aether_srcs "streams/stream_hierarchy.cpp")
+endif()
 target_sources(${TARGET_NAME} PRIVATE ${aether_srcs})
 
 target_sources(aether PRIVATE

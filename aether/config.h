@@ -32,6 +32,10 @@
 #endif
 // IWYU pragma: end_exports
 
+#ifndef AE_ENABLE_STREAM_HIERARCHY
+#  define AE_ENABLE_STREAM_HIERARCHY 1
+#endif
+
 // task queue buffer size \see aether/tasks
 #ifndef AE_TASK_MAX_COUNT
 #  define AE_TASK_MAX_COUNT 128

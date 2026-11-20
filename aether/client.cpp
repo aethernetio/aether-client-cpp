@@ -27,7 +27,9 @@
 #include "aether/cloud_connections/cloud_request.h"
 #include "aether/peer/peer_transport.h"
 #include "aether/peer/rendezvous_client.h"
-#include "aether/streams/stream_hierarchy.h"
+#if AE_ENABLE_STREAM_HIERARCHY
+#  include "aether/streams/stream_hierarchy.h"
+#endif
 
 namespace ae {
 
@@ -41,16 +43,21 @@ Client::Client(ObjProp prop, Aether::ptr aether)
 Client::~Client() = default;
 
 void Client::Loaded() {
-  AeContext context{*this};
 #if AE_SUPPORT_P2P
-  if (!peer_settings_.app_id.empty() || !stream_definitions_.empty()) {
-    context.scheduler().Task(peer_start_task_, [this] {
+  auto start_peer = !peer_settings_.app_id.empty();
+#  if AE_ENABLE_STREAM_HIERARCHY
+  start_peer = start_peer || !stream_definitions_.empty();
+#  endif
+  if (start_peer) {
+    AeContext{*this}.scheduler().Task(peer_start_task_, [this] {
       peer_transport();
       message_stream_manager();
+#  if AE_ENABLE_STREAM_HIERARCHY
       streams();
+#  endif
     });
   }
-#else
+#elif AE_ENABLE_STREAM_HIERARCHY
   if (!stream_definitions_.empty()) {
     streams();
   }
@@ -58,11 +65,13 @@ void Client::Loaded() {
 }
 
 void Client::ConfigureStreams(std::vector<StreamDefinition> definitions) {
-  auto hierarchy = std::make_unique<StreamHierarchy>(
+#if AE_ENABLE_STREAM_HIERARCHY
+  stream_hierarchy_ = std::make_unique<StreamHierarchy>(
       AeContext{*this}, MakePtrFromThis(this), definitions);
-  stream_hierarchy_ = std::move(hierarchy);
+#endif
   stream_definitions_ = std::move(definitions);
 }
+#if AE_ENABLE_STREAM_HIERARCHY
 StreamHierarchy& Client::streams() {
   if (!stream_hierarchy_) {
     stream_hierarchy_ = std::make_unique<StreamHierarchy>(
@@ -70,6 +79,7 @@ StreamHierarchy& Client::streams() {
   }
   return *stream_hierarchy_;
 }
+#endif
 
 std::string const& Client::id() const { return client_id_; }
 Uid const& Client::parent_uid() const { return parent_uid_; }

@@ -81,8 +81,11 @@ class Client : public Obj {
   ClientPresence GetPresence() const;
   PeerPresence GetPeerPresence(Uid peer_uid) const;
   ae::PeerPresenceQuery& QueryPeerPresence(Uid peer_uid);
+  // Retains the serialized definitions in every build.
   void ConfigureStreams(std::vector<StreamDefinition> definitions);
+#if AE_ENABLE_STREAM_HIERARCHY
   StreamHierarchy& streams();
+#endif
 #if AE_SUPPORT_P2P
   void ConfigurePeer(PeerSettings settings);
   PeerSettings const& peer_settings() const { return peer_settings_; }
@@ -153,7 +156,9 @@ class Client : public Obj {
   std::unique_ptr<P2pMessageStreamManager> message_stream_manager_;
   std::map<Uid, std::unique_ptr<ae::PeerPresenceQuery>> peer_presence_queries_;
   std::map<Uid, std::vector<RemoteServerPresenceSample>> peer_cloud_presence_;
+#if AE_ENABLE_STREAM_HIERARCHY
   std::unique_ptr<StreamHierarchy> stream_hierarchy_;
+#endif
 #if AE_SUPPORT_P2P
   std::unique_ptr<PeerTransport> peer_transport_;
 #  if AE_SUPPORT_HOLE_PUNCH

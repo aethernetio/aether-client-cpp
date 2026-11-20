@@ -68,6 +68,7 @@ For production builds, pin `GIT_TAG` to a reviewed commit SHA until versioned re
 | `AE_BUILD_EXAMPLES` | `ON` | Build bundled examples |
 | `AE_BUILD_TESTS` | `ON` | Build tests |
 | `AE_BUILD_TOOLS` | `ON` | Build SDK tools |
+| `AE_ENABLE_STREAM_HIERARCHY` | `ON` | Build the application stream hierarchy and `Client::streams()` |
 | `AE_DISTILLATION` | `ON` | Enable distillation build mode |
 | `AE_FILTRATION` | `OFF` | Enable filtration mode |
 | `USER_CONFIG` | empty | Path to a user configuration header |
@@ -83,6 +84,10 @@ Set `AE_DNS_BACKEND` in `USER_CONFIG` to choose a resolver.
 
 The legacy `AE_SUPPORT_CLOUD_DNS=0` setting still disables the SDK resolver
 when `AE_DNS_BACKEND` is unspecified.
+
+Build with `-DAE_ENABLE_STREAM_HIERARCHY=OFF` for consumers that use
+`P2pStream` directly. Client profiles keep their stream definitions so they
+can still be used by builds with the hierarchy enabled.
 
 ## ESP32
 
