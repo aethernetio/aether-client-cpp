@@ -1,7 +1,8 @@
 if(NOT CM_PLATFORM)
   add_executable(test-adaptive-datagram
     main.cpp ../test-prepared-packet/test-p2p-stream-write-budget.cpp test_adaptive_stream.cpp test_rate_controller.cpp
-    test_emulated_socket.cpp test_recovery_controller.cpp test_saturation.cpp)
+    test_emulated_socket.cpp test_recovery_controller.cpp test_saturation.cpp
+    test_receipt_pages.cpp test_adaptive_time.cpp)
   target_link_libraries(test-adaptive-datagram PRIVATE aether unity)
   add_library(adaptive-saturation-scenario STATIC saturation_scenario.cpp)
   target_link_libraries(adaptive-saturation-scenario PUBLIC aether)

@@ -17,57 +17,38 @@
 #ifndef AETHER_ADAPTIVE_DATAGRAM_ADAPTIVE_DATAGRAM_PROTOCOL_H_
 #define AETHER_ADAPTIVE_DATAGRAM_ADAPTIVE_DATAGRAM_PROTOCOL_H_
 
-#include <array>
 #include <cstdint>
 
+#include "aether/adaptive_datagram/adaptive_datagram_time.h"
 #include "aether/api_protocol/api_protocol.h"
 #include "aether/types/data_buffer.h"
 
 namespace ae::adaptive_datagram {
-inline constexpr std::size_t kReceiptBits = 512;
-inline constexpr std::size_t kReceiptWords = kReceiptBits / 64;
 
-struct Datagram {
+struct Datagram : DatagramTiming {
   std::uint64_t session{};
   std::uint32_t stream{};
   std::uint64_t sequence{};
-  std::uint64_t queued_at_us{};
-  std::uint64_t sent_at_us{};
-  std::uint32_t lifetime_us{};
   DataBuffer payload;
-  AE_REFLECT_MEMBERS(session, stream, sequence, queued_at_us, sent_at_us,
-                     lifetime_us, payload)
+  std::uint16_t receipt_window{};
+  AE_REFLECT(AE_MMBRS(session, stream, sequence, receipt_window),
+             AE_REF_BASE(DatagramTiming), AE_MMBR(payload))
 };
-// Repeated selective receipts survive feedback loss and reordering. Bit zero
-// refers to largest_sequence. Separate masks retain late arrivals as receipts.
-struct Feedback {
+// A page covers count consecutive packets, starting at largest_sequence minus
+// range_offset and descending. Each page is independently decodable.
+struct Feedback : FeedbackTiming {
   std::uint64_t session{};
   std::uint32_t stream{};
   std::uint64_t report{};
   std::uint64_t largest_sequence{};
-  std::array<std::uint64_t, kReceiptWords> received{};
-  std::array<std::uint64_t, kReceiptWords> on_time{};
-  std::uint64_t echo_sent_at_us{};
-  std::uint64_t received_at_us{};
+  std::uint16_t range_offset{};
+  std::uint16_t count{};
+  std::uint8_t encoding{};
   std::uint64_t sampled_sequence{};
-  std::uint64_t reported_at_us{};
-  AE_REFLECT_MEMBERS(session, stream, report, largest_sequence, received,
-                     on_time, echo_sent_at_us, received_at_us, sampled_sequence,
-                     reported_at_us)
-};
-
-struct CompactFeedback {
-  std::uint64_t session{};
-  std::uint32_t stream{};
-  std::uint64_t report{};
-  std::uint64_t largest_sequence{};
-  std::uint64_t echo_sent_at_us{};
-  std::uint64_t received_at_us{};
-  std::uint64_t sampled_sequence{};
-  std::uint64_t reported_at_us{};
-  DataBuffer runs;
-  AE_REFLECT_MEMBERS(session, stream, report, largest_sequence, echo_sent_at_us,
-                     received_at_us, sampled_sequence, reported_at_us, runs)
+  DataBuffer statuses;
+  AE_REFLECT(AE_MMBRS(session, stream, report, largest_sequence, range_offset,
+                      count, encoding, sampled_sequence),
+             AE_REF_BASE(FeedbackTiming), AE_MMBR(statuses))
 };
 
 class IAdaptiveDatagramApi : public DeclareApi<IAdaptiveDatagramApi> {
@@ -75,8 +56,7 @@ class IAdaptiveDatagramApi : public DeclareApi<IAdaptiveDatagramApi> {
   virtual ~IAdaptiveDatagramApi() = default;
   virtual void Data(Datagram datagram) = 0;
   virtual void Report(Feedback feedback) = 0;
-  virtual void ReportCompact(CompactFeedback feedback) = 0;
-  API_LIST(METHOD(3, Data), METHOD(4, Report), METHOD(5, ReportCompact))
+  API_LIST(METHOD(3, Data), METHOD(4, Report))
 };
 }  // namespace ae::adaptive_datagram
 #endif  // AETHER_ADAPTIVE_DATAGRAM_ADAPTIVE_DATAGRAM_PROTOCOL_H_

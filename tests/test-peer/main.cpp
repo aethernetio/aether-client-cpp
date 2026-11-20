@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <map>
+#include <stdexcept>
 #include <thread>
 #include <vector>
 #include "aether/config.h"
@@ -14,6 +15,7 @@
 #  include "aether/ae_actions/ping.h"
 #  include "aether/aether.h"
 #  include "aether/client.h"
+#  include "aether/client_messages/p2p_message_stream.h"
 #  include "aether/connection_manager/client_cloud_manager.h"
 #  include "aether/connection_manager/peer_presence_query.h"
 #  include "aether/crypto.h"
@@ -848,7 +850,7 @@ AddressPort LoopbackEndpoint(PeerTransport& transport) {
   }
   throw std::runtime_error("Loopback interface unavailable");
 }
-#if AE_ENABLE_STREAM_HIERARCHY
+#  if AE_ENABLE_STREAM_HIERARCHY
 void test_ExistingStreamsOverAuthenticatedUdpAndIndependentChildren() {
   ClientFixture fixture;
   auto first_identity = fixture.ca.Issue();
@@ -896,7 +898,7 @@ void test_ExistingStreamsOverAuthenticatedUdpAndIndependentChildren() {
   TEST_ASSERT_TRUE(statistics[0].received_messages == 0);
   TEST_ASSERT_NOT_NULL(a->streams().Find(11));
 }
-#endif
+#  endif
 
 class HeldPacketWrite : public WriteAction {
  public:
@@ -990,7 +992,7 @@ void test_BackgroundCannotFillInteractiveQueueSlots() {
   TEST_ASSERT_FALSE(dispatched);
 }
 
-#if AE_ENABLE_STREAM_HIERARCHY
+#  if AE_ENABLE_STREAM_HIERARCHY
 void test_FileVideoHierarchyKeepsKeyboardInteractive() {
   // Source: New doc, "And a particular case with file transfer and real-time
   // video streaming"; the original JSON is in
@@ -1186,7 +1188,8 @@ void test_HierarchyAndIdentityPersistAndRestore() {
   TEST_ASSERT_TRUE(restored->streams().Find(42)->definition().name ==
                    "persisted");
 }
-#endif
+#  endif
+
 #  if AE_ENABLE_PING
 void test_ClientPresenceReportsPeerRoutesWithoutAethernet() {
   ClientFixture fixture;
@@ -1261,7 +1264,26 @@ void test_ClientPresenceReportsPeerRoutesWithoutAethernet() {
 #    endif
 }
 #  endif
-#if AE_ENABLE_STREAM_HIERARCHY
+#  if AE_ENABLE_STREAM_HIERARCHY && !AE_SUPPORT_ADAPTIVE_DATAGRAM
+void test_ExcludedStreamDeliveryCannotBeConfigured() {
+  ClientFixture fixture;
+  auto client =
+      fixture.Add(fixture.ca.Issue(), "disabled-delivery", RandomPeerToken());
+  StreamDefinition definition;
+  definition.id = 1;
+  definition.destination = RandomPeerToken();
+  definition.delivery = StreamDelivery::kAdaptiveDatagram;
+  bool rejected{};
+  try {
+    client->ConfigureStreams({definition});
+  } catch (std::invalid_argument const&) {
+    rejected = true;
+  }
+  TEST_ASSERT_TRUE(rejected);
+}
+#  endif
+
+#  if AE_ENABLE_STREAM_HIERARCHY
 void test_StorageIntentFailsExplicitlyUntilProviderImplemented() {
   ClientFixture fixture;
   auto client = fixture.Add(fixture.ca.Issue(), "storage", RandomPeerToken());
@@ -1277,7 +1299,8 @@ void test_StorageIntentFailsExplicitlyUntilProviderImplemented() {
   }
   TEST_ASSERT_TRUE(rejected);
 }
-#endif
+#  endif
+
 void test_DiscoveryFiltersApplicationsAndAuthenticatesMatchingPeers() {
   Authority ca;
   auto a = ca.Issue(), b = ca.Issue(), other = ca.Issue();
@@ -1718,13 +1741,16 @@ int main() {
   RUN_TEST(test_NoBackupsPreservesReciprocalSessions);
   RUN_TEST(test_DataReorderedBeforeFinalConfirmationDoesNotBreakHandshake);
   RUN_TEST(test_RttThenLossSelectsPathAndRecoversFromBlackout);
-#if AE_ENABLE_STREAM_HIERARCHY
+#  if AE_ENABLE_STREAM_HIERARCHY
   RUN_TEST(test_ExistingStreamsOverAuthenticatedUdpAndIndependentChildren);
-#endif
+#  endif
   RUN_TEST(test_RendezvousCloudLookupsReleaseTheirActionSlots);
+#  if AE_ENABLE_STREAM_HIERARCHY && !AE_SUPPORT_ADAPTIVE_DATAGRAM
+  RUN_TEST(test_ExcludedStreamDeliveryCannotBeConfigured);
+#  endif
   RUN_TEST(test_InteractivePacketsOvertakeReadyFilePackets);
   RUN_TEST(test_BackgroundCannotFillInteractiveQueueSlots);
-#if AE_ENABLE_STREAM_HIERARCHY
+#  if AE_ENABLE_STREAM_HIERARCHY
   RUN_TEST(test_FileVideoHierarchyKeepsKeyboardInteractive);
 #endif
 #if AE_ENABLE_STREAM_HIERARCHY
@@ -1732,7 +1758,7 @@ int main() {
 #endif
 #if AE_ENABLE_STREAM_HIERARCHY
   RUN_TEST(test_StorageIntentFailsExplicitlyUntilProviderImplemented);
-#endif
+#  endif
 #  if AE_SUPPORT_LAN
   RUN_TEST(test_DiscoveryFiltersApplicationsAndAuthenticatesMatchingPeers);
 #  endif

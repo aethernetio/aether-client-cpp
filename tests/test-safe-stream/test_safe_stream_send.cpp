@@ -39,16 +39,15 @@ constexpr auto config = SafeStreamConfig{
     std::chrono::milliseconds{80},
 };
 
-static constexpr std::size_t kCapacity = 20 * 1024;
-using Sender = SafeStreamSendAction<kCapacity>;
-using IndexType = RingIndex<kCapacity>;
+using Sender = SafeStreamSendAction;
+using IndexType = CircularBuffer::index_type;
 using IndexRangeType = RingIndexRange<IndexType>;
 
-class MockSendDataPush final : public ISafeStreamSendActionDelegate<kCapacity> {
+class MockSendDataPush final : public ISafeStreamSendActionDelegate {
  public:
   struct SendData {
-    std::uint16_t index;
-    DataMessage data_message;
+    SafeStreamOffset index;
+    SafeStreamDataMessage data_message;
   };
 
   class MockStreamWriteAction final : public WriteAction {
@@ -62,8 +61,8 @@ class MockSendDataPush final : public ISafeStreamSendActionDelegate<kCapacity> {
 
   explicit MockSendDataPush(AeContext const& context) : context_{context} {}
 
-  WriteAction& PushData(std::uint16_t index,
-                        DataMessage&& data_message) override {
+  WriteAction& PushData(SafeStreamOffset index,
+                        SafeStreamDataMessage&& data_message) override {
     send_data = SendData{index, std::move(data_message)};
     if (!wa_ || wa_->is_finished()) {
       wa_.emplace(context_);
@@ -187,7 +186,7 @@ void test_SendActionCreateAndSend() {
   // acknowledge up to last byte in the packet size() - 1;
   sender.Acknowledge(send_data_push.send_data->index +
                      send_data_push.send_data->data_message.delta_offset +
-                     static_cast<std::uint16_t>(packet_poetry.size()) - 1);
+                     static_cast<SafeStreamOffset>(packet_poetry.size()) - 1);
   ctx.Update(Now());
 
   // Verify final state after confirmation
@@ -244,7 +243,7 @@ void test_SendActionRepeatOnTimeout() {
   // Confirm after first repeat
   sender.Acknowledge(send_data_push.send_data->index +
                      send_data_push.send_data->data_message.delta_offset +
-                     +static_cast<std::uint16_t>(retry_humor.size() - 1));
+                     +static_cast<SafeStreamOffset>(retry_humor.size() - 1));
   ctx.Update(timeout_time + kTick + kTick);
 
   TEST_ASSERT(is_sent);
@@ -334,7 +333,7 @@ void test_SendActionRequestRepeat() {
 
   auto send_data1 = sender.SendData(ToSpan(network_philosophy));
 
-  std::uint16_t begin_offset{};
+  SafeStreamOffset begin_offset{};
 
   // Initial send
   ctx.Update(Now());
@@ -375,7 +374,7 @@ void test_SendActionWindowSizeLimit() {
   // window_size_ window_size = 1056, max_packet_size = 352 We can send 3
   // packets (1056 bytes) The 4th packet would exceed window
   auto packet_data = CreateTestData(large_packet_size);
-  std::uint16_t begin_offset{};
+  SafeStreamOffset begin_offset{};
 
   // Send 3 packets to fill window exactly (3 * 352 = 1056 bytes)
   for (int i = 0; i < 3; ++i) {
@@ -404,7 +403,7 @@ void test_SendActionWindowSizeLimit() {
   // Confirm some data to free up window space
   // Confirm first packet (352 bytes)
   auto confirm_offset =
-      begin_offset + static_cast<std::uint16_t>(large_packet_size - 1);
+      begin_offset + static_cast<SafeStreamOffset>(large_packet_size - 1);
   sender.Acknowledge(confirm_offset);
   ctx.Update(Now());
 
@@ -431,7 +430,7 @@ void test_SendActionWindowSizeWithMultipleWaitingPackets() {
   // window_size = 1056, max_packet_size = 352
   // Send 3 packets to reach exactly 1056 bytes
   auto packet_data = CreateTestData(large_packet_size);
-  std::uint16_t begin_offset{};
+  SafeStreamOffset begin_offset{};
 
   // Send 3 packets of 352 bytes = 1056 bytes (full window)
   for (int i = 0; i < 3; ++i) {
@@ -459,7 +458,7 @@ void test_SendActionWindowSizeWithMultipleWaitingPackets() {
 
   // Confirm some data to free up space (confirm first packet = 352 bytes)
   auto confirm_offset =
-      begin_offset + static_cast<std::uint16_t>(large_packet_size - 1);
+      begin_offset + static_cast<SafeStreamOffset>(large_packet_size - 1);
   sender.Acknowledge(confirm_offset);
   ctx.Update(Now());
 
@@ -484,7 +483,7 @@ void test_SendActionMultipleDataQueueing() {
 
   auto send_data_push = MockSendDataPush{ctx};
 
-  std::uint16_t begin_offset{};
+  SafeStreamOffset begin_offset{};
   bool sent1 = false;
   bool error1 = false;
   IndexRangeType expected_range1{};
@@ -535,12 +534,12 @@ void test_SendActionMultipleDataQueueing() {
   send_data_push.send_data.reset();
 
   // Verify proper sequencing (begin_offset should be less than second_offset)
-  TEST_ASSERT_GREATER_THAN(0, static_cast<std::uint16_t>(second_delta));
+  TEST_ASSERT_GREATER_THAN(0, static_cast<SafeStreamOffset>(second_delta));
 
   // Confirm all data to complete actions
   auto final_offset = begin_offset +
-                      static_cast<std::uint16_t>(packet_poetry.size()) +
-                      static_cast<std::uint16_t>(window_wisdom.size()) - 1;
+                      static_cast<SafeStreamOffset>(packet_poetry.size()) +
+                      static_cast<SafeStreamOffset>(window_wisdom.size()) - 1;
   sender.Acknowledge(final_offset);
   ctx.Update(Now());
 
@@ -554,7 +553,7 @@ void test_SendActionMultipleDataQueueing() {
 void test_SendDataBiggerThanMaxPacketSize() {
   TestContext ctx;
 
-  constexpr std::uint16_t max_packet_size = 60;
+  constexpr SafeStreamOffset max_packet_size = 60;
   auto send_data_push = MockSendDataPush{ctx};
 
   bool sent = false;
@@ -581,7 +580,7 @@ void test_SendDataBiggerThanMaxPacketSize() {
 
   constexpr auto packets_count = (packet_poetry.size() / max_packet_size) + 1;
   // Process packets
-  for (std::uint16_t i = 0; i < packets_count - 1; ++i) {
+  for (SafeStreamOffset i = 0; i < packets_count - 1; ++i) {
     auto expected_packet =
         packet_poetry.substr(static_cast<std::size_t>(i * max_packet_size),
                              static_cast<std::size_t>(max_packet_size));
@@ -636,7 +635,7 @@ void test_SendDataBiggerThanMaxPacketSize() {
 void test_SendDataAndStop() {
   TestContext ctx;
 
-  constexpr std::uint16_t max_packet_size = 450;
+  constexpr SafeStreamOffset max_packet_size = 450;
   auto send_data_push = MockSendDataPush{ctx};
 
   bool sent = false;
@@ -700,7 +699,7 @@ void test_SendDataAndStop() {
   TEST_ASSERT_FALSE(stopped);
   TEST_ASSERT_FALSE(send_data_push.send_data.has_value());
 
-  sender.Acknowledge(static_cast<std::uint16_t>(send_range1.value().right));
+  sender.Acknowledge(static_cast<SafeStreamOffset>(send_range1.value().right));
   ctx.Update(Now());
   TEST_ASSERT_TRUE(sent);
 }

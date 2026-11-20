@@ -59,6 +59,8 @@ if(AE_BUILD_TELE_DISABLED_TESTS)
   add_subdirectory(test-tele-disabled)
 endif()
 
-add_subdirectory(test-adaptive-datagram)
+if(AE_SUPPORT_ADAPTIVE_DATAGRAM)
+  add_subdirectory(test-adaptive-datagram)
+endif()
 
 add_subdirectory(test-presence-api)

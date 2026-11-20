@@ -35,48 +35,41 @@
 namespace ae {
 
 namespace safe_stream_send_action_internal {
-template <typename Num>
-static inline Num RandomOffset() {
+inline std::size_t RandomOffset() {
   // set seed once
   static bool const seed =
       (std::srand(static_cast<unsigned int>(time(nullptr))), true);
   (void)seed;
-  auto value =
-      static_cast<Num>(std::rand()) % (std::numeric_limits<Num>::max() / 2);
-  return static_cast<Num>(value);
+  return static_cast<std::size_t>(std::rand());
 }
 }  // namespace safe_stream_send_action_internal
 
-template <std::size_t Capacity, typename Offset = std::uint16_t>
 class ISafeStreamSendActionDelegate {
  public:
-  using IndexType = typename SafeStreamBuffer<Capacity, Offset>::index_type;
+  using IndexType = CircularBuffer::index_type;
 
   virtual ~ISafeStreamSendActionDelegate() = default;
   virtual bool CanPushData() const { return true; }
-  virtual WriteAction& PushData(Offset index,
-                                SafeStreamDataMessage<Offset>&& data_message) = 0;
+  virtual WriteAction& PushData(SafeStreamOffset index,
+                                SafeStreamDataMessage&& data_message) = 0;
   virtual void WriteAcknowledged(IndexType buffer_begin,
                                  IndexType ack_index) = 0;
   virtual void WriteStopped(IndexType buffer_begin, IndexType stop_index) = 0;
   virtual void WriteFailed(IndexType buffer_begin, IndexType failed_index) = 0;
 };
 
-// TODO: split on templated and not templated parts
-template <std::size_t Capacity, typename Offset = std::uint16_t>
 class SafeStreamSendAction {
  public:
   using ResponseStatistics =
       StatisticsCounter<Duration, AE_STATISTICS_SAFE_STREAM_WINDOW_SIZE>;
 
-  static constexpr std::size_t kCapacity = Capacity;
-  using CircularBufferImpl = SafeStreamBuffer<kCapacity, Offset>;
+  using CircularBufferImpl = CircularBuffer;
   using IndexType = CircularBufferImpl::index_type;
   using IndexRangeType = RingIndexRange<IndexType>;
   using SendingChunkListImpl = SendingChunkList<IndexType>;
 
   SafeStreamSendAction(AeContext const& ae_context,
-                       ISafeStreamSendActionDelegate<Capacity, Offset>& delegate,
+                       ISafeStreamSendActionDelegate& delegate,
                        SafeStreamConfig const& config)
       : ae_context_{ae_context},
         delegate_{&delegate},
@@ -84,11 +77,10 @@ class SafeStreamSendAction {
         window_size_{config.window_size},
         minimum_ack_timeout_{config.minimum_ack_timeout},
         sending_buffer_{
-            safe_stream_send_action_internal::RandomOffset<std::size_t>()},
+            config.CheckedBufferCapacity(),
+            IndexType{safe_stream_send_action_internal::RandomOffset()}},
         sending_chunks_{sending_buffer_.begin()},
         last_sent_{sending_buffer_.begin()} {
-    assert((window_size_ < Capacity / 2) &&
-           "Window size should be less than half of capacity");
     // set first response timeout
     response_statistics_.Add(config.wait_ack_timeout);
   }
@@ -120,7 +112,10 @@ class SafeStreamSendAction {
     sending_buffer_.EraseFrom(range.left);
   }
 
-  bool Acknowledge(Offset confirm_offset) {
+  bool Acknowledge(SafeStreamOffset confirm_offset) {
+    if (confirm_offset >= kSafeStreamIndexPeriod) {
+      return false;
+    }
     auto confirm_index = IndexType(confirm_offset);
     AETHER_TELED_DEBUG("Receive ack for offset {} index {}", confirm_offset,
                        confirm_index);
@@ -154,7 +149,10 @@ class SafeStreamSendAction {
     return true;
   }
 
-  void RequestRepeat(Offset request_offset) {
+  void RequestRepeat(SafeStreamOffset request_offset) {
+    if (request_offset >= kSafeStreamIndexPeriod) {
+      return;
+    }
     auto request_index = IndexType(request_offset);
     // if not in a current range
     if (!IndexRangeType{sending_buffer_.begin(), sending_buffer_.end()}.InRange(
@@ -198,9 +196,10 @@ class SafeStreamSendAction {
     // it means the chunk is not acknowledged, so we need to repeat it.
     auto const& selected_sch = sending_chunks_.front();
     // wait timeout is depends on repeat_count and response statistics
-    auto wait_ack_timeout =
-        static_cast<double>(std::max(minimum_ack_timeout_,
-                                     response_statistics_.template percentile<99>()).count());
+    auto wait_ack_timeout = static_cast<double>(
+        std::max(minimum_ack_timeout_,
+                 response_statistics_.template percentile<99>())
+            .count());
     auto increase_factor = std::max(1.0, (AE_SAFE_STREAM_RTO_GROW_FACTOR *
                                           (selected_sch.repeat_count - 1)));
     auto wait_timeout = Duration{
@@ -363,18 +362,18 @@ class SafeStreamSendAction {
                   static_cast<DataBuffer::difference_type>(dspan.first.size()));
 
     return delegate_->PushData(
-        static_cast<Offset>(sending_buffer_.begin()),
-        SafeStreamDataMessage<Offset>{
+        static_cast<SafeStreamOffset>(sending_buffer_.begin()),
+        SafeStreamDataMessage{
             init_state_,
             repeat_count,
-            static_cast<Offset>(
+            static_cast<SafeStreamOffset>(
                 sending_buffer_.begin().Distance(data_index)),
             std::move(std::move(data_buffer)),
         });
   }
 
   AeContext ae_context_;
-  ISafeStreamSendActionDelegate<Capacity, Offset>* delegate_;
+  ISafeStreamSendActionDelegate* delegate_;
 
   std::uint8_t max_repeat_count_{};
   std::size_t window_size_{};

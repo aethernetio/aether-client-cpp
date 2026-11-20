@@ -389,6 +389,10 @@
 #  define AE_SUPPORT_SPIFS_FS 0
 #endif  // AE_SUPPORT_SPIFS_FS
 
+#ifndef AE_SUPPORT_ADAPTIVE_DATAGRAM
+#  define AE_SUPPORT_ADAPTIVE_DATAGRAM 1
+#endif
+
 // safe stream buffer capacity
 #ifndef AE_SAFE_STREAM_CAPACITY
 #  define AE_SAFE_STREAM_CAPACITY 20 * 1024

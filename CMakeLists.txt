@@ -55,6 +55,7 @@ else()
   set(AE_ROOT_PORJECT Off)
 endif()
 
+option(AE_SUPPORT_ADAPTIVE_DATAGRAM "Build adaptive datagram streams" ON)
 option(AE_DISTILLATION "Build aether in distillation mode" On)
 option(AE_FILTRATION "Build aether in filtration mode" Off)
 option(AE_INSTALL "Install aether" ${AE_ROOT_PORJECT})
@@ -75,6 +76,8 @@ set(AE_REG_CLOUD_ADDR "" CACHE STRING "Address of the registration cloud")
 
 message(STATUS "Aether build options:
    AE_ROOT_PORJECT=${AE_ROOT_PORJECT}
+   AE_ENABLE_STREAM_HIERARCHY=${AE_ENABLE_STREAM_HIERARCHY}
+   AE_SUPPORT_ADAPTIVE_DATAGRAM=${AE_SUPPORT_ADAPTIVE_DATAGRAM}
    AE_DISTILLATION=${AE_DISTILLATION}
    AE_FILTRATION=${AE_FILTRATION}
    AE_INSTALL=${AE_INSTALL}
@@ -231,7 +234,8 @@ CPMAddPackage(
 
 add_library(${TARGET_NAME} STATIC )
 target_compile_definitions(${TARGET_NAME} PUBLIC
-  AE_ENABLE_STREAM_HIERARCHY=$<BOOL:${AE_ENABLE_STREAM_HIERARCHY}>)
+  AE_ENABLE_STREAM_HIERARCHY=$<BOOL:${AE_ENABLE_STREAM_HIERARCHY}>
+  AE_SUPPORT_ADAPTIVE_DATAGRAM=$<BOOL:${AE_SUPPORT_ADAPTIVE_DATAGRAM}>)
 # collect sources
 add_subdirectory(aether)
 if(WIN32)
@@ -558,7 +562,7 @@ if(AE_INSTALL)
           DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${TARGET_NAME})
 endif()
 
-if((AE_BUILD_TESTS OR AE_BUILD_EXAMPLES) AND NOT CM_PLATFORM)
+if(AE_SUPPORT_ADAPTIVE_DATAGRAM AND (AE_BUILD_TESTS OR AE_BUILD_EXAMPLES) AND NOT CM_PLATFORM)
   add_subdirectory(examples/adaptive_datagram_emulation)
 endif()
 if(AE_BUILD_WEBSOCKET_PROBE)

@@ -74,7 +74,13 @@ void test_ValidateConfiguration() {
   config.max_datagram_size = 255;
   TEST_ASSERT_FALSE(config.Validate());
   config = Config{};
-  config.max_in_flight_packets = 513;
+  config.max_in_flight_packets = 8192;
+  TEST_ASSERT_TRUE(config.Validate());
+  config.max_in_flight_packets = adaptive_datagram::kMaxReceiptWindow;
+  TEST_ASSERT_TRUE(config.Validate());
+  config.max_in_flight_packets = adaptive_datagram::kMaxReceiptWindow + 1;
+  TEST_ASSERT_FALSE(config.Validate());
+  config.max_in_flight_packets = 0;
   TEST_ASSERT_FALSE(config.Validate());
   config = Config{};
   config.max_history_packets = config.min_samples - 1;

@@ -17,14 +17,17 @@
 #ifndef AETHER_ADAPTIVE_DATAGRAM_RATE_CONTROLLER_H_
 #define AETHER_ADAPTIVE_DATAGRAM_RATE_CONTROLLER_H_
 
-#include <cstddef>
-#include <cstdint>
-#include <deque>
-#include <optional>
-#include <utility>
+#include "aether/config.h"
 
-#include "aether/adaptive_datagram/adaptive_datagram_config.h"
-#include "aether/clock.h"
+#if AE_SUPPORT_ADAPTIVE_DATAGRAM
+#  include <cstddef>
+#  include <cstdint>
+#  include <deque>
+#  include <optional>
+#  include <utility>
+
+#  include "aether/adaptive_datagram/adaptive_datagram_config.h"
+#  include "aether/clock.h"
 
 namespace ae::adaptive_datagram {
 
@@ -119,6 +122,7 @@ class RateController {
   bool valid_{false};
   RateControllerMetrics metrics_;
   std::deque<Outcome> outcomes_;
+  bool history_changed_{false};
   std::optional<TimePoint> truncated_through_;
   std::optional<TimePoint> latest_uncertain_at_;
   std::optional<TimePoint> last_decrease_at_;
@@ -144,5 +148,7 @@ class RateController {
 };
 
 }  // namespace ae::adaptive_datagram
+
+#endif  // AE_SUPPORT_ADAPTIVE_DATAGRAM
 
 #endif  // AETHER_ADAPTIVE_DATAGRAM_RATE_CONTROLLER_H_

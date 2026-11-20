@@ -35,12 +35,11 @@ constexpr auto config = SafeStreamConfig{
     std::chrono::milliseconds{25},
     std::chrono::milliseconds{80},
 };
-constexpr auto kCapacity = 20 * 1024;
 constexpr auto kTick = std::chrono::milliseconds{5};
 
-using Sender = SafeStreamSendAction<kCapacity>;
-using Receiver = SafeStreamRecvAction<kCapacity>;
-using IndexType = RingIndex<kCapacity>;
+using Sender = SafeStreamSendAction;
+using Receiver = SafeStreamRecvAction;
+using IndexType = CircularBuffer::index_type;
 using IndexRangeType = RingIndexRange<IndexType>;
 
 class TestSafeStreamActionsTransport {
@@ -51,23 +50,25 @@ class TestSafeStreamActionsTransport {
 
   virtual ~TestSafeStreamActionsTransport() = default;
 
-  virtual void PushData(std::uint16_t begin, DataMessage data_message) {
+  virtual void PushData(SafeStreamOffset begin,
+                        SafeStreamDataMessage data_message) {
     MakePushData(begin, std::move(data_message));
   }
 
-  virtual void SendAck(std::uint16_t offset) { MakeSendAck(offset); }
+  virtual void SendAck(SafeStreamOffset offset) { MakeSendAck(offset); }
 
-  virtual void SendRepeatRequest(std::uint16_t offset) {
+  virtual void SendRepeatRequest(SafeStreamOffset offset) {
     MakeSendRepeatRequest(offset);
   }
 
-  void MakePushData(std::uint16_t begin, DataMessage data_message) {
+  void MakePushData(SafeStreamOffset begin,
+                    SafeStreamDataMessage data_message) {
     recveiver_->PushData(begin, std::move(data_message));
   }
 
-  void MakeSendAck(std::uint16_t offset) { sender_->Acknowledge(offset); }
+  void MakeSendAck(SafeStreamOffset offset) { sender_->Acknowledge(offset); }
 
-  void MakeSendRepeatRequest(std::uint16_t offset) {
+  void MakeSendRepeatRequest(SafeStreamOffset offset) {
     sender_->RequestRepeat(offset);
   }
 
@@ -78,13 +79,14 @@ class TestSafeStreamActionsTransport {
 class DelayPushDataImpl : public TestSafeStreamActionsTransport {
  public:
   struct PushMessageT {
-    std::uint16_t begin;
-    DataMessage message;
+    SafeStreamOffset begin;
+    SafeStreamDataMessage message;
   };
 
   using TestSafeStreamActionsTransport::TestSafeStreamActionsTransport;
 
-  void PushData(std::uint16_t begin, DataMessage data_message) override {
+  void PushData(SafeStreamOffset begin,
+                SafeStreamDataMessage data_message) override {
     push_message = PushMessageT{begin, std::move(data_message)};
   }
 
@@ -98,7 +100,7 @@ class DelayPushDataImpl : public TestSafeStreamActionsTransport {
   std::optional<PushMessageT> push_message;
 };
 
-class MockSendDataPush : public ISafeStreamSendActionDelegate<kCapacity> {
+class MockSendDataPush : public ISafeStreamSendActionDelegate {
   class DoneStreamWriteAction : public WriteAction {
    public:
     explicit DoneStreamWriteAction(AeContext const& context)
@@ -114,8 +116,8 @@ class MockSendDataPush : public ISafeStreamSendActionDelegate<kCapacity> {
     transport_ = &transport;
   }
 
-  WriteAction& PushData(std::uint16_t begin,
-                        DataMessage&& data_message) override {
+  WriteAction& PushData(SafeStreamOffset begin,
+                        SafeStreamDataMessage&& data_message) override {
     transport_->PushData(begin, std::move(data_message));
     if (!dswa_ || dswa_->is_finished()) {
       dswa_.emplace(context_);
@@ -138,7 +140,7 @@ class MockSendDataPush : public ISafeStreamSendActionDelegate<kCapacity> {
   std::function<void(IndexType, IndexType)> on_acknowledged;
 };
 
-class MockSendAckRepeat : public ISafeStreamRecvActionDelegate {
+class MockSendAckRepeat : public SafeStreamRecvActionDelegate {
  public:
   MockSendAckRepeat() = default;
 
@@ -146,8 +148,10 @@ class MockSendAckRepeat : public ISafeStreamRecvActionDelegate {
     transport_ = &transport;
   }
 
-  void SendAck(std::uint16_t offset) override { transport_->SendAck(offset); }
-  void SendRepeatRequest(std::uint16_t offset) override {
+  void SendAck(SafeStreamOffset offset) override {
+    transport_->SendAck(offset);
+  }
+  void SendRepeatRequest(SafeStreamOffset offset) override {
     transport_->SendRepeatRequest(offset);
   }
 

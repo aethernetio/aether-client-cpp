@@ -17,9 +17,7 @@
 #include "aether/adaptive_datagram/adaptive_datagram_stream.h"
 
 #include <algorithm>
-#include <bitset>
 #include <chrono>
-#include <deque>
 #include <limits>
 #include <list>
 #include <optional>
@@ -27,10 +25,10 @@
 #include <utility>
 
 #include "aether/adaptive_datagram/adaptive_datagram_protocol.h"
+#include "aether/adaptive_datagram/receipt_page.h"
 
 namespace ae {
 namespace adaptive_datagram_stream_internal {
-using adaptive_datagram::CompactFeedback;
 using adaptive_datagram::Datagram;
 using adaptive_datagram::Feedback;
 using adaptive_datagram::IAdaptiveDatagramApi;
@@ -72,61 +70,6 @@ std::int64_t Difference(std::int64_t left, std::int64_t right) {
   return left - right;
 }
 
-// Each little-endian word has a 2-bit status and the run length minus one.
-constexpr std::size_t kMaskBytes = 2 * adaptive_datagram::kReceiptBits / 8;
-
-DataBuffer EncodeReceiptRuns(Feedback const& feedback) {
-  auto status = [&](std::size_t bit) {
-    auto const mask = std::uint64_t{1} << (bit % 64);
-    if (feedback.on_time[bit / 64] & mask) {
-      return 2u;
-    }
-    return (feedback.received[bit / 64] & mask) ? 1u : 0u;
-  };
-  DataBuffer runs;
-  for (std::size_t first = 0; first < adaptive_datagram::kReceiptBits;) {
-    auto const state = status(first);
-    auto end = first + 1;
-    while (end < adaptive_datagram::kReceiptBits && status(end) == state) {
-      ++end;
-    }
-    if (runs.size() + 2 >= kMaskBytes) {
-      return {};  // The original masks are smaller for a highly mixed window.
-    }
-    auto const word = ((end - first - 1) << 2) | state;
-    runs.push_back(static_cast<std::uint8_t>(word));
-    runs.push_back(static_cast<std::uint8_t>(word >> 8));
-    first = end;
-  }
-  return runs;
-}
-
-bool DecodeReceiptRuns(DataBuffer const& runs, Feedback& feedback) {
-  if (runs.empty() || runs.size() >= kMaskBytes || runs.size() % 2 != 0) {
-    return false;
-  }
-  std::size_t first = 0;
-  for (std::size_t i = 0; i < runs.size(); i += 2) {
-    auto const word = static_cast<unsigned>(runs[i]) |
-                      (static_cast<unsigned>(runs[i + 1]) << 8);
-    auto const state = word & 3u;
-    auto const length = (word >> 2) + 1;
-    if (state == 3 || length > adaptive_datagram::kReceiptBits - first) {
-      return false;
-    }
-    auto const end = first + length;
-    for (; first < end; ++first) {
-      auto const mask = std::uint64_t{1} << (first % 64);
-      if (state != 0) {
-        feedback.received[first / 64] |= mask;
-      }
-      if (state == 2) {
-        feedback.on_time[first / 64] |= mask;
-      }
-    }
-  }
-  return first == adaptive_datagram::kReceiptBits;
-}
 
 class ApiSender final : public IAdaptiveDatagramApi {
  public:
@@ -135,9 +78,6 @@ class ApiSender final : public IAdaptiveDatagramApi {
   }
   void Report(Feedback feedback) override {
     ClientMethod<&IAdaptiveDatagramApi::Report>(std::move(feedback));
-  }
-  void ReportCompact(CompactFeedback feedback) override {
-    ClientMethod<&IAdaptiveDatagramApi::ReportCompact>(std::move(feedback));
   }
 };
 
@@ -182,7 +122,6 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
   using PendingWrite = adaptive_datagram_stream_internal::PendingWrite;
   using Datagram = adaptive_datagram::Datagram;
   using Feedback = adaptive_datagram::Feedback;
-  using CompactFeedback = adaptive_datagram::CompactFeedback;
   using Status = adaptive_datagram::DeliveryStatus;
   using Result = adaptive_datagram::DeliveryResult;
 
@@ -190,9 +129,6 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
     explicit ApiReceiver(Impl& impl) : impl{&impl} {}
     void Data(Datagram packet) override { impl->Receive(std::move(packet)); }
     void Report(Feedback feedback) override { impl->Receive(feedback); }
-    void ReportCompact(CompactFeedback feedback) override {
-      impl->Receive(feedback);
-    }
     Impl* impl;
   };
   struct Flight {
@@ -201,7 +137,6 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
     std::size_t size;
     TimePoint mature_at;
     TimePoint sent_at;
-    bool received{false};
     bool on_time{false};
     bool confirmed_missing{false};
     Duration latency{0};
@@ -220,9 +155,7 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
         updated{context},
         output{context},
         delivered{context} {
-    valid = config.Validate() &&
-            config.max_in_flight_packets <= adaptive_datagram::kReceiptBits &&
-            config.max_datagram_size >= 256;
+    valid = config.Validate();
   }
 
   ~Impl() { Unlink(false); }
@@ -232,8 +165,6 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
     auto api = ApiContext<adaptive_datagram_stream_internal::ApiSender>{sender};
     if constexpr (std::is_same_v<Packet, Datagram>) {
       api->Data(packet);
-    } else if constexpr (std::is_same_v<Packet, CompactFeedback>) {
-      api->ReportCompact(packet);
     } else {
       api->Report(packet);
     }
@@ -294,9 +225,6 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
         complete = !archive.Load(packet).IsErr();
       } else if (id == 4) {
         Feedback packet;
-        complete = !archive.Load(packet).IsErr();
-      } else if (id == 5) {
-        CompactFeedback packet;
         complete = !archive.Load(packet).IsErr();
       }
       if (!complete || archive.buffer().read_offset != data.size()) {
@@ -370,13 +298,11 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
       return *failed;
     }
     auto const now = clock();
-    Datagram packet{config.session_id,
-                    config.stream_id,
-                    ++sequence,
-                    adaptive_datagram_stream_internal::Micros(now),
-                    0,
-                    config.latency_target.count(),
-                    std::move(data)};
+    Datagram packet{{adaptive_datagram_stream_internal::Micros(now), 0,
+                     config.latency_target.count()},
+                    config.session_id, config.stream_id, ++sequence,
+                    std::move(data),
+                    static_cast<std::uint16_t>(config.max_in_flight_packets)};
     pending.push_back(std::make_unique<PendingWrite>(
         context, std::move(packet), now + config.latency_target));
     ++stats.accepted;
@@ -473,6 +399,9 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
                           std::max<std::uint64_t>(1, spacing))};
     active_pending = write;
     auto& action = lower->Write(std::move(wire));
+    if (epoch != link_epoch) {
+      return;
+    }
     active = &action;
     write_sub =
         action.status_event().Subscribe([this, bytes](WriteAction::Status s) {
@@ -558,10 +487,8 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
       auto const f = flights.front();
       flights.pop_front();
       Outcome(f.message_sequence, f.size,
-              !f.received
-                  ? (f.confirmed_missing ? Status::kLost : Status::kUnconfirmed)
-                  : (f.on_time ? Status::kDelivered : Status::kLate),
-              f.latency, now, f.path_latency, f.sent_at);
+              f.confirmed_missing ? Status::kLost : Status::kUnconfirmed,
+              Duration{0}, now, Duration{0}, f.sent_at);
       if (epoch != link_epoch) {
         return;
       }
@@ -579,43 +506,10 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
         now >= next_send) {
       if (peer_session != 0 && now >= next_feedback &&
           now <= last_receive + config.feedback_timeout) {
-        Feedback feedback;
-        feedback.session = peer_session;
-        feedback.stream = config.stream_id;
-        feedback.report = ++report_sequence;
-        feedback.largest_sequence = largest_received;
-        feedback.echo_sent_at_us = echo_sent;
-        feedback.received_at_us = received_at;
-        feedback.sampled_sequence = sampled_sequence;
-        feedback.reported_at_us =
-            adaptive_datagram_stream_internal::Micros(now);
-        for (std::size_t i = 0; i < adaptive_datagram::kReceiptBits; ++i) {
-          if (received[i]) {
-            feedback.received[i / 64] |= std::uint64_t{1} << (i % 64);
-          }
-          if (on_time[i]) {
-            feedback.on_time[i / 64] |= std::uint64_t{1} << (i % 64);
-          }
-        }
-        auto wire = PackFeedback(feedback);
-        auto const report_bytes = wire.size();
-        // Reserve at most one quarter of this direction's wire rate for
-        // repeated feedback, so a low-rate bidirectional stream cannot starve.
-        auto const report_gap_us = (report_bytes * std::uint64_t{4000000} +
-                                    controller.rate_bytes_per_second() - 1) /
-                                   controller.rate_bytes_per_second();
-        next_feedback =
-            now + std::max<std::chrono::microseconds>(
-                      FeedbackInterval(),
-                      std::chrono::microseconds{
-                          static_cast<std::int64_t>(report_gap_us)});
-        Submit(std::move(wire), nullptr, now);
+        SendFeedback(now);
       } else if (it != pending.end() &&
                  flights.size() < config.max_in_flight_packets &&
                  packet_sequence != std::numeric_limits<std::uint64_t>::max() &&
-                 (flights.empty() ||
-                  packet_sequence - flights.front().sequence <
-                      adaptive_datagram::kReceiptBits - 1) &&
                  (!controller.metrics().feedback_stale || now >= next_probe)) {
         auto& w = **it;
         w.submitted = true;
@@ -650,7 +544,8 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
         (config.peer_session_id != 0 &&
          packet.session != config.peer_session_id) ||
         packet.stream != config.stream_id || packet.sequence == 0 ||
-        packet.lifetime_us == 0 || packet.payload.empty()) {
+        packet.lifetime_us == 0 || packet.receipt_window == 0 ||
+        packet.payload.empty()) {
       ++stats.malformed;
       return;
     }
@@ -661,21 +556,27 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
         return;
       }
       peer_session = packet.session;
-      largest_received = packet.sequence;
-      received.reset();
-      on_time.reset();
+      receipt_ring.resize(packet.receipt_window);
+    }
+    if (receipt_ring.size() != packet.receipt_window) {
+      ++stats.malformed;
+      return;
     }
     if (packet.sequence > largest_received) {
-      auto const distance = packet.sequence - largest_received;
-      auto const shift = static_cast<std::size_t>(
-          std::min<std::uint64_t>(distance, adaptive_datagram::kReceiptBits));
-      received <<= shift;
-      on_time <<= shift;
+      auto const advance = std::min<std::uint64_t>(
+          packet.sequence - largest_received, receipt_ring.size());
+      auto const index = static_cast<std::size_t>(
+          (packet.sequence - advance + 1) % receipt_ring.size());
+      auto const tail =
+          std::min<std::size_t>(advance, receipt_ring.size() - index);
+      std::fill_n(receipt_ring.data() + index, tail, 0);
+      std::fill_n(receipt_ring.begin(), advance - tail, 0);
       largest_received = packet.sequence;
     }
-    auto const delta = largest_received - packet.sequence;
-    if (delta >= adaptive_datagram::kReceiptBits ||
-        received[static_cast<std::size_t>(delta)]) {
+    auto const slot =
+        static_cast<std::size_t>(packet.sequence % receipt_ring.size());
+    if (largest_received - packet.sequence >= receipt_ring.size() ||
+        receipt_ring[slot] != 0) {
       ++stats.duplicates;
       return;
     }
@@ -687,8 +588,7 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
         local_sent);
     auto const timely =
         age >= 0 && static_cast<std::uint64_t>(age) <= packet.lifetime_us;
-    received[static_cast<std::size_t>(delta)] = true;
-    on_time[static_cast<std::size_t>(delta)] = timely;
+    receipt_ring[slot] = timely ? 2 : 1;
     echo_sent = packet.sent_at_us;
     received_at = adaptive_datagram_stream_internal::Micros(now);
     sampled_sequence = packet.sequence;
@@ -699,51 +599,56 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
     Wake(now);
   }
 
-  Duration FeedbackInterval() const {
-    if (!config.compact_feedback) {
-      return config.feedback_interval;
+  void SendFeedback(TimePoint now) {
+    auto const oldest =
+        largest_received -
+        std::min<std::uint64_t>(largest_received, receipt_ring.size()) + 1;
+    if (next_page_end < oldest) {
+      next_page_end = largest_received;
+      round_oldest = oldest;
+      next_round = now + config.feedback_interval;
     }
-    // Leave room for repeated reports before the sender declares them stale.
-    auto const base = std::min(config.feedback_interval,
-                               config.feedback_timeout / 30);
-    return std::max(config.feedback_interval, base * 10);
-  }
-
-  DataBuffer PackFeedback(Feedback const& feedback) {
-    if (config.compact_feedback) {
-      auto runs = adaptive_datagram_stream_internal::EncodeReceiptRuns(feedback);
-      if (!runs.empty()) {
-        return Pack(CompactFeedback{
-            feedback.session, feedback.stream, feedback.report,
-            feedback.largest_sequence, feedback.echo_sent_at_us,
-            feedback.received_at_us, feedback.sampled_sequence,
-            feedback.reported_at_us, std::move(runs)});
-      }
-    }
-    return Pack(feedback);
-  }
-
-  void Receive(CompactFeedback const& compact) {
-    Feedback feedback;
-    feedback.session = compact.session;
-    feedback.stream = compact.stream;
-    feedback.report = compact.report;
-    feedback.largest_sequence = compact.largest_sequence;
-    feedback.echo_sent_at_us = compact.echo_sent_at_us;
-    feedback.received_at_us = compact.received_at_us;
-    feedback.sampled_sequence = compact.sampled_sequence;
-    feedback.reported_at_us = compact.reported_at_us;
-    if (!adaptive_datagram_stream_internal::DecodeReceiptRuns(compact.runs,
-                                                               feedback)) {
-      ++stats.malformed;
+    auto const floor = std::max(oldest, round_oldest);
+    Feedback page;
+    page.session = peer_session;
+    page.stream = config.stream_id;
+    page.report = ++report_sequence;
+    page.largest_sequence = largest_received;
+    page.echo_sent_at_us = echo_sent;
+    page.received_at_us = received_at;
+    page.sampled_sequence = sampled_sequence;
+    page.reported_at_us = adaptive_datagram_stream_internal::Micros(now);
+    page.range_offset =
+        static_cast<std::uint16_t>(largest_received - next_page_end);
+    auto const limit = std::min(config.max_datagram_size,
+                                lower->stream_info().max_element_size);
+    // Allow for variable-width timestamps, method ID and vector length.
+    constexpr std::size_t kPageHeaderAllowance = 96;
+    if (limit <= kPageHeaderAllowance) {
+      next_feedback = now + config.feedback_interval;
       return;
     }
-    Receive(feedback);
+    adaptive_datagram::receipt_page_internal::Encode(
+        page, receipt_ring, static_cast<std::size_t>(next_page_end - floor + 1),
+        limit - kPageHeaderAllowance, config.compact_feedback);
+    next_page_end -= page.count;
+    auto wire = Pack(page);
+    // Bound reverse traffic to one quarter of this direction's wire rate.
+    // Each round sends all of its pages; later pages share the rate budget.
+    auto const rate = controller.rate_bytes_per_second();
+    auto const gap = (wire.size() * std::uint64_t{4000000} + rate - 1) / rate;
+    next_feedback =
+        now + std::chrono::microseconds{static_cast<std::int64_t>(gap)};
+    if (next_page_end < floor) {
+      next_page_end = 0;
+      next_feedback = std::max(next_feedback, next_round);
+    }
+    Submit(std::move(wire), nullptr, now);
   }
 
   void Receive(Feedback const& feedback) {
     if (feedback.session != config.session_id ||
-        feedback.stream != config.stream_id || feedback.report <= last_report ||
+        feedback.stream != config.stream_id || feedback.report == 0 ||
         feedback.largest_sequence > packet_sequence ||
         feedback.largest_sequence == 0) {
       return;
@@ -753,25 +658,34 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
     if (feedback.echo_sent_at_us > now_us) {
       return;
     }
-    last_report = feedback.report;
+    DataBuffer states;
+    if (!adaptive_datagram::receipt_page_internal::Decode(
+            feedback, config.max_in_flight_packets, states)) {
+      ++stats.malformed;
+      return;
+    }
+    auto const end = feedback.largest_sequence - feedback.range_offset;
+    auto const begin = end - (feedback.count - 1);
+    auto const in_page = [begin, end](std::uint64_t seq) {
+      return seq >= begin && seq <= end;
+    };
+    // Reordered pages still carry independent positive receipts. Only a new
+    // report can refresh the path liveness clock.
+    auto const new_report = feedback.report > last_report;
+    last_report = std::max(last_report, feedback.report);
     auto const sample = std::find_if(
         flights.begin(), flights.end(),
         [&](auto const& f) { return f.sequence == feedback.sampled_sequence; });
-    auto const sample_delta =
-        feedback.sampled_sequence <= feedback.largest_sequence
-            ? feedback.largest_sequence - feedback.sampled_sequence
-            : adaptive_datagram::kReceiptBits;
     auto const valid_sample =
-        sample != flights.end() &&
-        sample_delta < adaptive_datagram::kReceiptBits &&
+        sample != flights.end() && in_page(feedback.sampled_sequence) &&
+        states[static_cast<std::size_t>(end - feedback.sampled_sequence)] !=
+            0 &&
         sample->sent_at >= path_started_at_ &&
-        (feedback.received[static_cast<std::size_t>(sample_delta / 64)] &
-         (std::uint64_t{1} << (sample_delta % 64))) != 0 &&
         feedback.echo_sent_at_us ==
             adaptive_datagram_stream_internal::Micros(sample->sent_at) &&
         feedback.reported_at_us >= feedback.received_at_us;
-    auto const fresh_sample =
-        valid_sample && feedback.sampled_sequence > last_live_sample;
+    auto const fresh_sample = new_report && valid_sample &&
+                              feedback.sampled_sequence > last_live_sample;
     auto rtt = controller.metrics().rtt;
     if (fresh_sample) {
       auto const hold = feedback.reported_at_us >= feedback.received_at_us
@@ -783,60 +697,62 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
                                   std::numeric_limits<Duration::rep>::max()))};
       last_live_sample = feedback.sampled_sequence;
     }
-    controller.FeedbackReceived(now, rtt);
+    if (new_report) {
+      controller.FeedbackReceived(now, rtt);
+    }
     std::uint64_t new_wire_bytes = 0;
     auto const local_report = adaptive_datagram_stream_internal::LocalPeerTime(
         feedback.reported_at_us, config.peer_clock_offset_us);
-    for (auto& f : flights) {
-      auto const delta = f.sequence <= feedback.largest_sequence
-                             ? feedback.largest_sequence - f.sequence
-                             : adaptive_datagram::kReceiptBits;
-      auto const missing_reported = f.sequence > feedback.largest_sequence ||
-                                    delta < adaptive_datagram::kReceiptBits;
+    // Detach ACKed flights before user callbacks, which may feed another
+    // report into the stream or unlink it. Moving nodes returns credit without
+    // copying records or allocating a second outcome history.
+    std::list<Flight> confirmed;
+    for (auto it = flights.begin(); it != flights.end();) {
+      auto current = it++;
+      auto& f = *current;
+      auto const covered = in_page(f.sequence);
+      auto const missing_reported =
+          covered || (new_report && f.sequence > feedback.largest_sequence);
       auto const deadline = f.mature_at - config.feedback_timeout;
-      if (!f.received && missing_reported &&
-          local_report >=
-              static_cast<std::int64_t>(
-                  adaptive_datagram_stream_internal::Micros(deadline))) {
-        f.confirmed_missing = true;
-      }
-      if (delta >= adaptive_datagram::kReceiptBits) {
+      auto const state =
+          covered ? states[static_cast<std::size_t>(end - f.sequence)] : 0;
+      if (state == 0) {
+        if (missing_reported &&
+            local_report >=
+                static_cast<std::int64_t>(
+                    adaptive_datagram_stream_internal::Micros(deadline))) {
+          f.confirmed_missing = true;
+        }
         continue;
       }
-      auto const mask = std::uint64_t{1} << (delta % 64);
-      auto const receipt_index = static_cast<std::size_t>(delta / 64);
-      if ((feedback.received[receipt_index] & mask) != 0) {
-        if (!f.received && f.sent_at >= path_started_at_) {
-          new_wire_bytes += f.wire_bytes;
-        }
-        f.received = true;
-        f.on_time = (feedback.on_time[receipt_index] & mask) != 0;
-        // Receipt masks carry the verdict for every packet. The echoed sample
-        // additionally measures path delay without ACK scheduling/reverse
-        // delay.
-        if (fresh_sample && f.sequence == feedback.sampled_sequence) {
-          auto const local_receive =
-              adaptive_datagram_stream_internal::LocalPeerTime(
-                  feedback.received_at_us, config.peer_clock_offset_us);
-          auto const queued = deadline - config.latency_target;
-          auto const age = adaptive_datagram_stream_internal::Difference(
-              local_receive,
-              static_cast<std::int64_t>(
-                  adaptive_datagram_stream_internal::Micros(queued)));
-          f.latency =
-              Duration{static_cast<Duration::rep>(std::clamp<std::int64_t>(
-                  age, 0, std::numeric_limits<Duration::rep>::max()))};
-          auto const path_age = adaptive_datagram_stream_internal::Difference(
-              local_receive,
-              static_cast<std::int64_t>(
-                  adaptive_datagram_stream_internal::Micros(f.sent_at)));
-          f.path_latency =
-              Duration{static_cast<Duration::rep>(std::clamp<std::int64_t>(
-                  path_age, 0, std::numeric_limits<Duration::rep>::max()))};
-          latest_path_latency = f.path_latency;
-          controller.ObserveLatency(f.path_latency, f.sent_at);
-        }
+      if (f.sent_at >= path_started_at_) {
+        new_wire_bytes += f.wire_bytes;
       }
+      f.on_time = state == 2;
+      // Only the echoed sample measures the one-way delay.
+      if (fresh_sample && f.sequence == feedback.sampled_sequence) {
+        auto const local_receive =
+            adaptive_datagram_stream_internal::LocalPeerTime(
+                feedback.received_at_us, config.peer_clock_offset_us);
+        auto const queued = deadline - config.latency_target;
+        auto const age = adaptive_datagram_stream_internal::Difference(
+            local_receive,
+            static_cast<std::int64_t>(
+                adaptive_datagram_stream_internal::Micros(queued)));
+        f.latency =
+            Duration{static_cast<Duration::rep>(std::clamp<std::int64_t>(
+                age, 0, std::numeric_limits<Duration::rep>::max()))};
+        auto const path_age = adaptive_datagram_stream_internal::Difference(
+            local_receive,
+            static_cast<std::int64_t>(
+                adaptive_datagram_stream_internal::Micros(f.sent_at)));
+        f.path_latency =
+            Duration{static_cast<Duration::rep>(std::clamp<std::int64_t>(
+                path_age, 0, std::numeric_limits<Duration::rep>::max()))};
+        latest_path_latency = f.path_latency;
+        controller.ObserveLatency(f.path_latency, f.sent_at);
+      }
+      confirmed.splice(confirmed.end(), flights, current);
     }
     if (!delivery_measurement_at_) {
       delivery_measurement_at_ = now;
@@ -858,6 +774,15 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
         delivery_measurement_at_ = now;
         peer_measurement_at_ = feedback.reported_at_us;
         acknowledged_wire_bytes_ = 0;
+      }
+    }
+    auto const epoch = link_epoch;
+    for (auto const& flight : confirmed) {
+      Outcome(flight.message_sequence, flight.size,
+              flight.on_time ? Status::kDelivered : Status::kLate,
+              flight.latency, now, flight.path_latency, flight.sent_at);
+      if (epoch != link_epoch) {
+        return;
       }
     }
     Wake(now);
@@ -882,7 +807,7 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
   Subscription write_sub;
   std::optional<adaptive_datagram_stream_internal::RejectedWrite> failed;
   std::list<std::unique_ptr<PendingWrite>> pending;
-  std::deque<Flight> flights;
+  std::list<Flight> flights;
   WriteAction* active{};
   PendingWrite* active_pending{};
   std::uint64_t sequence{};
@@ -899,8 +824,10 @@ struct AdaptiveDatagramStream::Impl : std::enable_shared_from_this<Impl> {
   std::uint64_t echo_sent{};
   std::uint64_t received_at{};
   std::uint64_t sampled_sequence{};
-  std::bitset<adaptive_datagram::kReceiptBits> received;
-  std::bitset<adaptive_datagram::kReceiptBits> on_time;
+  DataBuffer receipt_ring;
+  std::uint64_t next_page_end{};
+  std::uint64_t round_oldest{};
+  TimePoint next_round{};
   TimePoint scheduled_at{};
   TimePoint next_send{};
   TimePoint next_feedback{};

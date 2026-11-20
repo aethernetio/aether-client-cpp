@@ -30,12 +30,13 @@
 
 namespace ae::test_safe_stream {
 constexpr auto config = SafeStreamConfig{
-    1024,
-    200,
-    3,
-    std::chrono::milliseconds{50},
-    std::chrono::milliseconds{0},
-    std::chrono::milliseconds{10},
+    .window_size = 1024,
+    .max_packet_size = 200,
+    .max_repeat_count = 3,
+    .wait_ack_timeout = std::chrono::milliseconds{50},
+    .send_ack_timeout = std::chrono::milliseconds{0},
+    .send_repeat_timeout = std::chrono::milliseconds{10},
+    .buffer_capacity = 3 * 1024,
 };
 
 constexpr char _100_bytes_data[] =
@@ -47,8 +48,6 @@ constexpr char _200_bytes_data[] =
     "purposes. It contains random words and phrases to fill up space. The goal "
     "is to reach exactly two hundred bytes without using lore";
 
-static constexpr std::size_t kCapacity = 3 * 1024;
-
 void test_SafeStreamWriteFewData() {
   auto epoch = TimePoint::clock::now();
 
@@ -59,7 +58,7 @@ void test_SafeStreamWriteFewData() {
   auto read_stream = MockReadStream{ctx};
   auto write_stream = MockWriteStream{ctx, std::size_t{120}};
 
-  auto safe_stream = SafeStream<kCapacity>{ctx, config};
+  auto safe_stream = SafeStream{ctx, config};
   MultiSubscription subscriptions;
 
   Tie(read_stream, safe_stream, write_stream);
@@ -102,17 +101,15 @@ void test_SafeStreamPacketLoss() {
   auto read_stream = MockReadStream{ctx};
   auto write_stream = MockWriteStream{ctx, std::size_t{120}};
 
-  auto safe_stream = SafeStream<kCapacity>{ctx, config};
+  auto safe_stream = SafeStream{ctx, config};
   MultiSubscription subscriptions;
   Tie(read_stream, safe_stream, write_stream);
 
   // loop data to itself
   subscriptions +=
       write_stream.on_write_event().Subscribe([&](DataBuffer& data) {
-        auto packet_reader = PacketReader{data};
-        auto mid = packet_reader.Extract<MessageId>();
-        if (((mid == 5) || (mid == 6)) && !send_packet_dropped) {
-          // The initial reset/send packet is lost.
+        if (!send_packet_dropped) {
+          // The first write starts the session. Drop it before any ACK exists.
           send_packet_dropped = true;
           return;
         }
@@ -130,6 +127,7 @@ void test_SafeStreamPacketLoss() {
     ctx.Update(epoch += std::chrono::milliseconds{10});
   }
 
+  TEST_ASSERT_TRUE(send_packet_dropped);
   TEST_ASSERT_EQUAL(sizeof(_100_bytes_data), received_packet.size());
 
   received_packet.clear();
@@ -146,7 +144,7 @@ void test_SafeStreamPacketLoss() {
 void test_SafeStreamStopBeforeTransmission() {
   TestContext ctx;
   auto write_stream = MockWriteStream{ctx, std::size_t{120}};
-  auto safe_stream = SafeStream<kCapacity>{ctx, config};
+  auto safe_stream = SafeStream{ctx, config};
   bool stopped = false;
   bool transmitted = false;
 
@@ -169,7 +167,7 @@ void test_SafeStreamWaitsForCarrierBackpressure() {
   TestContext ctx;
   MockWriteStream carrier{ctx, 120};
   carrier.SetWritable(false);
-  SafeStream<kCapacity> safe{ctx, config};
+  SafeStream safe{ctx, config};
   safe.LinkOut(carrier);
   unsigned writes{};
   Subscription sent =

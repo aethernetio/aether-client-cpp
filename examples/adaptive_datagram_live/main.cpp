@@ -355,12 +355,17 @@ int main(int argc, char* argv[]) {
   config.max_datagram_size =
       std::max<std::size_t>(config.max_datagram_size, values[5]);
   if (argc >= 7) {
-    // Provision measurement history for the requested rate. Keep the native
-    // in-flight window: the protocol's receipt bitmap supports 512 packets.
-    // Expose that limit in CSV instead of accepting an invalid wire policy.
+    // Budget a round trip at the one-way latency target plus one ACK interval.
     auto const packets_per_second =
         (config.max_rate_bytes_per_second + (values[5] ? values[5] : 256) - 1) /
         (values[5] ? values[5] : 256);
+    auto const feedback_horizon_us =
+        2ULL * config.latency_target.count() + config.feedback_interval.count();
+    config.max_in_flight_packets = static_cast<std::size_t>(
+        std::clamp<std::uint64_t>(
+            (packets_per_second * feedback_horizon_us + 999999) / 1000000,
+            config.max_in_flight_packets,
+            ae::adaptive_datagram::kMaxReceiptWindow));
     config.max_history_packets =
         static_cast<std::size_t>(std::max<std::uint64_t>(
             config.max_history_packets,

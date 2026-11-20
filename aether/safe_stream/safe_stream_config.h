@@ -20,10 +20,15 @@
 #include <cstdint>
 
 #include "aether/clock.h"
+#include "aether/config.h"
 
 namespace ae {
-template <std::size_t Capacity, typename Offset = std::uint16_t>
 class SafeStream;
+using SafeStreamOffset = std::uint32_t;
+inline constexpr std::size_t kSafeStreamIndexPeriod = std::size_t{1} << 30;
+// Protocol limit for a 100 MB/s stream with a 55 ms ACK horizon, rounded
+// up to a whole MiB. Absolute offsets still wrap at kSafeStreamIndexPeriod.
+inline constexpr std::size_t kSafeStreamMaxWindow = 6 * 1024 * 1024;
 
 struct SafeStreamConfig {
   std::size_t window_size;        //< size of sending window
@@ -34,12 +39,14 @@ struct SafeStreamConfig {
   Duration send_repeat_timeout;  //< max time to wait before send repeat request
   // Wait for a writable event before submitting data to a bounded transport.
   bool wait_for_writable_transport{false};
-  // Opt into 32-bit offsets in P2pSafeStream. Both peers must use the same mode.
-  bool wide_offsets{false};
   Duration minimum_ack_timeout{};
   // Flush a cumulative ACK early after delivering this many new bytes.
   // Zero leaves ACKs on the configured timer.
   std::size_t ack_batch_bytes{};
+  // Capacity of each buffer. The window must be smaller than half of it.
+  std::size_t buffer_capacity{AE_SAFE_STREAM_CAPACITY};
+
+  std::size_t CheckedBufferCapacity() const;
 };
 
 }  // namespace ae

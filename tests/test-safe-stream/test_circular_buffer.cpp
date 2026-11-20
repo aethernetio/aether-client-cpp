@@ -16,6 +16,7 @@
 
 #include <unity.h>
 
+#include <string>
 #include <string_view>
 
 #include "aether/safe_stream/details/circular_buffer.h"
@@ -28,9 +29,9 @@ static constexpr std::string_view test_str = "Let it circle";
 
 void test_PushData() {
   static constexpr std::size_t kCapacity = 30;
-  using Buffer = CircularBuffer<kCapacity>;
+  using Buffer = CircularBuffer;
 
-  Buffer buffer;
+  Buffer buffer{kCapacity};
 
   auto res1 = buffer.Push(ToSpan(test_str));
   TEST_ASSERT_TRUE(res1.IsOk());
@@ -50,11 +51,11 @@ void test_PushData() {
 
 void test_ReadData() {
   static constexpr std::size_t kCapacity = 30;
-  using Buffer = CircularBuffer<kCapacity>;
+  using Buffer = CircularBuffer;
   using IndexType = Buffer::index_type;
   using IndexRangeType = Buffer::index_range_type;
 
-  Buffer buffer;
+  Buffer buffer{kCapacity};
 
   auto read_res1 = buffer.Read(IndexType{0}, 10);
   TEST_ASSERT_FALSE(read_res1.IsOk());
@@ -91,10 +92,10 @@ void test_ReadData() {
 
 void test_Erase() {
   static constexpr std::size_t kCapacity = 30;
-  using Buffer = CircularBuffer<kCapacity>;
+  using Buffer = CircularBuffer;
   using IndexType = Buffer::index_type;
   using IndexRangeType = Buffer::index_range_type;
-  Buffer buffer;
+  Buffer buffer{kCapacity};
 
   auto res1 = buffer.Push(ToSpan(test_str));
   TEST_ASSERT_TRUE(res1.IsOk());
@@ -120,7 +121,7 @@ void test_Erase() {
 
 void test_PushOverTheBourder() {
   static constexpr std::size_t kCapacity = 30;
-  using Buffer = CircularBuffer<kCapacity>;
+  using Buffer = CircularBuffer;
   using IndexType = Buffer::index_type;
   using IndexRangeType = Buffer::index_range_type;
 
@@ -128,7 +129,7 @@ void test_PushOverTheBourder() {
   // Erase data to make room for more
   // Push more data to wrap buffer around
 
-  Buffer buffer;
+  Buffer buffer{kCapacity};
   auto res1 = buffer.Push(ToSpan(test_str));
   TEST_ASSERT_TRUE(res1.IsOk());
   auto res2 = buffer.Push(ToSpan(test_str));
@@ -137,7 +138,36 @@ void test_PushOverTheBourder() {
   auto res3 = buffer.Push(ToSpan(test_str));
   TEST_ASSERT_TRUE(res3.IsOk());
   TEST_ASSERT_EQUAL(26, res3.value().left);
-  TEST_ASSERT_EQUAL(8, res3.value().right);
+  TEST_ASSERT_EQUAL(38, res3.value().right);
+
+  auto read = buffer.Read(res3.value().left, test_str.size());
+  TEST_ASSERT_TRUE(read.IsOk());
+  auto const& spans = read.value();
+  TEST_ASSERT_EQUAL_UINT(4, spans.first.size());
+  TEST_ASSERT_EQUAL_UINT(test_str.size() - 4, spans.second.size());
+  TEST_ASSERT_EQUAL_MEMORY(test_str.data(), spans.first.data(),
+                           spans.first.size());
+  TEST_ASSERT_EQUAL_MEMORY(test_str.data() + 4, spans.second.data(),
+                           spans.second.size());
+}
+
+void test_WireIndexWrapWithNonDividingCapacity() {
+  using Index = CircularBuffer::index_type;
+  auto const start = Index{kSafeStreamIndexPeriod - 6};
+  CircularBuffer buffer{30, start};
+  auto first = buffer.Push(ToSpan(test_str));
+  TEST_ASSERT_TRUE(first.IsOk());
+  TEST_ASSERT_EQUAL(6, first.value().right);
+  buffer.Erase(start + 4);
+  auto second = buffer.Push(ToSpan(test_str));
+  TEST_ASSERT_TRUE(second.IsOk());
+  auto data = buffer.Read(start + 4, 2 * test_str.size() - 4);
+  TEST_ASSERT_TRUE(data.IsOk());
+  auto expected = std::string{test_str.substr(4)} + std::string{test_str};
+  auto actual =
+      std::string{data.value().first.begin(), data.value().first.end()};
+  actual.append(data.value().second.begin(), data.value().second.end());
+  TEST_ASSERT_EQUAL_STRING(expected.c_str(), actual.c_str());
 }
 
 }  // namespace ae::test_circular_buffer
@@ -148,5 +178,6 @@ int test_circular_buffer() {
   RUN_TEST(ae::test_circular_buffer::test_ReadData);
   RUN_TEST(ae::test_circular_buffer::test_Erase);
   RUN_TEST(ae::test_circular_buffer::test_PushOverTheBourder);
+  RUN_TEST(ae::test_circular_buffer::test_WireIndexWrapWithNonDividingCapacity);
   return UNITY_END();
 }

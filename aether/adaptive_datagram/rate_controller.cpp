@@ -84,6 +84,7 @@ void RateController::RecordOutcome(TimePoint completed_at,
   // Completion normally arrives in chronological order. Inserting by time also
   // makes delayed reports deterministic without corrupting the sliding window.
   Outcome outcome{completed_at, payload_bytes, delivered_on_time, latency};
+  history_changed_ = true;
   if (outcomes_.empty() || outcomes_.back().completed_at <= completed_at) {
     outcomes_.push_back(outcome);
   } else {
@@ -332,6 +333,7 @@ void RateController::Update(TimePoint now, Duration local_queue_age,
 
 void RateController::ResetPath(TimePoint now) {
   outcomes_.clear();
+  history_changed_ = false;
   truncated_through_.reset();
   latest_uncertain_at_.reset();
   last_decrease_at_.reset();
@@ -363,6 +365,7 @@ void RateController::TrimHistory(TimePoint now) {
          rate_controller_internal::Elapsed(now, outcomes_.front().completed_at,
                                            config_.loss_window)) {
     outcomes_.pop_front();
+    history_changed_ = true;
   }
   if (truncated_through_ &&
       rate_controller_internal::Elapsed(now, *truncated_through_,
@@ -381,6 +384,15 @@ void RateController::RefreshWindow(TimePoint now) {
   metrics_.history_limited = truncated_through_.has_value();
   metrics_.feedback_incomplete = latest_uncertain_at_.has_value();
   metrics_.window_samples = outcomes_.size();
+  metrics_.window_valid = metrics_.window_samples >= config_.min_samples &&
+                          !metrics_.history_limited &&
+                          !metrics_.feedback_incomplete;
+  // One report can confirm thousands of packets at the same instant. Between
+  // report batches and expiration, pacing ticks see the same outcome history.
+  if (!history_changed_) {
+    return;
+  }
+  history_changed_ = false;
   metrics_.window_delivered_bytes = 0;
   metrics_.window_max_latency = Duration::zero();
   window_lost_packets_ = 0;
@@ -402,9 +414,6 @@ void RateController::RefreshWindow(TimePoint now) {
           : static_cast<std::uint32_t>(
                 (window_lost_packets_ * 1000ULL + metrics_.window_samples - 1) /
                 metrics_.window_samples);
-  metrics_.window_valid = metrics_.window_samples >= config_.min_samples &&
-                          !metrics_.history_limited &&
-                          !metrics_.feedback_incomplete;
 }
 
 void RateController::RefreshConstraints(Duration local_queue_age) {

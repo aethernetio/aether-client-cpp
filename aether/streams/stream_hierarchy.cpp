@@ -2,9 +2,10 @@
 #include "aether/streams/stream_hierarchy.h"
 #include <set>
 #include <stdexcept>
-#include "aether/adaptive_datagram/adaptive_datagram_stream.h"
 #include "aether/client.h"
-#include "aether/client_messages/p2p_adaptive_datagram_stream.h"
+#if AE_SUPPORT_ADAPTIVE_DATAGRAM
+#  include "aether/client_messages/p2p_adaptive_datagram_stream.h"
+#endif
 #include "aether/client_messages/p2p_safe_message_stream.h"
 namespace ae {
 namespace stream_hierarchy_internal {
@@ -19,6 +20,11 @@ void Validate(std::vector<StreamDefinition> const& nodes, Uid inherited,
         ids.size() > 64 || node.delivery > StreamDelivery::kAdaptiveDatagram) {
       throw std::invalid_argument("Invalid or duplicate stream definition");
     }
+#if !AE_SUPPORT_ADAPTIVE_DATAGRAM
+    if (node.delivery == StreamDelivery::kAdaptiveDatagram) {
+      throw std::invalid_argument("Adaptive datagram support is disabled");
+    }
+#endif
     if (node.storage) {
       throw std::logic_error("Offline storage providers are not implemented");
     }
@@ -62,13 +68,16 @@ HierarchicalStream::HierarchicalStream(
   destination_ = destination;
   auto handle = client->message_stream_manager().CreatePort(
       destination, definition_.id, definition_.service);
+#if AE_SUPPORT_ADAPTIVE_DATAGRAM
   if (definition_.delivery == StreamDelivery::kAdaptiveDatagram) {
     delivery_ = std::make_unique<P2pAdaptiveDatagramStream>(
         context, client, destination, std::move(handle),
         adaptive_datagram::Config{}, RequestPolicy::MainServer{}, policy,
         sending);
     stream_ = delivery_.get();
-  } else {
+  }
+#endif
+  if (!stream_) {
     transport_ = std::make_shared<P2pStream>(
         context, client, destination, std::move(handle),
         RequestPolicy::MainServer{}, policy, sending);
@@ -107,10 +116,12 @@ ByteIStream::OutDataEvent const& HierarchicalStream::out_data_event() {
 void HierarchicalStream::Restream() { stream_->Restream(); }
 std::array<TransportStatistics, kPeerRouteCount>
 HierarchicalStream::statistics() const {
+#if AE_SUPPORT_ADAPTIVE_DATAGRAM
   if (definition_.delivery == StreamDelivery::kAdaptiveDatagram) {
     return static_cast<P2pAdaptiveDatagramStream*>(delivery_.get())
         ->transport_statistics();
   }
+#endif
   return transport_->statistics();
 }
 StreamHierarchy::StreamHierarchy(

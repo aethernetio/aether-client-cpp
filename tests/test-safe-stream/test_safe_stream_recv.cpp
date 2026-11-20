@@ -50,24 +50,23 @@ constexpr auto window_config = SafeStreamConfig{
     std::chrono::milliseconds{80},
 };
 
-static constexpr std::size_t kCapacity = 20 * 1024;
-using Receiver = SafeStreamRecvAction<kCapacity>;
-using IndexType = RingIndex<kCapacity>;
+using Receiver = SafeStreamRecvAction;
+using IndexType = CircularBuffer::index_type;
 using IndexRangeType = RingIndexRange<IndexType>;
 
-class MockSendConfirmRepeat final : public ISafeStreamRecvActionDelegate {
+class MockSendConfirmRepeat final : public SafeStreamRecvActionDelegate {
  public:
   struct AckData {
-    std::uint16_t index;
+    SafeStreamOffset index;
   };
 
   struct RepeatRequestData {
-    std::uint16_t index;
+    SafeStreamOffset index;
   };
 
-  void SendAck(std::uint16_t index) override { ack_data = AckData{index}; }
+  void SendAck(SafeStreamOffset index) override { ack_data = AckData{index}; }
 
-  void SendRepeatRequest(std::uint16_t index) override {
+  void SendRepeatRequest(SafeStreamOffset index) override {
     repeat_request_data = RepeatRequestData{index};
   }
 
@@ -118,14 +117,14 @@ static constexpr std::string_view bug_report =
     "Severity: critical to sanity.";
 
 // Helper function to create DataChunk
-static auto CreateDataMessage(std::string_view data, std::uint16_t index) {
-  return DataMessage{false, 0, index, ToDataBuffer(data)};
+static auto CreateDataMessage(std::string_view data, SafeStreamOffset index) {
+  return SafeStreamDataMessage{false, 0, index, ToDataBuffer(data)};
 }
 
 void test_RecvActionCreateAndReceive() {
   TestContext ctx;
 
-  auto begin_offset = std::uint16_t{1337};
+  auto begin_offset = SafeStreamOffset{1337};
   auto mock_sender = MockSendConfirmRepeat{};
 
   auto receiver = Receiver{ctx, mock_sender, config};
@@ -155,9 +154,9 @@ void test_RecvActionCreateAndReceive() {
   // Should send confirmation after timeout
   TEST_ASSERT(mock_sender.ack_data.has_value());
   auto expected_confirm_index =
-      begin_offset + static_cast<std::uint16_t>(quantum_data.size()) - 1;
-  TEST_ASSERT_EQUAL(static_cast<std::uint16_t>(expected_confirm_index),
-                    static_cast<std::uint16_t>(mock_sender.ack_data->index));
+      begin_offset + static_cast<SafeStreamOffset>(quantum_data.size()) - 1;
+  TEST_ASSERT_EQUAL(static_cast<SafeStreamOffset>(expected_confirm_index),
+                    static_cast<SafeStreamOffset>(mock_sender.ack_data->index));
 }
 
 void test_RecvActionFlushesCumulativeAckAtBatchThreshold() {
@@ -166,26 +165,30 @@ void test_RecvActionFlushesCumulativeAckAtBatchThreshold() {
   auto batch_config = config;
   batch_config.ack_batch_bytes = 200;
   Receiver receiver{ctx, mock, batch_config};
-  auto const begin = std::uint16_t{2000};
+  auto const begin = SafeStreamOffset{2000};
 
-  receiver.PushData(begin, DataMessage{false, 0, 0, DataBuffer(100, 1)});
+  receiver.PushData(begin,
+                    SafeStreamDataMessage{false, 0, 0, DataBuffer(100, 1)});
   ctx.Update(Now());
   TEST_ASSERT_FALSE(mock.ack_data.has_value());
 
-  receiver.PushData(begin, DataMessage{false, 0, 100, DataBuffer(100, 2)});
+  receiver.PushData(begin,
+                    SafeStreamDataMessage{false, 0, 100, DataBuffer(100, 2)});
   ctx.Update(Now());
   ctx.Update(Now() + kTick);
   TEST_ASSERT_TRUE(mock.ack_data.has_value());
   TEST_ASSERT_EQUAL(begin + 199, mock.ack_data->index);
 
   mock.Reset();
-  receiver.PushData(begin, DataMessage{false, 1, 0, DataBuffer(100, 1)});
+  receiver.PushData(begin,
+                    SafeStreamDataMessage{false, 1, 0, DataBuffer(100, 1)});
   ctx.Update(Now() + kTick);
   TEST_ASSERT_TRUE(mock.ack_data.has_value());
   TEST_ASSERT_EQUAL(begin + 199, mock.ack_data->index);
 
   mock.Reset();
-  receiver.PushData(begin, DataMessage{false, 0, 200, DataBuffer(20, 3)});
+  receiver.PushData(begin,
+                    SafeStreamDataMessage{false, 0, 200, DataBuffer(20, 3)});
   ctx.Update(Now());
   TEST_ASSERT_FALSE(mock.ack_data.has_value());
   ctx.Update(Now() + config.send_ack_timeout + kTick);
@@ -196,7 +199,7 @@ void test_RecvActionFlushesCumulativeAckAtBatchThreshold() {
 void test_RecvActionInOrderDataChain() {
   TestContext ctx;
 
-  auto begin_offset = std::uint16_t{2048};
+  auto begin_offset = SafeStreamOffset{2048};
   auto mock_sender = MockSendConfirmRepeat{};
 
   auto receiver = Receiver{ctx, mock_sender, config};
@@ -237,7 +240,7 @@ void test_RecvActionInOrderDataChain() {
 void test_RecvActionOutOfOrderDataChain() {
   TestContext ctx;
 
-  auto begin_offset = std::uint16_t{4096};
+  auto begin_offset = SafeStreamOffset{4096};
   auto mock_sender = MockSendConfirmRepeat{};
 
   auto receiver = Receiver{ctx, mock_sender, config};
@@ -289,7 +292,7 @@ void test_RecvActionOutOfOrderDataChain() {
 void test_RecvActionSendConfirmOnTimeout() {
   TestContext ctx;
 
-  auto begin_offset = std::uint16_t{5555};
+  auto begin_offset = SafeStreamOffset{5555};
   auto mock_sender = MockSendConfirmRepeat{};
 
   auto receiver = Receiver{ctx, mock_sender, config};
@@ -317,15 +320,15 @@ void test_RecvActionSendConfirmOnTimeout() {
   // Should send confirmation after timeout
   TEST_ASSERT(mock_sender.ack_data.has_value());
   auto expected_confirm_index =
-      begin_offset + static_cast<std::uint16_t>(network_poetry.size()) - 1;
-  TEST_ASSERT_EQUAL(static_cast<std::uint16_t>(expected_confirm_index),
-                    static_cast<std::uint16_t>(mock_sender.ack_data->index));
+      begin_offset + static_cast<SafeStreamOffset>(network_poetry.size()) - 1;
+  TEST_ASSERT_EQUAL(static_cast<SafeStreamOffset>(expected_confirm_index),
+                    static_cast<SafeStreamOffset>(mock_sender.ack_data->index));
 }
 
 void test_RecvActionRequestRepeatOnMissing() {
   TestContext ctx;
 
-  auto begin_offset = std::uint16_t{6789};
+  auto begin_offset = SafeStreamOffset{6789};
   auto mock_sender = MockSendConfirmRepeat{};
 
   auto receiver = Receiver{ctx, mock_sender, config};
@@ -361,14 +364,14 @@ void test_RecvActionRequestRepeatOnMissing() {
   // Should request repeat for missing chunk 2
   TEST_ASSERT(mock_sender.repeat_request_data.has_value());
   TEST_ASSERT_EQUAL(
-      static_cast<std::uint16_t>(begin_offset + message1.data.size()),
-      static_cast<std::uint16_t>(mock_sender.repeat_request_data->index));
+      static_cast<SafeStreamOffset>(begin_offset + message1.data.size()),
+      static_cast<SafeStreamOffset>(mock_sender.repeat_request_data->index));
 }
 
 void test_RecvActionRepeatDataHandling() {
   TestContext ctx;
 
-  auto begin_offset = std::uint16_t{8192};
+  auto begin_offset = SafeStreamOffset{8192};
   auto mock_sender = MockSendConfirmRepeat{};
 
   auto receiver = Receiver{ctx, mock_sender, config};
@@ -401,15 +404,15 @@ void test_RecvActionRepeatDataHandling() {
   // Should have one acknowledgement for repeated data
   TEST_ASSERT(mock_sender.ack_data.has_value());
   auto expected_confirm_index =
-      begin_offset + static_cast<std::uint16_t>(protocol_haiku.size()) - 1;
-  TEST_ASSERT_EQUAL(static_cast<std::uint16_t>(expected_confirm_index),
-                    static_cast<std::uint16_t>(mock_sender.ack_data->index));
+      begin_offset + static_cast<SafeStreamOffset>(protocol_haiku.size()) - 1;
+  TEST_ASSERT_EQUAL(static_cast<SafeStreamOffset>(expected_confirm_index),
+                    static_cast<SafeStreamOffset>(mock_sender.ack_data->index));
 }
 
 void test_RecvActionDuplicateDataHandling() {
   TestContext ctx;
 
-  auto begin_offset = std::uint16_t{8192};
+  auto begin_offset = SafeStreamOffset{8192};
   auto mock_sender = MockSendConfirmRepeat{};
 
   auto receiver = Receiver{ctx, mock_sender, config};
@@ -441,7 +444,7 @@ void test_RecvActionDuplicateDataHandling() {
 void test_RecvActionRepeatOverlappingDataHandling() {
   TestContext ctx;
 
-  auto begin_offset = std::uint16_t{8192};
+  auto begin_offset = SafeStreamOffset{8192};
   auto mock_sender = MockSendConfirmRepeat{};
 
   auto receiver = Receiver{ctx, mock_sender, config};
@@ -452,11 +455,11 @@ void test_RecvActionRepeatOverlappingDataHandling() {
   };
 
   // two messages: part of bug_report and full bug_report
-  auto message1 = DataMessage{
+  auto message1 = SafeStreamDataMessage{
       false, 0, 0,
       ToDataBuffer(std::begin(bug_report), std::begin(bug_report) + 20)};
 
-  auto message2 = DataMessage{
+  auto message2 = SafeStreamDataMessage{
       false, 0, 0, ToDataBuffer(std::begin(bug_report), std::end(bug_report))};
 
   // Send original data
@@ -483,7 +486,7 @@ void test_RecvActionRepeatOverlappingDataHandling() {
 void test_RecvActionInOrderCombinedDataChain() {
   TestContext ctx;
 
-  auto begin_offset = std::uint16_t{3141};
+  auto begin_offset = SafeStreamOffset{3141};
   auto mock_sender = MockSendConfirmRepeat{};
 
   auto receiver = Receiver{ctx, mock_sender, config};
@@ -524,7 +527,7 @@ void test_RecvActionInOrderCombinedDataChain() {
 void test_RecvActionWindowSizeLimit() {
   TestContext ctx;
 
-  auto begin_offset = std::uint16_t{7777};
+  auto begin_offset = SafeStreamOffset{7777};
   auto mock_sender = MockSendConfirmRepeat{};
 
   auto receiver = Receiver{ctx, mock_sender, config};

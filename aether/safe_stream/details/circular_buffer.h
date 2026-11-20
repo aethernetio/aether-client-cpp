@@ -17,12 +17,14 @@
 #ifndef AETHER_SAFE_STREAM_DETAILS_CIRCULAR_BUFFER_H_
 #define AETHER_SAFE_STREAM_DETAILS_CIRCULAR_BUFFER_H_
 
-#include <span>
-#include <array>
-#include <cstddef>
 #include <algorithm>
+#include <cstddef>
+#include <span>
+#include <stdexcept>
+#include <vector>
 
 #include "aether-miscpp/types/result.h"
+#include "aether/safe_stream/safe_stream_config.h"
 #include "aether/types/ring_index.h"
 
 namespace ae {
@@ -35,13 +37,10 @@ enum class CircularBufferError : unsigned char {
 /**
  * \brief Circular buffer to work with sending and receiving buffers
  */
-template <std::size_t Capacity, std::size_t IndexPeriod = Capacity>
 class CircularBuffer {
  public:
   using value_type = std::uint8_t;
-  static constexpr std::size_t kCapacity = Capacity;
-  static_assert(IndexPeriod % Capacity == 0);
-  using index_type = RingIndex<IndexPeriod>;
+  using index_type = RingIndex<kSafeStreamIndexPeriod>;
   using index_range_type = RingIndexRange<index_type>;
 
   struct DSpan {
@@ -53,9 +52,8 @@ class CircularBuffer {
     std::span<value_type const> second;
   };
 
-  constexpr CircularBuffer() noexcept = default;
-  explicit constexpr CircularBuffer(std::size_t start_offset) noexcept
-      : begin_{index_type{start_offset}}, end_{begin_} {}
+  explicit CircularBuffer(std::size_t capacity, index_type start = {})
+      : begin_{start}, end_{start}, buffer_(CheckedCapacity(capacity)) {}
 
   /**
    * \brief Push new data and return its range
@@ -73,22 +71,16 @@ class CircularBuffer {
   constexpr Result<index_range_type, CircularBufferError> Insert(
       index_type pos, std::span<value_type const> data) noexcept {
     auto const offset = Distance(begin_, pos);
-    auto const available = offset < kCapacity ? kCapacity - 1 - offset : 0;
-    if (data.size() > available) {
+    if (offset >= buffer_.size() || data.size() > buffer_.size() - 1 - offset) {
       return Error{CircularBufferError::kDataOverflow};
     }
-    auto start = pos;
-    // copy the data into array
-    // expect for 2 copies depends on does data overlaps buffer or not
-    while (!data.empty()) {
-      auto const buffer_offset = static_cast<std::size_t>(pos) % kCapacity;
-      auto remaining = buffer_.size() - buffer_offset;
-      auto copy_size = data.size() > remaining ? remaining : data.size();
-      std::copy_n(std::begin(data), copy_size,
-                  buffer_.data() + buffer_offset);
-      data = data.subspan(copy_size);
-      pos += copy_size;
-    }
+    auto const start = pos;
+    auto const slot = PhysicalSlot(offset);
+    auto const first_size = std::min(data.size(), buffer_.size() - slot);
+    std::copy_n(data.begin(), first_size, buffer_.data() + slot);
+    auto const remainder = data.subspan(first_size);
+    std::copy(remainder.begin(), remainder.end(), buffer_.data());
+    pos += data.size();
     // also move end_ to the right
     if (IndexComparable{pos, begin_} > end_) {
       end_ = pos;
@@ -117,11 +109,11 @@ class CircularBuffer {
     size = size > max_distance ? max_distance : size;
 
     // handle wrapping around the buffer
-    auto const buffer_offset = static_cast<std::size_t>(start) % kCapacity;
+    auto const buffer_offset = PhysicalSlot(Distance(begin_, start));
     auto const first_max_size = buffer_.size() - buffer_offset;
     std::size_t first_size = first_max_size > size ? size : first_max_size;
-    res.first = std::span<value_type const>(
-        buffer_.data() + buffer_offset, first_size);
+    res.first =
+        std::span<value_type const>(buffer_.data() + buffer_offset, first_size);
     if (first_size < size) {
       res.second =
           std::span<value_type const>(buffer_.data(), size - first_size);
@@ -137,6 +129,7 @@ class CircularBuffer {
       assert(false && "Erase out of bounds");
       return;
     }
+    begin_slot_ = PhysicalSlot(Distance(begin_, to));
     begin_ = to;
   }
   /**
@@ -153,6 +146,7 @@ class CircularBuffer {
 
   constexpr void Reset(std::size_t offset = 0) noexcept {
     begin_ = end_ = index_type{offset};
+    begin_slot_ = 0;
   }
 
   constexpr std::size_t size() const noexcept { return Distance(begin_, end_); }
@@ -160,17 +154,25 @@ class CircularBuffer {
   constexpr index_type end() const noexcept { return end_; }
 
  private:
-  index_type begin_{0};
-  index_type end_{0};
+  static std::size_t CheckedCapacity(std::size_t capacity) {
+    if (capacity < 3 || capacity > kSafeStreamIndexPeriod / 2) {
+      throw std::invalid_argument("Invalid SafeStream buffer capacity");
+    }
+    return capacity;
+  }
 
-  std::array<value_type, kCapacity> buffer_;
+  // Anchor physical storage to the first live byte. The wire index can wrap
+  // independently of buffer capacity, including for capacities such as 20 KiB.
+  constexpr std::size_t PhysicalSlot(std::size_t offset) const noexcept {
+    auto const slot = begin_slot_ + offset;
+    return slot < buffer_.size() ? slot : slot - buffer_.size();
+  }
+
+  index_type begin_;
+  index_type end_;
+  std::size_t begin_slot_{};
+  std::vector<value_type> buffer_;
 };
-
-// The wide wire offset wraps independently of the physical buffer.
-template <std::size_t Capacity, typename Offset>
-using SafeStreamBuffer =
-    CircularBuffer<Capacity, sizeof(Offset) == 4 ? (std::size_t{1} << 30)
-                                                  : Capacity>;
 
 }  // namespace ae
 

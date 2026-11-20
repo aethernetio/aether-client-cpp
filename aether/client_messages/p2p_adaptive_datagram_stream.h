@@ -17,10 +17,13 @@
 #ifndef AETHER_CLIENT_MESSAGES_P2P_ADAPTIVE_DATAGRAM_STREAM_H_
 #define AETHER_CLIENT_MESSAGES_P2P_ADAPTIVE_DATAGRAM_STREAM_H_
 
-#include <memory>
+#include "aether/config.h"
 
-#include "aether/adaptive_datagram/adaptive_datagram_stream.h"
-#include "aether/client_messages/p2p_message_stream.h"
+#if AE_SUPPORT_ADAPTIVE_DATAGRAM
+#  include <memory>
+
+#  include "aether/adaptive_datagram/adaptive_datagram_stream.h"
+#  include "aether/client_messages/p2p_message_stream.h"
 
 namespace ae {
 
@@ -61,4 +64,6 @@ class P2pAdaptiveDatagramStream final : public ByteIStream {
 };
 
 }  // namespace ae
+#endif  // AE_SUPPORT_ADAPTIVE_DATAGRAM
+
 #endif  // AETHER_CLIENT_MESSAGES_P2P_ADAPTIVE_DATAGRAM_STREAM_H_

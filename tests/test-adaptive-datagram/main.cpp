@@ -21,6 +21,8 @@ void tearDown() {}
 int test_rate_controller();
 int test_emulated_socket();
 int test_adaptive_stream();
+int test_receipt_pages();
+int test_adaptive_time();
 int test_recovery_controller();
 int test_saturation();
 int test_p2p_stream_write_budget();
@@ -28,5 +30,6 @@ int test_p2p_stream_write_budget();
 int main() {
   return test_rate_controller() + test_emulated_socket() +
          test_adaptive_stream() + test_recovery_controller() +
-         test_saturation() + test_p2p_stream_write_budget();
+         test_saturation() + test_p2p_stream_write_budget() +
+         test_receipt_pages() + test_adaptive_time();
 }

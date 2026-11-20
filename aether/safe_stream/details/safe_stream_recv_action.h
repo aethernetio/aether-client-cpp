@@ -29,39 +29,32 @@
 #include "aether/tele.h"
 
 namespace ae {
-template <typename Offset>
 class SafeStreamRecvActionDelegate {
  public:
   virtual ~SafeStreamRecvActionDelegate() = default;
 
-  virtual void SendAck(Offset index) = 0;
-  virtual void SendRepeatRequest(Offset index) = 0;
+  virtual void SendAck(SafeStreamOffset index) = 0;
+  virtual void SendRepeatRequest(SafeStreamOffset index) = 0;
   virtual void ReceiveData(DataBuffer& data) = 0;
 };
 
-using ISafeStreamRecvActionDelegate = SafeStreamRecvActionDelegate<std::uint16_t>;
-
-template <std::size_t Capacity, typename Offset = std::uint16_t>
 class SafeStreamRecvAction {
  public:
-  static constexpr std::size_t kCapacity = Capacity;
-  using CircularBufferImpl = SafeStreamBuffer<kCapacity, Offset>;
+  using CircularBufferImpl = CircularBuffer;
   using IndexType = CircularBufferImpl::index_type;
   using IndexRangeType = CircularBufferImpl::index_range_type;
   using ReceiveChunkListImpl = ReceiveChunkList<IndexType>;
 
   SafeStreamRecvAction(AeContext const& ae_context,
-                       SafeStreamRecvActionDelegate<Offset>& delegate,
+                       SafeStreamRecvActionDelegate& delegate,
                        SafeStreamConfig const& config)
       : ae_context_{ae_context},
         delegate_{&delegate},
         send_ack_timeout_{config.send_ack_timeout},
         send_repeat_timeout_{config.send_repeat_timeout},
         window_size_{config.window_size},
-        ack_batch_bytes_{std::min(config.ack_batch_bytes, config.window_size)} {
-    assert((window_size_ < Capacity / 2) &&
-           "Window size should be less than half of capacity");
-  }
+        ack_batch_bytes_{std::min(config.ack_batch_bytes, config.window_size)},
+        buffer_{config.CheckedBufferCapacity()} {}
 
   AE_CLASS_NO_COPY_MOVE(SafeStreamRecvAction)
 
@@ -69,13 +62,18 @@ class SafeStreamRecvAction {
     return chunks_ ? std::optional{session_offset} : std::nullopt;
   }
 
-  void PushData(Offset index, SafeStreamDataMessage<Offset> data_message) {
+  void PushData(SafeStreamOffset index, SafeStreamDataMessage data_message) {
     AETHER_TELED_DEBUG(
         "Data received index: {}, delta: {}, repeat {}, reset {}, size "
         "{}",
         index, data_message.delta_offset,
         static_cast<int>(data_message.repeat_count), data_message.reset,
         data_message.data.size());
+
+    if (data_message.data.empty() || index >= kSafeStreamIndexPeriod ||
+        data_message.delta_offset >= kSafeStreamIndexPeriod) {
+      return;
+    }
 
     // The first packet received, sync with the sender
     bool reset = false;
@@ -145,9 +143,10 @@ class SafeStreamRecvAction {
           AETHER_TELED_ERROR("Failed to add chunk: {}", buffer_res.error());
           // TODO: handle error!
         }
-        AETHER_TELED_DEBUG("Received packet index: {}, size: {}, repeat_count: {}",
-                       received_range.left, data_span.size(),
-                       static_cast<int>(repeat_count));
+        AETHER_TELED_DEBUG(
+            "Received packet index: {}, size: {}, repeat_count: {}",
+            received_range.left, data_span.size(),
+            static_cast<int>(repeat_count));
         EnqueueRecv();
         break;
       }
@@ -210,7 +209,8 @@ class SafeStreamRecvAction {
       last_emitted_ = recv_range.right;
       AETHER_TELED_DEBUG(
           "Emitted received data range: {}-{} size: {}, last_emitted_: {}",
-          recv_range.left, recv_range.right, data_buffer.size(), *last_emitted_);
+          recv_range.left, recv_range.right, data_buffer.size(),
+          *last_emitted_);
       delegate_->ReceiveData(data_buffer);
 
       chunks_->Acknowledge(recv_range.right);
@@ -219,7 +219,8 @@ class SafeStreamRecvAction {
       if (ack_batch_bytes_ != 0) {
         pending_ack_bytes_ += recv_range.distance() + 1;
       }
-      EnqueueAck(ack_batch_bytes_ != 0 && pending_ack_bytes_ >= ack_batch_bytes_);
+      EnqueueAck(ack_batch_bytes_ != 0 &&
+                 pending_ack_bytes_ >= ack_batch_bytes_);
     } else {
       AETHER_TELED_DEBUG("Receiver chunk unsuccess {}", res.error());
       // TODO: handle errors
@@ -233,7 +234,7 @@ class SafeStreamRecvAction {
     pending_ack_bytes_ = 0;
     auto ack_offset = static_cast<std::size_t>(*last_emitted_);
     AETHER_TELED_DEBUG("Send acknowledgement for offset: {}", ack_offset);
-    delegate_->SendAck(static_cast<Offset>(ack_offset));
+    delegate_->SendAck(static_cast<SafeStreamOffset>(ack_offset));
   }
 
   void HandleMissing() {
@@ -241,10 +242,11 @@ class SafeStreamRecvAction {
       return;
     }
     if (auto res = chunks_->FindMissedChunk(); res) {
-      AETHER_TELED_DEBUG("Send repeat request for offset range {}-{}", res->left,
-                     res->right);
+      AETHER_TELED_DEBUG("Send repeat request for offset range {}-{}",
+                         res->left, res->right);
       auto request_offset = static_cast<std::size_t>(res->left);
-      delegate_->SendRepeatRequest(static_cast<Offset>(request_offset));
+      delegate_->SendRepeatRequest(
+          static_cast<SafeStreamOffset>(request_offset));
       // enqueue again
       missing_timer_.Reset();
       EnqueueMissing();
@@ -252,7 +254,7 @@ class SafeStreamRecvAction {
   }
 
   AeContext ae_context_;
-  SafeStreamRecvActionDelegate<Offset>* delegate_;
+  SafeStreamRecvActionDelegate* delegate_;
 
   Duration send_ack_timeout_;
   Duration send_repeat_timeout_;

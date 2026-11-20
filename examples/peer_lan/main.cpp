@@ -6,7 +6,7 @@
 #include "../common/aether_construct_ethernet.h"
 #include "aether/peer/peer_transport.h"
 #include "aether/streams/stream_hierarchy.h"
-#if AE_SUPPORT_P2P && AE_SUPPORT_LAN
+#if AE_SUPPORT_P2P && AE_SUPPORT_LAN && AE_ENABLE_STREAM_HIERARCHY
 namespace ae::examples {
 bool Wait(AetherApp& app, auto predicate, unsigned seconds) {
   auto deadline =
@@ -126,7 +126,7 @@ int Run(bool offline) {
 }  // namespace ae::examples
 #endif
 int main(int argc, char** argv) {
-#if AE_SUPPORT_P2P && AE_SUPPORT_LAN
+#if AE_SUPPORT_P2P && AE_SUPPORT_LAN && AE_ENABLE_STREAM_HIERARCHY
   bool offline = argc > 1 && std::string_view{argv[1]} == "--offline";
   return ae::examples::Run(offline);
 #else

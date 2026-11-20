@@ -41,8 +41,6 @@ constexpr auto config = SafeStreamConfig{
     std::chrono::milliseconds{10},
 };
 
-static constexpr std::size_t kCapacity = 20 * 1024;
-
 static constexpr std::string_view test_data =
     "If I was in World War Two, they'd call me \"Spitfire\"";
 
@@ -51,8 +49,8 @@ TimePoint WaitUntil(TimePoint epoch, TimePoint till_time) {
   return epoch;
 }
 
-void TestSendPackets(TestContext& ctx, SafeStream<kCapacity>& sender,
-                     SafeStream<kCapacity>& receiver, int wait_messages) {
+void TestSendPackets(TestContext& ctx, SafeStream& sender, SafeStream& receiver,
+                     int wait_messages) {
   int sent_messages = 0;
   int failed_messages = 0;
   std::size_t received_size = 0;
@@ -108,8 +106,8 @@ void test_SafeStreamLostPackets() {
   subscriptions += r_mock_stream.on_write_event().Subscribe(
       [&](auto&& data) { s_mock_stream.WriteOut(data); });
 
-  auto sender = SafeStream<kCapacity>{ctx, config};
-  auto receiver = SafeStream<kCapacity>{ctx, config};
+  auto sender = SafeStream{ctx, config};
+  auto receiver = SafeStream{ctx, config};
 
   // Tie streams forward and back
   Tie(sender, s_packet_loss, s_mock_stream);
@@ -135,8 +133,8 @@ void test_SafeStreamPacketsReordered() {
   subscriptions += r_mock_stream.on_write_event().Subscribe(
       [&](auto&& data) { s_mock_stream.WriteOut(data); });
 
-  auto sender = SafeStream<kCapacity>{ctx, config};
-  auto receiver = SafeStream<kCapacity>{ctx, config};
+  auto sender = SafeStream{ctx, config};
+  auto receiver = SafeStream{ctx, config};
 
   // Tie streams forward and back
   Tie(sender, s_packet_delay, s_mock_stream);
@@ -166,14 +164,81 @@ void test_SafeStreamPacketsLostAndReordered() {
   subscriptions += r_mock_stream.on_write_event().Subscribe(
       [&](auto&& data) { s_mock_stream.WriteOut(data); });
 
-  auto sender = SafeStream<kCapacity>{ctx, config};
-  auto receiver = SafeStream<kCapacity>{ctx, config};
+  auto sender = SafeStream{ctx, config};
+  auto receiver = SafeStream{ctx, config};
 
   // Tie streams forward and back
   Tie(sender, s_packet_loss, s_packet_delay, s_mock_stream);
   Tie(receiver, r_packet_loss, r_packet_delay, r_mock_stream);
 
   TestSendPackets(ctx, sender, receiver, 100);
+}
+
+void test_LargeWindowLimitsUnacknowledgedBytes() {
+  TestContext ctx;
+  constexpr std::size_t kWindow = 256 * 1024;
+  auto large = config;
+  large.window_size = kWindow;
+  large.buffer_capacity = 700 * 1024;
+  large.max_packet_size = 300000;
+  large.wait_ack_timeout = std::chrono::seconds{2};
+  large.minimum_ack_timeout = large.wait_ack_timeout;
+
+  MockWriteStream outgoing{ctx, 2048};
+  MockWriteStream incoming{ctx, 2048};
+  SafeStream sender{ctx, large};
+  SafeStream receiver{ctx, large};
+  Tie(sender, outgoing);
+  Tie(receiver, incoming);
+
+  DataBuffer expected(large.max_packet_size);
+  for (std::size_t i = 0; i < expected.size(); ++i) {
+    expected[i] = static_cast<std::uint8_t>((i * 73u + (i >> 8)) & 0xffu);
+  }
+  DataBuffer received;
+  received.reserve(expected.size());
+  DataBuffer held_ack;
+  bool hold_ack = true;
+  bool acknowledged = false;
+  MultiSubscription subscriptions;
+  subscriptions += outgoing.on_write_event().Subscribe(
+      [&](auto const& data) { incoming.WriteOut(data); });
+  subscriptions += incoming.on_write_event().Subscribe([&](auto const& ack) {
+    if (hold_ack) {
+      held_ack = ack;
+    } else {
+      outgoing.WriteOut(ack);
+    }
+  });
+  subscriptions += receiver.out_data_event().Subscribe([&](auto const& data) {
+    received.insert(received.end(), data.begin(), data.end());
+  });
+  subscriptions += sender.Write(DataBuffer{expected})
+                       .status_event()
+                       .Subscribe([&](auto status) {
+                         acknowledged = status == WriteAction::Status::kSuccess;
+                       });
+
+  auto now = Now();
+  auto tick = [&] {
+    now += std::chrono::milliseconds{1};
+    ctx.Update(now);
+  };
+  for (unsigned i = 0; i < 600; ++i) {
+    tick();
+  }
+  TEST_ASSERT_EQUAL_UINT(kWindow, received.size());
+  TEST_ASSERT_FALSE(acknowledged);
+  TEST_ASSERT_FALSE(held_ack.empty());
+
+  hold_ack = false;
+  outgoing.WriteOut(held_ack);
+  for (unsigned i = 0; i < 600 && !acknowledged; ++i) {
+    tick();
+  }
+  TEST_ASSERT_TRUE(acknowledged);
+  TEST_ASSERT_EQUAL_UINT(expected.size(), received.size());
+  TEST_ASSERT_EQUAL_MEMORY(expected.data(), received.data(), expected.size());
 }
 
 }  // namespace ae::test_safe_stream_reliability
@@ -184,5 +249,7 @@ int test_safe_stream_reliability() {
   RUN_TEST(ae::test_safe_stream_reliability::test_SafeStreamPacketsReordered);
   RUN_TEST(
       ae::test_safe_stream_reliability::test_SafeStreamPacketsLostAndReordered);
+  RUN_TEST(ae::test_safe_stream_reliability::
+               test_LargeWindowLimitsUnacknowledgedBytes);
   return UNITY_END();
 }

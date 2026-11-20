@@ -239,9 +239,14 @@ if(AE_ENABLE_STREAM_HIERARCHY)
 endif()
 target_sources(${TARGET_NAME} PRIVATE ${aether_srcs})
 
-target_sources(aether PRIVATE
-   adaptive_datagram/adaptive_datagram_stream.cpp
-   adaptive_datagram/rate_controller.cpp
+target_sources(${TARGET_NAME} PRIVATE
    transport/emulated/emulated_datagram_socket.cpp
-   client_messages/p2p_adaptive_datagram_stream.cpp
-   client_messages/p2p_stream_write_budget.cpp)
+   client_messages/p2p_stream_write_budget.cpp
+   safe_stream/safe_stream.cpp)
+
+if(AE_SUPPORT_ADAPTIVE_DATAGRAM)
+  target_sources(${TARGET_NAME} PRIVATE
+    adaptive_datagram/adaptive_datagram_stream.cpp
+    adaptive_datagram/rate_controller.cpp
+    client_messages/p2p_adaptive_datagram_stream.cpp)
+endif()

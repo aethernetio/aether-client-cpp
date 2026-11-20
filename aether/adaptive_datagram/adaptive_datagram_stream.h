@@ -17,13 +17,16 @@
 #ifndef AETHER_ADAPTIVE_DATAGRAM_ADAPTIVE_DATAGRAM_STREAM_H_
 #define AETHER_ADAPTIVE_DATAGRAM_ADAPTIVE_DATAGRAM_STREAM_H_
 
-#include <functional>
-#include <memory>
+#include "aether/config.h"
 
-#include "aether/adaptive_datagram/adaptive_datagram_config.h"
-#include "aether/adaptive_datagram/rate_controller.h"
-#include "aether/ae_context.h"
-#include "aether/stream_api/istream.h"
+#if AE_SUPPORT_ADAPTIVE_DATAGRAM
+#  include <functional>
+#  include <memory>
+
+#  include "aether/adaptive_datagram/adaptive_datagram_config.h"
+#  include "aether/adaptive_datagram/rate_controller.h"
+#  include "aether/ae_context.h"
+#  include "aether/stream_api/istream.h"
 
 namespace ae {
 namespace adaptive_datagram {
@@ -96,4 +99,6 @@ class AdaptiveDatagramStream final : public ByteIStream {
   std::shared_ptr<Impl> impl_;
 };
 }  // namespace ae
+#endif  // AE_SUPPORT_ADAPTIVE_DATAGRAM
+
 #endif  // AETHER_ADAPTIVE_DATAGRAM_ADAPTIVE_DATAGRAM_STREAM_H_

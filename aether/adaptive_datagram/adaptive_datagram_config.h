@@ -25,6 +25,9 @@
 
 namespace ae::adaptive_datagram {
 
+inline constexpr std::size_t kMaxReceiptWindow =
+    std::numeric_limits<std::uint16_t>::max();
+
 // Runtime policy. Loss and latency targets are adaptation goals, not guarantees
 // for an arbitrary network. Durations use the project's microsecond clock unit.
 struct Config {
@@ -33,15 +36,15 @@ struct Config {
   Duration latency_target{100ms};
   Duration feedback_interval{10ms};
   Duration feedback_timeout{500ms};
-  // Both endpoints must support compact reports before enabling this mode.
-  // Use the same receipt window with a lower report frequency.
-  bool compact_feedback{false};
+  // Pack repeated receipt statuses at the configured feedback interval.
+  bool compact_feedback{true};
   Duration control_interval{100ms};
   std::uint64_t initial_rate_bytes_per_second{64000};
   std::uint64_t min_rate_bytes_per_second{2000};
   std::uint64_t max_rate_bytes_per_second{4000000};
   std::size_t max_datagram_size{1200};
   std::size_t max_queue_packets{128};
+  // Advertised to the receiver. A selective ACK immediately returns one slot.
   std::size_t max_in_flight_packets{512};
   std::size_t max_history_packets{4096};
   std::uint32_t min_samples{20};
@@ -75,7 +78,8 @@ struct Config {
            max_rate_bytes_per_second <= kMaxRate && max_datagram_size >= 256 &&
            max_datagram_size <= std::numeric_limits<std::uint16_t>::max() &&
            max_queue_packets > 0 && max_queue_packets <= kMaxPacketCount &&
-           max_in_flight_packets > 0 && max_in_flight_packets <= 512 &&
+           max_in_flight_packets > 0 &&
+           max_in_flight_packets <= kMaxReceiptWindow &&
            max_history_packets > 0 && max_history_packets <= kMaxPacketCount &&
            min_samples > 0 && min_samples <= max_history_packets &&
            session_id != 0 && stream_id != 0;

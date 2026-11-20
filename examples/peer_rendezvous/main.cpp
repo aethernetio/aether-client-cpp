@@ -12,7 +12,7 @@
 #include "aether/peer/rendezvous_client.h"
 #include "aether/peer/rendezvous_service.h"
 #include "aether/streams/stream_hierarchy.h"
-#if AE_SUPPORT_P2P && AE_SUPPORT_HOLE_PUNCH
+#if AE_SUPPORT_P2P && AE_SUPPORT_HOLE_PUNCH && AE_ENABLE_STREAM_HIERARCHY
 namespace ae::examples::peer_rendezvous {
 volatile std::sig_atomic_t stopping{};
 Uid ParseUid(char const* text) {
@@ -263,7 +263,7 @@ int Run(int argc, char** argv) {
 }  // namespace ae::examples::peer_rendezvous
 #endif
 int main(int argc, char** argv) {
-#if AE_SUPPORT_P2P && AE_SUPPORT_HOLE_PUNCH
+#if AE_SUPPORT_P2P && AE_SUPPORT_HOLE_PUNCH && AE_ENABLE_STREAM_HIERARCHY
   if (argc >= 3 &&
       (std::string{argv[1]} == "serve" || std::string{argv[1]} == "peer")) {
     return ae::examples::peer_rendezvous::Run(argc, argv);

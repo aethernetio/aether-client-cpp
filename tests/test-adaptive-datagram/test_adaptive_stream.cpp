@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "aether/adaptive_datagram/adaptive_datagram_stream.h"
+#include "aether/adaptive_datagram/receipt_page.h"
 #include "aether/client_messages/p2p_adaptive_datagram_stream.h"
 #include "aether/transport/emulated/emulated_datagram_socket.h"
 #include "aether/transport/system_sockets/udp/udp.h"
@@ -168,14 +169,68 @@ void test_LostFeedbackIsRepeatedWithoutDuplicatingPayload() {
   TEST_ASSERT_EQUAL(0, pair.first.statistics().lost);
 }
 
+void test_SelectiveAckReturnsCreditWhileTheFirstPacketIsMissing() {
+  Config config;
+  config.max_in_flight_packets = 2;
+  config.compact_feedback = true;
+  Pair pair{config};
+  EmulatedDatagramProfile profile;
+  profile.blackhole = true;
+  pair.network.SetProfile(0, profile);
+  pair.first.Write(DataBuffer{0});
+  pair.Run(5);
+  TEST_ASSERT_EQUAL(1, pair.first.statistics().in_flight);
+
+  profile.blackhole = false;
+  pair.network.SetProfile(0, profile);
+  for (std::uint8_t value = 1; value <= 4; ++value) {
+    pair.first.Write(DataBuffer{value});
+    pair.Run(40);
+  }
+  auto stats = pair.first.statistics();
+  TEST_ASSERT_EQUAL(4, pair.received.size());
+  TEST_ASSERT_EQUAL(4, stats.delivered);
+  TEST_ASSERT_EQUAL(1, stats.in_flight);
+  pair.Run(600);
+  stats = pair.first.statistics();
+  TEST_ASSERT_EQUAL(0, stats.in_flight);
+  TEST_ASSERT_EQUAL(1, stats.lost + stats.unconfirmed);
+  TEST_ASSERT_EQUAL(4, stats.delivered);
+}
+
+void test_WideWindowReturnsEveryCreditAfterLostReports() {
+  Config config;
+  config.max_in_flight_packets = 8192;
+  config.compact_feedback = true;
+  config.feedback_timeout = 2s;
+  config.initial_rate_bytes_per_second = 2000000;
+  Pair pair{config};
+  EmulatedDatagramProfile profile;
+  profile.blackhole = true;
+  pair.network.SetProfile(1, profile);
+  for (unsigned i = 0; i < 700; ++i) {
+    pair.first.Write(DataBuffer{static_cast<std::uint8_t>(i)});
+    pair.Step();
+  }
+  pair.Run(30);
+  TEST_ASSERT_EQUAL(700, pair.first.statistics().in_flight);
+  TEST_ASSERT_EQUAL(700, pair.received.size());
+  profile.blackhole = false;
+  pair.network.SetProfile(1, profile);
+  pair.Run(100);
+  TEST_ASSERT_EQUAL(0, pair.first.statistics().in_flight);
+  TEST_ASSERT_EQUAL(700, pair.first.statistics().delivered);
+}
+
 void test_CompactFeedbackPreservesReceiptsAndReducesReverseBytes() {
   Config config;
   config.initial_rate_bytes_per_second = 2000000;
-  Pair legacy{config};
+  config.compact_feedback = false;
+  Pair dense{config};
   config.compact_feedback = true;
   Pair compact{config};
 
-  for (auto* pair : {&legacy, &compact}) {
+  for (auto* pair : {&dense, &compact}) {
     pair->Run(2000, true, 2);
     pair->Run(800);
     TEST_ASSERT_EQUAL(1000, pair->received.size());
@@ -183,8 +238,65 @@ void test_CompactFeedbackPreservesReceiptsAndReducesReverseBytes() {
     TEST_ASSERT_EQUAL(0, pair->first.statistics().unconfirmed);
     TEST_ASSERT_EQUAL(0, pair->first.statistics().malformed);
   }
-  TEST_ASSERT_TRUE(compact.network.stats(1).bytes_sent * 10 <=
-                   legacy.network.stats(1).bytes_sent);
+  TEST_ASSERT_EQUAL(dense.second.statistics().feedback_sent,
+                    compact.second.statistics().feedback_sent);
+  TEST_ASSERT_TRUE(compact.network.stats(1).bytes_sent <
+                   dense.network.stats(1).bytes_sent);
+}
+
+void test_ReceiptPagePackedAndDenseBoundaries() {
+  namespace page = adaptive_datagram::receipt_page_internal;
+  for (unsigned count : {54U, 55U, 2590U, 2591U, 65535U}) {
+    adaptive_datagram::Feedback report;
+    report.largest_sequence = count + 17;
+    report.range_offset = 0;
+    page::Encode(report, DataBuffer(count, 2), count, 16, true);
+    TEST_ASSERT_EQUAL(1, report.encoding);
+    TEST_ASSERT_EQUAL(count, report.count);
+    TEST_ASSERT_EQUAL(count <= 54 ? 1 : (count <= 2590 ? 2 : 4),
+                      report.statuses.size());
+    DataBuffer decoded;
+    TEST_ASSERT_TRUE(page::Decode(report, count, decoded));
+    TEST_ASSERT_TRUE(decoded == DataBuffer(count, 2));
+  }
+  DataBuffer mixed(511);
+  for (std::size_t i = 0; i < mixed.size(); ++i) {
+    mixed[i] = static_cast<std::uint8_t>(i % 3);
+  }
+  adaptive_datagram::Feedback report;
+  report.largest_sequence = 1200;
+  report.range_offset = 16;
+  page::Encode(report, mixed, 495, 20, true);
+  TEST_ASSERT_EQUAL(0, report.encoding);
+  TEST_ASSERT_EQUAL(80, report.count);
+  DataBuffer decoded;
+  TEST_ASSERT_TRUE(page::Decode(report, mixed.size(), decoded));
+  for (std::size_t i = 0; i < decoded.size(); ++i) {
+    TEST_ASSERT_EQUAL(mixed[(1184 - i) % mixed.size()], decoded[i]);
+  }
+}
+
+void test_InvalidReceiptPageIsRejected() {
+  namespace page = adaptive_datagram::receipt_page_internal;
+  adaptive_datagram::Feedback report;
+  report.largest_sequence = 80;
+  report.count = 4;
+  auto invalid = [&] {
+    DataBuffer decoded;
+    return !page::Decode(report, 64, decoded);
+  };
+  report.statuses = {3};
+  TEST_ASSERT_TRUE(invalid());  // Reserved dense status.
+  report.encoding = 1;
+  report.statuses = {255};
+  TEST_ASSERT_TRUE(invalid());  // Truncated extension.
+  report.statuses = {2};
+  TEST_ASSERT_TRUE(invalid());  // Only one of four statuses.
+  report.statuses = {18};
+  TEST_ASSERT_TRUE(invalid());  // Run extends past the end of the page.
+  report.statuses = {14};
+  report.range_offset = 61;
+  TEST_ASSERT_TRUE(invalid());  // Page begins outside the advertised window.
 }
 
 void test_BoundedQueueExpiresBlockedWrites() {
@@ -466,7 +578,11 @@ int test_adaptive_stream() {
   RUN_TEST(test_DuplicatesAndReorderingDoNotDuplicateMessages);
   RUN_TEST(test_LateDataIsNotDeliveredToApplication);
   RUN_TEST(test_LostFeedbackIsRepeatedWithoutDuplicatingPayload);
+  RUN_TEST(test_SelectiveAckReturnsCreditWhileTheFirstPacketIsMissing);
+  RUN_TEST(test_WideWindowReturnsEveryCreditAfterLostReports);
   RUN_TEST(test_CompactFeedbackPreservesReceiptsAndReducesReverseBytes);
+  RUN_TEST(test_ReceiptPagePackedAndDenseBoundaries);
+  RUN_TEST(test_InvalidReceiptPageIsRejected);
   RUN_TEST(test_BoundedQueueExpiresBlockedWrites);
   RUN_TEST(test_CancelAndUnlinkStopPendingWrites);
   RUN_TEST(test_RateRespondsToCapacityDropAndRecovery);

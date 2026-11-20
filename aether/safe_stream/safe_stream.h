@@ -19,6 +19,7 @@
 
 #include "aether/actions/action_context.h"
 #include "aether/common.h"
+#include "aether/config.h"
 #include "aether/write_action/failed_write_action.h"
 
 #include "aether/safe_stream/details/safe_stream_api.h"
@@ -33,18 +34,11 @@
 #include "aether/tele.h"
 
 namespace ae {
-class SafeStreamBase : public ByteStream {
- public:
-  using ByteStream::ByteStream;
-  virtual std::optional<std::size_t> receive_session_offset() const = 0;
-};
-
-template <std::size_t Capacity, typename Offset>
-class SafeStream final : public SafeStreamBase,
-                         public ISafeStreamSendActionDelegate<Capacity, Offset>,
-                         public SafeStreamRecvActionDelegate<Offset> {
-  using Api = SafeStreamApi<Offset>;
-  using IndexType = typename SafeStreamBuffer<Capacity, Offset>::index_type;
+class SafeStream final : public ByteStream,
+                         public ISafeStreamSendActionDelegate,
+                         public SafeStreamRecvActionDelegate {
+  using Api = SafeStreamApi;
+  using IndexType = CircularBuffer::index_type;
   using IndexRangeType = RingIndexRange<IndexType>;
 
   class SSWriteAction final : public WriteAction {
@@ -69,27 +63,32 @@ class SafeStream final : public SafeStreamBase,
    public:
     explicit SafeStreamApiServer(SafeStream& self) : self_{&self} {}
     // Api impl methods
-    void Ack(Offset index) override {
+    void Ack(SafeStreamOffset index) override {
       self_->sender_.Acknowledge(index);
     }
-    void RequestRepeat(Offset index) override {
+    void RequestRepeat(SafeStreamOffset index) override {
       self_->sender_.RequestRepeat(index);
     }
-    void SendReset(Offset begin_offset, Offset delta_offset,
-                   std::uint8_t repeat_count, DataBuffer data) override {
-      self_->receiver_.PushData(begin_offset,
-                                SafeStreamDataMessage<Offset>{.reset = true,
-                                            .repeat_count = repeat_count,
-                                            .delta_offset = delta_offset,
-                                            .data = std::move(data)});
+    void SendReset(SafeStreamOffset begin_offset,
+                   SafeStreamWireDelta delta_offset, std::uint8_t repeat_count,
+                   DataBuffer data) override {
+      self_->receiver_.PushData(
+          begin_offset,
+          SafeStreamDataMessage{
+              .reset = true,
+              .repeat_count = repeat_count,
+              .delta_offset = static_cast<SafeStreamOffset>(delta_offset),
+              .data = std::move(data)});
     }
-    void Send(Offset begin_offset, Offset delta_offset,
+    void Send(SafeStreamOffset begin_offset, SafeStreamWireDelta delta_offset,
               std::uint8_t repeat_count, DataBuffer data) override {
-      self_->receiver_.PushData(begin_offset,
-                                SafeStreamDataMessage<Offset>{.reset = false,
-                                            .repeat_count = repeat_count,
-                                            .delta_offset = delta_offset,
-                                            .data = std::move(data)});
+      self_->receiver_.PushData(
+          begin_offset,
+          SafeStreamDataMessage{
+              .reset = false,
+              .repeat_count = repeat_count,
+              .delta_offset = static_cast<SafeStreamOffset>(delta_offset),
+              .data = std::move(data)});
     }
 
    private:
@@ -99,39 +98,27 @@ class SafeStream final : public SafeStreamBase,
   class SafeStreamApiClient : public Api {
    public:
     // Api impl methods
-    void Ack(Offset index) override {
-      this->template ClientMethod<&Api::Ack>(index);
+    void Ack(SafeStreamOffset index) override {
+      ClientMethod<&Api::Ack>(index);
     }
-    void RequestRepeat(Offset index) override {
-      this->template ClientMethod<&Api::RequestRepeat>(index);
+    void RequestRepeat(SafeStreamOffset index) override {
+      ClientMethod<&Api::RequestRepeat>(index);
     }
-    void SendReset(Offset begin_offset, Offset delta_offset,
-                   std::uint8_t repeat_count, DataBuffer data) override {
-      this->template ClientMethod<&Api::SendReset>(begin_offset, delta_offset,
-                                               repeat_count, data);
+    void SendReset(SafeStreamOffset begin_offset,
+                   SafeStreamWireDelta delta_offset, std::uint8_t repeat_count,
+                   DataBuffer data) override {
+      ClientMethod<&Api::SendReset>(begin_offset, delta_offset, repeat_count,
+                                    data);
     }
-    void Send(Offset begin_offset, Offset delta_offset,
+    void Send(SafeStreamOffset begin_offset, SafeStreamWireDelta delta_offset,
               std::uint8_t repeat_count, DataBuffer data) override {
-      this->template ClientMethod<&Api::Send>(begin_offset, delta_offset,
-                                          repeat_count, data);
+      ClientMethod<&Api::Send>(begin_offset, delta_offset, repeat_count, data);
     }
   };
 
  public:
-  using SafeStreamSender = SafeStreamSendAction<Capacity, Offset>;
-  using SafeStreamReceiver = SafeStreamRecvAction<Capacity, Offset>;
-
-  SafeStream(AeContext const& ae_context, SafeStreamConfig config)
-      : SafeStreamBase{ae_context},
-        ae_context_{ae_context},
-        config_{config},
-        protocol_context_(ae_context_),
-        api_server_{*this},
-        api_client_{},
-        sender_{ae_context_, *this, config_},
-        receiver_{ae_context_, *this, config_},
-        stream_info_{config_.max_packet_size, config_.max_packet_size, false,
-                     LinkState::kUnlinked, false} {}
+  SafeStream(AeContext const& ae_context, SafeStreamConfig config);
+  ~SafeStream() override;
 
   AE_CLASS_NO_COPY_MOVE(SafeStream);
 
@@ -158,7 +145,7 @@ class SafeStream final : public SafeStreamBase,
     return info;
   }
 
-  std::optional<std::size_t> receive_session_offset() const override {
+  std::optional<std::size_t> receive_session_offset() const {
     return receiver_.receive_session_offset();
   }
 
@@ -178,9 +165,9 @@ class SafeStream final : public SafeStreamBase,
            (out_ != nullptr && out_->stream_info().is_writable);
   }
 
-  WriteAction& PushData(
-      Offset begin_offset,
-      SafeStreamDataMessage<Offset>&& data_message) override {  // NOLINT (*param-not-moved)
+  WriteAction& PushData(SafeStreamOffset begin_offset,
+                        SafeStreamDataMessage&& data_message)
+      override {  // NOLINT (*param-not-moved)
     assert(out_);
     auto api_adapter = ApiCallAdapter{api_client_, *out_};
     if (data_message.reset) {
@@ -199,14 +186,14 @@ class SafeStream final : public SafeStreamBase,
   }
 
   // Implement ISafeStreamRecvActionDelegate
-  void SendAck(Offset index) override {
+  void SendAck(SafeStreamOffset index) override {
     assert(out_);
     auto api_adapter = ApiCallAdapter{api_client_, *out_};
     api_adapter->Ack(index);
     api_adapter.Flush();
   }
 
-  void SendRepeatRequest(Offset index) override {
+  void SendRepeatRequest(SafeStreamOffset index) override {
     assert(out_);
     auto api_adapter = ApiCallAdapter{api_client_, *out_};
     api_adapter->RequestRepeat(index);
@@ -222,7 +209,8 @@ class SafeStream final : public SafeStreamBase,
   void OnStreamUpdate() {
     AETHER_TELED_DEBUG("Safe stream update");
     static constexpr std::size_t kSendOverhead =
-        1 + sizeof(Offset) + sizeof(Offset) + 1 + 2;
+        1 + sizeof(SafeStreamOffset) + SafeStreamWireDelta::kMaxWireBytes + 1 +
+        2;
 
     auto out_info = out_->stream_info();
     stream_info_.link_state = out_info.link_state;
@@ -282,8 +270,8 @@ class SafeStream final : public SafeStreamBase,
   ProtocolContext protocol_context_;
   SafeStreamApiServer api_server_;
   SafeStreamApiClient api_client_;
-  SafeStreamSender sender_;
-  SafeStreamReceiver receiver_;
+  SafeStreamSendAction sender_;
+  SafeStreamRecvAction receiver_;
 
   std::optional<FailedWriteAction> failed_write_;
   std::vector<std::pair<IndexType, std::unique_ptr<SSWriteAction>>> sswas_;
