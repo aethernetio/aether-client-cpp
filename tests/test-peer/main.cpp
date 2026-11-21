@@ -16,6 +16,7 @@
 #  include "aether/aether.h"
 #  include "aether/client.h"
 #  include "aether/client_messages/p2p_message_stream.h"
+#  include "aether/client_messages/raw_resource.h"
 #  include "aether/connection_manager/client_cloud_manager.h"
 #  include "aether/connection_manager/peer_presence_query.h"
 #  include "aether/crypto.h"
@@ -852,6 +853,83 @@ AddressPort LoopbackEndpoint(PeerTransport& transport) {
   }
   throw std::runtime_error("Loopback interface unavailable");
 }
+
+#  ifdef _WIN32
+void test_BalancedRawWritesAcrossTwoLocalhostPeers() {
+  ClientFixture fixture;
+  auto app = RandomPeerToken();
+  auto a = fixture.Add(fixture.ca.Issue(), "source", app);
+  auto b = fixture.Add(fixture.ca.Issue(), "interactive", app);
+  auto c = fixture.Add(fixture.ca.Issue(), "background", app);
+  AeContext context{*fixture.aether};
+  RawResourceConfig config;
+  config.flight_packets =
+      1;  // Another submission needs a real reverse receipt.
+  config.receipt_timeout_us = 10000000;
+  config.queue_lifetime_us = 2000000;
+  auto resource = std::make_shared<PrioritySendQueue>(context, config);
+  StreamRoutePolicy route{false, true, false, false, false};
+  auto make = [&](auto& src, auto& dst, SendPriority priority,
+                  RawSendBinding binding) {
+    return std::make_unique<P2pStream>(
+        context, src.Load(), dst->uid(),
+        src->message_stream_manager().CreatePort(dst->uid(), 91),
+        RequestPolicy::MainServer{}, route, StreamSendPolicy{priority, 1000},
+        binding);
+  };
+  auto ab = make(a, b, SendPriority::kInteractive, {resource, 1});
+  auto ac = make(a, c, SendPriority::kBackground, {resource, 1});
+  auto ba = make(b, a, SendPriority::kInteractive, {});
+  auto ca = make(c, a, SendPriority::kBackground, {});
+  RawReceiptSink sink_b, sink_c;
+  unsigned received_b{}, received_c{};
+  Subscription sb = ba->out_data_event().Subscribe([&](DataBuffer const& data) {
+    auto payload = sink_b.Receive(*ba, data);
+    if (payload && payload->size() == 1 && payload->front() == 42) {
+      ++received_b;
+    }
+  });
+  Subscription sc = ca->out_data_event().Subscribe([&](DataBuffer const& data) {
+    auto payload = sink_c.Receive(*ca, data);
+    if (payload && payload->size() == 2 && payload->front() == 24) {
+      ++received_c;
+    }
+  });
+  a->peer_transport()->Connect(
+      {b->uid(), LoopbackEndpoint(*b->peer_transport())});
+  a->peer_transport()->Connect(
+      {c->uid(), LoopbackEndpoint(*c->peer_transport())});
+  auto wait = [&](auto done) {
+    auto until = std::chrono::steady_clock::now() + std::chrono::seconds{4};
+    while (!done() && std::chrono::steady_clock::now() < until) {
+      fixture.Update();
+      std::this_thread::sleep_for(std::chrono::milliseconds{1});
+    }
+    return done();
+  };
+  TEST_ASSERT_TRUE(wait([&] {
+    return ab->stream_info().is_writable && ac->stream_info().is_writable &&
+           ba->stream_info().is_writable && ca->stream_info().is_writable;
+  }));
+  TEST_ASSERT_NOT_NULL(ab->TryWriteRaw({42}));
+  TEST_ASSERT_NOT_NULL(ac->TryWriteRaw({24, 0}));
+  auto* cancelled = ab->TryWriteRaw({99});
+  TEST_ASSERT_NOT_NULL(cancelled);
+  DataBuffer rejected{17};
+  TEST_ASSERT_NULL(ab->TryWriteRaw(std::move(rejected)));
+  TEST_ASSERT_EQUAL_UINT(1, rejected.size());
+  cancelled->Stop();
+  TEST_ASSERT_TRUE(wait([&] { return received_b == 1 && received_c == 1; }));
+  TEST_ASSERT_NOT_NULL(ab->TryWriteRaw({42}));
+  TEST_ASSERT_TRUE(wait([&] { return received_b == 2; }));
+  TEST_ASSERT_NOT_NULL(ac->TryWriteRaw({24, 0}));
+  ac.reset();
+  for (int i = 0; i < 10; ++i) {
+    fixture.Update();
+  }
+  TEST_ASSERT_EQUAL_UINT(1, received_c);
+}
+#  endif
 #  if AE_ENABLE_STREAM_HIERARCHY
 void test_ExistingStreamsOverAuthenticatedUdpAndIndependentChildren() {
   ClientFixture fixture;
@@ -907,6 +985,115 @@ class HeldPacketWrite : public WriteAction {
   explicit HeldPacketWrite(AeContext context) : WriteAction{context} {}
   void Complete() { SetStatus(Status::kSuccess); }
 };
+
+#  ifdef _WIN32
+void test_RawMissingReceiptsAndGenerationIsolation() {
+  RawResourceConfig config;
+  config.flight_packets = 2;
+  config.flight_bytes = 200;
+  config.receipt_timeout_us = 100000;
+  RawResource control{config};
+  auto id = control.Open(SendPriority::kNormal, 1);
+  std::array candidates{RawHead{id, 100}};
+  control.Update(0);
+  for (int i = 0; i < 2; ++i) {
+    auto t = i * 1000;
+    TEST_ASSERT_TRUE(control.CanQueue(id, 100));
+    control.Queued(id, 100);
+    TEST_ASSERT_TRUE(control.Choose(candidates, t).has_value());
+    control.Sent(id, 100, t);
+    control.Removed(id, 100);
+  }
+  TEST_ASSERT_EQUAL_UINT(200, control.in_flight());
+  for (int t = 2000; t < 100000; t += 100) {
+    control.Update(t);
+    TEST_ASSERT_FALSE(control.Choose(candidates, t).has_value());
+  }
+  control.Close(id);
+  auto reused = control.Open(SendPriority::kInteractive, 1);
+  TEST_ASSERT_EQUAL_UINT(id, reused);
+  TEST_ASSERT_FALSE(control.Receipt(reused, 2, 99000));
+  control.Update(102000);
+  TEST_ASSERT_EQUAL_UINT(0, control.in_flight());
+  control.Queued(reused, 100);
+  control.Sent(reused, 100, 102000);
+  control.Removed(reused, 100);
+  TEST_ASSERT_TRUE(control.Receipt(reused, 3, 103000));
+  TEST_ASSERT_FALSE(control.Receipt(reused, 3, 104000));
+  auto ack = RawAck({81, 3});
+  TEST_ASSERT_FALSE(ReadRawHeader(ack, false).has_value());
+  ack.push_back(0);
+  TEST_ASSERT_FALSE(ReadRawHeader(ack, true).has_value());
+}
+void test_StoppedRawWriterAndIndependentResource() {
+  ClientFixture fixture;
+  AeContext context{*fixture.aether};
+  RawResourceConfig config;
+  config.max_flows = 1;
+  config.slots_per_flow = 2;
+  config.bytes_per_flow = 2000;
+  config.queue_lifetime_us = 250000;
+  PrioritySendQueue slow{context, config}, fast{context, config};
+  auto slow_flow = slow.OpenRawFlow(&slow, SendPriority::kInteractive, 1);
+  auto fast_flow = fast.OpenRawFlow(&fast, SendPriority::kBackground, 1);
+  HeldPacketWrite held{context}, other{context};
+  unsigned calls{}, independent{}, stopped{};
+  auto stall = [&]() -> WriteAction* {
+    ++calls;
+    return &held;
+  };
+  auto* first = slow.EnqueueRaw(slow_flow, &slow, 1000, stall);
+  TEST_ASSERT_NOT_NULL(first);
+  auto* waiting = slow.EnqueueRaw(slow_flow, &slow, 1000, stall);
+  TEST_ASSERT_NOT_NULL(waiting);
+  bool expired{};
+  Subscription expiry = waiting->status_event().Subscribe(
+      [&](auto status) { expired = status == WriteAction::Status::kFail; });
+  for (unsigned i = 0; i < 10000; ++i) {
+    TEST_ASSERT_NULL(slow.EnqueueRaw(slow_flow, &slow, 1, stall));
+  }
+  Subscription sub = first->status_event().Subscribe([&](auto status) {
+    if (status == WriteAction::Status::kStop) {
+      ++stopped;
+    }
+  });
+  TEST_ASSERT_NOT_NULL(
+      fast.EnqueueRaw(fast_flow, &fast, 1000, [&]() -> WriteAction* {
+        ++independent;
+        return &other;
+      }));
+  fixture.Update();
+  TEST_ASSERT_EQUAL_UINT(1, calls);
+  TEST_ASSERT_EQUAL_UINT(1, independent);
+  other.Complete();
+  auto until = std::chrono::steady_clock::now() + std::chrono::seconds{1};
+  while (!expired && std::chrono::steady_clock::now() < until) {
+    fixture.Update();
+    std::this_thread::sleep_for(std::chrono::milliseconds{1});
+  }
+  TEST_ASSERT_TRUE(expired);
+  slow.CloseRawFlow(slow_flow, &slow);
+  held.Complete();  // Late status from the detached lower writer.
+  fixture.Update();
+  TEST_ASSERT_EQUAL_UINT(1, stopped);
+  TEST_ASSERT_EQUAL_UINT(1, calls);
+  fast.CloseRawFlow(fast_flow, &fast);
+  HeldPacketWrite late{context};
+  auto transient = std::make_unique<PrioritySendQueue>(context, config);
+  auto id = transient->OpenRawFlow(&late, SendPriority::kNormal, 1);
+  auto* terminal = transient->EnqueueRaw(
+      id, &late, 1000, [&]() -> WriteAction* { return &late; });
+  TEST_ASSERT_NOT_NULL(terminal);
+  unsigned notifications{};
+  Subscription observed =
+      terminal->status_event().Subscribe([&](auto) { ++notifications; });
+  fixture.Update();
+  transient.reset();
+  late.Complete();
+  fixture.Update();
+  TEST_ASSERT_EQUAL_UINT(1, notifications);
+}
+#  endif
 void test_InteractivePacketsOvertakeReadyFilePackets() {
   ClientFixture fixture;
   PrioritySendQueue queue{AeContext{*fixture.aether}};
@@ -1749,6 +1936,11 @@ int main() {
   RUN_TEST(test_RendezvousCloudLookupsReleaseTheirActionSlots);
 #  if AE_ENABLE_STREAM_HIERARCHY && !AE_SUPPORT_ADAPTIVE_DATAGRAM
   RUN_TEST(test_ExcludedStreamDeliveryCannotBeConfigured);
+#  endif
+#  ifdef _WIN32
+  RUN_TEST(test_BalancedRawWritesAcrossTwoLocalhostPeers);
+  RUN_TEST(test_StoppedRawWriterAndIndependentResource);
+  RUN_TEST(test_RawMissingReceiptsAndGenerationIsolation);
 #  endif
   RUN_TEST(test_InteractivePacketsOvertakeReadyFilePackets);
   RUN_TEST(test_BackgroundCannotFillInteractiveQueueSlots);

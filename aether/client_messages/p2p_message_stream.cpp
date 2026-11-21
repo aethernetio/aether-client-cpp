@@ -159,7 +159,7 @@ P2pStream::P2pStream(AeContext const& ae_context, Ptr<Client> const& client,
                      Uid destination, P2pPortHandle handle,
                      RequestPolicy::Variant send_request_policy,
                      StreamRoutePolicy route_policy,
-                     StreamSendPolicy send_policy)
+                     StreamSendPolicy send_policy, RawSendBinding binding)
     : ae_context_{ae_context},
       client_{client},
       destination_{std::move(destination)},
@@ -167,6 +167,7 @@ P2pStream::P2pStream(AeContext const& ae_context, Ptr<Client> const& client,
       send_request_policy_{std::move(send_request_policy)},
       route_policy_{route_policy},
       send_policy_{send_policy},
+      binding_{std::move(binding)},
       buffer_write_{ae_context_, MethodPtr<&P2pStream::OnWrite>{this}},
       out_data_event_{ae_context_},
       stream_update_event_{ae_context_},
@@ -178,14 +179,18 @@ P2pStream::P2pStream(AeContext const& ae_context, Ptr<Client> const& client,
       send_policy_.max_packet_bytes > AE_SOCKET_SEND_BUFFER_BYTES - 256) {
     throw std::invalid_argument("Invalid stream packet budget");
   }
-  send_writable_sub_ = client->send_queue().writable_event().Subscribe([this] {
+  if (binding_.resource &&
+      (!handle_ || send_policy_.max_packet_bytes <= kRawHeaderBytes)) {
+    throw std::invalid_argument(
+        "Balanced Raw needs a return port and frame budget");
+  }
+  auto& queue = binding_.resource ? *binding_.resource : client->send_queue();
+  send_writable_sub_ = queue.writable_event().Subscribe([this] {
     if (!buffer_write_.is_buffer_on()) {
       buffer_write_.buffer_off();
     }
     auto owner = client_.Lock();
-    bool writable = owner && owner->send_queue().CanEnqueue(
-                                 send_policy_.priority,
-                                 send_policy_.max_packet_bytes + 128);
+    bool writable = owner && HasCredit(*owner);
     if (queue_writable_ != writable) {
       queue_writable_ = writable;
       stream_update_event_.Emit();
@@ -229,12 +234,28 @@ P2pStream::P2pStream(AeContext const& ae_context, Ptr<Client> const& client,
     }
   }
 #endif
+  if (binding_.resource) {
+    try {
+      raw_flow_ = binding_.resource->OpenRawFlow(this, send_policy_.priority,
+                                                 binding_.weight);
+    } catch (...) {
+      client->message_stream_manager().ReleasePeerRoute(
+          destination_, route_policy_.keep_backup_channels,
+          route_policy_.hole_punching);
+      throw;
+    }
+  }
 }
 
 P2pStream::~P2pStream() {
   send_writable_sub_.Reset();
+  if (raw_flow_) {
+    binding_.resource->CloseRawFlow(*raw_flow_, this);
+  }
   if (auto client = client_.Lock()) {
-    client->send_queue().Cancel(this);
+    if (!raw_flow_) {
+      client->send_queue().Cancel(this);
+    }
     client->message_stream_manager().ReleasePeerRoute(
         destination_, route_policy_.keep_backup_channels,
         route_policy_.hole_punching);
@@ -242,7 +263,12 @@ P2pStream::~P2pStream() {
 }
 
 WriteAction& P2pStream::Write(DataBuffer&& data) {
-  if (data.size() > send_policy_.max_packet_bytes) {
+  if (raw_flow_) {
+    if (auto* action = TryWriteRaw(std::move(data))) {
+      return *action;
+    }
+  }
+  if (raw_flow_ || data.size() > send_policy_.max_packet_bytes) {
     if (!failed_write_ || failed_write_->is_finished()) {
       failed_write_.emplace(ae_context_);
     }
@@ -254,11 +280,46 @@ WriteAction& P2pStream::Write(DataBuffer&& data) {
   return buffer_write_.Write(std::move(message_data));
 }
 
+bool P2pStream::HasCredit(Client& client) const {
+  auto bytes = send_policy_.max_packet_bytes + 128u;
+  if (binding_.resource) {
+    return raw_flow_ && binding_.resource->CanQueueRaw(*raw_flow_, bytes);
+  }
+  return client.send_queue().CanEnqueue(send_policy_.priority, bytes);
+}
+WriteAction* P2pStream::TryWriteRaw(DataBuffer&& data) {
+  if (!raw_flow_ ||
+      data.size() > send_policy_.max_packet_bytes - kRawHeaderBytes) {
+    return nullptr;
+  }
+  unsigned bytes = static_cast<unsigned>(data.size()) + kRawHeaderBytes + 128u;
+  if (!binding_.resource->CanQueueRaw(*raw_flow_, bytes)) {
+    return nullptr;
+  }
+  // Bound retained allocation even for a small vector with a huge capacity.
+  DataBuffer payload(data.begin(), data.end());
+  auto* entry = binding_.resource->EnqueueRaw(
+      *raw_flow_, this, bytes, [this, payload = std::move(payload)] {
+        auto tag = binding_.resource->NextRawReceipt();
+        AeMessage message{destination_, RawFrame(tag, payload)};
+        std::optional<AeMessage> prepared;
+        return SendNow(message, prepared);
+      });
+  auto writable = binding_.resource->CanQueueRaw(
+      *raw_flow_, send_policy_.max_packet_bytes + 128u);
+  if (writable != queue_writable_) {
+    queue_writable_ = writable;
+    stream_update_event_.Emit();
+  }
+  return entry;
+}
 P2pStream::StreamUpdateEvent const& P2pStream::stream_update_event() {
   return stream_update_event_;
 }
 
 StreamInfo P2pStream::stream_info() const {
+  auto payload_limit = send_policy_.max_packet_bytes -
+                       (binding_.resource ? kRawHeaderBytes : 0u);
 #if AE_SUPPORT_P2P
   auto client = client_.Lock();
   if (client) {
@@ -266,10 +327,8 @@ StreamInfo P2pStream::stream_info() const {
         peer &&
         peer->BestPath(destination_, route_policy_.lan, route_policy_.direct_ip,
                        route_policy_.hole_punching)) {
-      return {std::min<std::uint32_t>(1000, send_policy_.max_packet_bytes),
-              send_policy_.max_packet_bytes, false, LinkState::kLinked,
-              client->send_queue().CanEnqueue(
-                  send_policy_.priority, send_policy_.max_packet_bytes + 128)};
+      return {std::min<std::uint32_t>(1000, payload_limit), payload_limit,
+              false, LinkState::kLinked, HasCredit(*client)};
     }
   }
 #endif
@@ -277,13 +336,14 @@ StreamInfo P2pStream::stream_info() const {
     auto info = message_send_stream_->stream_info();
     info.max_element_size = std::min<std::size_t>(
         info.max_element_size, send_policy_.max_packet_bytes);
+    if (binding_.resource) {
+      info.max_element_size -=
+          std::min<std::size_t>(info.max_element_size, kRawHeaderBytes);
+    }
     info.rec_element_size =
         std::min<std::size_t>(info.rec_element_size, info.max_element_size);
     auto client = client_.Lock();
-    info.is_writable =
-        info.is_writable && client &&
-        client->send_queue().CanEnqueue(send_policy_.priority,
-                                        send_policy_.max_packet_bytes + 128);
+    info.is_writable = info.is_writable && client && HasCredit(*client);
     return info;
   }
   return {};
@@ -305,6 +365,12 @@ void P2pStream::Restream() {
 
 void P2pStream::WriteOut(DataBuffer const& data) {
   AETHER_TELED_DEBUG("Read message from uid {} {}", destination_, data.size());
+  if (raw_flow_) {
+    if (auto tag = ReadRawHeader(data, true)) {
+      binding_.resource->ObserveRawReceipt(*raw_flow_, *tag);
+    }
+    return;
+  }
   out_data_event_.Emit(data);
 }
 
@@ -563,5 +629,18 @@ P2pStream::SendPathTransportView P2pStream::InspectSendPathTransport() const {
         send_request_policy_);
   }
   return view;
+}
+std::optional<std::span<std::uint8_t const>> RawReceiptSink::Receive(
+    P2pStream& reverse, DataBuffer const& frame) {
+  auto tag = ReadRawHeader(frame, false);
+  if (!tag) {
+    return {};
+  }
+  if (!sending_ && reverse.stream_info().is_writable) {
+    auto& write = reverse.Write(RawAck(*tag));
+    sending_ =
+        write.status_event().Subscribe([this](auto) { sending_.Reset(); });
+  }
+  return std::span{frame}.subspan(kRawHeaderBytes);
 }
 }  // namespace ae

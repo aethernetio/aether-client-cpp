@@ -48,13 +48,19 @@ namespace p2p_stream_internal {
 class MessageSendStream;
 }  // namespace p2p_stream_internal
 
+struct RawSendBinding {
+  std::shared_ptr<PrioritySendQueue> resource;
+  unsigned weight{1};
+};
+
 class P2pStream final : public ByteIStream {
  public:
   P2pStream(
       AeContext const& ae_context, Ptr<Client> const& client, Uid destination,
       P2pPortHandle handle,
       RequestPolicy::Variant send_request_policy = RequestPolicy::MainServer{},
-      StreamRoutePolicy route_policy = {}, StreamSendPolicy send_policy = {});
+      StreamRoutePolicy route_policy = {}, StreamSendPolicy send_policy = {},
+      RawSendBinding binding = {});
 
   ~P2pStream() override;
 
@@ -66,6 +72,8 @@ class P2pStream final : public ByteIStream {
   OutDataEvent const& out_data_event() override;
   void Restream() override;
 
+  // Valid for a bound Raw producer. A null return leaves the input untouched.
+  WriteAction* TryWriteRaw(DataBuffer&& data);
   void WriteOut(DataBuffer const& data);
   Uid const& destination() const;
   struct SendPathTransportView {
@@ -98,6 +106,9 @@ class P2pStream final : public ByteIStream {
   RequestPolicy::Variant send_request_policy_;
   StreamRoutePolicy route_policy_;
   StreamSendPolicy send_policy_;
+  bool HasCredit(Client& client) const;
+  RawSendBinding binding_;
+  std::optional<unsigned> raw_flow_;
   bool queue_writable_{true};
   Subscription send_writable_sub_;
   std::optional<FailedWriteAction> failed_write_;
@@ -116,6 +127,20 @@ class P2pStream final : public ByteIStream {
   Subscription out_data_sub_;
   Subscription peer_changed_sub_;
   ActionPool<AeContext, PeerWriteAction, 64> peer_writes_;
+};
+
+// Receiver half of a dedicated simplex balanced port. Keep this object and
+// the ordinary reverse P2pStream alive while receiving. The returned view
+// expires with the incoming DataBuffer. Receipts themselves are best effort.
+class RawReceiptSink {
+ public:
+  RawReceiptSink() = default;
+  AE_CLASS_NO_COPY_MOVE(RawReceiptSink)
+  std::optional<std::span<std::uint8_t const>> Receive(P2pStream& reverse,
+                                                       DataBuffer const& frame);
+
+ private:
+  Subscription sending_;
 };
 
 }  // namespace ae

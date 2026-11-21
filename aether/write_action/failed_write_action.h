@@ -18,6 +18,7 @@
 #define AETHER_WRITE_ACTION_FAILED_WRITE_ACTION_H_
 
 #include "aether/actions/action_context.h"
+#include "aether/tasks/manual_task_scheduler.h"
 #include "aether/write_action/write_action.h"
 
 namespace ae {
@@ -28,8 +29,12 @@ class FailedWriteAction final : public WriteAction {
  public:
   explicit FailedWriteAction(ActionContext auto const& context)
       : WriteAction{context} {
-    context.scheduler().Task([&]() { SetStatus(WriteAction::Status::kFail); });
+    context.scheduler().Task(
+        completion_, [this]() { SetStatus(WriteAction::Status::kFail); });
   }
+
+ private:
+  TaskSubscription completion_;
 };
 }  // namespace ae
 

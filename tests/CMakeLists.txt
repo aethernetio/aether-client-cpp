@@ -64,3 +64,7 @@ if(AE_SUPPORT_ADAPTIVE_DATAGRAM)
 endif()
 
 add_subdirectory(test-presence-api)
+
+if(WIN32)
+  add_subdirectory(raw-resource-lab)
+endif()

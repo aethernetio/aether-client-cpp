@@ -3,23 +3,11 @@
 #define AETHER_CLIENT_MESSAGES_PRIORITY_SEND_QUEUE_H_
 #include <functional>
 #include <memory>
-#include "aether-miscpp/reflect/reflect.h"
 #include "aether/ae_context.h"
+#include "aether/client_messages/raw_send_policy.h"
 #include "aether/common.h"
 #include "aether/write_action/write_action.h"
 namespace ae {
-enum class SendPriority : std::uint8_t {
-  kInteractive = 0,
-  kRealtime = 64,
-  kNormal = 128,
-  kBackground = 255
-};
-struct StreamSendPolicy {
-  AE_REFLECT_MEMBERS(priority, max_packet_bytes)
-  SendPriority priority{SendPriority::kNormal};
-  // Application payload limit; reliable/adaptive wrappers fragment above this.
-  std::uint32_t max_packet_bytes{1200};
-};
 // One queue per Client, shared by streams and destinations. Serialization and
 // encryption happen only when a packet is selected. One write is admitted to
 // transport at a time; an already started TCP frame must finish before another.
@@ -27,6 +15,15 @@ class PrioritySendQueue {
  public:
   using Dispatch = std::function<WriteAction*()>;
   explicit PrioritySendQueue(AeContext context);
+  PrioritySendQueue(AeContext context, RawResourceConfig config);
+  unsigned OpenRawFlow(void const* owner, SendPriority priority,
+                       unsigned weight);
+  void CloseRawFlow(unsigned flow, void const* owner);
+  bool CanQueueRaw(unsigned flow, std::size_t bytes) const;
+  WriteAction* EnqueueRaw(unsigned flow, void const* owner, unsigned bytes,
+                          Dispatch dispatch);
+  RawReceipt NextRawReceipt() const;
+  bool ObserveRawReceipt(unsigned flow, RawReceipt tag);
   ~PrioritySendQueue();
   AE_CLASS_NO_COPY_MOVE(PrioritySendQueue)
   bool CanEnqueue(SendPriority priority, std::size_t bytes) const;
