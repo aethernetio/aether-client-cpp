@@ -11,11 +11,12 @@ struct PeerDatagram {
   AddressPort source;
   DataBuffer data;
 };
-enum class PeerSendResult { kSent, kBlocked, kError };
+enum class PeerSendResult { kSent, kBlocked, kError, kTooLarge };
 class PeerUdp {
  public:
   static std::vector<Address> Interfaces();
-  PeerUdp(Address local, std::uint16_t port, bool discovery = false);
+  PeerUdp(Address local, std::uint16_t port, bool discovery = false,
+          bool no_fragment = false);
   ~PeerUdp();
   PeerUdp(PeerUdp const&) = delete;
   PeerUdp& operator=(PeerUdp const&) = delete;

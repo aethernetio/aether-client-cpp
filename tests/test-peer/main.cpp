@@ -752,6 +752,8 @@ void test_RealUdpDirectConnectionOffline() {
   while (!received && std::chrono::steady_clock::now() < deadline) {
     context.scheduler.Update();
     if (!sent && first.BestPath(b.certificate.uid)) {
+      TEST_ASSERT_FALSE(first.Send(b.certificate.uid, DataBuffer(1400, 42)));
+      TEST_ASSERT_TRUE(first.BestPath(b.certificate.uid).has_value());
       sent = first.Send(b.certificate.uid, {9, 8, 7});
     }
     std::this_thread::sleep_for(std::chrono::milliseconds{2});

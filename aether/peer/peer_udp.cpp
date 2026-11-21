@@ -70,6 +70,7 @@ sockaddr_in ToNative(AddressPort const& endpoint) {
 }  // namespace peer_udp_internal
 
 struct PeerUdp::Impl {
+  bool no_fragment{};
   peer_udp_internal::Socket socket{peer_udp_internal::kInvalid};
   ~Impl() {
     if (socket != peer_udp_internal::kInvalid) {
@@ -123,7 +124,8 @@ std::vector<Address> PeerUdp::Interfaces() {
                   addresses.end());
   return addresses;
 }
-PeerUdp::PeerUdp(Address local, std::uint16_t port, bool discovery)
+PeerUdp::PeerUdp(Address local, std::uint16_t port, bool discovery,
+                 bool no_fragment)
     : impl_{std::make_unique<Impl>()}, local_{std::move(local)} {
 #  if !AE_SUPPORT_LAN
   if (discovery) {
@@ -143,6 +145,21 @@ PeerUdp::PeerUdp(Address local, std::uint16_t port, bool discovery)
     return setsockopt(impl_->socket, level, option,
                       reinterpret_cast<char const*>(&value), sizeof value) == 0;
   };
+  impl_->no_fragment = no_fragment;
+  if (no_fragment) {
+#  ifdef _WIN32
+    bool const enabled = set(IPPROTO_IP, IP_DONTFRAGMENT, BOOL{TRUE});
+#  elif defined(IP_MTU_DISCOVER) && defined(IP_PMTUDISC_DO)
+    bool const enabled = set(IPPROTO_IP, IP_MTU_DISCOVER, IP_PMTUDISC_DO);
+#  elif defined(IP_DONTFRAG)
+    bool const enabled = set(IPPROTO_IP, IP_DONTFRAG, 1);
+#  else
+    bool const enabled = false;
+#  endif
+    if (!enabled) {
+      throw std::runtime_error("Cannot disable IPv4 fragmentation for peer UDP");
+    }
+  }
   // Burst arrivals can queue between scheduler polls. Keep the platform
   // default if the socket cannot raise its receive buffer.
   int const receive_buffer = 512 * 1024;
@@ -210,10 +227,16 @@ PeerUdp::PeerUdp(Address local, std::uint16_t port, bool discovery)
 PeerUdp::~PeerUdp() = default;
 PeerSendResult PeerUdp::ClassifySendFailure(int error) {
 #  ifdef _WIN32
+  if (error == WSAEMSGSIZE) {
+    return PeerSendResult::kTooLarge;
+  }
   if (error == WSAEWOULDBLOCK || error == WSAENOBUFS || error == WSAEINTR) {
     return PeerSendResult::kBlocked;
   }
 #  else
+  if (error == EMSGSIZE) {
+    return PeerSendResult::kTooLarge;
+  }
   if (error == EAGAIN || error == EWOULDBLOCK || error == ENOBUFS ||
       error == EINTR) {
     return PeerSendResult::kBlocked;
@@ -226,9 +249,12 @@ bool PeerUdp::Send(AddressPort const& remote, DataBuffer const& data) {
 }
 PeerSendResult PeerUdp::TrySend(AddressPort const& remote,
                                 DataBuffer const& data) {
-  if (remote.address.Index() != AddrVersion::kIpV4 || data.size() > 65507 ||
-      remote.port == 0) {
+  if (remote.address.Index() != AddrVersion::kIpV4 || remote.port == 0) {
     return PeerSendResult::kError;
+  }
+  constexpr std::size_t kPeerUdpPayloadBudget = 1400;
+  if (data.size() > (impl_->no_fragment ? kPeerUdpPayloadBudget : 65507)) {
+    return PeerSendResult::kTooLarge;
   }
   auto address = peer_udp_internal::ToNative(remote);
   auto sent = sendto(impl_->socket, reinterpret_cast<char const*>(data.data()),

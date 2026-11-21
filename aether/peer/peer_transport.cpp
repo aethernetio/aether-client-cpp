@@ -164,7 +164,7 @@ struct PeerTransport::Impl : std::enable_shared_from_this<PeerTransport::Impl> {
     }
   }
   void AddSocket(Address const& address, std::uint16_t port, PunchLane lane) {
-    auto socket = std::make_unique<PeerUdp>(address, port);
+    auto socket = std::make_unique<PeerUdp>(address, port, false, true);
     auto free = std::find(sockets.begin(), sockets.end(), nullptr);
     auto index = static_cast<std::size_t>(free - sockets.begin());
     if (free == sockets.end()) {
@@ -1075,7 +1075,8 @@ bool PeerTransport::Send(Uid const& uid, DataBuffer const& data, bool lan,
       path->view.statistics.sent_bytes += data.size();
       return true;
     }
-    if (outcome == PeerSendResult::kBlocked) {
+    if (outcome == PeerSendResult::kBlocked ||
+        outcome == PeerSendResult::kTooLarge) {
       continue;
     }
     path->hard_failed = true;
