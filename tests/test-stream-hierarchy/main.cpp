@@ -14,6 +14,9 @@
 #include <vector>
 
 #include "aether/config.h"
+#if AE_SUPPORT_ADAPTIVE_DATAGRAM
+#  include "aether/adaptive_datagram/rate_controller.h"
+#endif
 #if AE_SUPPORT_P2P && AE_SUPPORT_DIRECT_IP
 #  include "aether-objects/domain_storage/ram_domain_storage.h"
 #  include "aether-objects/obj/domain.h"
@@ -565,6 +568,23 @@ void test_MixedDefinitionsPersistAndRestore() {
   child.sending = StreamSendPolicy{SendPriority::kInteractive, 256};
   root.children = {child};
 #  if AE_SUPPORT_ADAPTIVE_DATAGRAM
+  auto policy = StreamAdaptivePolicy{};
+  policy.max_loss_per_mille = 125;
+  policy.loss_window = std::chrono::milliseconds{750};
+  policy.latency_target = std::chrono::milliseconds{250};
+  policy.feedback_interval = std::chrono::milliseconds{15};
+  policy.feedback_timeout = std::chrono::milliseconds{600};
+  policy.compact_feedback = false;
+  policy.control_interval = std::chrono::milliseconds{120};
+  policy.initial_rate_bytes_per_second = 48000;
+  policy.min_rate_bytes_per_second = 1000;
+  policy.max_rate_bytes_per_second = 96000;
+  policy.max_datagram_size = 700;
+  policy.max_queue_packets = 17;
+  policy.max_in_flight_packets = 37;
+  policy.max_history_packets = 57;
+  policy.min_samples = 9;
+  root.adaptive = policy;
   child.id = 42;
   child.delivery = StreamDelivery::kAdaptiveDatagram;
   child.sending = StreamSendPolicy{SendPriority::kRealtime, 900};
@@ -595,10 +615,292 @@ void test_MixedDefinitionsPersistAndRestore() {
                    StreamDelivery::kAdaptiveDatagram);
   TEST_ASSERT_TRUE(tree.Find(42)->sending_policy().priority ==
                    SendPriority::kRealtime);
+  TEST_ASSERT_TRUE(tree.Find(40)->definition().adaptive == root.adaptive);
+  TEST_ASSERT_TRUE(tree.Find(42)->adaptive_policy() == policy);
+  TEST_ASSERT_FALSE(tree.Find(42)->definition().adaptive.has_value());
 #  endif
   for (auto const& statistics : tree.Find(40)->statistics()) {
     TEST_ASSERT_TRUE(statistics.sent_messages == 0);
   }
+}
+
+#  if AE_SUPPORT_ADAPTIVE_DATAGRAM
+void test_AdaptivePolicyInheritanceAndIndependentOverrides() {
+  Fixture fixture;
+  auto client = fixture.Add("adaptive-policy");
+  auto root = Definition(50, RandomPeerToken());
+  auto policy = StreamAdaptivePolicy{};
+  policy.max_loss_per_mille = 200;
+  policy.latency_target = std::chrono::milliseconds{300};
+  policy.max_rate_bytes_per_second = 128000;
+  root.adaptive = policy;
+  auto inherited = Definition(51);
+  inherited.delivery = StreamDelivery::kAdaptiveDatagram;
+  auto replaced = Definition(52);
+  replaced.delivery = StreamDelivery::kAdaptiveDatagram;
+  replaced.adaptive = StreamAdaptivePolicy{};
+  replaced.adaptive->max_loss_per_mille = 0;
+  replaced.adaptive->latency_target = std::chrono::milliseconds{20};
+  auto grandchild = Definition(53);
+  grandchild.delivery = StreamDelivery::kAdaptiveDatagram;
+  replaced.children = {grandchild};
+  root.children = {inherited, replaced};
+  auto independent = Definition(54, root.destination);
+  independent.delivery = StreamDelivery::kAdaptiveDatagram;
+  client->ConfigureStreams({root, independent});
+  auto& tree = client->streams();
+  TEST_ASSERT_TRUE(tree.Find(51)->adaptive_policy() == policy);
+  TEST_ASSERT_TRUE(tree.Find(52)->adaptive_policy() == *replaced.adaptive);
+  TEST_ASSERT_TRUE(tree.Find(53)->adaptive_policy() == *replaced.adaptive);
+  // An explicit policy replaces all fields, not only the edited fields.
+  TEST_ASSERT_TRUE(tree.Find(52)->adaptive_policy().max_rate_bytes_per_second ==
+                   adaptive_datagram::Config{}.max_rate_bytes_per_second);
+  TEST_ASSERT_TRUE(tree.Find(54)->adaptive_policy() == StreamAdaptivePolicy{});
+}
+
+void test_InvalidAdaptivePoliciesPreserveWorkingHierarchy() {
+  Fixture fixture;
+  auto client = fixture.Add("adaptive-invalid");
+  auto root = Definition(55, RandomPeerToken());
+  client->ConfigureStreams({root});
+  auto* previous = client->streams().Find(55);
+  auto rejects = [&](StreamAdaptivePolicy policy) {
+    auto child = Definition(56);
+    child.delivery = StreamDelivery::kAdaptiveDatagram;
+    child.adaptive = policy;
+    auto invalid = root;
+    invalid.children = {child};
+    bool rejected{};
+    try {
+      client->ConfigureStreams({invalid});
+    } catch (std::invalid_argument const&) {
+      rejected = true;
+    }
+    TEST_ASSERT_TRUE(rejected);
+    TEST_ASSERT_TRUE(previous == client->streams().Find(55));
+  };
+  auto invalid = StreamAdaptivePolicy{};
+  invalid.max_loss_per_mille = 1001;
+  rejects(invalid);
+  invalid = {};
+  invalid.latency_target = Duration{};
+  rejects(invalid);
+  invalid = {};
+  invalid.min_rate_bytes_per_second = invalid.initial_rate_bytes_per_second + 1;
+  rejects(invalid);
+  invalid = {};
+  invalid.max_queue_packets = 0;
+  rejects(invalid);
+  invalid = {};
+  invalid.max_datagram_size = 255;
+  rejects(invalid);
+  invalid = {};
+  invalid.feedback_timeout = invalid.feedback_interval;
+  rejects(invalid);
+  invalid = {};
+  invalid.max_in_flight_packets = 65536;
+  rejects(invalid);
+}
+
+void test_AdaptivePoliciesControlActualPacketsOnSharedUdpRoute() {
+  Fixture fixture;
+  auto a = fixture.Add("goals-a"), b = fixture.Add("goals-b");
+  auto root = Definition(60, b->uid());
+  auto strict = Definition(61);
+  strict.delivery = StreamDelivery::kAdaptiveDatagram;
+  strict.adaptive = StreamAdaptivePolicy{};
+  strict.adaptive->latency_target = std::chrono::milliseconds{3};
+  strict.adaptive->max_loss_per_mille = 10;
+  strict.adaptive->initial_rate_bytes_per_second = 16000;
+  strict.adaptive->max_rate_bytes_per_second = 32000;
+  strict.adaptive->max_datagram_size = 256;
+  auto relaxed = Definition(62);
+  relaxed.delivery = StreamDelivery::kAdaptiveDatagram;
+  relaxed.adaptive = StreamAdaptivePolicy{};
+  relaxed.adaptive->latency_target = std::chrono::milliseconds{250};
+  relaxed.adaptive->max_loss_per_mille = 200;
+  relaxed.adaptive->max_rate_bytes_per_second = 128000;
+  relaxed.adaptive->max_datagram_size = 512;
+  root.children = {strict, relaxed};
+  a->ConfigureStreams({root});
+  root.destination = a->uid();
+  b->ConfigureStreams({root});
+  Proxy proxy{Loopback(*b), 8, 0};
+  auto update = [&] {
+    proxy.Update();
+    fixture.Update();
+    proxy.Update();
+  };
+  a->peer_transport()->Connect({b->uid(), proxy.endpoint()});
+  TEST_ASSERT_TRUE(Wait(
+      [&] {
+        return a->streams().Find(61)->stream_info().is_writable &&
+               a->streams().Find(62)->stream_info().is_writable;
+      },
+      update));
+  TEST_ASSERT_EQUAL_UINT(160,
+                         a->streams().Find(61)->stream_info().max_element_size);
+  TEST_ASSERT_EQUAL_UINT(416,
+                         a->streams().Find(62)->stream_info().max_element_size);
+  unsigned strict_received{}, relaxed_received{};
+  MultiSubscription subscriptions;
+  subscriptions += b->streams().Find(61)->out_data_event().Subscribe(
+      [&](auto const&) { ++strict_received; });
+  subscriptions +=
+      b->streams().Find(62)->out_data_event().Subscribe([&](auto const& data) {
+        TEST_ASSERT_TRUE(data == DataBuffer(64, 62));
+        ++relaxed_received;
+      });
+  a->streams().Find(61)->Write(DataBuffer(64, 61));
+  a->streams().Find(62)->Write(DataBuffer(64, 62));
+  TEST_ASSERT_TRUE(Wait([&] { return relaxed_received == 1; }, update));
+  auto until = Clock::now() + std::chrono::milliseconds{100};
+  TEST_ASSERT_TRUE(Wait([&] { return Clock::now() >= until; }, update));
+  // The same route takes at least 8 ms one way: the 3 ms message expires,
+  // while the sibling with its own 250 ms policy reaches the application.
+  TEST_ASSERT_EQUAL_UINT(0, strict_received);
+  TEST_ASSERT_EQUAL_UINT(1, relaxed_received);
+}
+
+void test_AdaptiveLossGoalsChangeControllerDecision() {
+  Fixture fixture;
+  auto client = fixture.Add("loss-goals");
+  auto strict = Definition(63, RandomPeerToken());
+  strict.delivery = StreamDelivery::kAdaptiveDatagram;
+  strict.adaptive = StreamAdaptivePolicy{};
+  strict.adaptive->max_loss_per_mille = 10;
+  auto tolerant = strict;
+  tolerant.id = 64;
+  tolerant.adaptive->max_loss_per_mille = 200;
+  client->ConfigureStreams({strict, tolerant});
+  auto initial_time = TimePoint{};
+  adaptive_datagram::RateController strict_controller{
+      client->streams().Find(63)->adaptive_policy().ToConfig(), initial_time};
+  adaptive_datagram::RateController tolerant_controller{
+      client->streams().Find(64)->adaptive_policy().ToConfig(), initial_time};
+  auto completed = initial_time + std::chrono::milliseconds{100};
+  // Identical final delivery evidence: 18 timely outcomes, two network losses.
+  for (auto* controller : {&strict_controller, &tolerant_controller}) {
+    for (unsigned i = 0; i < 20; ++i) {
+      controller->RecordOutcome(completed, 100, i < 18,
+                                Duration{std::chrono::milliseconds{10}});
+    }
+    controller->FeedbackReceived(completed,
+                                 Duration{std::chrono::milliseconds{20}});
+    controller->Update(completed, Duration{});
+  }
+  TEST_ASSERT_TRUE(strict_controller.metrics().constraints_unmet);
+  TEST_ASSERT_FALSE(tolerant_controller.metrics().constraints_unmet);
+  TEST_ASSERT_TRUE(strict_controller.rate_bytes_per_second() <
+                   tolerant_controller.rate_bytes_per_second());
+}
+#  else
+void test_DisabledAdaptivePolicyCannotBeConfigured() {
+  Fixture fixture;
+  auto client = fixture.Add("adaptive-disabled");
+  auto root = Definition(60, RandomPeerToken());
+  root.adaptive = StreamAdaptivePolicy{};
+  bool rejected{};
+  try {
+    client->ConfigureStreams({root});
+  } catch (std::invalid_argument const&) {
+    rejected = true;
+  }
+  TEST_ASSERT_TRUE(rejected);
+}
+#  endif
+
+stream_definition_internal::Version0 LegacyDefinition(
+    StreamDefinition const& definition) {
+  auto legacy = stream_definition_internal::Version0{};
+  legacy.id = definition.id;
+  legacy.name = definition.name;
+  legacy.destination = definition.destination;
+  legacy.service = definition.service;
+  legacy.delivery = definition.delivery;
+  legacy.routing = definition.routing;
+  legacy.sending = definition.sending;
+  legacy.storage = definition.storage;
+  for (auto const& child : definition.children) {
+    legacy.children.push_back(LegacyDefinition(child));
+  }
+  return legacy;
+}
+
+struct LegacyClientWriter : SaveVisitor {
+  explicit LegacyClientWriter(seri::BinaryArchive<DomainBuffer>& archive)
+      : SaveVisitor{archive} {}
+  using SaveVisitor::operator();
+  void operator()(std::vector<StreamDefinition> const& definitions) {
+    std::vector<stream_definition_internal::Version0> legacy;
+    for (auto const& definition : definitions) {
+      legacy.push_back(LegacyDefinition(definition));
+    }
+    if (res) {
+      res = bin_archive.Save(legacy);
+    }
+  }
+};
+
+void test_ClientVersion0LoadsIdentityAndHierarchyWithDefaultAdaptation() {
+  Fixture fixture;
+  auto client = fixture.Add("version-zero");
+  auto root = Definition(70, RandomPeerToken());
+  root.name = "saved-before-adaptive-policy";
+  root.service = PeerService{RandomPeerToken(), 8};
+  root.sending = StreamSendPolicy{SendPriority::kBackground, 800};
+  auto child = Definition(71);
+  child.delivery = StreamDelivery::kReliable;
+  root.children = {child};
+  client->ConfigureStreams({root});
+  client.Save();
+  fixture.aether.Save();
+  {
+    // Write the previous Client binary schema into version 0 storage, including
+    // its recursive nine-field stream definitions. Remove version 1 so loading
+    // must take the production version-0 fallback path.
+    DomainGraph graph{&fixture.domain};
+    graph.cycle_detector.Add(Client::kClassId, client.id());
+    auto writer = fixture.storage.Store({client.id(), Client::kClassId, 0});
+    auto archive = seri::BinaryArchive{DomainBuffer{
+        .id = client.id(), .domain_graph = &graph, .writer = writer.get()}};
+    LegacyClientWriter legacy{archive};
+    auto visitor = VersionNodeVisitor{legacy};
+    client->Save(Version<1>{}, visitor);
+    TEST_ASSERT_TRUE(static_cast<bool>(legacy.res));
+    TEST_ASSERT_TRUE(static_cast<bool>(writer->Commit()));
+  }
+  fixture.storage.state.at(client.id())->at(Client::kClassId).erase(1);
+  auto env = std::make_unique<AeEnv>();
+  Domain restarted{fixture.storage, env.get()};
+  auto aether =
+      Aether::ptr::Declare(CreateWith{restarted}.with_id(fixture.aether.id()));
+  env->SetAether(aether);
+  TEST_ASSERT_TRUE(static_cast<bool>(aether.Load()));
+  auto restored_ref =
+      Client::ptr::Declare(CreateWith{restarted}.with_id(client.id()));
+  auto restored = restored_ref.Load();
+  TEST_ASSERT_TRUE(static_cast<bool>(restored));
+  TEST_ASSERT_TRUE(restored->uid() == client->uid());
+  auto const& original_key = client->peer_identity().certificate.public_key;
+  auto const& restored_key = restored->peer_identity().certificate.public_key;
+  TEST_ASSERT_TRUE(original_key.Index() == restored_key.Index());
+  TEST_ASSERT_EQUAL_UINT(original_key.Size(), restored_key.Size());
+  TEST_ASSERT_EQUAL_MEMORY(original_key.Data(), restored_key.Data(),
+                           original_key.Size());
+  TEST_ASSERT_TRUE(restored->streams().Find(70)->definition().name ==
+                   root.name);
+  TEST_ASSERT_TRUE(restored->streams().Find(71)->definition().service ==
+                   root.service);
+  TEST_ASSERT_TRUE(restored->streams().Find(71)->sending_policy().priority ==
+                   SendPriority::kBackground);
+  TEST_ASSERT_TRUE(restored->streams().Find(71)->adaptive_policy() ==
+                   StreamAdaptivePolicy{});
+  TEST_ASSERT_FALSE(
+      restored->streams().Find(70)->definition().adaptive.has_value());
+  restored_ref.Save();
+  TEST_ASSERT_TRUE(
+      fixture.storage.state.at(client.id())->at(Client::kClassId).contains(1));
 }
 
 }  // namespace ae::test_stream_hierarchy
@@ -622,6 +924,15 @@ int main() {
   RUN_TEST(test_UnavailableParentDoesNotBlockChild);
   RUN_TEST(test_NodeCountAndDepthBoundaries);
   RUN_TEST(test_MixedDefinitionsPersistAndRestore);
+#  if AE_SUPPORT_ADAPTIVE_DATAGRAM
+  RUN_TEST(test_AdaptivePolicyInheritanceAndIndependentOverrides);
+  RUN_TEST(test_InvalidAdaptivePoliciesPreserveWorkingHierarchy);
+  RUN_TEST(test_AdaptivePoliciesControlActualPacketsOnSharedUdpRoute);
+  RUN_TEST(test_AdaptiveLossGoalsChangeControllerDecision);
+#  else
+  RUN_TEST(test_DisabledAdaptivePolicyCannotBeConfigured);
+#  endif
+  RUN_TEST(test_ClientVersion0LoadsIdentityAndHierarchyWithDefaultAdaptation);
 #endif
   return UNITY_END();
 }

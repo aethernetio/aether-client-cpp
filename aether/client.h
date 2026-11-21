@@ -20,6 +20,8 @@
 #include <cassert>
 #include <map>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "aether-objects/obj/obj.h"
 #include "aether/client_connectivity_policy.h"
@@ -38,6 +40,7 @@
 #include "aether/client_messages/p2p_message_stream_manager.h"
 #include "aether/peer/peer_types.h"
 #include "aether/streams/stream_definition.h"
+#include "aether/streams/stream_definition_v0.h"
 
 namespace ae {
 class Aether;
@@ -51,7 +54,7 @@ class P2pStream;
 class PrioritySendQueue;
 
 class Client : public Obj {
-  AE_OBJECT(Client, Obj, 0)
+  AE_OBJECT(Client, Obj, 1)
 
   Client();
 
@@ -114,6 +117,18 @@ class Client : public Obj {
     dnv(aether_, client_id_, parent_uid_, uid_, ephemeral_uid_, master_key_,
         cloud_, server_keys_, connectivity_policy_, client_cloud_manager_);
     dnv(peer_identity_, peer_settings_, stream_definitions_);
+  }
+  template <typename Dnv>
+  void Load(Version<0>, Dnv& dnv) {
+    dnv(base_);
+    dnv(aether_, client_id_, parent_uid_, uid_, ephemeral_uid_, master_key_,
+        cloud_, server_keys_, connectivity_policy_, client_cloud_manager_);
+    std::vector<stream_definition_internal::Version0> definitions;
+    dnv(peer_identity_, peer_settings_, definitions);
+    stream_definitions_.clear();
+    for (auto& definition : definitions) {
+      stream_definitions_.push_back(std::move(definition).Upgrade());
+    }
   }
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {

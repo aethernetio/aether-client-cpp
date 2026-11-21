@@ -49,6 +49,42 @@ within a client's hierarchy; a hierarchy has at most 64 nodes and depth 16.
 Explicit routing replaces the entire inherited routing policy. Reliability is
 selected per node using `kMessages`, `kReliable` or `kAdaptiveDatagram`.
 
+An optional `adaptive` policy configures each adaptive node's loss/latency
+targets, rate bounds, feedback timings and queue/in-flight limits. These are
+adaptation goals, not network guarantees. Omitted policies inherit from the
+parent, including through non-adaptive nodes. An explicit policy replaces the
+whole inherited policy; it does not merge individual fields. A root without a
+policy uses the normal `adaptive_datagram::Config` defaults.
+
+```cpp
+ae::StreamDefinition video;
+video.id = 12;
+video.delivery = ae::StreamDelivery::kAdaptiveDatagram;
+video.adaptive = ae::StreamAdaptivePolicy{};
+video.adaptive->max_loss_per_mille = 100;  // 10% adaptation target.
+video.adaptive->latency_target = std::chrono::milliseconds{200};
+video.adaptive->initial_rate_bytes_per_second = 64000;
+video.adaptive->max_rate_bytes_per_second = 2000000;
+control.children.push_back(video);
+client->ConfigureStreams({control});
+auto const& effective = client->streams().Find(12)->adaptive_policy();
+```
+
+Sibling streams can have different policies while sharing a UDP route and the
+client send queue. The parent does not impose a shared bandwidth quota. Invalid
+policies are rejected before constructing any replacement nodes, so a failed
+`ConfigureStreams()` retains the previous hierarchy. Builds excluding adaptive
+datagrams reject explicit adaptive policies as well as adaptive delivery.
+
+Policies survive Client save/load. Client storage version 1 includes the new
+field; version 0 identities and recursive stream definitions remain loadable
+and receive the default policy. Live controller measurements, sessions and peer
+clock offsets are not persisted in `StreamAdaptivePolicy`. The hierarchy uses
+the default runtime session/clock settings; applications requiring a nonzero
+peer clock offset still construct `P2pAdaptiveDatagramStream` directly. Both
+endpoints must agree on logical stream IDs and delivery protocol; sending
+targets may differ between directions.
+
 `AE_SUPPORT_P2P=0` excludes native direct transport; `AE_SUPPORT_LAN=0` keeps
 explicit direct-IP support but excludes multicast discovery. Configure these in
 the normal CMake `USER_CONFIG` header. `AE_LAN_DISCOVERY_PORT` and

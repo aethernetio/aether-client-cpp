@@ -6,6 +6,7 @@
 #include <vector>
 #include "aether/client_messages/priority_send_queue.h"
 #include "aether/peer/peer_types.h"
+#include "aether/streams/stream_adaptive_policy.h"
 namespace ae {
 enum class StreamDelivery : std::uint8_t {
   kMessages,
@@ -30,7 +31,7 @@ struct OfflineStorageSettings {
 };
 struct StreamDefinition {
   AE_REFLECT_MEMBERS(id, name, destination, service, delivery, routing, sending,
-                     storage, children)
+                     storage, children, adaptive)
   std::uint32_t id{};
   std::string name;
   Uid destination{};
@@ -40,6 +41,9 @@ struct StreamDefinition {
   std::optional<StreamSendPolicy> sending;
   std::optional<OfflineStorageSettings> storage;
   std::vector<StreamDefinition> children;
+  // Omitted policies inherit from the parent; an explicit policy replaces the
+  // entire inherited policy. Applies to adaptive descendants of any node.
+  std::optional<StreamAdaptivePolicy> adaptive;
 };
 }  // namespace ae
 #endif

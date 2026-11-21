@@ -3,10 +3,10 @@
 #define AETHER_STREAMS_STREAM_HIERARCHY_H_
 #include "aether/config.h"
 #if AE_ENABLE_STREAM_HIERARCHY
-#include <memory>
-#include <vector>
-#include "aether/client_messages/p2p_message_stream.h"
-#include "aether/streams/stream_definition.h"
+#  include <memory>
+#  include <vector>
+#  include "aether/client_messages/p2p_message_stream.h"
+#  include "aether/streams/stream_definition.h"
 namespace ae {
 class HierarchicalStream final : public ByteIStream {
  public:
@@ -15,6 +15,7 @@ class HierarchicalStream final : public ByteIStream {
   StreamDefinition const& definition() const { return definition_; }
   StreamSendPolicy sending_policy() const { return sending_; }
   StreamRoutePolicy routing_policy() const { return routing_; }
+  StreamAdaptivePolicy const& adaptive_policy() const { return adaptive_; }
   Uid destination() const { return destination_; }
   std::vector<std::unique_ptr<HierarchicalStream>> const& children() const {
     return children_;
@@ -31,10 +32,12 @@ class HierarchicalStream final : public ByteIStream {
   HierarchicalStream(AeContext context, Ptr<Client> const& client,
                      StreamDefinition definition, Uid destination,
                      StreamRoutePolicy inherited, PeerService inherited_service,
-                     StreamSendPolicy inherited_sending);
+                     StreamSendPolicy inherited_sending,
+                     StreamAdaptivePolicy inherited_adaptive);
   StreamDefinition definition_;
   StreamSendPolicy sending_;
   StreamRoutePolicy routing_;
+  StreamAdaptivePolicy adaptive_;
   Uid destination_;
   std::shared_ptr<P2pStream> transport_;
   std::unique_ptr<ByteIStream> delivery_;

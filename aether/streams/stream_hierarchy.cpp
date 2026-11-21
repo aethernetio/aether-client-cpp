@@ -21,10 +21,13 @@ void Validate(std::vector<StreamDefinition> const& nodes, Uid inherited,
       throw std::invalid_argument("Invalid or duplicate stream definition");
     }
 #if !AE_SUPPORT_ADAPTIVE_DATAGRAM
-    if (node.delivery == StreamDelivery::kAdaptiveDatagram) {
+    if (node.delivery == StreamDelivery::kAdaptiveDatagram || node.adaptive) {
       throw std::invalid_argument("Adaptive datagram support is disabled");
     }
 #endif
+    if (node.adaptive && !node.adaptive->ToConfig().Validate()) {
+      throw std::invalid_argument("Invalid stream adaptation policy");
+    }
     if (node.storage) {
       throw std::logic_error("Offline storage providers are not implemented");
     }
@@ -53,7 +56,7 @@ HierarchicalStream* Find(HierarchicalStream& node, std::uint32_t id) {
 HierarchicalStream::HierarchicalStream(
     AeContext context, Ptr<Client> const& client, StreamDefinition definition,
     Uid destination, StreamRoutePolicy inherited, PeerService inherited_service,
-    StreamSendPolicy inherited_sending)
+    StreamSendPolicy inherited_sending, StreamAdaptivePolicy inherited_adaptive)
     : definition_{std::move(definition)} {
   if (!definition_.destination.empty()) {
     destination = definition_.destination;
@@ -65,15 +68,15 @@ HierarchicalStream::HierarchicalStream(
   auto sending = definition_.sending.value_or(inherited_sending);
   sending_ = sending;
   routing_ = policy;
+  adaptive_ = definition_.adaptive.value_or(inherited_adaptive);
   destination_ = destination;
   auto handle = client->message_stream_manager().CreatePort(
       destination, definition_.id, definition_.service);
 #if AE_SUPPORT_ADAPTIVE_DATAGRAM
   if (definition_.delivery == StreamDelivery::kAdaptiveDatagram) {
     delivery_ = std::make_unique<P2pAdaptiveDatagramStream>(
-        context, client, destination, std::move(handle),
-        adaptive_datagram::Config{}, RequestPolicy::MainServer{}, policy,
-        sending);
+        context, client, destination, std::move(handle), adaptive_.ToConfig(),
+        RequestPolicy::MainServer{}, policy, sending);
     stream_ = delivery_.get();
   }
 #endif
@@ -96,7 +99,7 @@ HierarchicalStream::HierarchicalStream(
   for (auto const& child : definition_.children) {
     children_.emplace_back(
         new HierarchicalStream{context, client, child, destination, policy,
-                               definition_.service, sending});
+                               definition_.service, sending, adaptive_});
   }
 }
 HierarchicalStream::~HierarchicalStream() = default;
@@ -136,7 +139,8 @@ StreamHierarchy::StreamHierarchy(
                                                {},
                                                StreamRoutePolicy{},
                                                {},
-                                               StreamSendPolicy{}});
+                                               StreamSendPolicy{},
+                                               StreamAdaptivePolicy{}});
   }
 }
 HierarchicalStream* StreamHierarchy::Find(std::uint32_t id) const {
