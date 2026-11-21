@@ -50,6 +50,11 @@ These CMake options default to `ON` and propagate to SDK consumers as `0` or
 | `AE_ENABLE_STREAM_HIERARCHY` | Hierarchy factory, live tree and its automatic restoration |
 | `AE_SUPPORT_ADAPTIVE_DATAGRAM` | Adaptive datagram streams and their rate controller |
 
+The shared Raw send balancer defaults to off. Enable it with
+`#define AE_SUPPORT_RAW_BALANCER 1` in the selected `USER_CONFIG` header or
+with the CMake default `-DAE_SUPPORT_RAW_BALANCER=ON`. Each participating
+stream binds to an explicitly shared resource. [Raw send configuration and API](raw_send_resource.md)
+
 For a compact build with the regular reliable stream:
 
 ```sh

@@ -855,6 +855,46 @@ AddressPort LoopbackEndpoint(PeerTransport& transport) {
 }
 
 #  ifdef _WIN32
+void test_UnboundRawDeliversOpaquePayload() {
+  ClientFixture fixture;
+  auto app = RandomPeerToken();
+  auto sender = fixture.Add(fixture.ca.Issue(), "source", app);
+  auto receiver = fixture.Add(fixture.ca.Issue(), "sink", app);
+  AeContext context{*fixture.aether};
+  StreamRoutePolicy route{false, true, false, false, false};
+  StreamSendPolicy policy{SendPriority::kInteractive, 1000};
+  P2pStream outgoing{
+      context, sender.Load(), receiver->uid(),
+      sender->message_stream_manager().CreatePort(receiver->uid(), 91),
+      RequestPolicy::MainServer{}, route, policy};
+  P2pStream incoming{
+      context, receiver.Load(), sender->uid(),
+      receiver->message_stream_manager().CreatePort(sender->uid(), 91),
+      RequestPolicy::MainServer{}, route, policy};
+  // A receipt-shaped application message is ordinary data on an unbound port.
+  DataBuffer payload(17, 0x11);
+  DataBuffer received;
+  Subscription sub = incoming.out_data_event().Subscribe(
+      [&](DataBuffer const& data) { received = data; });
+  sender->peer_transport()->Connect(
+      {receiver->uid(), LoopbackEndpoint(*receiver->peer_transport())});
+  bool sent = false;
+  auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds{4};
+  while (received.empty() && std::chrono::steady_clock::now() < deadline) {
+    fixture.Update();
+    if (!sent && outgoing.stream_info().is_writable) {
+      TEST_ASSERT_EQUAL_UINT(policy.max_packet_bytes,
+                             outgoing.stream_info().max_element_size);
+      outgoing.Write(DataBuffer{payload});
+      sent = true;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds{1});
+  }
+  TEST_ASSERT_TRUE(received == payload);
+}
+#  endif
+
+#  if defined(_WIN32) && AE_SUPPORT_RAW_BALANCER
 void test_BalancedRawWritesAcrossTwoLocalhostPeers() {
   ClientFixture fixture;
   auto app = RandomPeerToken();
@@ -986,7 +1026,7 @@ class HeldPacketWrite : public WriteAction {
   void Complete() { SetStatus(Status::kSuccess); }
 };
 
-#  ifdef _WIN32
+#  if defined(_WIN32) && AE_SUPPORT_RAW_BALANCER
 void test_RawMissingReceiptsAndGenerationIsolation() {
   RawResourceConfig config;
   config.flight_packets = 2;
@@ -1938,6 +1978,9 @@ int main() {
   RUN_TEST(test_ExcludedStreamDeliveryCannotBeConfigured);
 #  endif
 #  ifdef _WIN32
+  RUN_TEST(test_UnboundRawDeliversOpaquePayload);
+#  endif
+#  if defined(_WIN32) && AE_SUPPORT_RAW_BALANCER
   RUN_TEST(test_BalancedRawWritesAcrossTwoLocalhostPeers);
   RUN_TEST(test_StoppedRawWriterAndIndependentResource);
   RUN_TEST(test_RawMissingReceiptsAndGenerationIsolation);

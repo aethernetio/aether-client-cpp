@@ -165,6 +165,7 @@ constexpr inline auto _compile_options_list = std::array{
 #if defined _AE_REG_CLOUD_IP
     _OPTION(_AE_REG_CLOUD_IP),
 #endif
+    _OPTION(AE_SUPPORT_RAW_BALANCER),
 };
 
 template <std::size_t... Is>

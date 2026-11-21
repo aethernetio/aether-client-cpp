@@ -389,6 +389,15 @@
 #  define AE_SUPPORT_SPIFS_FS 0
 #endif  // AE_SUPPORT_SPIFS_FS
 
+// The selected USER_CONFIG takes precedence over the CMake default.
+#ifndef AE_SUPPORT_RAW_BALANCER
+#  ifdef AE_RAW_BALANCER_DEFAULT
+#    define AE_SUPPORT_RAW_BALANCER AE_RAW_BALANCER_DEFAULT
+#  else
+#    define AE_SUPPORT_RAW_BALANCER 0
+#  endif
+#endif
+
 #ifndef AE_SUPPORT_ADAPTIVE_DATAGRAM
 #  define AE_SUPPORT_ADAPTIVE_DATAGRAM 1
 #endif

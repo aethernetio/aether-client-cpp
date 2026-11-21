@@ -15,6 +15,7 @@ class PrioritySendQueue {
  public:
   using Dispatch = std::function<WriteAction*()>;
   explicit PrioritySendQueue(AeContext context);
+#if AE_SUPPORT_RAW_BALANCER
   PrioritySendQueue(AeContext context, RawResourceConfig config);
   unsigned OpenRawFlow(void const* owner, SendPriority priority,
                        unsigned weight);
@@ -24,6 +25,7 @@ class PrioritySendQueue {
                           Dispatch dispatch);
   RawReceipt NextRawReceipt() const;
   bool ObserveRawReceipt(unsigned flow, RawReceipt tag);
+#endif
   ~PrioritySendQueue();
   AE_CLASS_NO_COPY_MOVE(PrioritySendQueue)
   bool CanEnqueue(SendPriority priority, std::size_t bytes) const;

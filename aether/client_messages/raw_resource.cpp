@@ -1,4 +1,6 @@
 // Copyright 2026 Aethernet Inc. Licensed under the Apache License, Version 2.0.
+#include "aether/config.h"
+#if AE_SUPPORT_RAW_BALANCER
 #include "aether/client_messages/raw_resource.h"
 #include <algorithm>
 #include <cassert>
@@ -247,3 +249,4 @@ RawResource::Tick RawResource::Next(Tick now) const {
   return now;
 }
 }  // namespace ae
+#endif
