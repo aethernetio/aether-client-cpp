@@ -228,7 +228,7 @@ endif()
 CPMAddPackage(
   NAME aether-objects
   GIT_REPOSITORY "https://github.com/aethernetio/aether-objects.git"
-  GIT_TAG "952dcd6a9243db763fd7288a60497e4aac4d2ac6"
+  GIT_TAG "67ea6a9d7f36fbb2d96bc988ece6df92e238f910"
   OPTIONS "AE_INSTALL ${AE_INSTALL}"
           "AE_BUILD_TESTS ${AE_BUILD_TESTS}"
   EXCLUDE_FROM_ALL FALSE
