@@ -318,9 +318,9 @@ P2pStream::StreamUpdateEvent const& P2pStream::stream_update_event() {
 }
 
 StreamInfo P2pStream::stream_info() const {
+#if AE_SUPPORT_P2P
   auto payload_limit = send_policy_.max_packet_bytes -
                        (binding_.resource ? kRawHeaderBytes : 0u);
-#if AE_SUPPORT_P2P
   auto client = client_.Lock();
   if (client) {
     if (auto* peer = client->peer_transport();

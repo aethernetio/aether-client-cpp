@@ -1,7 +1,11 @@
 /* Copyright 2026 Aethernet Inc. Licensed under the Apache License, Version 2.0.
  */
 #include "aether/aether_tele.h"
+#include "aether/telemetry_namespaces.h"
 #include "aether_tele_catalog.h"
+#if defined(AE_PRODUCT_TELEMETRY_CATALOG) && AE_PRODUCT_TELEMETRY_CATALOG
+#  include "telemetry_catalog.h"
+#endif
 #if AE_OBJECTS_RAW_TELE
 #  include "aether-objects/telemetry.h"
 #endif
@@ -18,11 +22,26 @@ bool FileMatches(std::string_view full, std::string_view relative) {
 }
 }  // namespace aether_tele_internal
 std::string_view AetherTeleIdentity::CatalogId() {
+#if defined(AE_PRODUCT_TELEMETRY_CATALOG) && AE_PRODUCT_TELEMETRY_CATALOG
+  return telemetry_catalog::CatalogId("aether");
+#else
   return aether_tele_internal::kCatalogId;
+#endif
+}
+std::string_view AetherTeleIdentity::SchemaId() {
+#if defined(AE_PRODUCT_TELEMETRY_CATALOG) && AE_PRODUCT_TELEMETRY_CATALOG
+  return telemetry_catalog::SchemaId("aether");
+#else
+  return aether_tele_internal::kSchemaId;
+#endif
 }
 std::uint32_t AetherTeleIdentity::ResolveIndex(std::string_view file,
                                                std::uint32_t line,
-                                               tele::Tag const&) {
+                                               tele::Tag const& tag) {
+  static_cast<void>(tag);
+#if defined(AE_PRODUCT_TELEMETRY_CATALOG) && AE_PRODUCT_TELEMETRY_CATALOG
+  return telemetry_catalog::ResolveIndex("aether", file, line);
+#else
   for (auto const& site : aether_tele_internal::kSites)
     if (line >= site.first && line <= site.last &&
         aether_tele_internal::FileMatches(file, site.file))
@@ -37,14 +56,15 @@ std::uint32_t AetherTeleIdentity::ResolveIndex(std::string_view file,
   hash ^= line;
   hash *= 16777619u;
   return 32768u + hash % 32768u;
+#endif
 }
 bool DrainAetherTelemetry() {
   bool const aether_ok = AetherTeleSink::Instance().DrainAll();
 #if AE_OBJECTS_RAW_TELE
   bool const objects_ok = objects_tele::ObjectTeleSink::Instance().DrainAll();
-  return aether_ok && objects_ok;
+  return DrainTelemetryNamespaces() && aether_ok && objects_ok;
 #else
-  return aether_ok;
+  return DrainTelemetryNamespaces() && aether_ok;
 #endif
 }
 }  // namespace ae

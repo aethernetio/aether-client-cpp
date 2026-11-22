@@ -15,9 +15,11 @@
  */
 
 #include "aether/aether_app.h"
+#include "aether/telemetry_namespaces.h"
 
 #include <cstdlib>
 #include <iostream>
+#include <mutex>
 #include <stdexcept>
 #include "aether/tele_statistics_backend.h"
 #if AE_OBJECTS_RAW_TELE
@@ -33,8 +35,8 @@
 #include "aether/crypto.h"
 #include "aether/crypto/key.h"
 #include "aether/global_ids.h"
-#include "aether/poller/epoll_poller.h"
 #include "aether/poller/browser_poller.h"
+#include "aether/poller/epoll_poller.h"
 #include "aether/poller/freertos_poller.h"
 #include "aether/poller/kqueue_poller.h"
 #include "aether/poller/win_poller.h"
@@ -49,6 +51,26 @@
 
 namespace ae {
 namespace aether_app_internal {
+struct TelemetryLifetime {
+  std::mutex mutex;
+  void* owner{};
+  std::size_t participants{};
+  bool ready{};
+};
+TelemetryLifetime& Lifetime() {
+  static TelemetryLifetime lifetime;
+  return lifetime;
+}
+void RequireTelemetryLifetime(bool valid, char const* message) {
+  if (!valid) {
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)
+    throw std::logic_error(message);
+#else
+    std::cerr << message << '\n';
+    std::abort();
+#endif
+  }
+}
 void RequireTelemetry(bool result) {
   if (!result) {
 #if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)
@@ -68,6 +90,70 @@ std::shared_ptr<TeleStatisticsBackend> CastTelemetryBackend(
   return std::static_pointer_cast<TeleStatisticsBackend>(backend);
 }
 }  // namespace aether_app_internal
+
+struct AetherApp::TelemetryOwnership {
+  explicit TelemetryOwnership(bool owner) : primary{owner} {
+#if AE_TELE_ENABLED && (AE_TELE_LOG_TO_STATISTICS || AE_TELE_LOG_CONSOLE)
+    auto& lifetime = aether_app_internal::Lifetime();
+    auto lock = std::scoped_lock{lifetime.mutex};
+    if (primary) {
+      aether_app_internal::RequireTelemetryLifetime(
+          lifetime.owner == nullptr,
+          "A process already has a telemetry owner; use TelemetryOwner(false) "
+          "for additional AetherApp contexts");
+      lifetime.owner = this;
+    } else {
+      aether_app_internal::RequireTelemetryLifetime(
+          lifetime.owner != nullptr && lifetime.ready,
+          "A telemetry participant requires an initialized process owner");
+      ++lifetime.participants;
+    }
+#endif
+  }
+  ~TelemetryOwnership() {
+#if AE_TELE_ENABLED && (AE_TELE_LOG_TO_STATISTICS || AE_TELE_LOG_CONSOLE)
+    auto& lifetime = aether_app_internal::Lifetime();
+    auto lock = std::scoped_lock{lifetime.mutex};
+    if (primary) {
+      lifetime.owner = nullptr;
+      lifetime.ready = false;
+    } else {
+      --lifetime.participants;
+    }
+#endif
+  }
+  void Ready() {
+#if AE_TELE_ENABLED && (AE_TELE_LOG_TO_STATISTICS || AE_TELE_LOG_CONSOLE)
+    if (primary) {
+      auto& lifetime = aether_app_internal::Lifetime();
+      auto lock = std::scoped_lock{lifetime.mutex};
+      lifetime.ready = true;
+    }
+#endif
+  }
+  void RequireNoParticipants() const {
+#if AE_TELE_ENABLED && (AE_TELE_LOG_TO_STATISTICS || AE_TELE_LOG_CONSOLE)
+    if (primary) {
+      auto& lifetime = aether_app_internal::Lifetime();
+      auto lock = std::scoped_lock{lifetime.mutex};
+      if (lifetime.participants) {
+        std::cerr << "The telemetry owner must outlive all participant "
+                     "AetherApp contexts\n";
+        std::abort();
+      }
+      // Reject new participant construction before releasing this lock and
+      // beginning primary teardown.
+      lifetime.ready = false;
+    }
+#endif
+  }
+  bool const primary;
+};
+
+bool AetherApp::OwnsTelemetry() const {
+  return telemetry_ownership_ && telemetry_ownership_->primary;
+}
+AetherApp::AetherApp() = default;
 void AetherAppContext::TelemetryInit() {
 #if AE_TELE_ENABLED && (AE_TELE_LOG_TO_STATISTICS || AE_TELE_LOG_CONSOLE)
   auto& sink = AetherTeleSink::Instance();
@@ -84,7 +170,8 @@ void AetherAppContext::TelemetryInit() {
                    bool(AE_TELE_ENABLED && AE_TELE_LOG_TO_STATISTICS),
                    bool(AE_TELE_ENABLED && AE_TELE_LOG_TO_STATISTICS),
                    tele::raw::kAllFields});
-  aether_app_internal::RequireTelemetry(sink.BindWriter(0));
+  aether_app_internal::RequireTelemetry(sink.CurrentWriterId() <=
+                                        tele::raw::wire::kMaxStream);
 #  if AE_OBJECTS_RAW_TELE
   auto& objects = objects_tele::ObjectTeleSink::Instance();
   aether_app_internal::RequireTelemetry(
@@ -96,8 +183,10 @@ void AetherAppContext::TelemetryInit() {
                       bool(AE_TELE_LOG_CONSOLE),
                       bool(AE_TELE_LOG_TO_STATISTICS),
                       bool(AE_TELE_LOG_TO_STATISTICS), tele::raw::kAllFields});
-  aether_app_internal::RequireTelemetry(objects.BindWriter(0));
+  aether_app_internal::RequireTelemetry(objects.CurrentWriterId() <=
+                                        tele::raw::wire::kMaxStream);
 #  endif
+  aether_app_internal::RequireTelemetry(BindTelemetryNamespaces(backend));
   tele_statistics_trap_is_set = AE_TELE_ENABLED && AE_TELE_LOG_TO_STATISTICS;
 #  if AE_TELE_ENABLED
   AETHER_TELE_ENV(CompileOptions());
@@ -110,7 +199,7 @@ void AetherAppContext::TelemetryInit() {
 void AetherAppContext::TeleStatisticsInit(
     [[maybe_unused]] TeleStatistics::ptr const& tele_statistics) const {
 #if AE_TELE_ENABLED && AE_TELE_LOG_TO_STATISTICS
-  if (!tele_statistics_trap_is_set) return;
+  if (!telemetry_owner_ || !tele_statistics_trap_is_set) return;
   auto& sink = AetherTeleSink::Instance();
   auto persistent = tele_statistics->backend();
   aether_app_internal::RequireTelemetry(
@@ -118,12 +207,15 @@ void AetherAppContext::TeleStatisticsInit(
         return persistent->MergeEarly(
             aether_app_internal::CastTelemetryBackend(old));
       }));
-  aether_app_internal::RequireTelemetry(sink.BindWriter(0));
+  aether_app_internal::RequireTelemetry(sink.CurrentWriterId() <=
+                                        tele::raw::wire::kMaxStream);
 #  if AE_OBJECTS_RAW_TELE
   auto& objects = objects_tele::ObjectTeleSink::Instance();
   aether_app_internal::RequireTelemetry(objects.SetBackend(persistent));
-  aether_app_internal::RequireTelemetry(objects.BindWriter(0));
+  aether_app_internal::RequireTelemetry(objects.CurrentWriterId() <=
+                                        tele::raw::wire::kMaxStream);
 #  endif
+  aether_app_internal::RequireTelemetry(BindTelemetryNamespaces(persistent));
 #endif
 }
 
@@ -205,18 +297,18 @@ static Cloud::ptr RegistrationCloudFactory(AetherAppContext const& context) {
           .with_id(GlobalId::kRegistrationCloud)
           .with_flags(ObjFlags::kUnloadedByDefault),
       context.aether());
-#    if defined(__EMSCRIPTEN__) || \
+#    if defined(__EMSCRIPTEN__) ||                               \
         (defined(AE_NATIVE_WEBSOCKET) && AE_SUPPORT_WEBSOCKET && \
          !AE_SUPPORT_TCP && !AE_SUPPORT_UDP)
   // A deliberately WebSocket-only native build needs WSS registration too.
-  reg_c->AddServerSettings(Endpoint{
-      {NamedAddr{"dbservice.aethernet.io"}, 9013}, Protocol::kWebSocketSecure});
+  reg_c->AddServerSettings(Endpoint{{NamedAddr{"dbservice.aethernet.io"}, 9013},
+                                    Protocol::kWebSocketSecure});
 #    else
-#    if defined _AE_REG_CLOUD_IP
+#      if defined _AE_REG_CLOUD_IP
   reg_c->AddServerSettings(
       Endpoint{{AddressParser::StringToAddress(_AE_REG_CLOUD_IP), 9010},
                Protocol::kTcp});
-#    endif
+#      endif
   reg_c->AddServerSettings(Endpoint{
       {AddressParser::StringToAddress("registration.aethernet.io"), 9010},
       Protocol::kTcp});
@@ -249,7 +341,8 @@ static Crypto::ptr CryptoFactory(AetherAppContext const& context) {
   return crypto;
 }
 
-static IPoller::ptr PollerFactory([[maybe_unused]] AetherAppContext const& context) {
+static IPoller::ptr PollerFactory(
+    [[maybe_unused]] AetherAppContext const& context) {
   // This default service has no persistent configuration or native handles in
   // its archive. Recreate its current-platform implementation under the stable
   // service ID before restored channels resolve their poller reference. Loading
@@ -257,9 +350,10 @@ static IPoller::ptr PollerFactory([[maybe_unused]] AetherAppContext const& conte
   // Applications supplying PollerFactory explicitly keep their own policy.
 
 #  if defined(__EMSCRIPTEN__)
-  return BrowserPoller::ptr::Create(CreateWith{context.domain()}
-                                      .with_id(GlobalId::kPoller)
-                                      .with_flags(ObjFlags::kUnloadedByDefault));
+  return BrowserPoller::ptr::Create(
+      CreateWith{context.domain()}
+          .with_id(GlobalId::kPoller)
+          .with_flags(ObjFlags::kUnloadedByDefault));
 #  elif defined EPOLL_POLLER_ENABLED
   return EpollPoller::ptr::Create(
       CreateWith{context.domain()}
@@ -380,10 +474,14 @@ void AetherAppContext::InitComponentContext() {
 }
 
 std::unique_ptr<AetherApp> AetherApp::Construct(AetherAppContext context) {
+  auto app = std::unique_ptr<AetherApp>{new AetherApp()};
+  app->telemetry_ownership_ =
+      std::make_unique<TelemetryOwnership>(context.telemetry_owner_);
+  if (app->OwnsTelemetry()) {
+    context.TelemetryInit();
+  }
   // init all the components in context
   context.InitComponentContext();
-
-  auto app = std::unique_ptr<AetherApp>{new AetherApp()};
   app->aether_ = context.aether();
   // set aether to environment
   // The problems might be if any aether's members will try to use env's aether
@@ -419,14 +517,20 @@ std::unique_ptr<AetherApp> AetherApp::Construct(AetherAppContext context) {
 #if AE_DISTILLATION
   // Persist the merged bootstrap archive, including early object-system logs.
 #  if AE_TELE_ENABLED && (AE_TELE_LOG_TO_STATISTICS || AE_TELE_LOG_CONSOLE)
-  aether_app_internal::RequireTelemetry(DrainAetherTelemetry());
+  if (app->OwnsTelemetry()) {
+    aether_app_internal::RequireTelemetry(DrainAetherTelemetry());
+  }
 #  endif
   app->aether_.Save();
 #endif
+  app->telemetry_ownership_->Ready();
   return app;
 }
 
 AetherApp::~AetherApp() {
+  if (telemetry_ownership_) {
+    telemetry_ownership_->RequireNoParticipants();
+  }
   // Runtime transports may survive individual persistent objects during graph
   // reclamation. Join I/O callbacks while their Aether/Domain context is alive.
   if (aether_ && aether_->poller) {
@@ -445,33 +549,40 @@ AetherApp::~AetherApp() {
   // constructors that already sampled the enabled runtime finish before save.
   if (aether_) {
 #if AE_TELE_ENABLED && (AE_TELE_LOG_TO_STATISTICS || AE_TELE_LOG_CONSOLE)
-    auto& sink = AetherTeleSink::Instance();
-    sink.SetRuntime({false, false, false, false, 0});
+    if (OwnsTelemetry()) {
+      auto& sink = AetherTeleSink::Instance();
+      sink.SetRuntime({false, false, false, false, 0});
 #  if AE_OBJECTS_RAW_TELE
-    auto& objects = objects_tele::ObjectTeleSink::Instance();
-    objects.SetRuntime({false, false, false, false, 0});
+      auto& objects = objects_tele::ObjectTeleSink::Instance();
+      objects.SetRuntime({false, false, false, false, 0});
 #  endif
-    bool drained = sink.SetBackend(sink.GetBackend());
+      bool drained = DrainTelemetryNamespaces();
+      drained = sink.SetBackend(sink.GetBackend()) && drained;
 #  if AE_OBJECTS_RAW_TELE
-    drained = objects.SetBackend(objects.GetBackend()) && drained;
+      drained = objects.SetBackend(objects.GetBackend()) && drained;
 #  endif
-    if (!drained)
-      std::cerr << "Telemetry drain failed during application shutdown\n";
+      if (!drained) {
+        std::cerr << "Telemetry drain failed during application shutdown\n";
+      }
+    }
 #endif
     aether_.Save();
   }
 #if AE_TELE_ENABLED && (AE_TELE_LOG_TO_STATISTICS || AE_TELE_LOG_CONSOLE)
-  auto& sink = AetherTeleSink::Instance();
-  sink.SetRuntime({false, false, false, false, 0});
-  // A fresh bootstrap prevents replaying this application's accepted history
-  // into a later application constructed in the same process.
-  static_cast<void>(sink.SetBackend(MakeAetherTelemetryBackend()));
-  sink.SetTrap(nullptr);
+  if (OwnsTelemetry()) {
+    auto& sink = AetherTeleSink::Instance();
+    sink.SetRuntime({false, false, false, false, 0});
+    // A fresh bootstrap prevents replaying this application's accepted history
+    // into a later application constructed in the same process.
+    static_cast<void>(sink.SetBackend(MakeAetherTelemetryBackend()));
+    static_cast<void>(BindTelemetryNamespaces(sink.GetBackend(), false));
+    sink.SetTrap(nullptr);
 #  if AE_OBJECTS_RAW_TELE
-  auto& objects = objects_tele::ObjectTeleSink::Instance();
-  objects.SetRuntime({false, false, false, false, 0});
-  static_cast<void>(objects.SetBackend(sink.GetBackend()));
+    auto& objects = objects_tele::ObjectTeleSink::Instance();
+    objects.SetRuntime({false, false, false, false, 0});
+    static_cast<void>(objects.SetBackend(sink.GetBackend()));
 #  endif
+  }
 #endif
   aether_.Reset();
 }

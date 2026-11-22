@@ -81,7 +81,7 @@ Ping::Ping(AeContext const& ae_context,
       server_id_{cloud_server_connection_->server_id()},
       context_id_{NextPingContextId()},
       result_event_{ae_context_} {
-  AETHER_TELE_INFO(
+  AETHER_TELE_DEBUG(
       kPing,
       "Ping action created to server id: {}, interval: {:%S}s, rx_window: "
       "{:%S}s, timeout: {:%S}s",

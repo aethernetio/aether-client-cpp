@@ -16,6 +16,7 @@
 
 #include "aether/ae_actions/telemetry.h"
 #include "aether/ae_actions/telemetry_payload.h"
+#include "aether/telemetry_namespaces.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -230,14 +231,19 @@ Telemetry::Telemetry(AeContext const& ae_context,
             if (success) {
               AETHER_TELE_INFO(TelemetrySent);
             } else {
-              AETHER_TELE_ERROR(TelemetryCollectFailed);
+              AETHER_TELE_ERROR(TelemetrySendFailed);
             }
             if (std::exchange(send_again_, false)) SendTelemetry();
           }} {
-  AETHER_TELE_INFO(TelemetryCreated);
+  AETHER_TELE_DEBUG(TelemetryCreated);
 }
 
 void Telemetry::SendTelemetry() {
+  // These products route every namespace to their dedicated keeper. Keep the
+  // legacy server RPC for SDK consumers that have not selected a product route.
+  if (!GetTelemetryProductInfo().product.empty()) {
+    return;
+  }
   if (send_queue_.busy()) {
     // Coalesce repeated requests instead of keeping another snapshot/action
     // queue alive. request_for_server_ retains the most recent destination.

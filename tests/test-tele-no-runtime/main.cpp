@@ -16,6 +16,7 @@
 #include "aether-tele/raw/sink.h"
 #include "aether/aether_app.h"
 #include "aether/aether_tele.h"
+#include "aether/global_ids.h"
 #include "aether/tele_statistics_backend.h"
 
 #if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)
@@ -106,6 +107,30 @@ void test_StartupReplacesUnknownBackendWithCheckedPersistentType() {
   auto& sink = AetherTeleSink::Instance();
   TEST_ASSERT_TRUE(sink.SetBackend(previous));
   AetherAppContext context{[] { return std::make_unique<RamDomainStorage>(); }};
+  // Ownership is selected before Construct. Merely configuring a participant
+  // context must not replace another application's process telemetry backend.
+  TEST_ASSERT_TRUE(sink.GetBackend() == previous);
+  auto configured =
+      std::move(context)
+          .AdaptersFactory([](AetherAppContext const& context) {
+            return AdapterRegistry::ptr::Create(
+                CreateWith{context.domain()}.with_id(
+                    GlobalId::kAdapterRegistry));
+          })
+          .CryptoFactory([](auto const&) { return Crypto::ptr{}; })
+          .PollerFactory([](auto const&) { return IPoller::ptr{}; });
+#if AE_SUPPORT_REGISTRATION
+  static_cast<void>(
+      std::move(configured).RegistrationCloudFactory([](auto const&) {
+        return Cloud::ptr{};
+      }));
+#endif
+#if AE_SUPPORT_CLOUD_DNS
+  static_cast<void>(std::move(configured).DnsResolverFactory([](auto const&) {
+    return DnsResolver::ptr{};
+  }));
+#endif
+  auto app = AetherApp::Construct(std::move(configured));
   auto const backend = sink.GetBackend();
   TEST_ASSERT_TRUE(backend != previous);
   TEST_ASSERT_TRUE(backend->TypeToken() ==

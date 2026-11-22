@@ -71,3 +71,12 @@ add_subdirectory(test-presence-api)
 if(WIN32)
   add_subdirectory(raw-resource-lab)
 endif()
+
+if((WIN32 OR UNIX) AND NOT ANDROID AND NOT ESP_PLATFORM AND NOT EMSCRIPTEN)
+  add_subdirectory(test-telemetry-delivery)
+  add_subdirectory(test-telemetry-state)
+endif()
+if(Python3_EXECUTABLE AND EXISTS "${aether-tele_SOURCE_DIR}/tools/test_offline_pipeline.py")
+  add_test(NAME test-telemetry-offline-pipeline
+    COMMAND ${Python3_EXECUTABLE} "${aether-tele_SOURCE_DIR}/tools/test_offline_pipeline.py")
+endif()

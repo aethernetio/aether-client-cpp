@@ -1,0 +1,2344 @@
+{
+  "status": "passed",
+  "products": {
+    "apptraverse-app": {
+      "phases": {
+        "native-baseline": {
+          "summary": {
+            "log_records": 603,
+            "raw_bytes": 27519,
+            "artifact_bytes": 29764,
+            "parameter_payload_bytes": 24740,
+            "average_log_bytes_excluding_payload": 4.0016583747927035,
+            "average_with_log_framing_excluding_payload": 4.293532338308458
+          },
+          "namespaces": {
+            "aether": {
+              "log_records": 2,
+              "metric_records": 2,
+              "capture_bytes": 47,
+              "payload_bytes": 0,
+              "payload_length_bytes": 2,
+              "log_bytes_excluding_payload": 8,
+              "metric_bytes": 25,
+              "time_anchor_bytes": 0,
+              "log_block_header_bytes": 14,
+              "average_log_bytes_excluding_payload": 4.0,
+              "average_with_log_block_headers_excluding_payload": 11.0,
+              "average_capture_bytes_excluding_payload": 23.5
+            },
+            "apptraverse": {
+              "log_records": 1,
+              "metric_records": 1,
+              "capture_bytes": 76,
+              "payload_bytes": 38,
+              "payload_length_bytes": 1,
+              "log_bytes_excluding_payload": 4,
+              "metric_bytes": 20,
+              "time_anchor_bytes": 0,
+              "log_block_header_bytes": 14,
+              "average_log_bytes_excluding_payload": 4.0,
+              "average_with_log_block_headers_excluding_payload": 18.0,
+              "average_capture_bytes_excluding_payload": 38.0
+            },
+            "objects": {
+              "log_records": 158,
+              "metric_records": 7,
+              "capture_bytes": 11968,
+              "payload_bytes": 11190,
+              "payload_length_bytes": 158,
+              "log_bytes_excluding_payload": 633,
+              "metric_bytes": 79,
+              "time_anchor_bytes": 0,
+              "log_block_header_bytes": 66,
+              "average_log_bytes_excluding_payload": 4.006329113924051,
+              "average_with_log_block_headers_excluding_payload": 4.424050632911392,
+              "average_capture_bytes_excluding_payload": 4.924050632911392
+            },
+            "product.apptraverse-app": {
+              "log_records": 442,
+              "metric_records": 5,
+              "capture_bytes": 15428,
+              "payload_bytes": 13512,
+              "payload_length_bytes": 442,
+              "log_bytes_excluding_payload": 1768,
+              "metric_bytes": 66,
+              "time_anchor_bytes": 0,
+              "log_block_header_bytes": 82,
+              "average_log_bytes_excluding_payload": 4.0,
+              "average_with_log_block_headers_excluding_payload": 4.1855203619909505,
+              "average_capture_bytes_excluding_payload": 4.334841628959276
+            }
+          },
+          "build_id": "909f99e868a3224689edcfc8ae3f562190f8a8d14dac6a4f9998ead391e50d0e",
+          "profile_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "source_revisions": {
+            "aether": {
+              "commit": "60fa62b3bf1afbead9a877e25cbe83b37c72ce53",
+              "dirty": true,
+              "tree_sha256": "5a588b0d5fbc7d9a210cf40b623899c6b7f331fce03eeeba85c7a3af8387fdd6"
+            },
+            "apptraverse": {
+              "commit": "bab6312c2e87e76ff6c6e9c204af2ffe67c5f40a",
+              "dirty": true,
+              "tree_sha256": "c4d38753e9e5a198b51274a926a4763d9403462c463be44a09b8df9925360105"
+            },
+            "numeric": {
+              "commit": "d5969e7a50f1fbbf0a195bb8b256ad0c9c15115c",
+              "dirty": false,
+              "tree_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "objects": {
+              "commit": "fa4cd4d0f0bb1b79b03e58eb723651091deb20e9",
+              "dirty": true,
+              "tree_sha256": "648b48356a87b29c14071c47b97b3ae6ee20be81f01d8b484f90d458102cd8d2"
+            },
+            "product": {
+              "commit": "f24ca60c6250f802b7eacdb9628dc3cf9d522af9",
+              "dirty": true,
+              "tree_sha256": "cea5efc5d57bf9550a3d09fd4b7f160d3f14e3737f5a301c2299806adc21817d"
+            },
+            "tele": {
+              "commit": "dfd34187bbc996bb709d4d2ff1eeaa4df4999213",
+              "dirty": true,
+              "tree_sha256": "2757788db0480e05153b260dcc8d64ab4b2002c4315f1a126cdf6549b45042a2"
+            }
+          },
+          "configuration_in_manifest": {},
+          "compiled_build_cache": "telemetry-evidence\\apptraverse-app\\native-baseline\\CMakeCache.txt",
+          "exact_descriptor": "telemetry-evidence\\apptraverse-app\\native-baseline\\build\\build.json"
+        },
+        "native-profiled": {
+          "summary": {
+            "log_records": 603,
+            "raw_bytes": 27521,
+            "artifact_bytes": 29766,
+            "parameter_payload_bytes": 24742,
+            "average_log_bytes_excluding_payload": 4.0016583747927035,
+            "average_with_log_framing_excluding_payload": 4.293532338308458
+          },
+          "namespaces": {
+            "aether": {
+              "log_records": 2,
+              "metric_records": 2,
+              "capture_bytes": 47,
+              "payload_bytes": 0,
+              "payload_length_bytes": 2,
+              "log_bytes_excluding_payload": 8,
+              "metric_bytes": 25,
+              "time_anchor_bytes": 0,
+              "log_block_header_bytes": 14,
+              "average_log_bytes_excluding_payload": 4.0,
+              "average_with_log_block_headers_excluding_payload": 11.0,
+              "average_capture_bytes_excluding_payload": 23.5
+            },
+            "apptraverse": {
+              "log_records": 1,
+              "metric_records": 1,
+              "capture_bytes": 76,
+              "payload_bytes": 38,
+              "payload_length_bytes": 1,
+              "log_bytes_excluding_payload": 4,
+              "metric_bytes": 20,
+              "time_anchor_bytes": 0,
+              "log_block_header_bytes": 14,
+              "average_log_bytes_excluding_payload": 4.0,
+              "average_with_log_block_headers_excluding_payload": 18.0,
+              "average_capture_bytes_excluding_payload": 38.0
+            },
+            "objects": {
+              "log_records": 158,
+              "metric_records": 7,
+              "capture_bytes": 11970,
+              "payload_bytes": 11192,
+              "payload_length_bytes": 158,
+              "log_bytes_excluding_payload": 633,
+              "metric_bytes": 79,
+              "time_anchor_bytes": 0,
+              "log_block_header_bytes": 66,
+              "average_log_bytes_excluding_payload": 4.006329113924051,
+              "average_with_log_block_headers_excluding_payload": 4.424050632911392,
+              "average_capture_bytes_excluding_payload": 4.924050632911392
+            },
+            "product.apptraverse-app": {
+              "log_records": 442,
+              "metric_records": 5,
+              "capture_bytes": 15428,
+              "payload_bytes": 13512,
+              "payload_length_bytes": 442,
+              "log_bytes_excluding_payload": 1768,
+              "metric_bytes": 66,
+              "time_anchor_bytes": 0,
+              "log_block_header_bytes": 82,
+              "average_log_bytes_excluding_payload": 4.0,
+              "average_with_log_block_headers_excluding_payload": 4.1855203619909505,
+              "average_capture_bytes_excluding_payload": 4.334841628959276
+            }
+          },
+          "build_id": "07a2a0f86a0d211aa6d57abd1b186807d0529c6c84d73634cb4a517622430d28",
+          "profile_sha256": "89f3e0c4bdaf41bd081ed11b2838274a4eb38d0ee3fe131ecd2c0f167fc4a328",
+          "source_revisions": {
+            "aether": {
+              "commit": "60fa62b3bf1afbead9a877e25cbe83b37c72ce53",
+              "dirty": true,
+              "tree_sha256": "09fa5009ee0be8dc2de4224179f5554dce837b093265b5de3756ea2f851d3e9f"
+            },
+            "apptraverse": {
+              "commit": "bab6312c2e87e76ff6c6e9c204af2ffe67c5f40a",
+              "dirty": true,
+              "tree_sha256": "c4d38753e9e5a198b51274a926a4763d9403462c463be44a09b8df9925360105"
+            },
+            "numeric": {
+              "commit": "d5969e7a50f1fbbf0a195bb8b256ad0c9c15115c",
+              "dirty": false,
+              "tree_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "objects": {
+              "commit": "fa4cd4d0f0bb1b79b03e58eb723651091deb20e9",
+              "dirty": true,
+              "tree_sha256": "648b48356a87b29c14071c47b97b3ae6ee20be81f01d8b484f90d458102cd8d2"
+            },
+            "product": {
+              "commit": "f24ca60c6250f802b7eacdb9628dc3cf9d522af9",
+              "dirty": true,
+              "tree_sha256": "e1fe373350b885636d3aa886de3a1fb41d035d32b881e7c0abe009b8b279257f"
+            },
+            "tele": {
+              "commit": "dfd34187bbc996bb709d4d2ff1eeaa4df4999213",
+              "dirty": true,
+              "tree_sha256": "5cbbe96defe84dc52ea90b379668764508752cc36921b96a6ad4989565ce7bb4"
+            }
+          },
+          "configuration_in_manifest": {},
+          "compiled_build_cache": "telemetry-evidence\\apptraverse-app\\native-profiled\\CMakeCache.txt",
+          "exact_descriptor": "telemetry-evidence\\apptraverse-app\\native-profiled\\build\\build.json"
+        }
+      },
+      "profile_parity": {
+        "product": "apptraverse-app",
+        "per_namespace": {
+          "aether": {
+            "log_event_counts_equal": true,
+            "messages_equal": true,
+            "messages_equal_after_random_object_id_normalization": true,
+            "metric_counts_equal": true
+          },
+          "apptraverse": {
+            "log_event_counts_equal": true,
+            "messages_equal": true,
+            "messages_equal_after_random_object_id_normalization": true,
+            "metric_counts_equal": true
+          },
+          "objects": {
+            "log_event_counts_equal": true,
+            "messages_equal": false,
+            "messages_equal_after_random_object_id_normalization": true,
+            "metric_counts_equal": true
+          },
+          "product.apptraverse-app": {
+            "log_event_counts_equal": true,
+            "messages_equal": true,
+            "messages_equal_after_random_object_id_normalization": true,
+            "metric_counts_equal": true
+          }
+        },
+        "all_event_and_metric_counts_equal": true,
+        "messages_equal_after_random_object_id_normalization": true,
+        "timing_duration_values_compared": false
+      },
+      "cold_restart": {
+        "immutable_front_identical": true,
+        "disjoint_new_tail": true,
+        "front_sha256": "f6b17455c40b91edb30cf4050ea85c514282b4a834d740386f502a6c4f49741a",
+        "tail_sha256": "a1e75d33e7560d725270c068dae5a0a6388d3b59f296fdcd26b858c5d6e65f34",
+        "boot0": {
+          "prior_pending": 0,
+          "pending": 1,
+          "prior_product_metric_count": 1,
+          "product_metric_count": 442,
+          "old_batches_retained": true,
+          "new_delta": true
+        },
+        "boot1": {
+          "prior_pending": 1,
+          "pending": 2,
+          "prior_product_metric_count": 443,
+          "product_metric_count": 884,
+          "old_batches_retained": true,
+          "new_delta": true
+        },
+        "decoded_disjoint_log_records": 1205
+      },
+      "frequency_prediction": {
+        "average_new_tag_bytes": 1.0,
+        "average_old_tag_bytes": 1.2816129739206663,
+        "baseline_build_id": "491f4bafb0e970fd22d414b6fdbc7c3f7e93dd9a6fb4e2388853659fd883e70c",
+        "log_records": 4563,
+        "namespaces": {
+          "aether": {
+            "catalog_sites": 483,
+            "indices_preserved": false,
+            "log_records": 1559,
+            "most_frequent": [
+              {
+                "events": 344,
+                "new_index": 1,
+                "new_tag_bytes": 1,
+                "old_index": 453,
+                "old_tag_bytes": 2,
+                "saved_bytes": 344,
+                "site_id": "aether:aether/transport/system_sockets/udp/udp.h:64:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 320,
+                "new_index": 2,
+                "new_tag_bytes": 1,
+                "old_index": 482,
+                "old_tag_bytes": 2,
+                "saved_bytes": 320,
+                "site_id": "aether:aether/write_action/buffer_write.h:148:BW_LOG_DEBUG"
+              },
+              {
+                "events": 172,
+                "new_index": 3,
+                "new_tag_bytes": 1,
+                "old_index": 457,
+                "old_tag_bytes": 2,
+                "saved_bytes": 172,
+                "site_id": "aether:aether/transport/system_sockets/udp/udp.h:183:AETHER_TELE_DEBUG"
+              },
+              {
+                "events": 160,
+                "new_index": 4,
+                "new_tag_bytes": 1,
+                "old_index": 478,
+                "old_tag_bytes": 2,
+                "saved_bytes": 160,
+                "site_id": "aether:aether/work_cloud_api/work_server_api/login_api.cpp:38:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 155,
+                "new_index": 5,
+                "new_tag_bytes": 1,
+                "old_index": 483,
+                "old_tag_bytes": 2,
+                "saved_bytes": 155,
+                "site_id": "aether:aether/write_action/buffer_write.h:160:BW_LOG_DEBUG"
+              },
+              {
+                "events": 145,
+                "new_index": 6,
+                "new_tag_bytes": 1,
+                "old_index": 61,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/client_messages/p2p_message_stream.cpp:277:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 17,
+                "new_index": 7,
+                "new_tag_bytes": 1,
+                "old_index": 450,
+                "old_tag_bytes": 2,
+                "saved_bytes": 17,
+                "site_id": "aether:aether/transport/system_sockets/udp/udp.cpp:87:AETHER_TELE_DEBUG"
+              },
+              {
+                "events": 14,
+                "new_index": 8,
+                "new_tag_bytes": 1,
+                "old_index": 476,
+                "old_tag_bytes": 2,
+                "saved_bytes": 14,
+                "site_id": "aether:aether/work_cloud_api/client_api/client_api_unsafe.cpp:38:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 12,
+                "new_index": 10,
+                "new_tag_bytes": 1,
+                "old_index": 31,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/ae_actions/ping.cpp:152:AETHER_TELE_DEBUG"
+              },
+              {
+                "events": 12,
+                "new_index": 11,
+                "new_tag_bytes": 1,
+                "old_index": 33,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/ae_actions/ping.cpp:228:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 12,
+                "new_index": 9,
+                "new_tag_bytes": 1,
+                "old_index": 30,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/ae_actions/ping.cpp:84:AETHER_TELE_DEBUG"
+              },
+              {
+                "events": 12,
+                "new_index": 12,
+                "new_tag_bytes": 1,
+                "old_index": 77,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/cloud_connections/cloud_server_connections.cpp:163:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 12,
+                "new_index": 13,
+                "new_tag_bytes": 1,
+                "old_index": 85,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/cloud_connections/cloud_server_connections.cpp:408:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 12,
+                "new_index": 14,
+                "new_tag_bytes": 1,
+                "old_index": 91,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/cloud_connections/ping_cloud_servers.cpp:164:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 12,
+                "new_index": 15,
+                "new_tag_bytes": 1,
+                "old_index": 475,
+                "old_tag_bytes": 2,
+                "saved_bytes": 12,
+                "site_id": "aether:aether/work_cloud_api/client_api/client_api_safe.cpp:151:AE_TELED_DEBUG"
+              },
+              {
+                "events": 7,
+                "new_index": 16,
+                "new_tag_bytes": 1,
+                "old_index": 54,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/channels/ethernet_channel.cpp:217:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 7,
+                "new_index": 17,
+                "new_tag_bytes": 1,
+                "old_index": 245,
+                "old_tag_bytes": 2,
+                "saved_bytes": 7,
+                "site_id": "aether:aether/poller/win_poller.cpp:66:AETHER_TELE_DEBUG"
+              },
+              {
+                "events": 7,
+                "new_index": 18,
+                "new_tag_bytes": 1,
+                "old_index": 325,
+                "old_tag_bytes": 2,
+                "saved_bytes": 7,
+                "site_id": "aether:aether/server_connections/channel_select_action.cpp:36:AETHER_TELED_INFO"
+              },
+              {
+                "events": 7,
+                "new_index": 19,
+                "new_tag_bytes": 1,
+                "old_index": 331,
+                "old_tag_bytes": 2,
+                "saved_bytes": 7,
+                "site_id": "aether:aether/server_connections/server_connection.cpp:154:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 7,
+                "new_index": 20,
+                "new_tag_bytes": 1,
+                "old_index": 332,
+                "old_tag_bytes": 2,
+                "saved_bytes": 7,
+                "site_id": "aether:aether/server_connections/server_connection.cpp:181:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 7,
+                "new_index": 21,
+                "new_tag_bytes": 1,
+                "old_index": 334,
+                "old_tag_bytes": 2,
+                "saved_bytes": 7,
+                "site_id": "aether:aether/server_connections/server_connection.cpp:199:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 6,
+                "new_index": 22,
+                "new_tag_bytes": 1,
+                "old_index": 328,
+                "old_tag_bytes": 2,
+                "saved_bytes": 6,
+                "site_id": "aether:aether/server_connections/client_server_connection.cpp:202:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 6,
+                "new_index": 23,
+                "new_tag_bytes": 1,
+                "old_index": 447,
+                "old_tag_bytes": 2,
+                "saved_bytes": 6,
+                "site_id": "aether:aether/transport/system_sockets/udp/udp.cpp:29:AETHER_TELE_INFO"
+              },
+              {
+                "events": 6,
+                "new_index": 24,
+                "new_tag_bytes": 1,
+                "old_index": 455,
+                "old_tag_bytes": 2,
+                "saved_bytes": 6,
+                "site_id": "aether:aether/transport/system_sockets/udp/udp.h:146:AETHER_TELE_INFO"
+              },
+              {
+                "events": 4,
+                "new_index": 25,
+                "new_tag_bytes": 1,
+                "old_index": 50,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/aether_app.cpp:193:AETHER_TELE_INFO"
+              },
+              {
+                "events": 4,
+                "new_index": 26,
+                "new_tag_bytes": 1,
+                "old_index": 84,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/cloud_connections/cloud_server_connections.cpp:396:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 4,
+                "new_index": 27,
+                "new_tag_bytes": 1,
+                "old_index": 87,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/cloud_connections/cloud_server_connections.cpp:426:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 4,
+                "new_index": 28,
+                "new_tag_bytes": 1,
+                "old_index": 435,
+                "old_tag_bytes": 2,
+                "saved_bytes": 4,
+                "site_id": "aether:aether/transport/system_sockets/tcp/tcp.cpp:77:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 4,
+                "new_index": 29,
+                "new_tag_bytes": 1,
+                "old_index": 436,
+                "old_tag_bytes": 2,
+                "saved_bytes": 4,
+                "site_id": "aether:aether/transport/system_sockets/tcp/tcp.cpp:87:AETHER_TELE_DEBUG"
+              },
+              {
+                "events": 4,
+                "new_index": 31,
+                "new_tag_bytes": 1,
+                "old_index": 443,
+                "old_tag_bytes": 2,
+                "saved_bytes": 4,
+                "site_id": "aether:aether/transport/system_sockets/tcp/tcp.h:195:AETHER_TELE_DEBUG"
+              },
+              {
+                "events": 4,
+                "new_index": 30,
+                "new_tag_bytes": 1,
+                "old_index": 439,
+                "old_tag_bytes": 2,
+                "saved_bytes": 4,
+                "site_id": "aether:aether/transport/system_sockets/tcp/tcp.h:74:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 3,
+                "new_index": 32,
+                "new_tag_bytes": 1,
+                "old_index": 46,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/aether.cpp:35:AETHER_TELE_DEBUG"
+              },
+              {
+                "events": 3,
+                "new_index": 33,
+                "new_tag_bytes": 1,
+                "old_index": 70,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/cloud_connections/cloud_request.cpp:123:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 3,
+                "new_index": 34,
+                "new_tag_bytes": 1,
+                "old_index": 101,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/connection_manager/client_cloud_manager.cpp:259:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 3,
+                "new_index": 35,
+                "new_tag_bytes": 1,
+                "old_index": 104,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/connection_manager/get_cloud_aether.cpp:37:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 3,
+                "new_index": 36,
+                "new_tag_bytes": 1,
+                "old_index": 262,
+                "old_tag_bytes": 2,
+                "saved_bytes": 3,
+                "site_id": "aether:aether/registration/registration.cpp:225:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 3,
+                "new_index": 37,
+                "new_tag_bytes": 1,
+                "old_index": 474,
+                "old_tag_bytes": 2,
+                "saved_bytes": 3,
+                "site_id": "aether:aether/work_cloud_api/client_api/client_api_safe.cpp:145:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 2,
+                "new_index": 38,
+                "new_tag_bytes": 1,
+                "old_index": 41,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/ae_actions/telemetry.cpp:238:AETHER_TELE_DEBUG"
+              },
+              {
+                "events": 2,
+                "new_index": 39,
+                "new_tag_bytes": 1,
+                "old_index": 49,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/aether.cpp:91:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 2,
+                "new_index": 40,
+                "new_tag_bytes": 1,
+                "old_index": 59,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/client_messages/p2p_message_stream.cpp:137:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 2,
+                "new_index": 41,
+                "new_tag_bytes": 1,
+                "old_index": 60,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/client_messages/p2p_message_stream.cpp:175:AETHER_TELE_DEBUG"
+              },
+              {
+                "events": 2,
+                "new_index": 42,
+                "new_tag_bytes": 1,
+                "old_index": 63,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/client_messages/p2p_message_stream.cpp:367:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 2,
+                "new_index": 43,
+                "new_tag_bytes": 1,
+                "old_index": 64,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/client_messages/p2p_message_stream.cpp:426:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 2,
+                "new_index": 44,
+                "new_tag_bytes": 1,
+                "old_index": 66,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/client_messages/p2p_message_stream_manager.cpp:94:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 2,
+                "new_index": 45,
+                "new_tag_bytes": 1,
+                "old_index": 96,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/cloud_connections/ping_cloud_servers.cpp:456:AETHER_TELED_INFO"
+              },
+              {
+                "events": 2,
+                "new_index": 46,
+                "new_tag_bytes": 1,
+                "old_index": 97,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/cloud_connections/ping_cloud_servers.cpp:469:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 2,
+                "new_index": 47,
+                "new_tag_bytes": 1,
+                "old_index": 100,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/connection_manager/client_cloud_manager.cpp:188:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 2,
+                "new_index": 48,
+                "new_tag_bytes": 1,
+                "old_index": 242,
+                "old_tag_bytes": 2,
+                "saved_bytes": 2,
+                "site_id": "aether:aether/poller/win_poller.cpp:28:AETHER_TELE_INFO"
+              },
+              {
+                "events": 1,
+                "new_index": 49,
+                "new_tag_bytes": 1,
+                "old_index": 19,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/adapters/ethernet.cpp:34:AETHER_TELED_INFO"
+              },
+              {
+                "events": 1,
+                "new_index": 50,
+                "new_tag_bytes": 1,
+                "old_index": 36,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/ae_actions/select_client.cpp:31:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 1,
+                "new_index": 51,
+                "new_tag_bytes": 1,
+                "old_index": 37,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/ae_actions/select_client.cpp:47:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 1,
+                "new_index": 52,
+                "new_tag_bytes": 1,
+                "old_index": 48,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/aether.cpp:46:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 1,
+                "new_index": 53,
+                "new_tag_bytes": 1,
+                "old_index": 51,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/aether_app.cpp:545:AETHER_TELE_INFO"
+              },
+              {
+                "events": 1,
+                "new_index": 54,
+                "new_tag_bytes": 1,
+                "old_index": 102,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/connection_manager/client_cloud_manager.cpp:299:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 1,
+                "new_index": 57,
+                "new_tag_bytes": 1,
+                "old_index": 254,
+                "old_tag_bytes": 2,
+                "saved_bytes": 1,
+                "site_id": "aether:aether/registration/registration.cpp:123:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 1,
+                "new_index": 58,
+                "new_tag_bytes": 1,
+                "old_index": 257,
+                "old_tag_bytes": 2,
+                "saved_bytes": 1,
+                "site_id": "aether:aether/registration/registration.cpp:147:AETHER_TELE_INFO"
+              },
+              {
+                "events": 1,
+                "new_index": 59,
+                "new_tag_bytes": 1,
+                "old_index": 258,
+                "old_tag_bytes": 2,
+                "saved_bytes": 1,
+                "site_id": "aether:aether/registration/registration.cpp:155:AETHER_TELE_INFO"
+              },
+              {
+                "events": 1,
+                "new_index": 60,
+                "new_tag_bytes": 1,
+                "old_index": 259,
+                "old_tag_bytes": 2,
+                "saved_bytes": 1,
+                "site_id": "aether:aether/registration/registration.cpp:169:AETHER_TELE_INFO"
+              },
+              {
+                "events": 1,
+                "new_index": 61,
+                "new_tag_bytes": 1,
+                "old_index": 260,
+                "old_tag_bytes": 2,
+                "saved_bytes": 1,
+                "site_id": "aether:aether/registration/registration.cpp:191:AETHER_TELE_INFO"
+              },
+              {
+                "events": 1,
+                "new_index": 62,
+                "new_tag_bytes": 1,
+                "old_index": 261,
+                "old_tag_bytes": 2,
+                "saved_bytes": 1,
+                "site_id": "aether:aether/registration/registration.cpp:205:AETHER_TELE_INFO"
+              },
+              {
+                "events": 1,
+                "new_index": 63,
+                "new_tag_bytes": 1,
+                "old_index": 263,
+                "old_tag_bytes": 2,
+                "saved_bytes": 1,
+                "site_id": "aether:aether/registration/registration.cpp:241:AETHER_TELE_DEBUG"
+              },
+              {
+                "events": 1,
+                "new_index": 55,
+                "new_tag_bytes": 1,
+                "old_index": 249,
+                "old_tag_bytes": 2,
+                "saved_bytes": 1,
+                "site_id": "aether:aether/registration/registration.cpp:63:AETHER_TELE_INFO"
+              },
+              {
+                "events": 1,
+                "new_index": 56,
+                "new_tag_bytes": 1,
+                "old_index": 251,
+                "old_tag_bytes": 2,
+                "saved_bytes": 1,
+                "site_id": "aether:aether/registration/registration.cpp:79:AETHER_TELED_INFO"
+              },
+              {
+                "events": 1,
+                "new_index": 64,
+                "new_tag_bytes": 1,
+                "old_index": 421,
+                "old_tag_bytes": 2,
+                "saved_bytes": 1,
+                "site_id": "aether:aether/transport/system_sockets/sockets/win_tcp_socket.cpp:178:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 1,
+                "new_index": 65,
+                "new_tag_bytes": 1,
+                "old_index": 425,
+                "old_tag_bytes": 2,
+                "saved_bytes": 1,
+                "site_id": "aether:aether/transport/system_sockets/sockets/win_tcp_socket.cpp:204:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 1,
+                "new_index": 66,
+                "new_tag_bytes": 1,
+                "old_index": 440,
+                "old_tag_bytes": 2,
+                "saved_bytes": 1,
+                "site_id": "aether:aether/transport/system_sockets/tcp/tcp.h:175:AETHER_TELE_INFO"
+              },
+              {
+                "events": 1,
+                "new_index": 67,
+                "new_tag_bytes": 1,
+                "old_index": 441,
+                "old_tag_bytes": 2,
+                "saved_bytes": 1,
+                "site_id": "aether:aether/transport/system_sockets/tcp/tcp.h:176:AETHER_TELE_INFO"
+              },
+              {
+                "events": 1,
+                "new_index": 68,
+                "new_tag_bytes": 1,
+                "old_index": 481,
+                "old_tag_bytes": 2,
+                "saved_bytes": 1,
+                "site_id": "aether:aether/write_action/buffer_write.h:136:BW_LOG_DEBUG"
+              }
+            ],
+            "new_tag_bytes": 1559,
+            "new_tag_width_events": {
+              "1": 1559,
+              "2": 0,
+              "4": 0
+            },
+            "old_tag_bytes": 2844,
+            "old_tag_width_events": {
+              "1": 274,
+              "2": 1285,
+              "4": 0
+            },
+            "saved_tag_bytes": 1285
+          },
+          "apptraverse": {
+            "catalog_sites": 5,
+            "indices_preserved": true,
+            "log_records": 1,
+            "most_frequent": [
+              {
+                "events": 1,
+                "new_index": 5,
+                "new_tag_bytes": 1,
+                "old_index": 5,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "apptraverse:src/object_serialization.cpp:1084:APPTRAVERSE_TELE_INFO"
+              }
+            ],
+            "new_tag_bytes": 1,
+            "new_tag_width_events": {
+              "1": 1,
+              "2": 0,
+              "4": 0
+            },
+            "old_tag_bytes": 1,
+            "old_tag_width_events": {
+              "1": 1,
+              "2": 0,
+              "4": 0
+            },
+            "saved_tag_bytes": 0
+          },
+          "objects": {
+            "catalog_sites": 21,
+            "indices_preserved": true,
+            "log_records": 2561,
+            "most_frequent": [
+              {
+                "events": 1314,
+                "new_index": 11,
+                "new_tag_bytes": 1,
+                "old_index": 11,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "objects:tag:kRamNotFound"
+              },
+              {
+                "events": 991,
+                "new_index": 16,
+                "new_tag_bytes": 1,
+                "old_index": 16,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "objects:tag:kRamLoaded"
+              },
+              {
+                "events": 208,
+                "new_index": 21,
+                "new_tag_bytes": 1,
+                "old_index": 21,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "objects:tag:kRegistryEntry"
+              },
+              {
+                "events": 48,
+                "new_index": 15,
+                "new_tag_bytes": 1,
+                "old_index": 15,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "objects:tag:kRamVersionMissing"
+              }
+            ],
+            "new_tag_bytes": 2561,
+            "new_tag_width_events": {
+              "1": 2561,
+              "2": 0,
+              "4": 0
+            },
+            "old_tag_bytes": 2561,
+            "old_tag_width_events": {
+              "1": 2561,
+              "2": 0,
+              "4": 0
+            },
+            "saved_tag_bytes": 0
+          },
+          "product.apptraverse-app": {
+            "catalog_sites": 13,
+            "indices_preserved": true,
+            "log_records": 442,
+            "most_frequent": [
+              {
+                "events": 200,
+                "new_index": 12,
+                "new_tag_bytes": 1,
+                "old_index": 12,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "product:src/common/wire/wire_outbound_queue.cpp:27:PRODUCT_TELE_DEBUG"
+              },
+              {
+                "events": 200,
+                "new_index": 13,
+                "new_tag_bytes": 1,
+                "old_index": 13,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "product:src/common/wire/wire_outbound_queue.cpp:42:PRODUCT_TELE_DEBUG"
+              },
+              {
+                "events": 40,
+                "new_index": 10,
+                "new_tag_bytes": 1,
+                "old_index": 10,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "product:src/common/wire/host_wire_business.cpp:75:PRODUCT_TELE_INFO"
+              },
+              {
+                "events": 1,
+                "new_index": 9,
+                "new_tag_bytes": 1,
+                "old_index": 9,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "product:src/common/product_telemetry.cpp:27:PRODUCT_TELE_INFO"
+              },
+              {
+                "events": 1,
+                "new_index": 11,
+                "new_tag_bytes": 1,
+                "old_index": 11,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "product:src/common/wire/wire_outbound_queue.cpp:18:PRODUCT_TELE_WARNING"
+              }
+            ],
+            "new_tag_bytes": 442,
+            "new_tag_width_events": {
+              "1": 442,
+              "2": 0,
+              "4": 0
+            },
+            "old_tag_bytes": 442,
+            "old_tag_width_events": {
+              "1": 442,
+              "2": 0,
+              "4": 0
+            },
+            "saved_tag_bytes": 0
+          }
+        },
+        "new_tag_bytes": 4563,
+        "old_tag_bytes": 5848,
+        "product": "apptraverse-app",
+        "ranked_build_id": "fd7765b05f3f27a589e30d9065f9b1a0a4b1203dd685692316811e9672224731",
+        "saved_tag_bytes": 1285
+      }
+    },
+    "aeroadmin-chat": {
+      "phases": {
+        "native-baseline": {
+          "summary": {
+            "log_records": 2529,
+            "raw_bytes": 114892,
+            "artifact_bytes": 117139,
+            "parameter_payload_bytes": 103840,
+            "average_log_bytes_excluding_payload": 4.081455120601028,
+            "average_with_log_framing_excluding_payload": 4.287860814551206
+          },
+          "namespaces": {
+            "aether": {
+              "log_records": 2,
+              "metric_records": 2,
+              "capture_bytes": 47,
+              "payload_bytes": 0,
+              "payload_length_bytes": 2,
+              "log_bytes_excluding_payload": 8,
+              "metric_bytes": 25,
+              "time_anchor_bytes": 0,
+              "log_block_header_bytes": 14,
+              "average_log_bytes_excluding_payload": 4.0,
+              "average_with_log_block_headers_excluding_payload": 11.0,
+              "average_capture_bytes_excluding_payload": 23.5
+            },
+            "apptraverse": {
+              "log_records": 83,
+              "metric_records": 4,
+              "capture_bytes": 3353,
+              "payload_bytes": 2901,
+              "payload_length_bytes": 83,
+              "log_bytes_excluding_payload": 374,
+              "metric_bytes": 61,
+              "time_anchor_bytes": 0,
+              "log_block_header_bytes": 17,
+              "average_log_bytes_excluding_payload": 4.506024096385542,
+              "average_with_log_block_headers_excluding_payload": 4.710843373493976,
+              "average_capture_bytes_excluding_payload": 5.445783132530121
+            },
+            "objects": {
+              "log_records": 2403,
+              "metric_records": 7,
+              "capture_bytes": 109661,
+              "payload_bytes": 99360,
+              "payload_length_bytes": 2403,
+              "log_bytes_excluding_payload": 9736,
+              "metric_bytes": 91,
+              "time_anchor_bytes": 0,
+              "log_block_header_bytes": 474,
+              "average_log_bytes_excluding_payload": 4.051602163961714,
+              "average_with_log_block_headers_excluding_payload": 4.248855597170204,
+              "average_capture_bytes_excluding_payload": 4.286724927174365
+            },
+            "product.aeroadmin-chat": {
+              "log_records": 41,
+              "metric_records": 2,
+              "capture_bytes": 1831,
+              "payload_bytes": 1579,
+              "payload_length_bytes": 41,
+              "log_bytes_excluding_payload": 204,
+              "metric_bytes": 31,
+              "time_anchor_bytes": 0,
+              "log_block_header_bytes": 17,
+              "average_log_bytes_excluding_payload": 4.975609756097561,
+              "average_with_log_block_headers_excluding_payload": 5.390243902439025,
+              "average_capture_bytes_excluding_payload": 6.146341463414634
+            }
+          },
+          "build_id": "7525e096195b428d15fdea9a36f7c0a28a08c660bc84c6bd5fdcc9142959508b",
+          "profile_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "source_revisions": {
+            "aether": {
+              "commit": "60fa62b3bf1afbead9a877e25cbe83b37c72ce53",
+              "dirty": true,
+              "tree_sha256": "8c153533b7019f73dafcdfbafa3614b6927c01a9d6a0af7530e3abaccc08a7c3"
+            },
+            "apptraverse": {
+              "commit": "fb9a7f122c515f2e7927651380cd4433dc3397f6",
+              "dirty": true,
+              "tree_sha256": "6dc0b84606c0fec04694fb0bd3a60c3faec9ebd12b9d4ee2418334f104d8c94c"
+            },
+            "numeric": {
+              "commit": "d5969e7a50f1fbbf0a195bb8b256ad0c9c15115c",
+              "dirty": false,
+              "tree_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "objects": {
+              "commit": "fa4cd4d0f0bb1b79b03e58eb723651091deb20e9",
+              "dirty": true,
+              "tree_sha256": "648b48356a87b29c14071c47b97b3ae6ee20be81f01d8b484f90d458102cd8d2"
+            },
+            "product": {
+              "commit": "27beddd3c13269393b2d9758b3c41fb1d569e2dc",
+              "dirty": true,
+              "tree_sha256": "e25d7af96d798eceb7bac60d2a764c9594a51d4f388ade8bab5f3e29ed45496b"
+            },
+            "tele": {
+              "commit": "dfd34187bbc996bb709d4d2ff1eeaa4df4999213",
+              "dirty": true,
+              "tree_sha256": "2757788db0480e05153b260dcc8d64ab4b2002c4315f1a126cdf6549b45042a2"
+            }
+          },
+          "configuration_in_manifest": {},
+          "compiled_build_cache": "telemetry-evidence\\aeroadmin-chat\\native-baseline\\CMakeCache.txt",
+          "exact_descriptor": "telemetry-evidence\\aeroadmin-chat\\native-baseline\\build\\build.json"
+        },
+        "native-profiled": {
+          "summary": {
+            "log_records": 2529,
+            "raw_bytes": 114915,
+            "artifact_bytes": 117162,
+            "parameter_payload_bytes": 103851,
+            "average_log_bytes_excluding_payload": 4.085013839462238,
+            "average_with_log_framing_excluding_payload": 4.291419533412416
+          },
+          "namespaces": {
+            "aether": {
+              "log_records": 2,
+              "metric_records": 2,
+              "capture_bytes": 47,
+              "payload_bytes": 0,
+              "payload_length_bytes": 2,
+              "log_bytes_excluding_payload": 8,
+              "metric_bytes": 25,
+              "time_anchor_bytes": 0,
+              "log_block_header_bytes": 14,
+              "average_log_bytes_excluding_payload": 4.0,
+              "average_with_log_block_headers_excluding_payload": 11.0,
+              "average_capture_bytes_excluding_payload": 23.5
+            },
+            "apptraverse": {
+              "log_records": 83,
+              "metric_records": 4,
+              "capture_bytes": 3359,
+              "payload_bytes": 2901,
+              "payload_length_bytes": 83,
+              "log_bytes_excluding_payload": 380,
+              "metric_bytes": 61,
+              "time_anchor_bytes": 0,
+              "log_block_header_bytes": 17,
+              "average_log_bytes_excluding_payload": 4.578313253012048,
+              "average_with_log_block_headers_excluding_payload": 4.783132530120482,
+              "average_capture_bytes_excluding_payload": 5.518072289156627
+            },
+            "objects": {
+              "log_records": 2403,
+              "metric_records": 7,
+              "capture_bytes": 109678,
+              "payload_bytes": 99371,
+              "payload_length_bytes": 2403,
+              "log_bytes_excluding_payload": 9739,
+              "metric_bytes": 94,
+              "time_anchor_bytes": 0,
+              "log_block_header_bytes": 474,
+              "average_log_bytes_excluding_payload": 4.052850603412401,
+              "average_with_log_block_headers_excluding_payload": 4.250104036620891,
+              "average_capture_bytes_excluding_payload": 4.289221806075739
+            },
+            "product.aeroadmin-chat": {
+              "log_records": 41,
+              "metric_records": 2,
+              "capture_bytes": 1831,
+              "payload_bytes": 1579,
+              "payload_length_bytes": 41,
+              "log_bytes_excluding_payload": 204,
+              "metric_bytes": 31,
+              "time_anchor_bytes": 0,
+              "log_block_header_bytes": 17,
+              "average_log_bytes_excluding_payload": 4.975609756097561,
+              "average_with_log_block_headers_excluding_payload": 5.390243902439025,
+              "average_capture_bytes_excluding_payload": 6.146341463414634
+            }
+          },
+          "build_id": "42a70f27c05dea152eabbfddf6d8fa3ffdac9146a53312b3e0b93bdbd5cb4114",
+          "profile_sha256": "89f3e0c4bdaf41bd081ed11b2838274a4eb38d0ee3fe131ecd2c0f167fc4a328",
+          "source_revisions": {
+            "aether": {
+              "commit": "60fa62b3bf1afbead9a877e25cbe83b37c72ce53",
+              "dirty": true,
+              "tree_sha256": "09fa5009ee0be8dc2de4224179f5554dce837b093265b5de3756ea2f851d3e9f"
+            },
+            "apptraverse": {
+              "commit": "fb9a7f122c515f2e7927651380cd4433dc3397f6",
+              "dirty": true,
+              "tree_sha256": "6dc0b84606c0fec04694fb0bd3a60c3faec9ebd12b9d4ee2418334f104d8c94c"
+            },
+            "numeric": {
+              "commit": "d5969e7a50f1fbbf0a195bb8b256ad0c9c15115c",
+              "dirty": false,
+              "tree_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "objects": {
+              "commit": "fa4cd4d0f0bb1b79b03e58eb723651091deb20e9",
+              "dirty": true,
+              "tree_sha256": "648b48356a87b29c14071c47b97b3ae6ee20be81f01d8b484f90d458102cd8d2"
+            },
+            "product": {
+              "commit": "27beddd3c13269393b2d9758b3c41fb1d569e2dc",
+              "dirty": true,
+              "tree_sha256": "556059242ccb16e6b2ccc8628de1c65054e1ae6b445ab1f6c121ea93cba4ab8c"
+            },
+            "tele": {
+              "commit": "dfd34187bbc996bb709d4d2ff1eeaa4df4999213",
+              "dirty": true,
+              "tree_sha256": "5cbbe96defe84dc52ea90b379668764508752cc36921b96a6ad4989565ce7bb4"
+            }
+          },
+          "configuration_in_manifest": {},
+          "compiled_build_cache": "telemetry-evidence\\aeroadmin-chat\\native-profiled\\CMakeCache.txt",
+          "exact_descriptor": "telemetry-evidence\\aeroadmin-chat\\native-profiled\\build\\build.json"
+        }
+      },
+      "profile_parity": {
+        "product": "aeroadmin-chat",
+        "per_namespace": {
+          "aether": {
+            "log_event_counts_equal": true,
+            "messages_equal": true,
+            "messages_equal_after_random_object_id_normalization": true,
+            "metric_counts_equal": true
+          },
+          "apptraverse": {
+            "log_event_counts_equal": true,
+            "messages_equal": true,
+            "messages_equal_after_random_object_id_normalization": true,
+            "metric_counts_equal": true
+          },
+          "objects": {
+            "log_event_counts_equal": true,
+            "messages_equal": false,
+            "messages_equal_after_random_object_id_normalization": true,
+            "metric_counts_equal": true
+          },
+          "product.aeroadmin-chat": {
+            "log_event_counts_equal": true,
+            "messages_equal": true,
+            "messages_equal_after_random_object_id_normalization": true,
+            "metric_counts_equal": true
+          }
+        },
+        "all_event_and_metric_counts_equal": true,
+        "messages_equal_after_random_object_id_normalization": true,
+        "timing_duration_values_compared": false
+      },
+      "cold_restart": {
+        "immutable_front_identical": true,
+        "disjoint_new_tail": true,
+        "front_sha256": "06346ed1f5809c3e3f9df3812ef045b75e45794f193c327f82f8fa2b956579d4",
+        "tail_sha256": "1e6e67b47cb6cb72aaf852efab9e0c0e7518e38b936edd468bff6d23de9e9f0d",
+        "boot0": {
+          "prior_pending": 0,
+          "pending": 1,
+          "prior_product_metric_count": 0,
+          "product_metric_count": 41,
+          "old_batches_retained": true,
+          "new_delta": true
+        },
+        "boot1": {
+          "prior_pending": 1,
+          "pending": 2,
+          "prior_product_metric_count": 41,
+          "product_metric_count": 82,
+          "old_batches_retained": true,
+          "new_delta": true
+        },
+        "decoded_disjoint_log_records": 5057
+      },
+      "frequency_prediction": {
+        "average_new_tag_bytes": 1.0,
+        "average_old_tag_bytes": 1.302780395852969,
+        "baseline_build_id": "eb6d37abc2599a376141c4633079c707fa5232af41c8465a9433f609d9a8fefb",
+        "log_records": 4244,
+        "namespaces": {
+          "aether": {
+            "catalog_sites": 483,
+            "indices_preserved": false,
+            "log_records": 1559,
+            "most_frequent": [
+              {
+                "events": 344,
+                "new_index": 1,
+                "new_tag_bytes": 1,
+                "old_index": 453,
+                "old_tag_bytes": 2,
+                "saved_bytes": 344,
+                "site_id": "aether:aether/transport/system_sockets/udp/udp.h:64:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 320,
+                "new_index": 2,
+                "new_tag_bytes": 1,
+                "old_index": 482,
+                "old_tag_bytes": 2,
+                "saved_bytes": 320,
+                "site_id": "aether:aether/write_action/buffer_write.h:148:BW_LOG_DEBUG"
+              },
+              {
+                "events": 172,
+                "new_index": 3,
+                "new_tag_bytes": 1,
+                "old_index": 457,
+                "old_tag_bytes": 2,
+                "saved_bytes": 172,
+                "site_id": "aether:aether/transport/system_sockets/udp/udp.h:183:AETHER_TELE_DEBUG"
+              },
+              {
+                "events": 160,
+                "new_index": 4,
+                "new_tag_bytes": 1,
+                "old_index": 478,
+                "old_tag_bytes": 2,
+                "saved_bytes": 160,
+                "site_id": "aether:aether/work_cloud_api/work_server_api/login_api.cpp:38:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 155,
+                "new_index": 5,
+                "new_tag_bytes": 1,
+                "old_index": 483,
+                "old_tag_bytes": 2,
+                "saved_bytes": 155,
+                "site_id": "aether:aether/write_action/buffer_write.h:160:BW_LOG_DEBUG"
+              },
+              {
+                "events": 145,
+                "new_index": 6,
+                "new_tag_bytes": 1,
+                "old_index": 61,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/client_messages/p2p_message_stream.cpp:277:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 17,
+                "new_index": 7,
+                "new_tag_bytes": 1,
+                "old_index": 450,
+                "old_tag_bytes": 2,
+                "saved_bytes": 17,
+                "site_id": "aether:aether/transport/system_sockets/udp/udp.cpp:87:AETHER_TELE_DEBUG"
+              },
+              {
+                "events": 14,
+                "new_index": 8,
+                "new_tag_bytes": 1,
+                "old_index": 476,
+                "old_tag_bytes": 2,
+                "saved_bytes": 14,
+                "site_id": "aether:aether/work_cloud_api/client_api/client_api_unsafe.cpp:38:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 12,
+                "new_index": 10,
+                "new_tag_bytes": 1,
+                "old_index": 31,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/ae_actions/ping.cpp:152:AETHER_TELE_DEBUG"
+              },
+              {
+                "events": 12,
+                "new_index": 11,
+                "new_tag_bytes": 1,
+                "old_index": 33,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/ae_actions/ping.cpp:228:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 12,
+                "new_index": 9,
+                "new_tag_bytes": 1,
+                "old_index": 30,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/ae_actions/ping.cpp:84:AETHER_TELE_DEBUG"
+              },
+              {
+                "events": 12,
+                "new_index": 12,
+                "new_tag_bytes": 1,
+                "old_index": 77,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/cloud_connections/cloud_server_connections.cpp:163:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 12,
+                "new_index": 13,
+                "new_tag_bytes": 1,
+                "old_index": 85,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/cloud_connections/cloud_server_connections.cpp:408:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 12,
+                "new_index": 14,
+                "new_tag_bytes": 1,
+                "old_index": 91,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/cloud_connections/ping_cloud_servers.cpp:164:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 12,
+                "new_index": 15,
+                "new_tag_bytes": 1,
+                "old_index": 475,
+                "old_tag_bytes": 2,
+                "saved_bytes": 12,
+                "site_id": "aether:aether/work_cloud_api/client_api/client_api_safe.cpp:151:AE_TELED_DEBUG"
+              },
+              {
+                "events": 7,
+                "new_index": 16,
+                "new_tag_bytes": 1,
+                "old_index": 54,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/channels/ethernet_channel.cpp:217:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 7,
+                "new_index": 17,
+                "new_tag_bytes": 1,
+                "old_index": 245,
+                "old_tag_bytes": 2,
+                "saved_bytes": 7,
+                "site_id": "aether:aether/poller/win_poller.cpp:66:AETHER_TELE_DEBUG"
+              },
+              {
+                "events": 7,
+                "new_index": 18,
+                "new_tag_bytes": 1,
+                "old_index": 325,
+                "old_tag_bytes": 2,
+                "saved_bytes": 7,
+                "site_id": "aether:aether/server_connections/channel_select_action.cpp:36:AETHER_TELED_INFO"
+              },
+              {
+                "events": 7,
+                "new_index": 19,
+                "new_tag_bytes": 1,
+                "old_index": 331,
+                "old_tag_bytes": 2,
+                "saved_bytes": 7,
+                "site_id": "aether:aether/server_connections/server_connection.cpp:154:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 7,
+                "new_index": 20,
+                "new_tag_bytes": 1,
+                "old_index": 332,
+                "old_tag_bytes": 2,
+                "saved_bytes": 7,
+                "site_id": "aether:aether/server_connections/server_connection.cpp:181:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 7,
+                "new_index": 21,
+                "new_tag_bytes": 1,
+                "old_index": 334,
+                "old_tag_bytes": 2,
+                "saved_bytes": 7,
+                "site_id": "aether:aether/server_connections/server_connection.cpp:199:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 6,
+                "new_index": 22,
+                "new_tag_bytes": 1,
+                "old_index": 328,
+                "old_tag_bytes": 2,
+                "saved_bytes": 6,
+                "site_id": "aether:aether/server_connections/client_server_connection.cpp:202:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 6,
+                "new_index": 23,
+                "new_tag_bytes": 1,
+                "old_index": 447,
+                "old_tag_bytes": 2,
+                "saved_bytes": 6,
+                "site_id": "aether:aether/transport/system_sockets/udp/udp.cpp:29:AETHER_TELE_INFO"
+              },
+              {
+                "events": 6,
+                "new_index": 24,
+                "new_tag_bytes": 1,
+                "old_index": 455,
+                "old_tag_bytes": 2,
+                "saved_bytes": 6,
+                "site_id": "aether:aether/transport/system_sockets/udp/udp.h:146:AETHER_TELE_INFO"
+              },
+              {
+                "events": 4,
+                "new_index": 25,
+                "new_tag_bytes": 1,
+                "old_index": 50,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/aether_app.cpp:193:AETHER_TELE_INFO"
+              },
+              {
+                "events": 4,
+                "new_index": 26,
+                "new_tag_bytes": 1,
+                "old_index": 84,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/cloud_connections/cloud_server_connections.cpp:396:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 4,
+                "new_index": 27,
+                "new_tag_bytes": 1,
+                "old_index": 87,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/cloud_connections/cloud_server_connections.cpp:426:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 4,
+                "new_index": 28,
+                "new_tag_bytes": 1,
+                "old_index": 435,
+                "old_tag_bytes": 2,
+                "saved_bytes": 4,
+                "site_id": "aether:aether/transport/system_sockets/tcp/tcp.cpp:77:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 4,
+                "new_index": 29,
+                "new_tag_bytes": 1,
+                "old_index": 436,
+                "old_tag_bytes": 2,
+                "saved_bytes": 4,
+                "site_id": "aether:aether/transport/system_sockets/tcp/tcp.cpp:87:AETHER_TELE_DEBUG"
+              },
+              {
+                "events": 4,
+                "new_index": 31,
+                "new_tag_bytes": 1,
+                "old_index": 443,
+                "old_tag_bytes": 2,
+                "saved_bytes": 4,
+                "site_id": "aether:aether/transport/system_sockets/tcp/tcp.h:195:AETHER_TELE_DEBUG"
+              },
+              {
+                "events": 4,
+                "new_index": 30,
+                "new_tag_bytes": 1,
+                "old_index": 439,
+                "old_tag_bytes": 2,
+                "saved_bytes": 4,
+                "site_id": "aether:aether/transport/system_sockets/tcp/tcp.h:74:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 3,
+                "new_index": 32,
+                "new_tag_bytes": 1,
+                "old_index": 46,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/aether.cpp:35:AETHER_TELE_DEBUG"
+              },
+              {
+                "events": 3,
+                "new_index": 33,
+                "new_tag_bytes": 1,
+                "old_index": 70,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/cloud_connections/cloud_request.cpp:123:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 3,
+                "new_index": 34,
+                "new_tag_bytes": 1,
+                "old_index": 101,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/connection_manager/client_cloud_manager.cpp:259:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 3,
+                "new_index": 35,
+                "new_tag_bytes": 1,
+                "old_index": 104,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/connection_manager/get_cloud_aether.cpp:37:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 3,
+                "new_index": 36,
+                "new_tag_bytes": 1,
+                "old_index": 262,
+                "old_tag_bytes": 2,
+                "saved_bytes": 3,
+                "site_id": "aether:aether/registration/registration.cpp:225:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 3,
+                "new_index": 37,
+                "new_tag_bytes": 1,
+                "old_index": 474,
+                "old_tag_bytes": 2,
+                "saved_bytes": 3,
+                "site_id": "aether:aether/work_cloud_api/client_api/client_api_safe.cpp:145:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 2,
+                "new_index": 38,
+                "new_tag_bytes": 1,
+                "old_index": 41,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/ae_actions/telemetry.cpp:238:AETHER_TELE_DEBUG"
+              },
+              {
+                "events": 2,
+                "new_index": 39,
+                "new_tag_bytes": 1,
+                "old_index": 49,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/aether.cpp:91:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 2,
+                "new_index": 40,
+                "new_tag_bytes": 1,
+                "old_index": 59,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/client_messages/p2p_message_stream.cpp:137:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 2,
+                "new_index": 41,
+                "new_tag_bytes": 1,
+                "old_index": 60,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/client_messages/p2p_message_stream.cpp:175:AETHER_TELE_DEBUG"
+              },
+              {
+                "events": 2,
+                "new_index": 42,
+                "new_tag_bytes": 1,
+                "old_index": 63,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/client_messages/p2p_message_stream.cpp:367:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 2,
+                "new_index": 43,
+                "new_tag_bytes": 1,
+                "old_index": 64,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/client_messages/p2p_message_stream.cpp:426:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 2,
+                "new_index": 44,
+                "new_tag_bytes": 1,
+                "old_index": 66,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/client_messages/p2p_message_stream_manager.cpp:94:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 2,
+                "new_index": 45,
+                "new_tag_bytes": 1,
+                "old_index": 96,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/cloud_connections/ping_cloud_servers.cpp:456:AETHER_TELED_INFO"
+              },
+              {
+                "events": 2,
+                "new_index": 46,
+                "new_tag_bytes": 1,
+                "old_index": 97,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/cloud_connections/ping_cloud_servers.cpp:469:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 2,
+                "new_index": 47,
+                "new_tag_bytes": 1,
+                "old_index": 100,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/connection_manager/client_cloud_manager.cpp:188:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 2,
+                "new_index": 48,
+                "new_tag_bytes": 1,
+                "old_index": 242,
+                "old_tag_bytes": 2,
+                "saved_bytes": 2,
+                "site_id": "aether:aether/poller/win_poller.cpp:28:AETHER_TELE_INFO"
+              },
+              {
+                "events": 1,
+                "new_index": 49,
+                "new_tag_bytes": 1,
+                "old_index": 19,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/adapters/ethernet.cpp:34:AETHER_TELED_INFO"
+              },
+              {
+                "events": 1,
+                "new_index": 50,
+                "new_tag_bytes": 1,
+                "old_index": 36,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/ae_actions/select_client.cpp:31:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 1,
+                "new_index": 51,
+                "new_tag_bytes": 1,
+                "old_index": 37,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/ae_actions/select_client.cpp:47:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 1,
+                "new_index": 52,
+                "new_tag_bytes": 1,
+                "old_index": 48,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/aether.cpp:46:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 1,
+                "new_index": 53,
+                "new_tag_bytes": 1,
+                "old_index": 51,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/aether_app.cpp:545:AETHER_TELE_INFO"
+              },
+              {
+                "events": 1,
+                "new_index": 54,
+                "new_tag_bytes": 1,
+                "old_index": 102,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "aether:aether/connection_manager/client_cloud_manager.cpp:299:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 1,
+                "new_index": 57,
+                "new_tag_bytes": 1,
+                "old_index": 254,
+                "old_tag_bytes": 2,
+                "saved_bytes": 1,
+                "site_id": "aether:aether/registration/registration.cpp:123:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 1,
+                "new_index": 58,
+                "new_tag_bytes": 1,
+                "old_index": 257,
+                "old_tag_bytes": 2,
+                "saved_bytes": 1,
+                "site_id": "aether:aether/registration/registration.cpp:147:AETHER_TELE_INFO"
+              },
+              {
+                "events": 1,
+                "new_index": 59,
+                "new_tag_bytes": 1,
+                "old_index": 258,
+                "old_tag_bytes": 2,
+                "saved_bytes": 1,
+                "site_id": "aether:aether/registration/registration.cpp:155:AETHER_TELE_INFO"
+              },
+              {
+                "events": 1,
+                "new_index": 60,
+                "new_tag_bytes": 1,
+                "old_index": 259,
+                "old_tag_bytes": 2,
+                "saved_bytes": 1,
+                "site_id": "aether:aether/registration/registration.cpp:169:AETHER_TELE_INFO"
+              },
+              {
+                "events": 1,
+                "new_index": 61,
+                "new_tag_bytes": 1,
+                "old_index": 260,
+                "old_tag_bytes": 2,
+                "saved_bytes": 1,
+                "site_id": "aether:aether/registration/registration.cpp:191:AETHER_TELE_INFO"
+              },
+              {
+                "events": 1,
+                "new_index": 62,
+                "new_tag_bytes": 1,
+                "old_index": 261,
+                "old_tag_bytes": 2,
+                "saved_bytes": 1,
+                "site_id": "aether:aether/registration/registration.cpp:205:AETHER_TELE_INFO"
+              },
+              {
+                "events": 1,
+                "new_index": 63,
+                "new_tag_bytes": 1,
+                "old_index": 263,
+                "old_tag_bytes": 2,
+                "saved_bytes": 1,
+                "site_id": "aether:aether/registration/registration.cpp:241:AETHER_TELE_DEBUG"
+              },
+              {
+                "events": 1,
+                "new_index": 55,
+                "new_tag_bytes": 1,
+                "old_index": 249,
+                "old_tag_bytes": 2,
+                "saved_bytes": 1,
+                "site_id": "aether:aether/registration/registration.cpp:63:AETHER_TELE_INFO"
+              },
+              {
+                "events": 1,
+                "new_index": 56,
+                "new_tag_bytes": 1,
+                "old_index": 251,
+                "old_tag_bytes": 2,
+                "saved_bytes": 1,
+                "site_id": "aether:aether/registration/registration.cpp:79:AETHER_TELED_INFO"
+              },
+              {
+                "events": 1,
+                "new_index": 64,
+                "new_tag_bytes": 1,
+                "old_index": 421,
+                "old_tag_bytes": 2,
+                "saved_bytes": 1,
+                "site_id": "aether:aether/transport/system_sockets/sockets/win_tcp_socket.cpp:178:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 1,
+                "new_index": 65,
+                "new_tag_bytes": 1,
+                "old_index": 425,
+                "old_tag_bytes": 2,
+                "saved_bytes": 1,
+                "site_id": "aether:aether/transport/system_sockets/sockets/win_tcp_socket.cpp:204:AETHER_TELED_DEBUG"
+              },
+              {
+                "events": 1,
+                "new_index": 66,
+                "new_tag_bytes": 1,
+                "old_index": 440,
+                "old_tag_bytes": 2,
+                "saved_bytes": 1,
+                "site_id": "aether:aether/transport/system_sockets/tcp/tcp.h:175:AETHER_TELE_INFO"
+              },
+              {
+                "events": 1,
+                "new_index": 67,
+                "new_tag_bytes": 1,
+                "old_index": 441,
+                "old_tag_bytes": 2,
+                "saved_bytes": 1,
+                "site_id": "aether:aether/transport/system_sockets/tcp/tcp.h:176:AETHER_TELE_INFO"
+              },
+              {
+                "events": 1,
+                "new_index": 68,
+                "new_tag_bytes": 1,
+                "old_index": 481,
+                "old_tag_bytes": 2,
+                "saved_bytes": 1,
+                "site_id": "aether:aether/write_action/buffer_write.h:136:BW_LOG_DEBUG"
+              }
+            ],
+            "new_tag_bytes": 1559,
+            "new_tag_width_events": {
+              "1": 1559,
+              "2": 0,
+              "4": 0
+            },
+            "old_tag_bytes": 2844,
+            "old_tag_width_events": {
+              "1": 274,
+              "2": 1285,
+              "4": 0
+            },
+            "saved_tag_bytes": 1285
+          },
+          "apptraverse": {
+            "catalog_sites": 13,
+            "indices_preserved": true,
+            "log_records": 83,
+            "most_frequent": [
+              {
+                "events": 41,
+                "new_index": 2,
+                "new_tag_bytes": 1,
+                "old_index": 2,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "apptraverse:src/application_model_runtime.cpp:123:APPTRAVERSE_TELE_DEBUG"
+              },
+              {
+                "events": 40,
+                "new_index": 3,
+                "new_tag_bytes": 1,
+                "old_index": 3,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "apptraverse:src/application_model_runtime.cpp:152:APPTRAVERSE_TELE_DEBUG"
+              },
+              {
+                "events": 1,
+                "new_index": 4,
+                "new_tag_bytes": 1,
+                "old_index": 4,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "apptraverse:src/application_model_runtime.cpp:159:APPTRAVERSE_TELE_INFO"
+              },
+              {
+                "events": 1,
+                "new_index": 1,
+                "new_tag_bytes": 1,
+                "old_index": 1,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "apptraverse:src/application_model_runtime.cpp:64:APPTRAVERSE_TELE_INFO"
+              }
+            ],
+            "new_tag_bytes": 83,
+            "new_tag_width_events": {
+              "1": 83,
+              "2": 0,
+              "4": 0
+            },
+            "old_tag_bytes": 83,
+            "old_tag_width_events": {
+              "1": 83,
+              "2": 0,
+              "4": 0
+            },
+            "saved_tag_bytes": 0
+          },
+          "objects": {
+            "catalog_sites": 21,
+            "indices_preserved": true,
+            "log_records": 2561,
+            "most_frequent": [
+              {
+                "events": 1314,
+                "new_index": 11,
+                "new_tag_bytes": 1,
+                "old_index": 11,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "objects:tag:kRamNotFound"
+              },
+              {
+                "events": 991,
+                "new_index": 16,
+                "new_tag_bytes": 1,
+                "old_index": 16,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "objects:tag:kRamLoaded"
+              },
+              {
+                "events": 208,
+                "new_index": 21,
+                "new_tag_bytes": 1,
+                "old_index": 21,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "objects:tag:kRegistryEntry"
+              },
+              {
+                "events": 48,
+                "new_index": 15,
+                "new_tag_bytes": 1,
+                "old_index": 15,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "objects:tag:kRamVersionMissing"
+              }
+            ],
+            "new_tag_bytes": 2561,
+            "new_tag_width_events": {
+              "1": 2561,
+              "2": 0,
+              "4": 0
+            },
+            "old_tag_bytes": 2561,
+            "old_tag_width_events": {
+              "1": 2561,
+              "2": 0,
+              "4": 0
+            },
+            "saved_tag_bytes": 0
+          },
+          "product.aeroadmin-chat": {
+            "catalog_sites": 8,
+            "indices_preserved": true,
+            "log_records": 41,
+            "most_frequent": [
+              {
+                "events": 40,
+                "new_index": 2,
+                "new_tag_bytes": 1,
+                "old_index": 2,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "product:src/common/chat_application.cpp:44:AEROCHAT_TELE_INFO"
+              },
+              {
+                "events": 1,
+                "new_index": 1,
+                "new_tag_bytes": 1,
+                "old_index": 1,
+                "old_tag_bytes": 1,
+                "saved_bytes": 0,
+                "site_id": "product:src/common/chat_application.cpp:41:AEROCHAT_TELE_DEBUG"
+              }
+            ],
+            "new_tag_bytes": 41,
+            "new_tag_width_events": {
+              "1": 41,
+              "2": 0,
+              "4": 0
+            },
+            "old_tag_bytes": 41,
+            "old_tag_width_events": {
+              "1": 41,
+              "2": 0,
+              "4": 0
+            },
+            "saved_tag_bytes": 0
+          }
+        },
+        "new_tag_bytes": 4244,
+        "old_tag_bytes": 5529,
+        "product": "aeroadmin-chat",
+        "ranked_build_id": "d6114cec2f974f8e473988a1595a8031ec100953f36230ab65c423eca65316f7",
+        "saved_tag_bytes": 1285
+      }
+    }
+  },
+  "coverage": {
+    "products": [
+      "apptraverse-app",
+      "aeroadmin-chat"
+    ],
+    "production_namespace_layers": [
+      "objects",
+      "aether",
+      "apptraverse",
+      "product.<name>"
+    ],
+    "generic_examples_and_tests_in_production_catalogs": false,
+    "native_product_scenarios_network": false,
+    "real_aether_cloud_relay_tested_both_products": true,
+    "real_keeper_and_sender_restart_tested": true,
+    "platform_executed": "Windows x64; Debug product binaries; other platform builds not executed"
+  },
+  "cleanup": {
+    "before": {
+      "log_records": 23842,
+      "raw_bytes": 1585731,
+      "parameter_bytes": 1483404,
+      "average_log_bytes_excluding_parameters": 4.009059642647429,
+      "average_with_log_framing_excluding_parameters": 4.285714285714286
+    },
+    "after": {
+      "log_records": 2396,
+      "raw_bytes": 104042,
+      "parameter_bytes": 93654,
+      "average_log_bytes_excluding_parameters": 4.086393989983305,
+      "average_with_log_framing_excluding_parameters": 4.277128547579299
+    },
+    "ram_saved_logs_before": 21446,
+    "ram_saved_logs_after": 0,
+    "semantic_log_message_multisets_equal": false,
+    "metric_counts_equal": true,
+    "retained_log_records": 2396,
+    "metric_count_differences": [],
+    "message_difference_examples": [
+      {
+        "identity": [
+          "objects",
+          "kRamNotFound",
+          1,
+          8,
+          "\"Obj not found {}\"",
+          "Obj not found 547651969"
+        ],
+        "before": 0,
+        "after": 1
+      },
+      {
+        "identity": [
+          "objects",
+          "kRamNotFound",
+          1,
+          8,
+          "\"Obj not found {}\"",
+          "Obj not found 2580736006"
+        ],
+        "before": 1,
+        "after": 0
+      },
+      {
+        "identity": [
+          "objects",
+          "kRamNotFound",
+          1,
+          8,
+          "\"Obj not found {}\"",
+          "Obj not found 535555649"
+        ],
+        "before": 1,
+        "after": 0
+      },
+      {
+        "identity": [
+          "objects",
+          "kRamNotFound",
+          1,
+          8,
+          "\"Obj not found {}\"",
+          "Obj not found 2229880829"
+        ],
+        "before": 0,
+        "after": 1
+      },
+      {
+        "identity": [
+          "objects",
+          "kRamNotFound",
+          1,
+          8,
+          "\"Obj not found {}\"",
+          "Obj not found 1490486510"
+        ],
+        "before": 1,
+        "after": 0
+      }
+    ],
+    "ram_saved_metric_before": {
+      "count": 21446,
+      "samples": 21446,
+      "sum": 125157,
+      "min": 1,
+      "max": 1534
+    },
+    "ram_saved_metric_after": {
+      "count": 21446,
+      "samples": 0,
+      "sum": 0,
+      "min": 0,
+      "max": 0
+    },
+    "per_namespace_parity": {
+      "apptraverse": {
+        "event_counts_equal": true,
+        "messages_equal": true,
+        "messages_equal_after_object_id_normalization": true
+      },
+      "objects": {
+        "event_counts_equal": true,
+        "messages_equal": false,
+        "messages_equal_after_object_id_normalization": true
+      },
+      "product.aeroadmin-chat": {
+        "event_counts_equal": true,
+        "messages_equal": true,
+        "messages_equal_after_object_id_normalization": true
+      }
+    },
+    "normalization": "Only random object IDs in object-system Obj not found/object id fields; original messages retained in records.jsonl. Time/duration wire values excluded.",
+    "raw_byte_reduction": 1481689,
+    "raw_byte_reduction_percent": 93.43886195073439
+  },
+  "frozen_profile": {
+    "path": "telemetry-evidence/frequency.json",
+    "sha256": "89f3e0c4bdaf41bd081ed11b2838274a4eb38d0ee3fe131ecd2c0f167fc4a328",
+    "total_log_records": 4687,
+    "native_product_log_records": 3132,
+    "real_sdk_fixture_log_records": 1555,
+    "counts_by_commit": true,
+    "shared_sdk_predicted_tag_bytes_saved_once": 1285,
+    "zero_gain_namespaces_keep_indices": true,
+    "reproduced_profile_sha256": "89f3e0c4bdaf41bd081ed11b2838274a4eb38d0ee3fe131ecd2c0f167fc4a328",
+    "shared_sdk_schema_equal_across_products": true,
+    "shared_sdk_schema_sha256": "e744515ac37d3276139c8da19ccb5e6d913cff10cb42d6baeaa3b5254851407d"
+  },
+  "sdk_live_fixture": {
+    "legacy_cumulative_analysis": "telemetry-evidence\\relay-acceptance-6600a016\\sdk-relay-analysis.json",
+    "legacy_map_reconstruction": "telemetry-evidence\\relay-acceptance-6600a016\\sdk-relay.runtime-corrected-map.json",
+    "legacy_map_note": "Four original wrapper fallback IDs were uniquely verified from actual binary __FILE__ strings, source spans and exact FNV ResolveIndex. Original generated map retained. This is live SDK fixture traffic, separate from product scenarios.",
+    "ranked": {
+      "strict_generated_map_parse": true,
+      "unmapped_records": 0,
+      "fallback_records": 0,
+      "catalog_sites": 483,
+      "log_records": 326,
+      "log_tag_width_histogram": {
+        "1": 326
+      },
+      "wire_schema_matches_native_export": true,
+      "raw_sha256": "aea25ef50b1d946e8a5c984099fe6b0e57db40501f9584d95fa716cb9f060f2f",
+      "profile_sha256": "89f3e0c4bdaf41bd081ed11b2838274a4eb38d0ee3fe131ecd2c0f167fc4a328",
+      "source_commit": "60fa62b3bf1afbead9a877e25cbe83b37c72ce53"
+    },
+    "incompatible_telemetry_state_reset_observed": true,
+    "sender_uid_preserved_across_schema_change": true
+  },
+  "real_relay_receipts": [
+    {
+      "product": "aeroadmin-chat",
+      "stored_artifact": "telemetry-evidence\\relay-acceptance-6600a016\\received\\aeroadmin-chat\\a2d3d82185b9444ab3dfcd77562c4136\\9cc92216f31687e29a09d453e43392d1.aetlog",
+      "sha256": "2cdfd8140052eae9f65b10e79e18f73ec6dc3659427d1bee9aa16cd1de0c4159",
+      "byte_identical": true,
+      "strict_offline_parse": true,
+      "cross_product_rejected": true,
+      "log_records": 2529
+    },
+    {
+      "product": "apptraverse-app",
+      "stored_artifact": "telemetry-evidence\\relay-acceptance-6600a016\\received\\apptraverse-app\\a2d3d82185b9444ab3dfcd77562c4136\\7982bec183c3d09240c3aa83e1371c70.aetlog",
+      "sha256": "e7e9bdb088e53f21873275f1ba1a4b3e606f92bb7e7f36b7853d7350dfe31659",
+      "byte_identical": true,
+      "strict_offline_parse": true,
+      "cross_product_rejected": true,
+      "log_records": 603
+    }
+  ],
+  "validation": {
+    "offline_python_tests_passed": 13,
+    "raw_core_ctest_passed": 17,
+    "sdk_final_ctest_passed": 10,
+    "app_product_tests_passed": 16,
+    "chat_product_tests_passed": 3,
+    "native_product_before_after_metric_and_event_counts_equal": true,
+    "wire_schema_matches_all_native_exports": true,
+    "new_sdk_unmapped_or_fallback_records": 0,
+    "app_product_tests_total": 18,
+    "app_product_tests_excluded": [
+      "aether_identity",
+      "aether_catalog_e2e"
+    ],
+    "chat_product_tests_selection": "3 selected model/registry/instance tests"
+  },
+  "byte_accounting": {
+    "excluded_payload": "Contents of formatted UTF-8 log payload only; its encoded length prefix remains included.",
+    "record_average": "Raw log record bytes excluding payload contents; metric packets, time anchors, block headers and outer keeper JSON are separate.",
+    "framing_average": "Adds raw time anchors and log block/thread framing; outer AETLOG01 JSON and transport are excluded.",
+    "configuration_provenance": "Exact decoder maps and dirty source manifests are embedded. Current configuration object is empty; actual CMakeCache.txt and selected Debug binary configuration are archived beside each build."
+  }
+}

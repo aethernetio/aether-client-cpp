@@ -111,13 +111,19 @@ class AetherAppContext {
         set_aether_to_env_{[](Env* e, Aether::ptr const& a) {
           static_cast<env*>(e)->SetAether(a);
         }} {
-    TelemetryInit();
     domain_storage_.Factory(
         std::forward<DomainFactory>(domain_storage_factory));
     env_.Factory(std::forward<EnvFactory>(env_factory));
   }
 
   AE_CLASS_MOVE_ONLY(AetherAppContext)
+
+  // One primary context owns process telemetry. Participant contexts emit to
+  // that primary and must be destroyed before it.
+  AetherAppContext&& TelemetryOwner(bool owner) && {
+    telemetry_owner_ = owner;
+    return std::move(*this);
+  }
 
   /// Access to domain objcet
   Domain& domain() const { return *domain_.Resolve(*this); }
@@ -204,6 +210,7 @@ class AetherAppContext {
   ComponentFactory<AetherAppContext, TeleStatistics::ptr> tele_statistics_;
 
   [[maybe_unused]] bool tele_statistics_trap_is_set{false};
+  bool telemetry_owner_{true};
   void (*set_aether_to_env_)(Env* env, Aether::ptr const&);
 };
 
@@ -276,9 +283,14 @@ class AetherApp {
   Domain& domain() const { return *domain_; }
   Env* get_env() const { return env_.get(); }
   Aether::ptr const& aether() const { return aether_; }
+  bool OwnsTelemetry() const;
 
  private:
-  AetherApp() = default;
+  AetherApp();
+
+  struct TelemetryOwnership;
+  // Declared first so the process lease outlives domains and their teardown.
+  std::unique_ptr<TelemetryOwnership> telemetry_ownership_;
 
   std::unique_ptr<IDomainStorage> domain_facility_;
   std::unique_ptr<Env> env_;

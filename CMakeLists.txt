@@ -187,14 +187,28 @@ CPMAddPackage(
   OPTIONS "AE_INSTALL ${AE_INSTALL}" "AE_BUILD_TESTS ${AE_BUILD_TESTS}"
   EXCLUDE_FROM_ALL FALSE
 )
+# Use the matching telemetry checkout for coordinated wire-format development.
+set(AE_TELE_SOURCE_DIR "" CACHE PATH "Local aether-tele checkout (optional)")
+if(AE_TELE_SOURCE_DIR)
+  get_filename_component(AE_TELE_SOURCE_DIR "${AE_TELE_SOURCE_DIR}" ABSOLUTE
+    BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+  set(CPM_aether-tele_SOURCE "${AE_TELE_SOURCE_DIR}")
+endif()
 CPMAddPackage(
   NAME aether-tele
   GIT_REPOSITORY "https://github.com/aethernetio/aether-tele.git"
-  GIT_TAG "main"
+  GIT_TAG "d7b05610e03750e017b8d227d468dd4950449af1"
   OPTIONS "AE_TELE_INSTALL ${AE_INSTALL}"
           "AE_TELE_BUILD_TESTS ${AE_BUILD_TESTS}"
   EXCLUDE_FROM_ALL FALSE
 )
+# The persistent backend accepts independently decodable thread blocks. Mixing
+# it with the old flat writer would reject continuation drains at runtime.
+file(STRINGS "${aether-tele_SOURCE_DIR}/src/aether-tele/raw/wire.h"
+  _ae_thread_block_api REGEX "inline bool WriteBlockPrefix")
+if(NOT _ae_thread_block_api)
+  message(FATAL_ERROR "This client requires thread-block aether-tele. Set AE_TELE_SOURCE_DIR to the matching checkout.")
+endif()
 # Keep third-party header diagnostics separate from the SDK's strict warnings.
 foreach(_ae_external_target IN ITEMS gcem ae-numeric aether-tele)
   get_target_property(_ae_external_includes ${_ae_external_target}
@@ -203,10 +217,16 @@ foreach(_ae_external_target IN ITEMS gcem ae-numeric aether-tele)
     INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_ae_external_includes}")
 endforeach()
 set(AE_OBJECTS_RAW_TELE ON CACHE BOOL "Route object system telemetry to its independent raw space")
+set(AE_OBJECTS_SOURCE_DIR "" CACHE PATH "Local aether-objects checkout (optional)")
+if(AE_OBJECTS_SOURCE_DIR)
+  get_filename_component(AE_OBJECTS_SOURCE_DIR "${AE_OBJECTS_SOURCE_DIR}" ABSOLUTE
+    BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+  set(CPM_aether-objects_SOURCE "${AE_OBJECTS_SOURCE_DIR}")
+endif()
 CPMAddPackage(
   NAME aether-objects
   GIT_REPOSITORY "https://github.com/aethernetio/aether-objects.git"
-  GIT_TAG "fa4cd4d0f0bb1b79b03e58eb723651091deb20e9"
+  GIT_TAG "952dcd6a9243db763fd7288a60497e4aac4d2ac6"
   OPTIONS "AE_INSTALL ${AE_INSTALL}"
           "AE_BUILD_TESTS ${AE_BUILD_TESTS}"
   EXCLUDE_FROM_ALL FALSE
@@ -323,12 +343,24 @@ file(GLOB_RECURSE ae_tele_catalog_inputs CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/tools/*.h" "${CMAKE_CURRENT_SOURCE_DIR}/tools/*.hpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/tools/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/tools/*.cc")
 set(ae_tele_catalog_header "${CMAKE_CURRENT_BINARY_DIR}/generated/aether_tele_catalog.h")
+set(AE_TELE_FREQUENCY_PROFILE "" CACHE FILEPATH "Frozen telemetry frequency profile for compact SDK tag assignment")
+set(ae_tele_catalog_profile_args)
+if(AE_TELE_FREQUENCY_PROFILE)
+  list(APPEND ae_tele_catalog_profile_args --profile "${AE_TELE_FREQUENCY_PROFILE}")
+endif()
 add_custom_command(OUTPUT "${ae_tele_catalog_header}"
   "${CMAKE_CURRENT_BINARY_DIR}/generated/aether.tele.sites.json"
   COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_tele_catalog.py"
     --root "${CMAKE_CURRENT_SOURCE_DIR}" --header "${ae_tele_catalog_header}"
     --map "${CMAKE_CURRENT_BINARY_DIR}/generated/aether.tele.sites.json"
+    --tele-tools "${aether-tele_SOURCE_DIR}/tools"
+    --numeric-root "${ae-numeric_SOURCE_DIR}"
+    ${ae_tele_catalog_profile_args}
   DEPENDS ${ae_tele_catalog_inputs} "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_tele_catalog.py"
+    "${aether-tele_SOURCE_DIR}/tools/build_catalog.py"
+    "${aether-tele_SOURCE_DIR}/tools/telemetry_artifact.py"
+    "${aether-tele_SOURCE_DIR}/tools/thread_blocks_wire.json"
+    ${AE_TELE_FREQUENCY_PROFILE}
   VERBATIM)
 add_custom_target(aether-tele-catalog
   DEPENDS "${ae_tele_catalog_header}"
@@ -576,4 +608,9 @@ option(AE_BUILD_PRESENCE_API_BENCH "Build native presence API probe" OFF)
 if(AE_BUILD_PRESENCE_API_BENCH)
  target_compile_definitions(aether PUBLIC AE_BENCH_TCP_PROXY=1)
  add_subdirectory(examples/benches/presence_api)
+endif()
+
+option(AE_BUILD_TELEMETRY_KEEPER "Build the dedicated Aether telemetry keeper client" OFF)
+if(AE_BUILD_TELEMETRY_KEEPER AND (WIN32 OR UNIX) AND NOT ANDROID AND NOT ESP_PLATFORM AND NOT EMSCRIPTEN)
+  add_subdirectory(tools/telemetry_keeper)
 endif()

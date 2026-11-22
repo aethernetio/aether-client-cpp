@@ -1,145 +1,126 @@
-# Raw telemetry integration
+# Persistent product telemetry
 
-`AetherTeleSink` records compact raw data in the `aether` namespace. The object
-system uses its own sink and the `objects` namespace. Their writers, runtime
-filters, tag indices and statistics are independent, even though Aether binds
-both sinks to one `TeleStatisticsBackend` for persistence. Application sinks can
-use another identity and backend.
+The two products are AppTraverse App (`apptraverse-app`) and AeroAdmin Chat
+(`aeroadmin-chat`). Both register independent `objects`, `aether`, `apptraverse`
+and product namespaces before constructing `AetherApp`. The initial deployment
+ships all four to one dedicated keeper client through ordinary Aether client
+messaging. Namespace identities stay separate so routing can be split later.
 
-## Build requirements
+## Recording and restart
 
-CMake uses Python 3 to generate the complete telemetry callsite catalog.
+`AetherTeleSink` and the product sinks accept concurrent writers and synchronized
+`DrainAll()` checkpoints. A raw `Stream` itself has one owner. Bind a stable
+logical writer ID when per-worker metric history must continue across process
+restarts. OS thread IDs and live TLS, clocks, callbacks, locks and sockets are
+runtime state and are never serialized.
 
-Exceptions and RTTI are optional. Backend adoption checks a process-local type
-token before casting and does not require RTTI. The CMake targets preserve the
-consumer's runtime settings. The provided optimization toolchains and ESP-IDF
-defaults enable exceptions and RTTI, but consumers may disable them.
+An application process has one telemetry owner, one journal and one outbox.
+Additional SDK contexts use `AetherAppContext{}.TelemetryOwner(false)` and emit
+through that owner's backend. They do not rebind the global sinks, adopt a
+second history into process telemetry, create a second uploader, or disable logging when they
+stop. Construct the owner first and destroy it after its participants; business
+objects remain local to their SDK domains. The context owner thread receives an
+automatic writer ID, so two contexts cannot accidentally claim the same writer.
 
-With exceptions enabled, telemetry contains callback exceptions and failed
-appends remain available for retry. Without exceptions, callbacks must report
-failure through their result; they must not throw across the boundary. Capacity,
-validation and drain failures remain recoverable. An unrecoverable startup
-checkpoint or fragment-serialization failure aborts instead of throwing, and
-allocation failure follows the C++ runtime's termination policy.
+Raw data consists of self-contained thread blocks. A block identifies logs or
+metrics and the number of writer sections. Each writer section carries its ID,
+body length and record count once; timed log sections also carry an absolute
+time base. Log records contain the tag and configured time delta, duration and
+parameter length/data. There is no per-record writer ID, sequence, control byte
+or extended-number flag. Metric values use
+`TieredInt<uint8_t, 200, 5000, 100000000>`; tag and length codecs are recorded
+separately in each exact offline map.
 
-## Startup and restart
+`TeleStatistics` remains an ordinary persistent `Obj`. Its normal `Save`/`Load`
+uses `BinaryArchive` and the domain storage writer to persist the accepted raw
+journal, immutable delivery outbox, capture cursors and source-build boundaries.
+Startup merges the early object/SDK journal once into the loaded backend.
+Restored metric totals become the baseline; they are not emitted again as new
+deltas. Shutdown stops new recording, drains, and uses the ordinary domain save.
 
-If Aether telemetry is disabled, or both statistics and console output are off,
-`AetherApp` does not bind, drain, disable or replace the global telemetry sinks.
-This permits concurrent disabled applications and preserves independently
-configured Objects telemetry. The explicit `DrainAetherTelemetry()` helper still
-drains both namespaces when requested by its caller.
+A successful drain means accepted in RAM. To make a checkpoint, finish scopes
+and join workers, drain on the model/domain owner thread, then check
+`DomainGraph::SaveRoot(...).IsOk()`. The older `ObjPtr::Save()` convenience API
+returns void. Standard filesystem storage supports process restart after a
+successful save; power-loss guarantees depend on the storage implementation.
+A RAM domain cannot survive process termination. Filtration/production loading
+is required: distillation without filtration deliberately recreates state.
 
-The bootstrap backend accepts events before the object domain exists. After
-`TeleStatistics` loads, startup transfers the bootstrap archive once and redirects
-late callbacks to the persistent backend. Loading imports already accepted metric
-totals as the baseline; those totals do not become new outgoing metric deltas.
+The accepted journal is bounded to 8 MiB; a rejected complete append stays in
+its writer for retry. The outbox has at most 64 immutable batches and 16 MiB of
+artifact bytes. Backpressure does not prevent sending already accepted batches.
+After every pending batch is acknowledged, captured log prefixes are removed,
+metric totals remain as compact checkpoints, and any unsent suffix is retained.
+Without a configured keeper or working network, these bounds eventually apply;
+this is bounded buffering rather than an unbounded disk log.
 
-Use stable writer IDs when a particular worker's statistics must continue across
-restarts. A live writer ID has one owner thread. Synchronized sink checkpoints
-can drain its stream while recording and scope completion use the same writer
-lock. A raw `Stream` used directly still requires one owner.
+## Compatibility and exact source identity
 
-Each namespace stores its tag catalog identity beside its raw blocks. Aether's
-catalog is generated with the build's source map. When that identity changes,
-loading preserves the old namespace as `aether@<old-catalog>` and starts a fresh
-current namespace. Old numeric indices are never interpreted as new tags.
-The object system has explicit stable IDs and its own catalog identity.
+The persisted telemetry envelope checks its compatibility identity before
+attempting to deserialize any old raw blocks or outbox. The identity includes
+the product, wire codecs and semantic numeric tag/schema fingerprints. An
+incompatible envelope is skipped and telemetry starts empty. Legacy class
+version 0 is also skipped. Independent application objects retain their state.
 
-Restart tests must use filtration (`AE_FILTRATION=ON`) or production loading.
-Distillation with filtration disabled intentionally clears persisted state and
-creates a fresh domain on every application construction.
+A source commit or a line-number shift alone does not imply an incompatible
+schema. Compatible upgrades retain totals and queued deliveries. Any unsent old
+raw prefix is sealed with its original build manifest; new records use the new
+build manifest. Old bytes are never relabeled with the new commit. Reassigning
+numeric tags through a new frequency profile changes the schema and resets the
+old telemetry state, as an intentional incompatible upgrade.
 
-## Flat records and time anchors
+Exact offline catalogs are separate from the compatibility fingerprint. Every
+artifact records repository commits, dirty flags, source digests, build/profile
+identity and exact namespace map digests. Keep generated `build.json` and all
+`catalogs/<sha256>.json` with each released binary. A commit alone cannot
+reconstruct a dirty development binary, so the map archive is required.
 
-Raw log bytes form one continuous record stream. There are no block envelopes,
-block lengths or wire versions. Tag index 0 contains a packed writer ID followed
-by an absolute little-endian uint64 microsecond timestamp. Ordinary tags are
-positive and carry control/fields, writer, sequence and selected field values.
+## Delivery to the keeper
 
-Each writer starts with an absolute-time command when it first records time.
-Later timestamps are exponential deltas from that writer's previous decoded
-value. RAM drain does not reset this base and inserts no marker. Runtime mask
-changes (including pause/resume), clock regression and out-of-range gaps cause
-a new anchor. After process restart a fresh writer inserts a new absolute
-anchor, so no previous log row needs to be loaded for timestamp continuation.
-Metric totals are loaded independently before new deltas are recorded.
+`TelemetryDeliverySession` sends immutable incremental artifacts through an
+ordinary `P2pStream` with Aether cloud relay routing. Its dedicated port is
+`0x54454c45`. This is distinct from the older cloud-server
+`AuthorizedApi::SendTelemetry` RPC, which remains available for SDK consumers
+without a configured product route. Configured products suppress that parallel
+server upload; all four namespaces currently go to the keeper.
 
-The backend maintains transient per-namespace, per-writer decoder time state
-across callback spans. Restore and bootstrap merge rebuild it from the stored
-flat bytes. Only the bytes, catalog identity and environment are serialized as
-part of the TeleStatistics object, not live clocks, callbacks or mutexes.
+The owner saves the outbox through normal object serialization before the first
+network write. A transport write success does not remove a batch. The keeper
+reassembles fragments, rejects conflicting overlaps/IDs and only acknowledges
+a complete artifact after syncing and committing its file. A retry preserves
+the same batch ID and exact bytes; a keeper restart still deduplicates by
+source UID and batch ID. The sender removes a batch only after its application
+ACK and a successful owner save; failed persistence retains it for retry.
 
-The native file adapter and client assume normal complete writes. This design
-does not implement interrupted-tail analysis or repair. Drain to the client's
-backend acknowledges RAM acceptance; quiesce workers, drain and save the domain
-on its owner thread to make a checkpoint persistent. A RAM-only domain cannot
-survive process termination. Distillation without filtration intentionally
-creates a fresh domain; use filtration/production loading for restart tests.
+Build the keeper with `AE_BUILD_TELEMETRY_KEEPER=ON`, then run:
 
-## Drain and durable storage
+```text
+aether-telemetry-keeper --profile keeper-profile --parent-uid YOUR-PARENT-UID
+```
 
-`IBackend::Append` accepts a span of complete records or rejects all its bytes.
-`TeleStatisticsBackend` validates and appends that span atomically under its
-mutex. Rejection leaves the stream's exact pending bytes available for retry.
-Metric batches contain newly accepted deltas, independently of the restored
-baseline. A snapshot contains only records accepted by the backend.
+It prints `KEEPER_UID=...` after loading/registering and saving its identity.
+Configure the products using `APPTRAVERSE_TELEMETRY_KEEPER_UID` and
+`AEROCHAT_TELEMETRY_KEEPER_UID`. Empty configuration leaves upload disabled.
+Use `--storage` to change the keeper artifact directory. Registration/live relay
+verification requires a real parent UID/profile; deterministic local tests do
+not imply that a cloud transfer was performed.
 
-For this backend, successful drain means **accepted in RAM**. It does not mean
-written or synced to disk. `DrainAetherTelemetry()` flushes logs and metric
-deltas from both sinks into that archive and reports failure. The established
-domain save path then serializes the archive as part of `TeleStatistics`.
-Runtime streams, callbacks, mutexes and shared ownership do not enter the object
-graph. Archive loading stages and validates the entire value before publishing
-it; the byte journal is serialized in bounded chunks.
+## Offline parsing and frequency allocation
 
-Drain callbacks must not call domain save. They may run on a worker thread, and
-domain saving itself emits object telemetry. Checkpoint on the domain's owner
-thread: stop new work, finish scopes/join workers, drain, then save. A caller that
-must observe storage errors should inspect the result of `DomainGraph::SaveRoot`;
-the older `ObjPtr::Save()` convenience API returns `void`. The filesystem writer
-commits a complete serialized object through a temporary file and replacement;
-custom storage implementations define their own durability guarantees. A RAM
-backend cannot recover data that was never included in a successful durable save.
+A keeper file is `AETLOG01`, a little-endian manifest length, its JSON manifest,
+and separate raw namespace ranges. The two parsers are:
 
-The default backend retains accepted history in RAM without an automatic size
-limit or eviction. Domain checkpoints and uploads do not consume it. An explicit
-backend capacity rejects complete appends and preserves retries; deployments
-requiring bounded long-term memory need an external journal or a retention policy.
+```text
+python aether-tele/tools/decode_apptraverse_app.py capture.aetlog --catalogs CATALOG_ARCHIVE --output records.jsonl --summary bytes.json
+python aether-tele/tools/decode_aeroadmin_chat.py capture.aetlog --catalogs CATALOG_ARCHIVE --output records.jsonl --summary bytes.json
+```
 
-Application shutdown closes recording before its final checkpoint. No live
-telemetry scope or worker should outlive its `AetherApp`: scope completion after
-the last durable save cannot be recovered on restart. Start, stop, pause and
-resume are ordinary timestamped events. Recovery does not require a stop event.
+Each rejects the other product, chooses exact maps by digest, validates source
+identity and raw hashes, and requires no network. Byte reports separate parameter
+contents, record overhead, block framing and metrics. See the telemetry library's
+`tools/TELEMETRY.md` for catalog generation and frozen frequency profiles.
 
-## Upload fragments and receiver
-
-`MakeTelemetryPayloads(archive, max_packet_bytes)` serializes the complete archive
-once, including all namespace catalogs and environments. It fragments those bytes
-into the existing opaque `Telemetric::cpp.blob`. Aether sizes each actual
-`LoginApi::LoginByAlias` packet, including its UID, encrypted authorized bytes and
-length prefixes, against the transport's packet limit. Candidate sizing is pure
-and does not encrypt, log or advance nonces. The two-argument helper limits only
-the inner authorized packet; transport callers supply the size-transform overload.
-A single
-raw record or large environment may span messages without changing the raw
-record format. No journal data is consumed by uploading.
-
-Each fragment contains a transfer ID, total archive byte length, offset and byte
-slice. These are network assembly fields, not telemetry sessions. Environment
-fields in the outer `Telemetric` wrapper remain empty; the complete environment
-is inside the archive and is not repeated per fragment. Deferred cloud calls own
-their payload until execution.
-
-The C++ receiver helpers are declared in `aether/ae_actions/telemetry_payload.h`:
-
-- `DecodeTelemetryFragment(payload)` validates and exposes one fragment.
-- `ReassembleTelemetryPayloads(parts)` accepts any order and identical duplicate
-  fragments. It rejects missing parts, contradictory overlaps, mixed transfers,
-  malformed lengths, trailing bytes and invalid archives before returning data.
-
-The receiver groups parts by transfer ID and owns its buffering limits, expiry
-and retransmission policy. An upload is a complete archive snapshot, not a new
-incremental metric batch: processing repeated uploads must not sum their shared
-history again. Server collection/reassembly is a separate deployment step; the
-existing outer API method and opaque blob remain the transport entry point.
+The most frequent observed tags get the shortest available indices in the next
+build. Objects retains explicit IDs 1..21, already one byte. Its frequent RAM
+save success now increments a metric without formatting a log payload. Failures,
+missing objects and product/model lifecycle events remain logs.
