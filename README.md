@@ -108,3 +108,53 @@ The current project version is `0.1.0`. The API and installation process may cha
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE).
+
+
+## Thread-block telemetry persistence
+
+`TeleStatistics` remains a regular persistent `Obj`. Its `Save` serializes a
+snapshot of accepted telemetry blocks through `BinaryArchive` and the normal
+Domain storage writer; `Load` validates the archive before publishing it.
+Streams, locks, callbacks and OS thread IDs are runtime state and are not saved.
+After loading, writers restore acknowledged metric totals by stable logical
+writer ID. Bind background workers explicitly with `BindWriter(id)` before their
+first event; keep IDs stable between runs and distinct among live writers.
+
+For coordinated development with the new thread-block `aether-tele` checkout:
+
+```text
+cmake -S . -B build-tele -DAE_TELE_SOURCE_DIR=../aether-tele -DAE_BUILD_TESTS=ON -DAE_INSTALL=OFF -DAE_DISTILLATION=OFF -DAE_FILTRATION=ON
+cmake --build build-tele --config Debug --target test-tele-persistence test-tele-process-restart
+ctest --test-dir build-tele -C Debug --output-on-failure -R test-tele
+```
+
+`AE_TELE_SOURCE_DIR` is optional and uses CPM's local-source mechanism; no
+telemetry sources are copied into the client. The catalog fingerprint includes
+`thread_blocks` so different wire layouts are not identified as the same catalog.
+Old experimental flat captures require their old decoder and are not migrated by
+this integration; use compatible object state when switching wire layouts.
+
+A normal `AetherApp` shutdown drains the sinks and invokes the ordinary object
+save path. For an explicit checkpoint while the app is alive, finish/quiesce the
+work being checkpointed, check `DrainAetherTelemetry()` for success, then call
+`app->aether().Save()`. RAM updates alone are not durable. A kill during a write
+is distinct from a restart after a successful save.
+
+`test-tele-process-restart` starts four actual application processes in a fresh
+temporary working directory. It uses `FileSystemStdStorage`, four simultaneous
+workers, stable writer IDs 10..13, and changed thread creation order on every
+boot. Each process adds 400 logs, verifies all previous payload identities and
+per-writer metric totals, and saves through the real persistent object graph.
+Normal exits check the saved object again through a fresh Domain; the middle
+process exits without destructors after an explicit checkpoint/save. The final
+compatible process sees all 1200 logs and matching counts without replaying
+history despite different build identities. The fourth process changes the
+telemetry schema and starts its telemetry with 400 logs; an independent business
+object retains its counter through all four processes.
+
+The two product integrations also persist an immutable delivery outbox in this
+ordinary object. A dedicated Aether keeper client receives artifacts via cloud
+relay and acknowledges them only after committing their files. Product parsers
+select archived namespace maps from each artifact's exact build manifest.
+See [persistent product telemetry](aether/docs/raw-telemetry.md) and the
+[keeper client](tools/telemetry_keeper/README.md) for configuration and limits.

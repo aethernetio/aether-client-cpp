@@ -30,6 +30,9 @@ list(APPEND aether_srcs
             "aether_app.cpp"
             "aether.cpp"
             "aether_tele.cpp"
+            "telemetry_namespaces.cpp"
+            "telemetry_capture.cpp"
+            "telemetry_delivery.cpp"
             "adapter_registry.cpp"
             "client_connectivity_policy.cpp"
             "client.cpp"
@@ -250,4 +253,8 @@ if(AE_SUPPORT_ADAPTIVE_DATAGRAM)
     adaptive_datagram/adaptive_datagram_stream.cpp
     adaptive_datagram/rate_controller.cpp
     client_messages/p2p_adaptive_datagram_stream.cpp)
+endif()
+
+if((WIN32 OR UNIX) AND NOT ANDROID AND NOT ESP_PLATFORM AND NOT EMSCRIPTEN)
+  target_sources(${TARGET_NAME} PRIVATE telemetry_keeper.cpp)
 endif()

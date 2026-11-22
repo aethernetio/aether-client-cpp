@@ -152,14 +152,14 @@ void CloudRequest::MakeServerRequest(CloudServerConnection* sc,
   // if request write failed
   sr.state_subs += swa.status_event().Subscribe([this, sc](auto status) {
     if (status == WriteAction::Status::kFail) {
-      AETHER_TELED_WARNING("Request write error");
+      AETHER_TELED_WARNING("Request write error server {}", sc->server_id());
       OnWriteFailed(sc);
     }
   });
   // if server stream changed its channel, retry on new channel
   sr.state_subs +=
       conn->server_connection().channel_changed_event().Subscribe([this, sc]() {
-        AETHER_TELED_WARNING("Request server channel changed");
+        AETHER_TELED_DEBUG("Request server channel changed server {}", sc->server_id());
         OnChannelChanged(sc);
       });
 

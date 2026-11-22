@@ -96,6 +96,7 @@ std::shared_ptr<tele::raw::IBackend> MakeAetherTelemetryBackend();
 struct AetherTeleIdentity {
   static constexpr std::string_view kName = "aether";
   static std::string_view CatalogId();
+  static std::string_view SchemaId();
   static std::uint32_t ResolveIndex(std::string_view file, std::uint32_t line,
                                     tele::Tag const& tag);
 };

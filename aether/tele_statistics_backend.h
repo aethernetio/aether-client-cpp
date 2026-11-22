@@ -35,6 +35,7 @@
 #include "aether-tele/raw/backend.h"
 #include "aether-tele/traps/statistics_trap.h"
 #include "aether/config.h"
+#include "aether/telemetry_outbox.h"
 #include "aether/types/packed_size.h"
 
 namespace ae {
@@ -57,10 +58,9 @@ class TeleStatisticsBackend final
     : public tele::raw::IBackend,
       public std::enable_shared_from_this<TeleStatisticsBackend> {
  public:
-  explicit TeleStatisticsBackend(
-      bool console = AE_TELE_LOG_CONSOLE,
-      std::size_t capacity = std::numeric_limits<std::size_t>::max(),
-      std::string catalog = {});
+  explicit TeleStatisticsBackend(bool console = AE_TELE_LOG_CONSOLE,
+                                 std::size_t capacity = 8 * 1024 * 1024,
+                                 std::string catalog = {});
 
   static void const* StaticTypeToken() noexcept { return &type_token_; }
   void const* TypeToken() const noexcept override { return StaticTypeToken(); }
@@ -80,12 +80,14 @@ class TeleStatisticsBackend final
   // Startup only, with current writers quiescent/drained. Transfer each early
   // archive once; late callbacks from scopes retaining early are forwarded.
   bool MergeEarly(std::shared_ptr<TeleStatisticsBackend> const& early);
+  // Owner-thread outbox operation. Once all captured batches are ACKed, keep
+  // metric history but release their log bytes; preserve the unsent suffix.
+  bool CompactAcknowledged(TelemetryOutbox& outbox);
 
  private:
   // A writable object has a unique address even with constant/data folding.
   // This process-local identity is runtime state and is never serialized.
   inline static unsigned char type_token_{};
-  std::map<std::string, std::map<std::uint32_t, std::uint64_t>> writer_times_;
   mutable std::mutex mutex_;
   TeleStatisticsArchive archive_;
   std::shared_ptr<TeleStatisticsBackend> forward_;
@@ -125,7 +127,7 @@ struct Serializer<BinaryArchive<B>, TeleStatisticsNamespace> {
     TRY_RESULT(archive.Load(Meta{next.catalog}));
     std::size_t chunks{};
     TRY_RESULT(archive.buffer().Read(SizeReadTag{chunks}));
-    if (chunks > archive.max_container_load_size()) {
+    if (chunks > (8 * 1024 * 1024) / kChunkBytes) {
       return Error{container_too_large};
     }
     for (std::size_t chunk = 0; chunk < chunks; ++chunk) {

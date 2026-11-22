@@ -105,9 +105,7 @@ esp_err_t SetupBssid(wifi_config_t& wifi_config,
 
 void SetupCredentials(wifi_config_t& wifi_config, WifiCreds const& creds) {
 #  ifdef DEBUG
-  // for debug purpose only, it's private data
-  ESP_LOGD(kTag, "Connecting to ap SSID:%s PSWD:%s", creds.ssid.c_str(),
-           creds.password.c_str());
+  ESP_LOGD(kTag, "Connecting to configured access point");
 #  endif  // DEBUG
 
   strncpy(reinterpret_cast<char*>(wifi_config.sta.ssid), creds.ssid.data(),

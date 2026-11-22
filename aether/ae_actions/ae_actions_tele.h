@@ -61,6 +61,7 @@ AE_TAG(kPingTimeoutError, kAeActions)
 
 AE_TAG(TelemetryCreated, kAeActions)
 AE_TAG(TelemetryCollectFailed, kAeActions)
+AE_TAG(TelemetrySendFailed, kAeActions)
 AE_TAG(TelemetrySent, kAeActions)
 AE_TAG(TelemetrySending, kAeActions)
 
