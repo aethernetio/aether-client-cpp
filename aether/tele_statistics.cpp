@@ -421,9 +421,9 @@ bool TeleStatisticsBackend::CompactAcknowledged(TelemetryOutbox& outbox) {
       }
     }
     auto checkpoint = compacted.size();
-    compacted.insert(compacted.end(),
-                     space.blocks.begin() + static_cast<std::size_t>(cursor),
-                     space.blocks.end());
+    auto remaining = std::span{space.blocks}.subspan(
+        static_cast<std::size_t>(cursor));
+    compacted.insert(compacted.end(), remaining.begin(), remaining.end());
     space.blocks.swap(compacted);
     cursors[name] = checkpoint;
   }

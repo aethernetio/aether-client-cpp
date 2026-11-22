@@ -243,8 +243,8 @@ std::optional<std::vector<std::uint8_t>> TelemetryDeliveryPump::Request(
   frame.total = current.artifact.size();
   auto count = std::min(current.artifact.size() - offset_, maximum - 96);
   while (count) {
-    frame.bytes.assign(current.artifact.begin() + offset_,
-                       current.artifact.begin() + offset_ + count);
+    auto part = std::span{current.artifact}.subspan(offset_, count);
+    frame.bytes.assign(part.begin(), part.end());
     auto bytes = EncodeTelemetryDeliveryFrame(frame);
     if (bytes.size() <= maximum) {
       writing_ = true;

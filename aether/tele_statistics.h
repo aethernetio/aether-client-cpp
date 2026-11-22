@@ -55,9 +55,8 @@ class TeleStatistics : public Obj {
   template <typename Dnv>
   void Save(CurrentVersion, Dnv& dnv) const {
     TelemetryPersistentState snapshot{TelemetryCompatibilityId(),
-                                      backend_->Snapshot(), outbox_};
-    snapshot.source = GetTelemetryProductInfo();
-    snapshot.epochs = epochs_;
+                                      backend_->Snapshot(), outbox_, false,
+                                      GetTelemetryProductInfo(), epochs_};
     dnv(base_, snapshot);
   }
 
