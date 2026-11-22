@@ -55,6 +55,7 @@ else()
   set(AE_ROOT_PORJECT Off)
 endif()
 
+option(AE_SUPPORT_RAW_BALANCER "Enable shared Raw send balancing by default" OFF)
 option(AE_SUPPORT_ADAPTIVE_DATAGRAM "Build adaptive datagram streams" ON)
 option(AE_DISTILLATION "Build aether in distillation mode" On)
 option(AE_FILTRATION "Build aether in filtration mode" Off)
@@ -76,6 +77,7 @@ set(AE_REG_CLOUD_ADDR "" CACHE STRING "Address of the registration cloud")
 
 message(STATUS "Aether build options:
    AE_ROOT_PORJECT=${AE_ROOT_PORJECT}
+   AE_SUPPORT_RAW_BALANCER (default) = ${AE_SUPPORT_RAW_BALANCER}
    AE_ENABLE_STREAM_HIERARCHY=${AE_ENABLE_STREAM_HIERARCHY}
    AE_SUPPORT_ADAPTIVE_DATAGRAM=${AE_SUPPORT_ADAPTIVE_DATAGRAM}
    AE_DISTILLATION=${AE_DISTILLATION}
@@ -254,6 +256,7 @@ CPMAddPackage(
 
 add_library(${TARGET_NAME} STATIC )
 target_compile_definitions(${TARGET_NAME} PUBLIC
+  AE_RAW_BALANCER_DEFAULT=$<BOOL:${AE_SUPPORT_RAW_BALANCER}>
   AE_ENABLE_STREAM_HIERARCHY=$<BOOL:${AE_ENABLE_STREAM_HIERARCHY}>
   AE_SUPPORT_ADAPTIVE_DATAGRAM=$<BOOL:${AE_SUPPORT_ADAPTIVE_DATAGRAM}>)
 # collect sources

@@ -1,5 +1,18 @@
 # Shared resource for Raw sends on Windows
 
+To enable build support, place this definition in the SDK configuration header
+selected by `USER_CONFIG`.
+
+```cpp
+#define AE_SUPPORT_RAW_BALANCER 1
+```
+
+For a CMake build, `-DAE_SUPPORT_RAW_BALANCER=ON` sets the default for the SDK
+and consumers linking the `aether` target. An explicit value in `USER_CONFIG`
+takes precedence. The built-in default is off. A disabled build provides the
+ordinary Raw API and its existing send priorities. Enabling build support makes
+`RawSendBinding` available. A stream participates when bound to a resource.
+
 Create one runtime `PrioritySendQueue(context, RawResourceConfig{...})` per
 explicit shared outbound bottleneck. Pass the same shared pointer to each
 participating `P2pStream`, including streams to different UIDs. Supply another
@@ -112,7 +125,7 @@ In PowerShell from the SDK checkout, using MSVC 18, CMake and Python 3:
 
 ```powershell
 $env:CL = '/MP5 /wd4702'
-cmake -S . -B build-raw -G "Visual Studio 18 2026" -A x64 -DAE_ENABLE_STREAM_HIERARCHY=OFF -DAE_SUPPORT_ADAPTIVE_DATAGRAM=OFF -DAE_BUILD_TESTS=ON -DAE_BUILD_TOOLS=OFF -DAE_BUILD_EXAMPLES=OFF -DAE_INSTALL=OFF
+cmake -S . -B build-raw -G "Visual Studio 18 2026" -A x64 -DAE_ENABLE_STREAM_HIERARCHY=OFF -DAE_SUPPORT_ADAPTIVE_DATAGRAM=OFF -DAE_SUPPORT_RAW_BALANCER=ON -DAE_BUILD_TESTS=ON -DAE_BUILD_TOOLS=OFF -DAE_BUILD_EXAMPLES=OFF -DAE_INSTALL=OFF
 cmake --build build-raw --config Debug --target test-peer raw-resource-lab --parallel 3
 ctest --test-dir build-raw -C Debug -R '^test-peer$' --output-on-failure
 New-Item -ItemType Directory -Force measurements | Out-Null

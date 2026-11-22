@@ -69,7 +69,32 @@ endif()
 add_subdirectory(test-presence-api)
 
 if(WIN32)
-  add_subdirectory(raw-resource-lab)
+  # Use the same effective header configuration as the SDK when exposing
+  # the optional lab target. USER_CONFIG can override either CMake default.
+  include(CheckCXXSourceCompiles)
+  function(ae_check_raw_lab)
+    set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+    set(CMAKE_REQUIRED_INCLUDES "${ROOT_DIR}")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${ROOT_DIR}/aether/config.h")
+    if(AE_SUPPORT_RAW_BALANCER)
+      set(CMAKE_REQUIRED_DEFINITIONS -DAE_RAW_BALANCER_DEFAULT=1)
+    endif()
+    if(USER_CONFIG)
+      list(APPEND CMAKE_REQUIRED_DEFINITIONS "-DUSER_CONFIG=\"${USER_CONFIG}\"")
+    endif()
+    unset(AE_CONFIG_USES_RAW_BALANCER CACHE)
+    check_cxx_source_compiles([=[
+      #include "aether/config.h"
+      #if !AE_SUPPORT_RAW_BALANCER
+      #error Raw balancer disabled
+      #endif
+      int main() {}
+    ]=] AE_CONFIG_USES_RAW_BALANCER)
+  endfunction()
+  ae_check_raw_lab()
+  if(AE_CONFIG_USES_RAW_BALANCER)
+    add_subdirectory(raw-resource-lab)
+  endif()
 endif()
 
 if((WIN32 OR UNIX) AND NOT ANDROID AND NOT ESP_PLATFORM AND NOT EMSCRIPTEN)

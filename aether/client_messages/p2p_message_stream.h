@@ -48,19 +48,25 @@ namespace p2p_stream_internal {
 class MessageSendStream;
 }  // namespace p2p_stream_internal
 
+#if AE_SUPPORT_RAW_BALANCER
 struct RawSendBinding {
   std::shared_ptr<PrioritySendQueue> resource;
   unsigned weight{1};
 };
 
+#endif
 class P2pStream final : public ByteIStream {
  public:
   P2pStream(
       AeContext const& ae_context, Ptr<Client> const& client, Uid destination,
       P2pPortHandle handle,
       RequestPolicy::Variant send_request_policy = RequestPolicy::MainServer{},
-      StreamRoutePolicy route_policy = {}, StreamSendPolicy send_policy = {},
-      RawSendBinding binding = {});
+      StreamRoutePolicy route_policy = {},
+#if AE_SUPPORT_RAW_BALANCER
+      StreamSendPolicy send_policy = {}, RawSendBinding binding = {});
+#else
+      StreamSendPolicy send_policy = {});
+#endif
 
   ~P2pStream() override;
 
@@ -72,8 +78,10 @@ class P2pStream final : public ByteIStream {
   OutDataEvent const& out_data_event() override;
   void Restream() override;
 
+#if AE_SUPPORT_RAW_BALANCER
   // Valid for a bound Raw producer. A null return leaves the input untouched.
   WriteAction* TryWriteRaw(DataBuffer&& data);
+#endif
   void WriteOut(DataBuffer const& data);
   Uid const& destination() const;
   struct SendPathTransportView {
@@ -107,8 +115,10 @@ class P2pStream final : public ByteIStream {
   StreamRoutePolicy route_policy_;
   StreamSendPolicy send_policy_;
   bool HasCredit(Client& client) const;
+#if AE_SUPPORT_RAW_BALANCER
   RawSendBinding binding_;
   std::optional<unsigned> raw_flow_;
+#endif
   bool queue_writable_{true};
   Subscription send_writable_sub_;
   std::optional<FailedWriteAction> failed_write_;
@@ -129,6 +139,7 @@ class P2pStream final : public ByteIStream {
   ActionPool<AeContext, PeerWriteAction, 64> peer_writes_;
 };
 
+#if AE_SUPPORT_RAW_BALANCER
 // Receiver half of a dedicated simplex balanced port. Keep this object and
 // the ordinary reverse P2pStream alive while receiving. The returned view
 // expires with the incoming DataBuffer. Receipts themselves are best effort.
@@ -143,6 +154,7 @@ class RawReceiptSink {
   Subscription sending_;
 };
 
+#endif
 }  // namespace ae
 
 #endif  // AETHER_CLIENT_MESSAGES_P2P_MESSAGE_STREAM_H_

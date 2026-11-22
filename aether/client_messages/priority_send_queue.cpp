@@ -11,6 +11,7 @@
 #include "aether/peer/peer_delivery.h"
 #include "aether/tele.h"
 namespace ae {
+#if AE_SUPPORT_RAW_BALANCER
 namespace {
 RawResource::Tick MonotonicUs() {
   return std::chrono::duration_cast<std::chrono::microseconds>(
@@ -18,6 +19,7 @@ RawResource::Tick MonotonicUs() {
       .count();
 }
 }  // namespace
+#endif
 struct PrioritySendQueue::Impl : std::enable_shared_from_this<Impl> {
   struct Entry : WriteAction {
     Entry(AeContext context, void const* tag, SendPriority rank,
@@ -36,8 +38,10 @@ struct PrioritySendQueue::Impl : std::enable_shared_from_this<Impl> {
     std::size_t bytes;
     Dispatch dispatch;
     TimePoint retry{};
+#if AE_SUPPORT_RAW_BALANCER
     unsigned flow{};
     RawResource::Tick expires{};
+#endif
   };
   explicit Impl(AeContext ctx) : context{ctx}, entries{ctx}, writable{ctx} {
     ready.reserve(64);
@@ -56,6 +60,7 @@ struct PrioritySendQueue::Impl : std::enable_shared_from_this<Impl> {
     if (stopped || (active && !raw) || ready.empty()) {
       return;
     }
+#if AE_SUPPORT_RAW_BALANCER
     if (active) {
       // A held lower write must not suspend expiry of the remaining FIFO.
       auto deadline = std::min_element(
@@ -64,6 +69,7 @@ struct PrioritySendQueue::Impl : std::enable_shared_from_this<Impl> {
       when = Now() +
              std::chrono::microseconds{(*deadline)->expires - MonotonicUs()};
     }
+#endif
     if (pump && scheduled <= when) {
       return;
     }
@@ -87,6 +93,7 @@ struct PrioritySendQueue::Impl : std::enable_shared_from_this<Impl> {
     auto now = Now();
     Entry* selected{};
     auto next = TimePoint::max();
+#if AE_SUPPORT_RAW_BALANCER
     std::array<RawHead, 32> heads{};
     std::array<Entry*, 32> by_flow{};
     unsigned count{};
@@ -103,12 +110,14 @@ struct PrioritySendQueue::Impl : std::enable_shared_from_this<Impl> {
         return;
       }
     }
+#endif
     if (active) {
       Schedule(now);
       return;
     }
     for (auto* item : ready) {
       // An unavailable stream keeps its own FIFO, without blocking other UIDs.
+#if AE_SUPPORT_RAW_BALANCER
       if (raw) {
         if (by_flow[item->flow]) {
           continue;
@@ -124,6 +133,7 @@ struct PrioritySendQueue::Impl : std::enable_shared_from_this<Impl> {
         }
         continue;
       }
+#endif
       auto first = std::find_if(
           ready.begin(), ready.end(),
           [&](auto* candidate) { return candidate->owner == item->owner; });
@@ -136,6 +146,7 @@ struct PrioritySendQueue::Impl : std::enable_shared_from_this<Impl> {
         selected = item;
       }
     }
+#if AE_SUPPORT_RAW_BALANCER
     if (raw && count) {
       if (auto id = raw->Choose(std::span{heads}.first(count), tick)) {
         selected = by_flow[*id];
@@ -144,6 +155,7 @@ struct PrioritySendQueue::Impl : std::enable_shared_from_this<Impl> {
             next, now + std::chrono::microseconds{raw->Next(tick) - tick});
       }
     }
+#endif
     if (!selected) {
       Schedule(next);
       return;
@@ -161,9 +173,11 @@ struct PrioritySendQueue::Impl : std::enable_shared_from_this<Impl> {
       Schedule(now);
       return;
     }
+#if AE_SUPPORT_RAW_BALANCER
     if (raw) {
       raw->Sent(selected->flow, static_cast<unsigned>(selected->bytes), tick);
     }
+#endif
     std::erase(ready, selected);
     auto weak = weak_from_this();
     completion =
@@ -196,9 +210,11 @@ struct PrioritySendQueue::Impl : std::enable_shared_from_this<Impl> {
       completion.Reset();
       active = nullptr;
     }
+#if AE_SUPPORT_RAW_BALANCER
     if (raw) {
       raw->Removed(entry->flow, static_cast<unsigned>(entry->bytes));
     }
+#endif
     queued_bytes -= entry->bytes;
     entry->dispatch = {};
     Schedule(Now());
@@ -217,9 +233,11 @@ struct PrioritySendQueue::Impl : std::enable_shared_from_this<Impl> {
       return;
     }
     ready.erase(found);
+#if AE_SUPPORT_RAW_BALANCER
     if (raw) {
       raw->Removed(entry->flow, static_cast<unsigned>(entry->bytes));
     }
+#endif
     queued_bytes -= entry->bytes;
     entry->dispatch = {};
     Schedule(Now());
@@ -244,9 +262,11 @@ struct PrioritySendQueue::Impl : std::enable_shared_from_this<Impl> {
       active = nullptr;
     }
     for (auto* item : cancelled) {
+#if AE_SUPPORT_RAW_BALANCER
       if (raw) {
         raw->Removed(item->flow, static_cast<unsigned>(item->bytes));
       }
+#endif
       queued_bytes -= item->bytes;
       item->dispatch = {};
     }
@@ -256,9 +276,13 @@ struct PrioritySendQueue::Impl : std::enable_shared_from_this<Impl> {
     Schedule(Now());
     NotifyWritable();
   }
+#if AE_SUPPORT_RAW_BALANCER
   std::unique_ptr<RawResource> raw;
   std::array<void const*, 32> owners{};
   std::uint64_t epoch{};
+#else
+  static constexpr bool raw = false;
+#endif
   AeContext context;
   ActionPool<AeContext, Entry, 64> entries;
   std::vector<Entry*> ready;
@@ -278,6 +302,7 @@ void PrioritySendQueue::Impl::Entry::Stop() noexcept {
 }
 PrioritySendQueue::PrioritySendQueue(AeContext context)
     : impl_{std::make_shared<Impl>(context)} {}
+#if AE_SUPPORT_RAW_BALANCER
 PrioritySendQueue::PrioritySendQueue(AeContext context,
                                      RawResourceConfig config)
     : PrioritySendQueue(context) {
@@ -345,6 +370,7 @@ bool PrioritySendQueue::ObserveRawReceipt(unsigned flow, RawReceipt tag) {
   impl_->Schedule(Now());
   return true;
 }
+#endif
 PrioritySendQueue::~PrioritySendQueue() {
   impl_->stopped = true;
   impl_->pump.Reset();

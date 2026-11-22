@@ -1,6 +1,7 @@
 // Copyright 2026 Aethernet Inc. Licensed under the Apache License, Version 2.0.
 #ifndef AETHER_CLIENT_MESSAGES_RAW_SEND_POLICY_H_
 #define AETHER_CLIENT_MESSAGES_RAW_SEND_POLICY_H_
+#include "aether/config.h"
 #include <cstdint>
 #include <optional>
 #include <span>
@@ -19,6 +20,7 @@ struct StreamSendPolicy {
   // Application payload limit; reliable/adaptive wrappers fragment above this.
   std::uint32_t max_packet_bytes{1200};
 };
+#if AE_SUPPORT_RAW_BALANCER
 // All rates are charged bytes/second. Times are monotonic microseconds.
 struct RawResourceConfig {
   unsigned max_flows{32};
@@ -40,5 +42,6 @@ DataBuffer RawAck(RawReceipt tag);
 std::optional<RawReceipt> ReadRawHeader(std::span<std::uint8_t const> frame,
                                         bool ack);
 
+#endif
 }  // namespace ae
 #endif
