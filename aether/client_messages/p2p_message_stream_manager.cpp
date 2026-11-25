@@ -25,7 +25,7 @@
 #include "aether/work_cloud_api/client_api/client_api_safe.h"
 
 #include "aether/client_messages/client_messages_tele.h"
-#include "aether/peer/peer_serialization.h"
+#include "aether/peer/peer_delivery.h"
 #include "aether/peer/peer_transport.h"
 #include "aether/peer/rendezvous_client.h"
 
@@ -93,7 +93,7 @@ void P2pMessageStreamManager::NewMessageReceived(AeMessage const& message,
                                                  PeerRoute route) {
   AETHER_TELED_DEBUG("New message received {}", message.uid);
   PeerDelivery delivery;
-  if (!PeerDecode(message.data, delivery) ||
+  if (!DecodePeerDelivery(message.data, delivery) ||
       !receive_window_.Accept(message.uid, delivery)) {
     return;
   }
@@ -121,9 +121,9 @@ void P2pMessageStreamManager::NewMessageReceived(AeMessage const& message,
 
 DataBuffer P2pMessageStreamManager::Frame(std::uint32_t stream, DataBuffer data,
                                           PeerService service) {
-  return PeerEncode(PeerDelivery{0x31444d41, delivery_epoch_,
-                                 ++delivery_number_, stream, std::move(data),
-                                 service});
+  return EncodePeerDelivery(PeerDelivery{kPeerDeliveryRaw, delivery_epoch_,
+                                        ++delivery_number_, stream,
+                                        std::move(data), service});
 }
 
 void P2pMessageStreamManager::AttachPeer() {

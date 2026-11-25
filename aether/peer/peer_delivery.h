@@ -7,11 +7,14 @@
 #include <utility>
 #include "aether/peer/peer_types.h"
 namespace ae {
+inline constexpr std::uint32_t kPeerDeliveryRaw = 0x31444d41;
+inline constexpr std::uint32_t kPeerDeliveryLz4 = 0x34444d41;
+
 Uid NewPeerDeliveryEpoch();
-// Shared framing for opaque cloud payloads and authenticated direct payloads.
+// The same delivery frame is used for routed and direct peer messages.
 struct PeerDelivery {
   AE_REFLECT_MEMBERS(magic, epoch, number, stream, data, service)
-  std::uint32_t magic{0x31444d41};
+  std::uint32_t magic{kPeerDeliveryRaw};
   Uid epoch{};
   std::uint64_t number{};
   std::uint32_t stream{};
@@ -19,10 +22,14 @@ struct PeerDelivery {
   PeerService service{};
 };
 
+DataBuffer EncodePeerDelivery(PeerDelivery message);
+// Returns the original payload with its original delivery metadata.
+bool DecodePeerDelivery(DataBuffer const& frame, PeerDelivery& output);
+
 class PeerDeliveryWindow {
  public:
   bool Accept(Uid const& sender, PeerDelivery const& message) {
-    if (message.magic != 0x31444d41 || message.epoch.empty() ||
+    if (message.magic != kPeerDeliveryRaw || message.epoch.empty() ||
         message.number == 0) {
       return false;
     }

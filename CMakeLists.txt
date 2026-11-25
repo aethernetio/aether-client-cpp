@@ -112,7 +112,30 @@ endif()
 include(cmake/CPM.cmake)
 
 option(AE_BUILD_LZ4_BLOCK_CODEC "Expose the reusable LZ4 block codec target" OFF)
-if(AE_BUILD_LZ4_BLOCK_CODEC)
+
+# Keep the message codec selectable entirely through USER_CONFIG. Do not
+# fetch or link LZ4 for SDK builds that only send uncompressed messages.
+include(CheckCXXSourceCompiles)
+function(ae_check_message_lz4)
+  set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+  set(CMAKE_REQUIRED_INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}")
+  if(USER_CONFIG)
+    set(CMAKE_REQUIRED_DEFINITIONS "-DUSER_CONFIG=\"${USER_CONFIG}\"")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${USER_CONFIG}")
+  endif()
+  unset(AE_CONFIG_USES_LZ4_MESSAGES CACHE)
+  check_cxx_source_compiles([=[
+    #include "aether/config.h"
+    #if AE_MESSAGE_COMPRESSION != AE_MESSAGE_CODEC_LZ4
+    #error LZ4 is not selected for peer messages
+    #endif
+    int main() {}
+  ]=] AE_CONFIG_USES_LZ4_MESSAGES)
+  set(AE_CONFIG_USES_LZ4_MESSAGES "${AE_CONFIG_USES_LZ4_MESSAGES}" PARENT_SCOPE)
+endfunction()
+
+ae_check_message_lz4()
+if(AE_BUILD_LZ4_BLOCK_CODEC OR AE_CONFIG_USES_LZ4_MESSAGES)
   add_subdirectory(aether/compression)
 endif()
 find_package(Git REQUIRED)
@@ -260,6 +283,9 @@ CPMAddPackage(
 )
 
 add_library(${TARGET_NAME} STATIC )
+if(AE_CONFIG_USES_LZ4_MESSAGES)
+  target_link_libraries(${TARGET_NAME} PRIVATE aether_lz4_block)
+endif()
 target_compile_definitions(${TARGET_NAME} PUBLIC
   AE_RAW_BALANCER_DEFAULT=$<BOOL:${AE_SUPPORT_RAW_BALANCER}>
   AE_ENABLE_STREAM_HIERARCHY=$<BOOL:${AE_ENABLE_STREAM_HIERARCHY}>
@@ -588,7 +614,11 @@ if(AE_INSTALL)
   include(GNUInstallDirs)
 
   # Target installation
-  install(TARGETS ${TARGET_NAME}
+  set(_ae_install_targets ${TARGET_NAME})
+  if(AE_BUILD_LZ4_BLOCK_CODEC OR AE_CONFIG_USES_LZ4_MESSAGES)
+    list(APPEND _ae_install_targets aether_lz4_block)
+  endif()
+  install(TARGETS ${_ae_install_targets}
           EXPORT ${TARGET_NAME}Targets
           ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
           LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

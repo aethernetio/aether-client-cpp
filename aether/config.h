@@ -32,6 +32,11 @@
 #endif
 // IWYU pragma: end_exports
 
+// Compression of application messages sent through the peer delivery stream.
+#ifndef AE_MESSAGE_COMPRESSION
+#  define AE_MESSAGE_COMPRESSION AE_MESSAGE_CODEC_NONE
+#endif
+
 #ifndef AE_ENABLE_STREAM_HIERARCHY
 #  define AE_ENABLE_STREAM_HIERARCHY 1
 #endif

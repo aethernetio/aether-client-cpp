@@ -19,6 +19,7 @@ list(APPEND aether_srcs
             "client_messages/raw_resource.cpp"
             "peer/peer_crypto.cpp"
             "peer/peer_delivery.cpp"
+            "peer/peer_message_codec.cpp"
             "peer/peer_protocol.cpp"
             "peer/peer_udp.cpp"
             "peer/peer_transport.cpp"
