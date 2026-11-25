@@ -110,6 +110,11 @@ if(AE_ADDRESS_SANITIZE)
 endif()
 
 include(cmake/CPM.cmake)
+
+option(AE_BUILD_LZ4_BLOCK_CODEC "Expose the reusable LZ4 block codec target" OFF)
+if(AE_BUILD_LZ4_BLOCK_CODEC)
+  add_subdirectory(aether/compression)
+endif()
 find_package(Git REQUIRED)
 
 # For using CPM.cmake projects with external package managers, such as conan or vcpkg,
