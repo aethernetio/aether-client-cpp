@@ -16,6 +16,7 @@
 
 #include "aether/client_messages/p2p_stream_write_budget.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <optional>
@@ -60,7 +61,8 @@ std::optional<std::size_t> PackedLengthBytes(std::size_t size) {
   return PackedSize{size}.Serialize(bytes);
 }
 
-std::optional<std::size_t> EncodedBytes(std::size_t payload_size) {
+std::optional<std::size_t> EncodedBytes(
+    std::size_t payload_size, std::size_t minimum_encrypt_overhead = 0) {
   // EncodePacket packs SendMessage(destination UID, sized payload), encrypts
   // it with a fixed-size tag/nonce, then packs LoginByAlias(sender UID, sized
   // ciphertext). Count those fields without allocating or encrypting payloads.
@@ -79,7 +81,7 @@ std::optional<std::size_t> EncodedBytes(std::size_t payload_size) {
   auto ciphertext_size = payload_size;
   if (!AddSize(ciphertext_size, sizeof(std::uint8_t) + Uid::kSize) ||
       !AddSize(ciphertext_size, *payload_length) ||
-      !AddSize(ciphertext_size, *overhead)) {
+      !AddSize(ciphertext_size, std::max(*overhead, minimum_encrypt_overhead))) {
     return std::nullopt;
   }
   auto const ciphertext_length = PackedLengthBytes(ciphertext_size);
@@ -94,6 +96,22 @@ std::optional<std::size_t> EncodedBytes(std::size_t payload_size) {
   return encoded_size;
 }
 
+std::size_t MaxPayload(std::size_t datagram_budget_bytes,
+                       std::size_t minimum_encrypt_overhead) {
+  std::size_t lo = 0;
+  std::size_t hi = datagram_budget_bytes;
+  while (lo < hi) {
+    auto const distance = hi - lo;
+    auto const mid = lo + distance / 2 + distance % 2;
+    auto const encoded = EncodedBytes(mid, minimum_encrypt_overhead);
+    if (encoded && *encoded <= datagram_budget_bytes) {
+      lo = mid;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return lo;
+}
 }  // namespace p2p_stream_write_budget_internal
 
 std::size_t EncodedP2pSendMessageDatagramBytesForInnerPayload(
@@ -104,22 +122,16 @@ std::size_t EncodedP2pSendMessageDatagramBytesForInnerPayload(
 
 std::size_t MaxP2pStreamWritePayloadBytesForDatagramBudget(
     std::size_t datagram_budget_bytes) {
-  if (datagram_budget_bytes == 0) {
-    return 0;
-  }
-  std::size_t lo = 0;
-  std::size_t hi = datagram_budget_bytes;
-  while (lo < hi) {
-    auto const distance = hi - lo;
-    auto const mid = lo + distance / 2 + distance % 2;
-    auto const encoded = p2p_stream_write_budget_internal::EncodedBytes(mid);
-    if (encoded && *encoded <= datagram_budget_bytes) {
-      lo = mid;
-    } else {
-      hi = mid - 1;
-    }
-  }
-  return lo;
+  return p2p_stream_write_budget_internal::MaxPayload(datagram_budget_bytes, 0);
+}
+
+std::size_t MaxP2pStreamRelayPayloadBytesForDatagramBudget(
+    std::size_t datagram_budget_bytes) {
+  // Hydrogen's 36-byte tag/header plus an 8-byte message ID is the largest
+  // supported symmetric overhead. The relay replaces LoginByAlias's 16-byte
+  // UID with at most a 2-byte route ID and adds a 1-byte message count.
+  return p2p_stream_write_budget_internal::MaxPayload(datagram_budget_bytes,
+                                                       36 + 8);
 }
 
 std::size_t P2pStreamWritePayloadLimitFromChannelMax(

@@ -30,6 +30,7 @@
 #include "aether/cloud_connections/cloud_subscription.h"
 
 #include "aether/client_messages/client_messages_tele.h"
+#include "aether/client_messages/p2p_stream_write_budget.h"
 #include "aether/peer/peer_serialization.h"
 #include "aether/peer/peer_transport.h"
 
@@ -83,7 +84,18 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
     cloud_connection_->ForServers(
         [&](auto* sc) {
           if (auto* con = sc->client_connection(); con != nullptr) {
-            infos.emplace_back(con->stream_info());
+            auto info = con->stream_info();
+            auto channel = con->server_connection().current_channel();
+            auto endpoint = channel ? channel->endpoint() : std::nullopt;
+            if (endpoint && endpoint->protocol == Protocol::kUdp) {
+              info.max_element_size =
+                  MaxP2pStreamRelayPayloadBytesForDatagramBudget(
+                      info.max_element_size);
+              info.rec_element_size =
+                  MaxP2pStreamRelayPayloadBytesForDatagramBudget(
+                      info.rec_element_size);
+            }
+            infos.emplace_back(info);
           }
         },
         request_policy_);
@@ -637,6 +649,7 @@ P2pStream::SendPathTransportView P2pStream::InspectSendPathTransport() const {
         peer->BestPath(destination_, route_policy_.lan, route_policy_.direct_ip,
                        route_policy_.hole_punching)) {
       view.linked_udp_endpoint = true;
+      view.direct_udp_endpoint = true;
       return view;
     }
   }

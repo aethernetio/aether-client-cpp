@@ -18,6 +18,8 @@
 
 #if SYSTEM_SOCKET_UDP_TRANSPORT_ENABLED
 
+#  include "aether/transport/system_sockets/udp/udp_datagram_limits.h"
+
 namespace ae::upd_internal {
 
 UdpBase::UdpBase(AeContext const& ae_context, AddressPort endpoint)
@@ -29,7 +31,8 @@ UdpBase::UdpBase(AeContext const& ae_context, AddressPort endpoint)
   AETHER_TELE_INFO(kUdpTransport);
   stream_info_.link_state = LinkState::kUnlinked;
   stream_info_.is_reliable = false;
-  stream_info_.max_element_size = std::numeric_limits<std::uint32_t>::max();
+  stream_info_.max_element_size = kCloudUdpDatagramPayloadBytes;
+  stream_info_.rec_element_size = kCloudUdpDatagramPayloadBytes;
 }
 
 UdpBase::StreamUpdateEvent const& UdpBase::stream_update_event() {

@@ -28,6 +28,7 @@
 #include "aether/poller/poller.h"
 
 #include "aether/channels/ethernet_transport_factory.h"
+#include "aether/transport/system_sockets/udp/udp_datagram_limits.h"
 #include "aether/transport/websocket/websocket.h"
 
 #include "aether/tele.h"
@@ -191,8 +192,8 @@ EthernetChannel::EthernetChannel(ObjProp prop, ObjPtr<Aether> aether,
     }
     case Protocol::kUdp: {
       transport_properties_.connection_type = ConnectionType::kConnectionLess;
-      transport_properties_.max_packet_size = 1200;
-      transport_properties_.rec_packet_size = 1200;
+      transport_properties_.max_packet_size = kCloudUdpDatagramPayloadBytes;
+      transport_properties_.rec_packet_size = kCloudUdpDatagramPayloadBytes;
       transport_properties_.reliability = Reliability::kUnreliable;
       break;
     }
@@ -203,6 +204,13 @@ EthernetChannel::EthernetChannel(ObjProp prop, ObjPtr<Aether> aether,
 }
 
 EthernetChannel::~EthernetChannel() = default;
+
+void EthernetChannel::Loaded() {
+  if (address.protocol == Protocol::kUdp) {
+    transport_properties_.max_packet_size = kCloudUdpDatagramPayloadBytes;
+    transport_properties_.rec_packet_size = kCloudUdpDatagramPayloadBytes;
+  }
+}
 
 TransportBuildSender EthernetChannel::TransportBuilder() {
   auto resolver = dns_resolver_.Load();

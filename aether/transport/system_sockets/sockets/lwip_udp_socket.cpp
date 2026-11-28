@@ -22,6 +22,7 @@
 
 #  include "aether-miscpp/misc/defer.h"
 #  include "aether/transport/system_sockets/sockets/get_sock_addr.h"
+#  include "aether/transport/system_sockets/udp/udp_datagram_limits.h"
 
 #  include "aether/tele.h"
 
@@ -29,8 +30,7 @@ namespace ae {
 LwipUdpSocket::LwipUdpSocket(Ptr<IPoller> const& poller)
     : LwipSocket(*poller, MakeSocket()),
       connection_state_{ConnectionState::kNone} {
-  // 1200 is our default MTU for UDP
-  recv_buffer_.resize(1200);
+  recv_buffer_.resize(kCloudUdpReceiveBufferBytes);
 }
 
 int LwipUdpSocket::MakeSocket() noexcept {

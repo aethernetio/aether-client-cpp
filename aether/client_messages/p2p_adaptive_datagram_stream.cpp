@@ -64,10 +64,12 @@ struct P2pAdaptiveDatagramStream::Impl final : ByteIStream {
   StreamInfo stream_info() const override {
     auto const path = p2p.InspectSendPathTransport();
     auto info = path.aggregated;
-    info.max_element_size =
-        P2pStreamWritePayloadLimitFromChannelMax(info.max_element_size);
-    info.rec_element_size =
-        P2pStreamWritePayloadLimitFromChannelMax(info.rec_element_size);
+    if (path.direct_udp_endpoint) {
+      info.max_element_size =
+          P2pStreamWritePayloadLimitFromChannelMax(info.max_element_size);
+      info.rec_element_size =
+          P2pStreamWritePayloadLimitFromChannelMax(info.rec_element_size);
+    }
     if (!IsSupportedSendPath(path)) {
       info.is_writable = false;
       if (info.link_state == LinkState::kLinked) {

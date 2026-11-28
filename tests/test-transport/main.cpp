@@ -21,12 +21,14 @@ void tearDown() {}
 
 extern int test_data_packet_collector();
 extern int test_packet_queue_manager();
+extern int test_udp_datagram();
 extern int test_websocket();
 
 int main() {
   int res = 0;
   res += test_data_packet_collector();
   res += test_packet_queue_manager();
+  res += test_udp_datagram();
   res += test_websocket();
   return res;
 }

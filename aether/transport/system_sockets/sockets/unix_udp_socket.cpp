@@ -25,16 +25,18 @@
 #  include <sys/socket.h>
 #  include <unistd.h>
 
+#  include <cerrno>
+
 #  include "aether-miscpp/misc/defer.h"
 #  include "aether/transport/system_sockets/sockets/get_sock_addr.h"
+#  include "aether/transport/system_sockets/udp/udp_datagram_limits.h"
 
 #  include "aether/tele.h"
 
 namespace ae {
 UnixUdpSocket::UnixUdpSocket(Ptr<IPoller> const& poller)
     : UnixSocket{*poller, MakeSocket()} {
-  // 1200 is our default MTU for UDP
-  recv_buffer_.resize(1200);
+  recv_buffer_.resize(kCloudUdpReceiveBufferBytes);
 }
 
 int UnixUdpSocket::MakeSocket() {
@@ -51,6 +53,22 @@ int UnixUdpSocket::MakeSocket() {
       close(sock);
     }
   };
+
+#  if defined(IP_MTU_DISCOVER) && defined(IP_PMTUDISC_DO)
+  int const dont_fragment = IP_PMTUDISC_DO;
+  if (setsockopt(sock, IPPROTO_IP, IP_MTU_DISCOVER, &dont_fragment,
+                 sizeof(dont_fragment)) != 0) {
+    AETHER_TELED_ERROR("Cannot disable UDP fragmentation {}", errno);
+    return kInvalidDescriptor;
+  }
+#  elif defined(IP_DONTFRAG)
+  int const dont_fragment = 1;
+  if (setsockopt(sock, IPPROTO_IP, IP_DONTFRAG, &dont_fragment,
+                 sizeof(dont_fragment)) != 0) {
+    AETHER_TELED_ERROR("Cannot disable UDP fragmentation {}", errno);
+    return kInvalidDescriptor;
+  }
+#  endif
 
   int send_buffer = AE_SOCKET_SEND_BUFFER_BYTES;
   if (setsockopt(sock, SOL_SOCKET, SO_SNDBUF, &send_buffer,
@@ -89,6 +107,33 @@ ISocket& UnixUdpSocket::Connect(AddressPort const& destination,
 
   connection_state = ConnectionState::kConnected;
   return *this;
+}
+
+std::optional<std::size_t> UnixUdpSocket::Receive(DescriptorType fd,
+                                                 Span<std::uint8_t> buffer) {
+  iovec vec{buffer.data(), buffer.size()};
+  for (;;) {
+    msghdr msg{};
+    msg.msg_iov = &vec;
+    msg.msg_iovlen = 1;
+    auto const size = recvmsg(fd, &msg, 0);
+    if (size < 0) {
+      if (errno == EINTR) {
+        continue;
+      }
+      if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        return 0;
+      }
+      AETHER_TELED_ERROR("UDP recv error {} {}", errno, strerror(errno));
+      return std::nullopt;
+    }
+    // Discard a legacy oversized datagram as a unit. Keep draining the
+    // socket so a following complete datagram still reaches the decoder.
+    if (size == 0 || (msg.msg_flags & MSG_TRUNC) != 0) {
+      continue;
+    }
+    return static_cast<std::size_t>(size);
+  }
 }
 
 }  // namespace ae

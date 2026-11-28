@@ -88,6 +88,7 @@ class P2pStream final : public ByteIStream {
     StreamInfo aggregated{};
     bool linked_udp_endpoint{false};
     bool linked_tcp_endpoint{false};
+    bool direct_udp_endpoint{false};
   };
   SendPathTransportView InspectSendPathTransport() const;
   std::array<TransportStatistics, kPeerRouteCount> statistics() const;

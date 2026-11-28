@@ -31,6 +31,8 @@ class UnixUdpSocket final : public UnixSocket {
                    ConnectedCb connected_cb) override;
 
  private:
+  std::optional<std::size_t> Receive(DescriptorType fd,
+                                     Span<std::uint8_t> buffer) override;
   static int MakeSocket();
 };
 }  // namespace ae

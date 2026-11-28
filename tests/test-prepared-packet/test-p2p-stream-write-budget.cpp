@@ -73,7 +73,8 @@ void test_ExactSizeMatchesRealEncoderAtLengthBoundaries() {
 
 void test_MaximumPayloadFitsRealEncoderAndNextPayloadDoesNot() {
   constexpr std::size_t budgets[]{0,   64,  79,   80,   81,   127,  128,  249,
-                                  250, 251, 1199, 1200, 1500, 1514, 65536};
+                                  250, 251, 1199, 1200, 1400, 1500, 1514,
+                                  65536};
   auto const empty_size = ActualEncodedSize(0);
   for (auto const budget : budgets) {
     auto const payload = MaxP2pStreamWritePayloadBytesForDatagramBudget(budget);
@@ -84,6 +85,14 @@ void test_MaximumPayloadFitsRealEncoderAndNextPayloadDoesNot() {
     TEST_ASSERT_TRUE(ActualEncodedSize(payload) <= budget);
     TEST_ASSERT_TRUE(ActualEncodedSize(payload + 1) > budget);
   }
+}
+
+void test_RelayBudgetAllowsEitherSymmetricEnvelope() {
+  auto const payload = MaxP2pStreamRelayPayloadBytesForDatagramBudget(1400);
+  TEST_ASSERT_EQUAL_UINT(1266, payload);
+  TEST_ASSERT_TRUE(ActualEncodedSize(payload) <= 1400);
+  TEST_ASSERT_EQUAL_UINT(
+      1265, MaxP2pStreamRelayPayloadBytesForDatagramBudget(1399));
 }
 
 void test_TcpMaximumBudgetDoesNotAllocateGigabytePayloads() {
@@ -134,6 +143,8 @@ int test_p2p_stream_write_budget() {
                test_ExactSizeMatchesRealEncoderAtLengthBoundaries);
   RUN_TEST(ae::test_p2p_stream_write_budget::
                test_MaximumPayloadFitsRealEncoderAndNextPayloadDoesNot);
+  RUN_TEST(ae::test_p2p_stream_write_budget::
+               test_RelayBudgetAllowsEitherSymmetricEnvelope);
   RUN_TEST(ae::test_p2p_stream_write_budget::
                test_TcpMaximumBudgetDoesNotAllocateGigabytePayloads);
   RUN_TEST(ae::test_p2p_stream_write_budget::

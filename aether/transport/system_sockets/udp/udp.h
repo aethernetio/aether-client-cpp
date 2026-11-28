@@ -179,7 +179,10 @@ class UdpTransport final : public upd_internal::UdpBase {
   }
 
   WriteAction& Write(DataBuffer&& in_data) override {
-    assert(in_data.size() != 0);
+    // This is the final packet, including all API framing and encryption.
+    if (in_data.empty() || in_data.size() > stream_info_.max_element_size) {
+      return FailedWrite();
+    }
     AETHER_TELE_DEBUG(kUdpTransportSend, "Socket {} send data size:{}",
                       endpoint_, in_data.size());
     auto* send_action =

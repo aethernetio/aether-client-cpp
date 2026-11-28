@@ -33,8 +33,7 @@
 
 namespace ae {
 
-// IOCP recv buffer must hold one complete datagram; cloud servers may aggregate
-// payloads larger than the preferred send size without changing StreamInfo MTU.
+// Keep accepting complete datagrams from older cloud servers during rollout.
 static constexpr std::size_t kWinUdpRecvDatagramBufferBytes = 65536;
 
 WinUdpSocket::WinUdpSocket(Ptr<IPoller> const& poller)
@@ -53,6 +52,14 @@ WinUdpSocket::WinUdpSocket(Ptr<IPoller> const& poller)
       ::closesocket(sock);
     }
   };
+
+  DWORD const dont_fragment = TRUE;
+  if (::setsockopt(sock, IPPROTO_IP, IP_DONTFRAGMENT,
+                   reinterpret_cast<char const*>(&dont_fragment),
+                   sizeof(dont_fragment)) == SOCKET_ERROR) {
+    AETHER_TELED_ERROR("Cannot disable UDP fragmentation {}", WSAGetLastError());
+    return;
+  }
 
   int send_buffer = AE_SOCKET_SEND_BUFFER_BYTES;
   if (::setsockopt(sock, SOL_SOCKET, SO_SNDBUF,

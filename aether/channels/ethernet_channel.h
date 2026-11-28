@@ -41,6 +41,7 @@ class EthernetChannel : public Channel {
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, dns_resolver_, address))
 
+  void Loaded();
   std::optional<Endpoint> endpoint() const override { return address; }
 
   TransportBuildSender TransportBuilder() override;

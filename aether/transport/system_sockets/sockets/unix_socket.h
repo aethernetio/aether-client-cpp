@@ -53,8 +53,8 @@ class UnixSocket : public ISocket {
   void OnWriteEvent();
   void OnErrorEvent();
 
-  std::optional<std::size_t> Receive(DescriptorType fd,
-                                     Span<std::uint8_t> buffer);
+  virtual std::optional<std::size_t> Receive(DescriptorType fd,
+                                             Span<std::uint8_t> buffer);
 
   std::optional<int> GetSocketError(DescriptorType fd);
 

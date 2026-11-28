@@ -30,6 +30,11 @@ inline constexpr std::size_t kP2pStreamWriteBudgetDatagramSizingMax = 4096;
 std::size_t MaxP2pStreamWritePayloadBytesForDatagramBudget(
     std::size_t datagram_budget_bytes);
 
+// Conservative limit for both cloud legs, including a recipient on a
+// different supported symmetric crypto suite.
+std::size_t MaxP2pStreamRelayPayloadBytesForDatagramBudget(
+    std::size_t datagram_budget_bytes);
+
 // Exact wire size for the configured synchronous crypto suite, without payload
 // allocation or encryption. Returns size_t max if the size cannot be encoded.
 std::size_t EncodedP2pSendMessageDatagramBytesForInnerPayload(
